@@ -1,0 +1,98 @@
+{
+ "source": "original pixel art drawn by tools/draw_obstacle_sheet.py (no external art)",
+ "origin": "rect = hit box (src/core/tuning.h); art bottom = box bottom; 1 px ink outline inside the rect",
+ "palette_policy": "merge",
+ "palette": {
+  "ol": "#07060f",
+  "vent": "#5d6584",
+  "ventL": "#8b93b3",
+  "ventD": "#3d4460",
+  "body": "#3b3f55",
+  "bodyL": "#6e7396",
+  "rotor": "#a6acd0",
+  "light": "#ff3355",
+  "lightD": "#8a1d3a",
+  "cable": "#1d1a2b",
+  "cableL": "#4a4468",
+  "cyan": "#48f0ff",
+  "white": "#ffffff",
+  "amber": "#ffd36b",
+  "pink": "#ff3f9a"
+ },
+ "animations": {
+  "vent": [
+   {
+    "x": 0,
+    "y": 0,
+    "w": 32,
+    "h": 24
+   },
+   {
+    "x": 34,
+    "y": 0,
+    "w": 32,
+    "h": 24
+   }
+  ],
+  "cable": [
+   {
+    "x": 0,
+    "y": 26,
+    "w": 48,
+    "h": 16
+   },
+   {
+    "x": 50,
+    "y": 26,
+    "w": 48,
+    "h": 16
+   },
+   {
+    "x": 100,
+    "y": 26,
+    "w": 48,
+    "h": 16
+   }
+  ],
+  "drone": [
+   {
+    "x": 0,
+    "y": 44,
+    "w": 28,
+    "h": 20
+   },
+   {
+    "x": 30,
+    "y": 44,
+    "w": 28,
+    "h": 20
+   },
+   {
+    "x": 60,
+    "y": 44,
+    "w": 28,
+    "h": 20
+   },
+   {
+    "x": 90,
+    "y": 44,
+    "w": 28,
+    "h": 20
+   }
+  ],
+  "bot": [
+   {
+    "x": 0,
+    "y": 66,
+    "w": 28,
+    "h": 28
+   },
+   {
+    "x": 30,
+    "y": 66,
+    "w": 28,
+    "h": 28
+   }
+  ]
+ }
+}

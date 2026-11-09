@@ -1,0 +1,532 @@
+<title>Cabinet Art Directions</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600;700&family=Atkinson+Hyperlegible:wght@400;700&display=swap">
+<style>
+/* Layout: one header, then three direction bands stacked; each band is a 2x2 wall of native 320x224 screens plus its palette strip. Single dark look by choice: arcade screens read best on a dark ground. */
+:root {
+  --bg: #191b26;
+  --panel: #232636;
+  --fg: #e9e7e1;
+  --muted: #a6a7b6;
+  --line: #363a4e;
+  --focus: #f2c14e;
+  --display: "Chakra Petch", "Trebuchet MS", "Segoe UI", sans-serif;
+  --body: "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", sans-serif;
+  color-scheme: dark;
+}
+body { background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 16px; line-height: 1.55; }
+.wrap {
+  max-width: 1320px; margin: 0 auto; display: flex; flex-direction: column; gap: 56px;
+  padding-block: 40px 72px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+header { display: flex; flex-direction: column; gap: 14px; }
+h1 { font-family: var(--display); font-weight: 700; font-size: clamp(2rem, 4.5vw, 3.1rem); line-height: 1.08; margin: 0; text-wrap: balance; }
+header p { margin: 0; max-width: 68ch; color: var(--muted); }
+header p strong { color: var(--fg); }
+.controls { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 6px; }
+button {
+  font: inherit; font-size: 15px; color: var(--fg); background: var(--panel);
+  border: 1px solid var(--line); border-radius: 4px; padding: 8px 14px; cursor: pointer;
+}
+button:hover { border-color: var(--muted); }
+button[aria-pressed="true"] { border-color: var(--focus); color: var(--focus); }
+button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+section.dir { display: flex; flex-direction: column; gap: 18px; border-top: 3px solid var(--tone); padding-top: 22px; }
+.head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 18px; }
+.dir h2 { font-family: var(--display); font-weight: 700; font-size: clamp(1.6rem, 3vw, 2.1rem); margin: 0; color: var(--tone); }
+.letter { font-size: 15px; color: var(--muted); }
+.pitch { margin: 0; max-width: 68ch; }
+.screens { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 500px), 1fr)); gap: 22px; }
+figure { margin: 0; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+canvas { display: block; width: 100%; max-width: 640px; aspect-ratio: 320 / 224; image-rendering: pixelated; image-rendering: crisp-edges; background: #000; }
+figcaption { font-size: 14px; color: var(--muted); max-width: 640px; }
+figcaption b { color: var(--fg); }
+.pals { display: flex; flex-wrap: wrap; gap: 14px 28px; }
+.pal { display: flex; flex-direction: column; gap: 5px; font-size: 13px; color: var(--muted); }
+.pal .count { color: var(--fg); font-variant-numeric: tabular-nums; }
+.pal .over { color: #ff7a6a; }
+.sw { display: flex; }
+.sw i { display: block; width: 13px; height: 18px; }
+.notes { margin: 0; max-width: 68ch; color: var(--muted); font-size: 15px; }
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Cabinet Art Directions</h1>
+    <p>Three looks for the workplace dodger. Every screen below is drawn live at the Neo Geo's native <strong>320 x 224</strong> and shown at 2x. Colours are rounded to the hardware's 5 bits per channel, and each palette stays within the <strong>15 colours plus transparent</strong> that one Neo Geo palette holds. Text sits on the 8 x 8 fix layer grid; logos and characters are sprites. Game names are working titles.</p>
+    <div class="controls">
+      <button id="gridBtn" type="button" aria-pressed="false">Show 16 px sprite grid</button>
+      <button id="playBtn" type="button" aria-pressed="false">Pause animation</button>
+    </div>
+  </header>
+  <div id="dirs" style="display:flex;flex-direction:column;gap:64px"></div>
+  <p class="notes">Hardware notes: the Neo Geo has no alpha blending, so menu panels are solid and the torch glow is a dither. The sprite grid view also marks the 8 px border that many MVS monitors crop, so the HUD stays inside it.</p>
+</div>
+
+<script>
+"use strict";
+const W = 320, H = 224, GY = 176;
+
+/* ---------- colour and drawing helpers ---------- */
+const q5 = v => Math.round(Math.round(v / 255 * 31) * 255 / 31);
+function pal(o) {
+  const p = { _keys: Object.keys(o) };
+  for (const k in o) {
+    const n = parseInt(o[k].slice(1), 16);
+    p[k] = `rgb(${q5(n >> 16 & 255)},${q5(n >> 8 & 255)},${q5(n & 255)})`;
+  }
+  return p;
+}
+const hash = i => (Math.imul((i | 0) + 0x9e37, 2654435761) >>> 0) / 4294967296;
+function R(c, x, y, w, h, col) { c.fillStyle = col; c.fillRect(Math.floor(x), Math.floor(y), Math.ceil(w), Math.ceil(h)); }
+function box(c, x, y, w, h, col) { R(c, x, y, w, 1, col); R(c, x, y + h - 1, w, 1, col); R(c, x, y, 1, h, col); R(c, x + w - 1, y, 1, h, col); }
+function dither(c, x, y, w, h, col) {
+  c._pc = c._pc || {};
+  let p = c._pc[col];
+  if (!p) {
+    const t = document.createElement("canvas"); t.width = t.height = 2;
+    const tc = t.getContext("2d"); tc.fillStyle = col; tc.fillRect(0, 0, 1, 1); tc.fillRect(1, 1, 1, 1);
+    p = c._pc[col] = c.createPattern(t, "repeat");
+  }
+  c.fillStyle = p; c.fillRect(Math.floor(x), Math.floor(y), w, h);
+}
+/* rect sprite: rects are [x,y,w,h,colour,noOutline]; outline pass first, like a 1 px dark border baked into the tiles */
+function spr(c, ox, oy, rects, ol) {
+  if (ol) for (const r of rects) if (r[5] !== 0) R(c, ox + r[0] - 1, oy + r[1] - 1, r[2] + 2, r[3] + 2, ol);
+  for (const r of rects) R(c, ox + r[0], oy + r[1], r[2], r[3], r[4]);
+}
+
+/* ---------- 5x7 font in 8x8 fix-layer cells ---------- */
+const F = {
+  A:[14,17,17,31,17,17,17],B:[30,17,17,30,17,17,30],C:[14,17,16,16,16,17,14],D:[30,17,17,17,17,17,30],
+  E:[31,16,16,30,16,16,31],F:[31,16,16,30,16,16,16],G:[14,17,16,23,17,17,15],H:[17,17,17,31,17,17,17],
+  I:[14,4,4,4,4,4,14],J:[7,2,2,2,2,18,12],K:[17,18,20,24,20,18,17],L:[16,16,16,16,16,16,31],
+  M:[17,27,21,21,17,17,17],N:[17,17,25,21,19,17,17],O:[14,17,17,17,17,17,14],P:[30,17,17,30,16,16,16],
+  Q:[14,17,17,17,21,18,13],R:[30,17,17,30,20,18,17],S:[15,16,16,14,1,1,30],T:[31,4,4,4,4,4,4],
+  U:[17,17,17,17,17,17,14],V:[17,17,17,17,17,10,4],W:[17,17,17,21,21,21,10],X:[17,17,10,4,10,17,17],
+  Y:[17,17,10,4,4,4,4],Z:[31,1,2,4,8,16,31],
+  0:[14,17,19,21,25,17,14],1:[4,12,4,4,4,4,14],2:[14,17,1,2,4,8,31],3:[31,2,4,2,1,17,14],
+  4:[2,6,10,18,31,2,2],5:[31,16,30,1,1,17,14],6:[6,8,16,30,17,17,14],7:[31,1,2,4,8,8,8],
+  8:[14,17,17,14,17,17,14],9:[14,17,17,15,1,2,12],
+  " ":[0,0,0,0,0,0,0],".":[0,0,0,0,0,12,12],"-":[0,0,0,31,0,0,0],":":[0,12,12,0,12,12,0],
+  "!":[4,4,4,4,4,0,4],"+":[0,4,4,31,4,4,0],"_":[0,0,0,0,0,0,31]
+};
+function glyph(c, ch, x, y, col, s, band) {
+  s = s || 1;
+  const g = F[ch] || F[" "];
+  for (let r = 0; r < 7; r++) {
+    const row = g[r]; if (!row) continue;
+    for (let b = 0; b < 5; b++) if (row >> (4 - b) & 1) {
+      const px = x + b * s;
+      let cc = typeof col === "function" ? col(r) : col;
+      if (band && px >= band[0] && px < band[1]) cc = band[2];
+      R(c, px, y + r * s, s, s, cc);
+    }
+  }
+}
+/* fix layer text: cx,cy are 8x8 cell coordinates; the shadow pixel is part of the font tile */
+function text(c, str, cx, cy, col, sh) {
+  str = String(str).toUpperCase();
+  for (let i = 0; i < str.length; i++) {
+    const x = (cx + i) * 8 + 1, y = cy * 8;
+    if (sh) glyph(c, str[i], x + 1, y + 1, sh);
+    glyph(c, str[i], x, y, col);
+  }
+}
+const ctext = (c, str, cy, col, sh) => text(c, str, Math.floor((40 - str.length) / 2), cy, col, sh);
+/* sprite text: free pixel position */
+function stext(c, str, x, y, col, sh) {
+  for (let i = 0; i < str.length; i++) { if (sh) glyph(c, str[i], x + i * 6 + 1, y + 1, sh); glyph(c, str[i], x + i * 6, y, col); }
+}
+function logo(c, str, L, y, s, t) {
+  const cw = 6 * s, wid = str.length * cw - s, x0 = Math.floor((W - wid) / 2);
+  const bx = ((t * 140) % (W + 260)) - 130;
+  const band = [bx, bx + s * 2, L.hl];
+  const offs = [[-2,0],[2,0],[0,-2],[0,2],[-2,-2],[2,2],[-2,2],[2,-2]];
+  for (let i = 0; i < str.length; i++) {
+    const ch = str[i], x = x0 + i * cw;
+    glyph(c, ch, x + s, y + s, L.sh, s);
+    for (const [dx, dy] of offs) glyph(c, ch, x + dx, y + dy, L.ol, s);
+    glyph(c, ch, x, y, r => r < 3 ? L.a : r < 4 ? L.b : L.c, s, band);
+  }
+}
+
+/* ---------- shared player sprite (16x32, feet at +32) ---------- */
+function human(c, x, y, p, kind, f, pose) {
+  const r = [];
+  const A = (a, b, w, h, col, n) => r.push([a, b, w, h, col, n]);
+  const head = (hx, hy) => {
+    if (kind === "neon") { A(hx - 1, hy - 2, 8, 4, p.hood); A(hx - 2, hy, 3, 8, p.hood); }
+    A(hx, hy, 7, 7, p.skin); A(hx, hy + 5, 3, 2, p.skinD);
+    if (kind === "office") { A(hx, hy - 1, 7, 3, p.hair); A(hx - 1, hy, 2, 5, p.hair); A(hx + 5, hy + 3, 1, 1, p.ol); }
+    if (kind === "neon") { A(hx - 1, hy - 2, 8, 3, p.hood); A(hx + 2, hy + 2, 5, 2, p.visor); }
+    if (kind === "cave") { A(hx - 3, hy, 13, 2, p.hat); A(hx, hy - 3, 7, 3, p.hat); A(hx, hy - 1, 7, 1, p.hatBand); A(hx + 5, hy + 3, 1, 1, p.ol); }
+  };
+  if (pose === "duck") {
+    A(3, 26, 11, 4, p.legs); A(3, 28, 11, 2, p.legsD); A(1, 30, 5, 2, p.shoe); A(11, 30, 5, 2, p.shoe);
+    A(4, 19, 9, 7, p.top); A(4, 24, 9, 2, p.topD);
+    if (kind === "cave") A(3, 20, 3, 5, p.satchel);
+    head(9, 13);
+    if (kind === "office") { A(13, 21, 3, 4, p.cup); A(13, 22, 3, 1, p.cupBand); }
+    if (kind === "neon") { A(-8, 27, 6, 1, p.trail, 0); A(-12, 29, 4, 1, p.trail, 0); }
+  } else if (pose === "jump") {
+    A(4, 22, 3, 5, p.legsD); A(3, 27, 4, 2, p.shoe); A(9, 21, 3, 5, p.legs); A(10, 26, 4, 2, p.shoe);
+    A(5, 19, 7, 4, p.legs); A(5, 21, 7, 2, p.legsD);
+    A(3, 8, 2, 6, p.topD); A(5, 9, 7, 10, p.top); A(5, 16, 7, 3, p.topD);
+    if (kind === "office") A(9, 10, 1, 6, p.tie);
+    if (kind === "cave") A(3, 14, 3, 5, p.satchel);
+    A(11, 5, 2, 6, p.top); A(12, 3, 2, 2, p.skin);
+    if (kind === "office") { A(12, 0, 3, 4, p.cup); A(12, 1, 3, 1, p.cupBand); A(13, -3, 1, 2, p.steam, 0); }
+    head(5, 2);
+    if (kind === "neon") { A(-6, 24, 5, 1, p.trail, 0); A(-10, 27, 4, 1, p.trail, 0); }
+  } else {
+    const b = f % 2 ? -1 : 0;
+    const lg = [[4, 7, 10, 6], [6, 7, 8, 6], [10, 7, 4, 6], [7, 7, 6, 6]][f % 4];
+    A(lg[0], 23, 3, lg[1], p.legsD); A(lg[0], 23 + lg[1], 4, 2, p.shoe);
+    A(lg[2], 23, 3, lg[3], p.legs); A(lg[2], 23 + lg[3], 4, 2, p.shoe);
+    A(5, 19 + b, 7, 4, p.legs); A(5, 21 + b, 7, 2, p.legsD);
+    const fwd = f % 2 === 0;
+    A(fwd ? 3 : 10, 11 + b, 2, 5, p.topD);
+    A(5, 9 + b, 7, 10, p.top); A(5, 16 + b, 7, 3, p.topD);
+    if (kind === "office") A(9, 10 + b, 1, 6, p.tie);
+    if (kind === "cave") A(3, 14 + b, 3, 5, p.satchel);
+    if (fwd) {
+      A(11, 10 + b, 2, 6, p.top); A(12, 15 + b, 2, 2, p.skin);
+      if (kind === "office") { A(12, 12 + b, 3, 4, p.cup); A(12, 13 + b, 3, 1, p.cupBand); A(13, 9 + b, 1, 2, p.steam, 0); }
+    } else {
+      A(4, 10 + b, 2, 6, p.top); A(4, 15 + b, 2, 2, p.skin);
+      if (kind === "office") { A(2, 13 + b, 3, 4, p.cup); A(2, 14 + b, 3, 1, p.cupBand); }
+    }
+    head(5, 2 + b);
+    if (kind === "neon") { A(-6, 26, 5, 1, p.trail, 0); A(-10, 29, 4, 1, p.trail, 0); }
+  }
+  spr(c, x, y, r, p.ol);
+}
+
+/* ---------- Direction A: office corridor ---------- */
+const A_BG = pal({ ceil:"#d6dbd5", ceilLine:"#a7afa9", tube:"#f2faff", tubeGlow:"#b9d1da", wall:"#7f9a8c", wallDark:"#66806f",
+  base:"#3c4944", door:"#9b6a43", doorDark:"#6c482c", knob:"#e2c25e", glass:"#9cc3cf", carpet:"#46516a", carpetLine:"#384157", sign:"#2b6b4d" });
+const A_PL = pal({ ol:"#1c1a24", skin:"#f0b98d", skinD:"#c98a63", hair:"#4a2f22", top:"#eef0f2", topD:"#b9c0cc", tie:"#c23b3b",
+  legs:"#2f3a52", legsD:"#222a3d", shoe:"#151518", cup:"#ffffff", cupBand:"#7a4a2a", steam:"#d8e4ec" });
+const A_PR = pal({ ol:"#1c1a24", red:"#c8342e", redD:"#8c1f1f", metal:"#b8bfc9", metalD:"#7a8390", black:"#1b1c22", paper:"#f3f1e8",
+  paperD:"#cdc6b0", env:"#e0b860", coffee:"#5a3218", coffeeL:"#8a5530", shine:"#d9a46a", cup:"#ffffff", cupBand:"#7a4a2a", motion:"#e6e8ea" });
+const A_TX = pal({ sh:"#10131a", hud:"#ffffff", dim:"#c9d3dc", hi:"#ffd24a", accent:"#ff7a45" });
+const A_LG = pal({ ol:"#24130a", sh:"#10131a", a:"#ffe9b0", b:"#f2b347", c:"#c8642a", hl:"#ffffff" });
+
+function bgOffice(c, s) {
+  const p = A_BG;
+  R(c, 0, 0, W, 40, p.ceil);
+  for (let x = -(s % 32); x < W; x += 32) R(c, x, 0, 1, 40, p.ceilLine);
+  R(c, 0, 20, W, 1, p.ceilLine);
+  for (let x = -(s % 96) - 96; x < W + 96; x += 96) { R(c, x + 20, 6, 44, 4, p.tube); R(c, x + 16, 10, 52, 2, p.tubeGlow); }
+  R(c, 0, 39, W, 1, p.base);
+  R(c, 0, 40, W, 90, p.wall); dither(c, 0, 40, W, 4, p.wallDark);
+  R(c, 0, 128, W, 3, p.base); R(c, 0, 131, W, 35, p.wallDark); R(c, 0, 166, W, 10, p.base);
+  const o = s % 160;
+  for (let x = -o - 160; x < W + 160; x += 160) {
+    const idx = Math.round((x + s) / 160);
+    R(c, x + 30, 70, 40, 96, p.doorDark); R(c, x + 32, 72, 36, 94, p.door);
+    R(c, x + 37, 80, 26, 24, p.doorDark); R(c, x + 38, 81, 24, 22, p.glass); dither(c, x + 38, 81, 10, 22, p.tubeGlow);
+    R(c, x + 36, 114, 28, 22, p.doorDark); R(c, x + 37, 115, 26, 20, p.door);
+    R(c, x + 61, 124, 4, 4, p.knob);
+    if (idx % 3 === 0) { R(c, x + 34, 52, 32, 12, p.base); R(c, x + 35, 53, 30, 10, p.sign); stext(c, "EXIT", x + 39, 55, p.tube); }
+    else { R(c, x + 40, 62, 20, 5, p.base); R(c, x + 41, 63, 18, 3, p.ceil); }
+    R(c, x + 100, 86, 36, 26, p.doorDark); R(c, x + 102, 88, 32, 22, p.ceil);
+    R(c, x + 105, 91, 10, 12, p.tube); R(c, x + 118, 90, 12, 8, p.glass); R(c, x + 117, 101, 12, 7, p.knob);
+    R(c, x + 109, 91, 2, 2, p.door); R(c, x + 123, 90, 2, 2, p.sign);
+  }
+  R(c, 0, 176, W, 48, p.carpet); dither(c, 0, 176, W, 4, p.carpetLine); R(c, 0, 200, W, 1, p.carpetLine);
+  for (let x = -(s % 48); x < W; x += 48) R(c, x, 177, 1, 47, p.carpetLine);
+}
+const A_OBS = [
+  { kind: "low", w: 32, wx: 130, draw(c, x) { const p = A_PR;
+    spr(c, x, GY - 24, [[2,4,28,4,p.metal],[0,8,32,10,p.metalD],[2,10,28,6,p.metal],[5,0,9,5,p.paper],[15,-1,8,6,p.env],[24,1,6,4,p.paperD],
+      [29,-4,2,14,p.metalD],[4,18,6,6,p.black],[22,18,6,6,p.black],[6,20,2,2,p.metal],[24,20,2,2,p.metal]], p.ol); } },
+  { kind: "high", w: 24, wx: 250, draw(c, x, t) { const p = A_PR, o = Math.floor(t * 8) % 2, y = GY - 36 + Math.round(Math.sin(t * 9));
+    spr(c, x, y, [[0,8,24,4,p.metalD],[2,o?1:3,21,4,p.red],[2,o?5:7,21,1,p.redD],[20,o?2:4,4,3,p.metal],
+      [28,4,7,1,p.motion,0],[30,8,9,1,p.motion,0],[27,11,5,1,p.motion,0]], p.ol); } },
+  { kind: "floor", w: 28, wx: 360, draw(c, x) { const p = A_PR;
+    spr(c, x, GY - 6, [[2,2,22,3,p.coffee],[0,3,28,3,p.coffee],[5,2,6,1,p.shine],[14,4,6,1,p.coffeeL],[18,-3,9,5,p.cup],[18,-3,2,5,p.cupBand]], p.ol); } }
+];
+function lifeOffice(c, x, y) { const p = A_PL; R(c, x, y + 1, 5, 6, p.cup); R(c, x, y + 3, 5, 1, p.cupBand); R(c, x + 5, y + 2, 2, 3, p.cup); R(c, x + 1, y - 1, 1, 1, p.steam); }
+
+/* ---------- Direction B: neon rooftops ---------- */
+const B_BG = pal({ sky0:"#0d0b24", sky1:"#1c1240", sky2:"#3a1856", sky3:"#6a1f6a", moon:"#f4e8ff", far:"#251b48", farWin:"#5b50a2",
+  mid:"#130e2a", midWin:"#ffd36b", midWin2:"#3ee3e0", roof:"#29233f", roofTop:"#463c6a", roofEdge:"#8a76d6" });
+const B_PL = pal({ ol:"#07060f", skin:"#e8a87c", skinD:"#b9765a", hood:"#26304f", top:"#34467a", topD:"#26304f", visor:"#48f0ff",
+  legs:"#141a2c", legsD:"#0f1322", shoe:"#ff3f9a", trail:"#ff3f9a" });
+const B_PR = pal({ ol:"#07060f", vent:"#5d6584", ventL:"#8b93b3", ventD:"#3d4460", body:"#3b3f55", bodyL:"#6e7396", rotor:"#a6acd0",
+  light:"#ff3355", cable:"#1d1a2b", spark1:"#48f0ff", spark2:"#ffffff", spark3:"#ffd36b" });
+const B_TX = pal({ sh:"#07060f", hud:"#ffffff", dim:"#b9b2ea", hi:"#48f0ff", accent:"#ff3f9a" });
+const B_LG = pal({ ol:"#07060f", sh:"#2a0b3a", a:"#b8fbff", b:"#48f0ff", c:"#ff3f9a", hl:"#ffffff" });
+
+function bgNeon(c, s, t) {
+  const p = B_BG;
+  R(c, 0, 0, W, 52, p.sky0); dither(c, 0, 48, W, 6, p.sky1);
+  R(c, 0, 54, W, 36, p.sky1); dither(c, 0, 86, W, 6, p.sky2);
+  R(c, 0, 92, W, 30, p.sky2); dither(c, 0, 118, W, 6, p.sky3);
+  R(c, 0, 124, W, 52, p.sky3);
+  for (let i = 0; i < 18; i++) R(c, (hash(i * 7) * W) | 0, (hash(i * 11) * 70) | 0, 1, 1, p.farWin);
+  const mx = 252, my = 32, mr = 11;
+  for (let dy = -mr; dy <= mr; dy++) { const w = Math.floor(Math.sqrt(mr * mr - dy * dy)); R(c, mx - w, my + dy, w * 2, 1, p.moon); }
+  R(c, mx - 4, my - 3, 3, 3, p.farWin); R(c, mx + 3, my + 4, 2, 2, p.farWin);
+  const of = s * 0.25;
+  for (let i = Math.floor(of / 28) - 1; i < Math.floor(of / 28) + 13; i++) {
+    const x = i * 28 - of, top = 96 + Math.floor(hash(i) * 46);
+    R(c, x, top, 26, GY - top, p.far);
+    for (let wy = top + 5; wy < GY - 8; wy += 6) for (let wx = 3; wx < 22; wx += 5)
+      if (hash(i * 131 + wy * 7 + wx) > 0.74) R(c, x + wx, wy, 2, 2, p.farWin);
+  }
+  const om = s * 0.55;
+  for (let i = Math.floor(om / 46) - 1; i < Math.floor(om / 46) + 9; i++) {
+    const x = i * 46 - om, top = 112 + Math.floor(hash(i + 77) * 38);
+    R(c, x, top, 40, GY - top, p.mid);
+    if (hash(i + 3) > 0.5) { R(c, x + 18, top - 14, 2, 14, p.mid); if (Math.floor(t * 2 + i) % 2) R(c, x + 18, top - 16, 2, 2, p.midWin2); }
+    if (hash(i + 5) > 0.68) { R(c, x + 5, top + 8, 30, 9, p.sky3); R(c, x + 6, top + 9, 28, 7, p.mid); R(c, x + 8, top + 11, 24, 3, p.midWin2); }
+    for (let wy = top + 22; wy < GY - 6; wy += 7) for (let wx = 4; wx < 36; wx += 6) {
+      const h = hash(i * 977 + wy * 13 + wx);
+      if (h > 0.8) R(c, x + wx, wy, 3, 2, p.midWin); else if (h > 0.75) R(c, x + wx, wy, 3, 2, p.midWin2);
+    }
+  }
+  R(c, 0, GY, W, 48, p.roof); R(c, 0, GY, W, 2, p.roofEdge); R(c, 0, GY + 2, W, 3, p.roofTop);
+  for (let x = -(s % 40); x < W; x += 40) R(c, x, GY + 5, 2, 43, p.roofTop);
+  dither(c, 0, GY + 5, W, 3, p.sky0);
+}
+const B_OBS = [
+  { kind: "low", w: 28, wx: 130, draw(c, x) { const p = B_PR;
+    spr(c, x, GY - 22, [[0,0,28,4,p.ventL],[0,4,28,18,p.vent],[3,7,22,1,p.ventD],[3,10,22,1,p.ventD],[3,13,22,1,p.ventD],[3,16,22,1,p.ventD],[0,4,1,18,p.ventL],[1,20,26,2,p.ventD]], p.ol); } },
+  { kind: "high", w: 26, wx: 250, draw(c, x, t) { const p = B_PR, b = Math.floor(t * 8) % 2, y = GY - 36 + Math.round(Math.sin(t * 5) * 2);
+    spr(c, x, y, [[0,3,26,1,p.bodyL],[8,4,10,5,p.body],[10,5,6,2,p.bodyL],[b?-2:0,1,b?10:6,b?1:2,p.rotor],[b?18:20,1,b?10:6,b?1:2,p.rotor],[12,9,2,2,b?p.light:p.body]], p.ol); } },
+  { kind: "floor", w: 30, wx: 360, draw(c, x, t) { const p = B_PR, k = Math.floor(t * 18);
+    const r = [[0,3,30,2,p.cable],[6,1,2,4,p.cable],[22,1,2,4,p.cable]];
+    const cols = [p.spark1, p.spark2, p.spark3];
+    for (let i = 0; i < 6; i++) { const h = hash(k * 31 + i * 13); if (h > 0.35) r.push([6 + i * 4, -Math.floor(h * 9), h > 0.7 ? 2 : 1, h > 0.7 ? 2 : 1, cols[i % 3], 0]); }
+    spr(c, x, GY - 6, r, p.ol); } }
+];
+function lifeNeon(c, x, y) { const v = B_PL.visor; R(c, x + 2, y, 3, 1, v); R(c, x + 1, y + 1, 5, 1, v); R(c, x, y + 2, 7, 3, v); R(c, x + 1, y + 5, 5, 1, v); R(c, x + 2, y + 6, 3, 1, v); }
+
+/* ---------- Direction C: torch-lit tunnel ---------- */
+const C_BG = pal({ dark:"#140c08", rockD:"#2b1c13", rock:"#4a3122", rockL:"#6e4a30", rockHi:"#a8763f", moss:"#4f5d2a", glow:"#7a3c1a",
+  wood:"#5a3a1e", flame1:"#ffdd66", flame2:"#ff9a2a", flame3:"#e2481c", floor:"#3a281b", floorL:"#5c4029" });
+const C_PL = pal({ ol:"#120b07", skin:"#e6ad80", skinD:"#b47a52", hat:"#8a5a2b", hatBand:"#3b2414", top:"#c9a46a", topD:"#9c7c48",
+  legs:"#4b4a3a", legsD:"#36352a", shoe:"#2a1a10", satchel:"#6b3f1f" });
+const C_PR = pal({ ol:"#120b07", rock:"#6b5a4a", rockL:"#93806b", rockD:"#40352b", dust:"#5c4029", bat:"#2a2238", batL:"#4b3d63",
+  eye:"#ff4a3a", spike:"#c2bcb0", spikeD:"#6c6760", spikeBase:"#3a2f28", flame1:"#ffdd66", flame2:"#ff9a2a" });
+const C_TX = pal({ sh:"#0a0604", hud:"#fff2d8", dim:"#d8bf9c", hi:"#ffcc55", accent:"#ff7a2a" });
+const C_LG = pal({ ol:"#0a0604", sh:"#2b1c13", a:"#ffe6a0", b:"#ffb03a", c:"#d0541c", hl:"#fff6dc" });
+
+function bgCave(c, s, t) {
+  const p = C_BG;
+  R(c, 0, 0, W, H, p.dark);
+  const o = s * 0.5;
+  for (let row = 0; row < 6; row++) {
+    const y = 30 + row * 24, off = (row % 2) * 14;
+    for (let i = Math.floor((o - off) / 28) - 1; i < Math.floor((o - off) / 28) + 13; i++) {
+      const x = i * 28 + off - o, hv = hash(i * 17 + row * 101);
+      if (hv < 0.12) continue;
+      const w = 23 + Math.floor(hv * 4);
+      R(c, x + 2, y + 2, w, 20, p.rockD); R(c, x, y, w, 20, p.rock); R(c, x, y, w, 2, p.rockL); R(c, x, y, 2, 20, p.rockL);
+      if (hv > 0.82) R(c, x + 4, y + 16, 9, 3, p.moss);
+    }
+  }
+  const fr = Math.floor(t * 10) % 3;
+  for (let i = Math.floor(o / 150) - 1; i < Math.floor(o / 150) + 4; i++) {
+    const x = i * 150 + 60 - o, y = 104;
+    dither(c, x - 18, y - 30, 40, 44, p.glow);
+    R(c, x, y, 4, 14, p.wood); R(c, x - 1, y, 6, 2, p.rockD);
+    const h = [9, 11, 8][fr];
+    R(c, x - 1, y - h, 6, h, p.flame3); R(c, x, y - h + 2, 4, h - 3, p.flame2); R(c, x + 1, y - h + 4, 2, h - 6, p.flame1);
+  }
+  R(c, 0, 0, W, 26, p.rockD); R(c, 0, 24, W, 2, p.rock);
+  for (let i = Math.floor(s / 20) - 1; i < Math.floor(s / 20) + 18; i++) {
+    const x = i * 20 - s, len = 4 + Math.floor(hash(i + 900) * 14);
+    R(c, x + 4, 26, 8, Math.ceil(len * 0.4), p.rockD); R(c, x + 6, 26, 4, len, p.rockD); R(c, x + 7, 26, 2, len + 3, p.rockD);
+    R(c, x + 4, 26, 1, Math.ceil(len * 0.4), p.rock);
+  }
+  R(c, 0, GY, W, 48, p.floor); R(c, 0, GY, W, 2, p.floorL); dither(c, 0, GY + 2, W, 3, p.rockD);
+  for (let i = Math.floor(s / 16) - 1; i < Math.floor(s / 16) + 22; i++) if (hash(i + 400) > 0.5) R(c, i * 16 - s, GY + 8 + Math.floor(hash(i + 3) * 36), 3, 2, p.floorL);
+}
+const C_OBS = [
+  { kind: "low", w: 24, wx: 130, draw(c, x, t) { const p = C_PR, k = Math.floor(t * 8) % 4, hl = [[5,4],[15,5],[15,13],[5,13]][k];
+    spr(c, x, GY - 22, [[6,0,12,2,p.rock],[3,2,18,3,p.rock],[1,5,22,12,p.rock],[3,17,18,3,p.rock],[6,20,12,2,p.rock],
+      [12,14,9,5,p.rockD],[2,10,3,6,p.rockD],[hl[0],hl[1],4,3,p.rockL],[25,18,3,2,p.dust,0],[30,20,2,1,p.dust,0]], p.ol); } },
+  { kind: "high", w: 22, wx: 250, draw(c, x, t) { const p = C_PR, up = Math.floor(t * 10) % 2, y = GY - 38 + Math.round(Math.sin(t * 6) * 3);
+    const wings = up ? [[0,0,8,3,p.batL],[14,0,8,3,p.batL],[2,3,6,2,p.bat],[14,3,6,2,p.bat]] : [[0,7,8,3,p.batL],[14,7,8,3,p.batL],[2,5,6,2,p.bat],[14,5,6,2,p.bat]];
+    spr(c, x, y, wings.concat([[8,3,6,7,p.bat],[8,1,2,2,p.bat],[12,1,2,2,p.bat],[9,5,1,1,p.eye],[12,5,1,1,p.eye]]), p.ol); } },
+  { kind: "floor", w: 28, wx: 360, draw(c, x) { const p = C_PR, r = [[0,7,28,3,p.spikeBase]];
+    for (let i = 0; i < 5; i++) { const sx = i * 6 + 1; r.push([sx + 2, 0, 1, 7, p.spike], [sx + 1, 3, 3, 4, p.spike], [sx, 5, 5, 2, p.spikeD]); }
+    spr(c, x, GY - 10, r, p.ol); } }
+];
+function lifeCave(c, x, y) { const p = C_PR; R(c, x + 1, y, 5, 7, p.flame2); R(c, x + 2, y + 2, 3, 4, p.flame1); R(c, x + 3, y - 1, 1, 1, p.flame2); }
+
+/* ---------- direction table ---------- */
+const THEMES = [
+  { key: "A", name: "Coffee Run", tone: "#9cc3cf", kind: "office", bg: bgOffice, pl: A_PL, obs: A_OBS, life: lifeOffice, tx: A_TX, lg: A_LG,
+    panel: [A_BG.base, A_BG.tube, A_BG.tubeGlow], tag: "BEAT THE MORNING RUSH",
+    pitch: "An office worker sprints down the corridor without spilling the coffee. Jump mail carts and coffee spills, duck under flying staplers. The hazards are things every colleague walks past each day.",
+    pals: [["Background", A_BG], ["Player", A_PL], ["Props", A_PR], ["Logo", A_LG], ["Text", A_TX]],
+    cap: "Jump the mail cart, duck the stapler, jump the spill." },
+  { key: "B", name: "Roofline", tone: "#ff6fb5", kind: "neon", bg: bgNeon, pl: B_PL, obs: B_OBS, life: lifeNeon, tx: B_TX, lg: B_LG,
+    panel: [B_BG.sky0, B_BG.roofEdge, B_BG.sky3], tag: "RUN THE CITY AT NIGHT",
+    pitch: "A courier with a glowing visor runs the rooftops at night. Jump vent units and sparking cables, duck under patrol drones. Two parallax skyline layers sell the speed.",
+    pals: [["Background", B_BG], ["Player", B_PL], ["Props", B_PR], ["Logo", B_LG], ["Text", B_TX]],
+    cap: "Jump the vent unit, duck the drone, jump the live cable." },
+  { key: "C", name: "Torchlight", tone: "#ffa24a", kind: "cave", bg: bgCave, pl: C_PL, obs: C_OBS, life: lifeCave, tx: C_TX, lg: C_LG,
+    panel: [C_BG.dark, C_BG.flame2, C_BG.rockL], tag: "OUTRUN THE DARK",
+    pitch: "An explorer runs a torch-lit tunnel. Jump rolling boulders and spike traps, duck under swooping bats. A warm, low palette with dithered torch glow on the rock.",
+    pals: [["Background", C_BG], ["Player", C_PL], ["Props", C_PR], ["Logo", C_LG], ["Text", C_TX]],
+    cap: "Jump the boulder, duck the bat, jump the spikes." }
+];
+
+/* ---------- screens ---------- */
+const pad8 = n => String(n).padStart(8, "0");
+const TABLE = [["ANNIKA",1284550],["MIKAEL",1170020],["SOFIE",1093320],["KRISTOFF",988410],["PETRA",871000],
+  ["OSKAR",760550],["LINNEA",655300],["NIKLAS",543980],["EMMA",432110],["IDA",321900]];
+const ORD = ["1ST","2ND","3RD","4TH","5TH","6TH","7TH","8TH","9TH","10TH"];
+
+function hud(c, th, t) {
+  const T = th.tx;
+  text(c, "SCORE", 2, 1, T.dim, T.sh); text(c, pad8(1093320 + Math.floor(t * 37) * 10), 2, 2, T.hud, T.sh);
+  text(c, "HI", 17, 1, T.dim, T.sh); text(c, pad8(TABLE[0][1]), 17, 2, T.hi, T.sh);
+  text(c, "LIVES", 32, 1, T.dim, T.sh);
+  for (let i = 0; i < 3; i++) th.life(c, 258 + i * 11, 17);
+}
+function panel(c, th) {
+  const [bg, edge, edge2] = th.panel;
+  R(c, 16, 16, 288, 200, edge); R(c, 18, 18, 284, 196, bg); box(c, 21, 21, 278, 190, edge2);
+}
+function sceneTitle(c, th, t) {
+  th.bg(c, t * 24, t);
+  const T = th.tx;
+  logo(c, th.name.toUpperCase(), th.lg, 34, 4, t);
+  ctext(c, th.tag, 10, T.dim, T.sh);
+  if (t % 1.2 < 0.8) ctext(c, "PRESS START", 16, T.hud, T.sh);
+  ctext(c, "HI SCORE  " + TABLE[0][0] + "  " + pad8(TABLE[0][1]), 19, T.hi, T.sh);
+  text(c, "CREDIT 01", 29, 26, T.hud, T.sh);
+  human(c, 26, GY - 32, th.pl, th.kind, Math.floor(t * 10) % 4, "run");
+}
+function sceneGame(c, th, t) {
+  const s = t * 96, L = 360, px = 72;
+  th.bg(c, s, t);
+  let pose = "run", jy = 0, near = -1;
+  const inst = [];
+  for (const o of th.obs) for (let k = -1; k <= 1; k++) {
+    const sx = o.wx - (s % L) + k * L, d = sx - px;
+    if (sx > -60 && sx < W + 40) inst.push([o, sx]);
+    if (o.kind !== "high") {
+      if (d < 56 && d > -o.w - 10) { const ph = (56 - d) / (66 + o.w); jy = Math.round(-Math.sin(ph * Math.PI) * 42); pose = "jump"; }
+    } else {
+      if (d < 30 && d > -o.w - 4 && pose !== "jump") pose = "duck";
+      if (d <= -o.w - 4 && d > -o.w - 64) near = (-o.w - 4 - d) / 60;
+    }
+  }
+  for (const [o, sx] of inst) o.draw(c, Math.round(sx), t);
+  human(c, px, GY - 32 + jy, th.pl, th.kind, Math.floor(t * 12) % 4, pose);
+  if (near >= 0) stext(c, "+500", px - 4, GY - 52 - Math.round(near * 12), th.tx.hi, th.tx.sh);
+  hud(c, th, t);
+}
+function sceneEntry(c, th, t) {
+  th.bg(c, 40, t); panel(c, th);
+  const T = th.tx, blink = t % 0.6 < 0.4;
+  ctext(c, "NEW HIGH SCORE", 5, T.accent, T.sh);
+  ctext(c, "3RD PLACE", 8, T.hud, T.sh);
+  ctext(c, pad8(TABLE[2][1]), 10, T.hi, T.sh);
+  const name = "SOFIE", cur = name.length, AZ = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  const live = AZ[Math.floor(t * 3) % 26];
+  for (let i = 0; i < 8; i++) {
+    const col = 12 + i * 2, ch = i < cur ? name[i] : i === cur ? live : " ";
+    const color = i < cur ? T.hud : i === cur ? (blink ? T.accent : T.hud) : T.dim;
+    text(c, ch, col, 14, color, T.sh);
+    R(c, col * 8 + 1, 15 * 8 + 1, 5, 1, i === cur ? T.accent : T.dim);
+  }
+  const ax = (12 + cur * 2) * 8 + 3;
+  R(c, ax, 13 * 8 + 2, 1, 1, T.accent); R(c, ax - 1, 13 * 8 + 3, 3, 1, T.accent); R(c, ax - 2, 13 * 8 + 4, 5, 1, T.accent);
+  R(c, ax - 2, 16 * 8 + 1, 5, 1, T.accent); R(c, ax - 1, 16 * 8 + 2, 3, 1, T.accent); R(c, ax, 16 * 8 + 3, 1, 1, T.accent);
+  ctext(c, "UP DOWN  CHANGE LETTER", 18, T.dim, T.sh);
+  ctext(c, "A  NEXT     B  BACK   ", 19, T.dim, T.sh);
+  ctext(c, "START  DONE           ", 20, T.dim, T.sh);
+  ctext(c, "TIME " + String(20 - Math.floor(t) % 20).padStart(2, "0"), 23, T.hud, T.sh);
+}
+function sceneTable(c, th, t) {
+  th.bg(c, 40, t); panel(c, th);
+  const T = th.tx, blink = t % 0.6 < 0.4;
+  logo(c, "TOP 10", th.lg, 30, 2, t);
+  for (let i = 0; i < 10; i++) {
+    const row = 7 + i * 2, isNew = i === 2;
+    const col = isNew ? (blink ? T.accent : T.hud) : i < 3 ? T.hi : T.hud;
+    text(c, ORD[i], 7, row, col, T.sh); text(c, TABLE[i][0], 13, row, col, T.sh); text(c, pad8(TABLE[i][1]), 24, row, col, T.sh);
+  }
+}
+const SCENES = [
+  ["Title", sceneTitle, "Attract loop title. Logo is sprites, text is on the fix layer."],
+  ["Gameplay", sceneGame, null],
+  ["Name entry", sceneEntry, "8 letters. Up and down change the letter, A moves on, B goes back, the timer accepts."],
+  ["Top 10", sceneTable, "Shown in the attract loop. The new entry blinks."]
+];
+
+/* ---------- page build ---------- */
+const dirs = document.getElementById("dirs");
+const live = [];
+for (const th of THEMES) {
+  const sec = document.createElement("section");
+  sec.className = "dir"; sec.style.setProperty("--tone", th.tone);
+  sec.innerHTML = `<div class="head"><h2>${th.name}</h2><span class="letter">Direction ${th.key}</span></div><p class="pitch">${th.pitch}</p><div class="screens"></div><div class="pals"></div>`;
+  const scr = sec.querySelector(".screens");
+  for (const [label, fn, cap] of SCENES) {
+    const fig = document.createElement("figure");
+    const cv = document.createElement("canvas"); cv.width = W; cv.height = H;
+    cv.setAttribute("role", "img"); cv.setAttribute("aria-label", `${th.name}, ${label} screen`);
+    const fc = document.createElement("figcaption");
+    fc.innerHTML = `<b>${label}.</b> ${cap || "Auto-play demo. " + th.cap}`;
+    fig.append(cv, fc); scr.append(fig);
+    const c = cv.getContext("2d"); c.imageSmoothingEnabled = false;
+    live.push({ cv, c, fn, th });
+  }
+  const pals = sec.querySelector(".pals");
+  for (const [label, p] of th.pals) {
+    const n = p._keys.length;
+    const d = document.createElement("div"); d.className = "pal";
+    d.innerHTML = `<span>${label} <span class="count${n > 15 ? " over" : ""}">${n} of 15</span></span><span class="sw">${p._keys.map(k => `<i style="background:${p[k]}" title="${k}"></i>`).join("")}</span>`;
+    pals.append(d);
+  }
+  dirs.append(sec);
+}
+
+/* ---------- render loop ---------- */
+let grid = false, tp = 1.3, last = performance.now();
+const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+let paused = reduce;
+const vis = new Set();
+function draw(l) {
+  l.fn(l.c, l.th, tp);
+  if (grid) {
+    l.c.fillStyle = "rgba(255,255,255,0.22)";
+    for (let x = 0; x < W; x += 16) l.c.fillRect(x, 0, 1, H);
+    for (let y = 0; y < H; y += 16) l.c.fillRect(0, y, W, 1);
+    l.c.fillStyle = "rgba(255,80,80,0.9)"; l.c.fillRect(8, 0, 1, H); l.c.fillRect(W - 9, 0, 1, H);
+  }
+}
+live.forEach(draw);
+if ("IntersectionObserver" in window) {
+  const io = new IntersectionObserver(es => { for (const e of es) e.isIntersecting ? vis.add(e.target) : vis.delete(e.target); });
+  live.forEach(l => io.observe(l.cv));
+} else live.forEach(l => vis.add(l.cv));
+function frame(now) {
+  requestAnimationFrame(frame);
+  if (paused) { last = now; return; }
+  if (now - last < 33) return;
+  tp += Math.min(0.1, (now - last) / 1000); last = now;
+  for (const l of live) if (vis.has(l.cv)) draw(l);
+}
+requestAnimationFrame(frame);
+const gridBtn = document.getElementById("gridBtn"), playBtn = document.getElementById("playBtn");
+function syncPlay() { playBtn.textContent = paused ? "Play animation" : "Pause animation"; playBtn.setAttribute("aria-pressed", String(paused)); }
+syncPlay();
+gridBtn.addEventListener("click", () => { grid = !grid; gridBtn.setAttribute("aria-pressed", String(grid)); live.forEach(draw); });
+playBtn.addEventListener("click", () => { paused = !paused; syncPlay(); });
+</script>

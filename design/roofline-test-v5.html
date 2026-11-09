@@ -1,0 +1,852 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Roofline Test v5</title>
+<style>
+/* One 320x224 Neo Geo test screen, scaled with hard pixels. Dark ground so the screen reads like a cabinet monitor. */
+:root {
+  --bg: #08070e;
+  --fg: #a3a1b8;
+  --gutter: 16px;
+}
+* { box-sizing: border-box; }
+html, body { overflow-x: hidden; }
+body {
+  background: var(--bg);
+  color: var(--fg);
+  margin: 0;
+  padding: 24px var(--gutter);
+  font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+.wrap { max-width: 960px; margin: 0 auto; }
+canvas {
+  display: block;
+  width: 100%;
+  max-width: 960px;
+  aspect-ratio: 320 / 224;
+  image-rendering: crisp-edges;
+  image-rendering: pixelated;
+}
+p { margin: 10px 0 0; }
+body.raw { padding: 0; }
+body.raw .wrap { max-width: none; margin: 0; }
+body.raw canvas { width: 960px; max-width: none; }
+body.raw p { display: none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <canvas id="screen" width="320" height="224"></canvas>
+  <p>Roofline v5: glossy cel-shaded night city test. Native 320x224, 5-bit colour, at most 15 colours per 16x16 sprite tile and per 8x8 fix cell.</p>
+  <p>Hero sprites based on Space Police Hero by Master484 (CC-BY 4.0)</p>
+</div>
+<pre id="check" hidden></pre>
+<script>
+'use strict';
+const W = 320, H = 224;
+
+/* ---------- colour: everything rounds to 5 bits per channel ---------- */
+const q5 = v => { const n = Math.max(0, Math.min(31, Math.round(v * 31 / 255))); return (n << 3) | (n >> 2); };
+const hex = h => { const n = parseInt(h.replace('#', ''), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
+const pk = (r, g, b) => (q5(r) << 16) | (q5(g) << 8) | q5(b);
+const C = h => { const [r, g, b] = hex(h); return pk(r, g, b); };
+const un = c => [(c >> 16) & 255, (c >> 8) & 255, c & 255];
+
+/* ---------- layer buffers and flat-shape helpers ---------- */
+class Buf {
+  constructor(name, w, h, ox = 0, oy = 0) { this.name = name; this.w = w; this.h = h; this.ox = ox; this.oy = oy; this.d = new Int32Array(w * h).fill(-1); }
+  set(x, y, c) { x = Math.floor(x); y = Math.floor(y); if (c == null || c < 0 || x < 0 || y < 0 || x >= this.w || y >= this.h) return; this.d[y * this.w + x] = c; }
+  get(x, y) { x = Math.floor(x); y = Math.floor(y); if (x < 0 || y < 0 || x >= this.w || y >= this.h) return -1; return this.d[y * this.w + x]; }
+  rect(x, y, w, h, c) { for (let j = y; j < y + h; j++) for (let i = x; i < x + w; i++) this.set(i, j, c); }
+}
+function stamp(L, x, y, rows, map) {
+  rows.forEach((row, j) => [...row].forEach((ch, i) => { if (ch !== '.' && map[ch] != null) L.set(x + i, y + j, map[ch]); }));
+}
+function disc(L, cx, cy, r, c) {
+  for (let y = Math.floor(cy - r); y <= Math.ceil(cy + r); y++) for (let x = Math.floor(cx - r); x <= Math.ceil(cx + r); x++)
+    if ((x + 0.5 - cx) ** 2 + (y + 0.5 - cy) ** 2 <= r * r) L.set(x, y, c);
+}
+/* bold 1 px outline: every empty pixel touching the shape (8-neighbour) becomes ink */
+function outline(L, c) {
+  const s = L.d.slice();
+  for (let y = 0; y < L.h; y++) for (let x = 0; x < L.w; x++) {
+    if (s[y * L.w + x] >= 0) continue;
+    let hit = false;
+    for (let j = -1; j <= 1 && !hit; j++) for (let i = -1; i <= 1; i++) {
+      const X = x + i, Y = y + j;
+      if (X >= 0 && Y >= 0 && X < L.w && Y < L.h && s[Y * L.w + X] >= 0) { hit = true; break; }
+    }
+    if (hit) L.d[y * L.w + x] = c;
+  }
+}
+function blit(dst, src, x, y) { for (let j = 0; j < src.h; j++) for (let i = 0; i < src.w; i++) { const c = src.d[j * src.w + i]; if (c >= 0) dst.set(x + i, y + j, c); } }
+const swapCase = (rows, a, b) => rows.map(r => [...r].map(ch => ch === a ? b : ch === b ? a : ch).join(''));
+
+/* ---------- per-tile colour budget: check and enforce (hardware: 15 + transparent per tile) ---------- */
+function tileStats(L, ts) {
+  let max = 0, over = 0, tiles = 0;
+  for (let ty = 0; ty < L.h; ty += ts) for (let tx = 0; tx < L.w; tx += ts) {
+    const s = new Set();
+    for (let y = ty; y < Math.min(L.h, ty + ts); y++) for (let x = tx; x < Math.min(L.w, tx + ts); x++) { const c = L.d[y * L.w + x]; if (c >= 0) s.add(c); }
+    if (s.size) tiles++;
+    max = Math.max(max, s.size); if (s.size > 15) over++;
+  }
+  return { tiles, max, over };
+}
+const cdist = (a, b) => { const A = un(a), B = un(b); return (A[0] - B[0]) ** 2 * 2 + (A[1] - B[1]) ** 2 * 4 + (A[2] - B[2]) ** 2 * 3; };
+function enforceTiles(L, ts = 16) {
+  for (let ty = 0; ty < L.h; ty += ts) for (let tx = 0; tx < L.w; tx += ts) {
+    const cnt = new Map();
+    for (let y = ty; y < Math.min(L.h, ty + ts); y++) for (let x = tx; x < Math.min(L.w, tx + ts); x++) { const c = L.d[y * L.w + x]; if (c >= 0) cnt.set(c, (cnt.get(c) || 0) + 1); }
+    if (cnt.size <= 15) continue;
+    let live = [...cnt.entries()].map(([c, n]) => ({ c, n })); const remap = new Map();
+    while (live.length > 15) {
+      let bi = 0, bj = 1, bs = Infinity;
+      for (let i = 0; i < live.length; i++) for (let j = i + 1; j < live.length; j++) { const s = cdist(live[i].c, live[j].c) * Math.min(live[i].n, live[j].n); if (s < bs) { bs = s; bi = i; bj = j; } }
+      const a = live[bi], b = live[bj], keep = a.n >= b.n ? a : b, drop = keep === a ? b : a;
+      keep.n += drop.n; remap.set(drop.c, keep.c); for (const [k, v] of remap) if (v === drop.c) remap.set(k, keep.c);
+      live = live.filter(e => e !== drop);
+    }
+    for (let y = ty; y < Math.min(L.h, ty + ts); y++) for (let x = tx; x < Math.min(L.w, tx + ts); x++) { const i = y * L.w + x, c = L.d[i]; if (remap.has(c)) L.d[i] = remap.get(c); }
+  }
+}
+
+/* ======================================================================
+   PALETTE: cel shading, 3-4 flat steps per material, cool/violet shadows,
+   warm lights, white specular. Background darkest, playfield brightest.
+   ====================================================================== */
+const P = {
+  ink: C('#120a26'), white: C('#ffffff'),
+  sky: C('#1a1238'),
+  star: C('#8a98e8'), starW: C('#e0e8ff'),
+  moonHi: C('#fff6c8'), moon: C('#f8d050'), moonSh: C('#e08a4a'), moonDk: C('#9a4a6e'), moonInk: C('#4a2048'),
+  cloud: C('#34224e'), cloudHi: C('#523a6e'), cloudInk: C('#1e1236'),
+  far: C('#22153a'), farSh: C('#1a1030'), farRim: C('#5a2e72'), farInk: C('#120a22'), farStrip: C('#7a2a6a'), farStripM: C('#a8406e'),
+  mid: C('#28122f'), midSh: C('#1c0c25'), midHi: C('#3c1c48'), midRim: C('#c0508a'), midInk: C('#140a1e'),
+  pipeD: C('#3a1a3a'), pipe: C('#6a2e5a'), pipeHi: C('#b05a8a'),
+  glow: C('#a0287a'), glowCore: C('#f070b0'), warm: C('#b8642a'), warmCore: C('#e0a850'), roofGlow: C('#e04a8a'), roofGlowCore: C('#ffc0dc'),
+  lampOn: C('#ff3a4a'), lampOff: C('#5a1838'),
+  stQ: C('#e0c8d8'), stP: C('#9a7aa0'), stp: C('#5e3e6a'), stv: C('#34203e'),
+  acQ: C('#a8f0e0'), acP: C('#4ab8c0'), acp: C('#2a6a90'), acv: C('#22305e'),
+  redHi: C('#ff9a80'), red: C('#e83a4a'), redSh: C('#8a1e5a'), glass: C('#5ce8ff'),
+  cable: C('#3a3a6a'), cableHi: C('#8a90c8'), copper: C('#ffa848'), sparkY: C('#fff060'), sparkO: C('#ff8a2a'), warn: C('#ffd030'),
+  beam: C('#fff6c0'), beamEdge: C('#f8c858'),
+  navyD: C('#1c1656'), navy: C('#2e3ea6'), navyL: C('#4e82e4'),
+  plq: C('#d4e2f6'), plP: C('#8a9cc8'), plp: C('#4c4a8a'),
+  skinD: C('#b0566a'), skin: C('#f2a476'), skinL: C('#ffd6a8'),
+  goldD: C('#d8861e'), gold: C('#ffd84a'),
+  hudY: C('#ffd040'), hudO: C('#f0802a'), hudW: C('#ffffff'), hudB: C('#7ad6ff'),
+};
+
+/* ======================================================================
+   SKY, STARS, MOON, CLOUD BANDS
+   ====================================================================== */
+function drawSky() { const L = new Buf('sky', W, H); L.rect(0, 0, W, H, P.sky); return L; }
+
+const STARS = [[12, 34, 1], [30, 70, 0], [52, 30, 0], [70, 84, 1], [96, 40, 1], [118, 66, 0], [134, 32, 0], [150, 56, 1], [172, 38, 0], [186, 74, 1], [200, 30, 1], [214, 58, 0], [292, 36, 1], [304, 80, 0], [8, 92, 0], [160, 86, 0]];
+const LAMPS = []; // antenna lamps, filled while the city is drawn, blinked per frame
+function drawLights(f) {
+  const L = new Buf('lights', W, H);
+  STARS.forEach(([x, y, t], k) => {
+    const plus = ((k + (f >> 1)) % 5 === 0) ? !t : t;
+    if (plus) { L.rect(x - 1, y, 3, 1, P.star); L.rect(x, y - 1, 1, 3, P.star); L.set(x, y, P.starW); }
+    else L.set(x, y, P.star);
+  });
+  LAMPS.forEach(([x, y], k) => { const on = ((f >> 1) + k) % 3 !== 0; L.rect(x, y, 2, 2, on ? P.lampOn : P.lampOff); if (on) L.set(x, y, P.white); });
+  return L;
+}
+
+const MX = 258, MY = 54, MR = 21;
+function drawMoon() {
+  const L = new Buf('moon', W, H);
+  disc(L, MX, MY, MR, P.moon);
+  /* hard cel bands that follow the sphere: shade crescent, dark rim crescent, lit cap */
+  for (let y = MY - MR; y <= MY + MR; y++) for (let x = MX - MR; x <= MX + MR; x++) {
+    if (L.get(x, y) < 0) continue;
+    const a = (x + 0.5 - MX + 5) ** 2 + (y + 0.5 - MY + 5) ** 2, b = (x + 0.5 - MX + 9) ** 2 + (y + 0.5 - MY + 9) ** 2;
+    if (b > (MR + 1) ** 2) L.set(x, y, P.moonDk); else if (a > MR * MR) L.set(x, y, P.moonSh);
+    else if ((x + 0.5 - MX + 7) ** 2 + (y + 0.5 - MY + 7) ** 2 < 7 * 7) L.set(x, y, P.moonHi);
+  }
+  [[2, 2, 3.2], [-8, 6, 2.4], [9, -6, 2.2], [4, 11, 1.8]].forEach(([dx, dy, r]) => { disc(L, MX + dx, MY + dy, r, P.moonSh); disc(L, MX + dx + 0.6, MY + dy + 0.6, r - 1, P.moonDk); });
+  L.rect(MX - 11, MY - 13, 3, 2, P.white); L.set(MX - 13, MY - 10, P.white);
+  outline(L, P.moonInk);
+  return L;
+}
+function drawClouds() {
+  /* thin dark cloud bars crossing the moon: flat, one lit top edge */
+  const L = new Buf('clouds', W, H);
+  const bar = (x, y, w, h) => { L.rect(x + 2, y, w - 4, h, P.cloud); L.rect(x, y + 1, w, h - 2, P.cloud); L.rect(x + 3, y, w - 8, 1, P.cloudHi); };
+  bar(216, 62, 58, 5); bar(240, 70, 46, 4); bar(20, 50, 64, 5); bar(44, 58, 40, 4);
+  outline(L, P.cloudInk);
+  return L;
+}
+
+/* ======================================================================
+   PARALLAX: far towers (dark, low contrast) and near tech blocks
+   (panel lines, rivets, pipes, glowing strips, rim light from the moon)
+   ====================================================================== */
+const FAR = [[0, 30, 116, 'flat'], [28, 18, 96, 'spire'], [44, 34, 122, 'step'], [76, 22, 92, 'mast'], [96, 38, 110, 'flat'], [132, 24, 100, 'spire'], [154, 36, 112, 'step'], [188, 26, 96, 'mast'], [212, 36, 118, 'flat'], [246, 22, 104, 'step'], [266, 34, 94, 'mast'], [298, 26, 112, 'flat']];
+function drawFar() {
+  const L = new Buf('far', W, H);
+  FAR.forEach(([x, w, top, roof], b) => {
+    L.rect(x, top, w, H - top, P.far);
+    L.rect(x, top, 3, H - top, P.farSh);
+    if (roof === 'step') { L.rect(x + 4, top - 6, w - 8, 6, P.far); L.rect(x + 4, top - 6, 3, 6, P.farSh); }
+    if (roof === 'spire') for (let k = 0; k < 12; k++) L.rect(x + w / 2 - 1 - Math.floor(k / 4), top - 12 + k, 2 + 2 * Math.floor(k / 4), 1, P.far);
+    if (roof === 'mast') { L.rect(x + w / 2 - 1, top - 14, 2, 14, P.farSh); LAMPS.push([x + w / 2 - 1, top - 16]); }
+    L.rect(x + w - 1, top, 1, H - top, P.farRim);
+    for (let wy = top + 6, j = 0; wy < 184; wy += 7, j++) if ((j + b) % 3 !== 1) L.rect(x + 5, wy, w - 9, 1, (j + b) % 5 === 0 ? P.farStripM : P.farStrip);
+  });
+  outline(L, P.farInk);
+  return L;
+}
+
+const MID = [[-6, 46, 140, 'pipe'], [44, 30, 126, 'mast'], [78, 46, 146, 'pipe'], [128, 32, 132, 'tank'], [164, 40, 150, 'pipe'], [208, 30, 136, 'mast'], [242, 44, 144, 'pipe'], [290, 36, 130, 'tank']];
+function midBuilding(x, w, top, extra, b) {
+  const T = new Buf('t', W, H);
+  T.rect(x, top, w, H - top, P.mid);
+  T.rect(x, top, 4, H - top, P.midSh);                        // shadow face away from the moon
+  T.rect(x - 1, top - 3, w + 2, 3, P.midHi); T.rect(x - 1, top - 3, 4, 3, P.mid); T.rect(x - 1, top - 1, w + 2, 1, P.midSh);
+  T.rect(x + w - 1, top - 3, 1, H - top + 3, P.midRim);      // rim light
+  for (let py = top + 14; py < H; py += 14) {                 // panel seams + rivets
+    T.rect(x + 4, py, w - 5, 1, P.midSh);
+    T.set(x + 6, py + 2, P.midHi); T.set(x + w - 4, py + 2, P.midHi);
+  }
+  for (let wy = top + 5, j = 0; wy + 3 < H; wy += 14, j++) {   // glowing window strips
+    const warm = (j + b) % 4 === 1, off = (j * 3 + b) % 5 === 4;
+    if (off) { T.rect(x + 7, wy, w - 13, 3, P.midSh); continue; }
+    T.rect(x + 7, wy, w - 13, 3, warm ? P.warm : P.glow);
+    T.rect(x + 8, wy + 1, w - 15, 1, warm ? P.warmCore : P.glowCore);
+    T.set(x + 8, wy, warm ? P.warmCore : P.glowCore);
+  }
+  if (extra === 'pipe') {                                      // pipe down the wall with brackets
+    const px = x + w - 8;
+    T.rect(px, top, 3, H - top, P.pipe); T.rect(px, top, 1, H - top, P.pipeD); T.rect(px + 2, top, 1, H - top, P.pipeHi);
+    for (let by = top + 9; by < H; by += 14) T.rect(px - 1, by, 5, 2, P.midSh);
+  }
+  if (extra === 'mast') { T.rect(x + w / 2 - 1, top - 20, 2, 17, P.midSh); T.rect(x + w / 2, top - 20, 1, 17, P.midRim); T.rect(x + w / 2 - 5, top - 13, 10, 1, P.midSh); LAMPS.push([x + w / 2 - 1, top - 23]); }
+  if (extra === 'tank') {
+    const cx = x + w / 2;
+    T.rect(cx - 7, top - 7, 2, 4, P.midSh); T.rect(cx + 5, top - 7, 2, 4, P.midSh);
+    T.rect(cx - 8, top - 16, 16, 9, P.pipe); T.rect(cx - 8, top - 16, 4, 9, P.pipeD); T.rect(cx + 6, top - 16, 2, 9, P.pipeHi);
+    T.rect(cx - 8, top - 12, 16, 1, P.pipeD); T.rect(cx - 6, top - 15, 2, 1, P.pipeHi);
+  }
+  outline(T, P.midInk);
+  return T;
+}
+function drawMid() {
+  const L = new Buf('mid', W, H);
+  MID.forEach(([x, w, top, extra], b) => blit(L, midBuilding(x, w, top, extra, b), 0, 0));
+  return L;
+}
+
+/* ======================================================================
+   FOREGROUND ROOF: glossy steel deck, lit conduit strip, vent slots
+   ====================================================================== */
+const GROUND = 184, LEDGE_END = 296;
+const CAP_TILE = [
+  'KKKKKKKKKKKKKKKK',
+  'QWWQQQQQQQQQQQQQ',
+  'PPPPPPPPPPPPPPPP',
+  'PPQPPPPPPPPPPQPP',
+  'PPPPPPPPPPPPPPPP',
+  'pppppppppppppppp',
+  'vvvvvvvvvvvvvvvv',
+  'KKKKKKKKKKKKKKKK',
+];
+const FACE_A = [
+  'pPPPPPPPPPPPPPPK',
+  'pQPPPPPPPPPPPQPK',
+  'pPPPPPPPPPPPPPPK',
+  'pPPPPPPPPPPPPPPK',
+  'pppppppppppppppK',
+  'KKKKKKKKKKKKKKKK',
+  'vggggggggggggggv',
+  'vgGGGGWGGGGGGGgv',
+  'vggggggggggggggv',
+  'KKKKKKKKKKKKKKKK',
+  'pPPPPPPPPPPPPPPK',
+  'pQPPPPPPPPPPPQPK',
+  'pPPPPPPPPPPPPPPK',
+  'pPPPPPPPPPPPPPPK',
+  'pppppppppppppppK',
+  'vvvvvvvvvvvvvvvK',
+];
+const FACE_B = [
+  'pPPPPPPPPPPPPPPK',
+  'pQPPPPPPPPPPPQPK',
+  'pPPKKKKKKKKKPPPK',
+  'pPPvvvvvvvvvQPPK',
+  'pPPKKKKKKKKKPPPK',
+  'pPPvvvvvvvvvQPPK',
+  'pPPKKKKKKKKKPPPK',
+  'pPPvvvvvvvvvQPPK',
+  'pPPPPPPPPPPPPPPK',
+  'pQPPPPPPPPPPPQPK',
+  'pPPPPPPPPPPPPPPK',
+  'pppppppppppppppK',
+  'vvvvvvvvvvvvvvvK',
+  'KKKKKKKKKKKKKKKK',
+  'vvvvvvvvvvvvvvvK',
+  'vvvvvvvvvvvvvvvK',
+];
+function drawRoof() {
+  const L = new Buf('roof', W, H);
+  const m = { K: P.ink, W: P.white, Q: P.stQ, P: P.stP, p: P.stp, v: P.stv, g: P.roofGlow, G: P.roofGlowCore };
+  for (let x = 0; x < LEDGE_END; x += 16) {
+    stamp(L, x, GROUND, CAP_TILE, m);
+    stamp(L, x, GROUND + 8, FACE_A, m);
+    stamp(L, x, GROUND + 24, FACE_B, m);
+  }
+  L.rect(LEDGE_END, GROUND, 1, H - GROUND, P.ink);              // the drop: dark edge
+  L.rect(LEDGE_END - 1, GROUND + 1, 1, 6, P.stQ);                // rim light on the corner
+  return L;
+}
+
+/* ======================================================================
+   HERO: night guard remixed from "Space Police Hero" by Master484 (CC-BY 4.0,
+   opengameart.org/content/space-police-hero). Original drawing kept; changes:
+   blue armour recoloured to a dark navy uniform (purple shadow, rim light on the
+   upper/right edges), shoulder pads cut down to fabric epaulettes, helmet swapped
+   for a peaked guard cap with a gold badge, gun redrawn as a chunky flashlight
+   (dark tube, wide steel head, bezel, cyan-white lens) held in an overhand cop grip:
+   fist raised by the shoulder, light over the fist, lens forward; free arm swings
+   on the run cycle. 1 px ink outline.
+   One 14-colour palette for every frame.
+   Source sheet slicing and remix: assets/hero/guard_sheet.png/.json.
+   ====================================================================== */
+/* HMAP stays: the HUD life icon stamps with it */
+const HMAP = { K: P.ink, W: P.white, D: P.navyD, N: P.navy, L: P.navyL, q: P.plq, Q: P.plq, P: P.plP, p: P.plp, s: P.skinD, S: P.skin, T: P.skinL, b: P.goldD, B: P.gold, Y: P.beam };
+const GUARD = { K: C('#120a26'), D: C('#201848'), N: C('#283476'), L: C('#3c4ea6'), R: C('#8cacf6'), G: C('#4c4a8a'), A: C('#8a9cc8'), W: C('#d4e2f6'), s: C('#b0566a'), S: C('#f2a476'), b: C('#d8861e'), B: C('#ffd84a'), c: C('#5ce8ff'), Y: C('#f0ffff') };
+const LZ = { 1: C('#2aa8e8'), 2: C('#8af0ff'), 3: C('#ffffff') };   // laser + hit flash: edge, mid, core
+const HERO_FRAMES = [
+  [
+    '..........KKKKKKK.................',
+    '.........KRRRRRRRK............KK..',
+    '........KRNNNNLLLRKKKKKKKKKKKKAAK.',
+    '........KcDDDbBDDDRRKcccccccccGWcK',
+    '........KKDSsKKKKSKKKLAWWWAALNGAYK',
+    '........KKDsSSSSSSKKKNNNNNNNNNGAYK',
+    '........KKKsSSSsSKKKKDKAWWWAKDGAcK',
+    '.....KKKKKGGAAGKKKKKKKKGAAAGKKGGK.',
+    '....KRRRRDKGGAAAAAKKLLRKGAGAGKKK..',
+    '...KRNNNNLKKKKKKKKRNNLRKGGGGGK....',
+    '...KKDDNNNADNNLLLLNDNNLKKDNLRK....',
+    '....KKKKKDWDDNNLLLLKDNNLKDNLRK....',
+    '....KcDDNKAKDDNNNNNKDDNNDNNLRK....',
+    '....KcDNLNKDDNNLLLLRKDDDNNNLRK....',
+    '....KcNNLNKDDNNNLLLRKKKDDDNRK.....',
+    '....KcNNGGKDDDNNNLLRK..KKKKK......',
+    '....KcNGAGKDDDNNNNLRK.............',
+    '....KcGAWAKDDDDNNNLRK.............',
+    '....KKGAAWGKDDDNNNLRK.............',
+    '.....KKGAAGKDDDNNNRK..............',
+    '......KKGGGDDDDDNNRK..............',
+    '.......KKKKKKKKKKKKK..............',
+    '.......KKKKNNNGGGKKK..............',
+    '.......KKDNNLNDGKNRK..............',
+    '.......KcDDNLLNDNLRK..............',
+    '........KcDNNLLNDLRK..............',
+    '.........KcDNNLLNDRK..............',
+    '......KKKKKDDNNNNRK...............',
+    '.....KcccGAAWWAGNRK...............',
+    '.....KcGAAWWWAGGDRK...............',
+    '.....KcGAWWAAAGGGGK...............',
+    '.....KcNGAAAAGGKAGK...............',
+    '.....KcLNGAGGGKAAGK...............',
+    '.....KcLNDGGGKAAGK................',
+    '.....KcNNDGKKAAAGK................',
+    '......KcDDKKGAAAGK................',
+    '......KcDKKGGNLLRK................',
+    '......KKKKGDDDNLLRK...............',
+    '.......KKKDDDDDNNLRK..............',
+    '........KKKKKKKDDDRK..............'
+  ],
+  [
+    '..........KKKKKKK.................',
+    '.........KRRRRRRRK............KK..',
+    '........KRNNNNLLLRKKKKKKKKKKKKAAK.',
+    '........KcDDDbBDDDRRKcccccccccGWcK',
+    '........KKDSsKKKKSKKKLAWWWAALNGAYK',
+    '........KKDsSSSSSSKKKNNNNNNNNNGAYK',
+    '........KKKsSSSsSKKKKDKAWWWAKDGAcK',
+    '.....KKKKKGGAAGKKKKKKKKGAAAGKKGGK.',
+    '....KRRRRDKGGAAAAAKKLLRKGAGAGKKK..',
+    '...KRNNNNLKKKKKKKKRNNLRKGGGGGK....',
+    '...KKDDNNNADNNLLLLNDNNLKKDNLRK....',
+    '....KKKKKDWDDNNLLLLKDNNLKDNLRK....',
+    '....KcDDNKAKDDNNNNNKDDNNDNNLRK....',
+    '...KcDNLNKKDDNNLLLLRKDDDNNNLRK....',
+    '...KcNNLNKKDDNNNLLLRKKKDDDNRK.....',
+    '...KcNNGGKKDDDNNNLLRK..KKKKK......',
+    '...KcNGAGKKDDDNNNNLRK.............',
+    '...KcGAWAKKDDDDNNNLRK.............',
+    '...KKGAAWGKKDDDNNNLRK.............',
+    '....KKGAAGKKDDDNNNRK..............',
+    '.....KKGGGKDDDDDNNRK..............',
+    '.......KKKKKKKKKKKKK..............',
+    '.......KKKKNNNGGGKKK..............',
+    '.......KKDNNLLNNDDRK..............',
+    '.......KcDDDNNLLNNRK..............',
+    '........KKKDDDNNLNRK..............',
+    '.........KcKDDDDNNRK..............',
+    '........KRDDKKDGGGGK..............',
+    '........KcDNNKGAAWAGK.............',
+    '.......KRDNNKGGAWWAGK.............',
+    '.......KcDNNKGGAWWAGK.............',
+    '.......KcGGGKGAAWWAGK.............',
+    '......KcGGAKGGAAAWAGK.............',
+    '......KcGAAKGGANLLRK..............',
+    '.....KcGGAAKDDDNNLLRK.............',
+    '....KcGGAAAAKKDDNNLLRK............',
+    '....KcGGAAAAGKKKDDDDRK............',
+    '....KKDGGAAARKKKKKKKK.............',
+    '.....KKDDNLLRK....................',
+    '.....KKDDDNLLRK...................',
+    '......KKKDNNNRK...................'
+  ],
+  [
+    '..........KKKKKKK.................',
+    '.........KRRRRRRRK............KK..',
+    '........KRNNNNLLLRKKKKKKKKKKKKAAK.',
+    '........KcDDDbBDDDRRKcccccccccGWcK',
+    '........KKDSsKKKKSKKKLAWWWAALNGAYK',
+    '........KKDsSSSSSSKKKNNNNNNNNNGAYK',
+    '........KKKsSSSsSKKKKDKAWWWAKDGAcK',
+    '.....KKKKKGGAAGKKKKKKKKGAAAGKKGGK.',
+    '....KRRRRDKGGAAAAAKKLLRKGAGAGKKK..',
+    '...KRNNNNLKKKKKKKKRNNLRKGGGGGK....',
+    '...KKDDNNNADNNLLLLNDNNLKKDNLRK....',
+    '....KKKKKDWDDNNLLLLKDNNLKDNLRK....',
+    '....KcDDNKAKDDNNNNNKDDNNDNNLRK....',
+    '...KcDNLNKKDDNNLLLLRKDDDNNNLRK....',
+    '...KcNNLNKKDDNNNLLLRKKKDDDNRK.....',
+    '..KcNNGGKKKDDDNNNLLRK..KKKKK......',
+    '..KcNGAGKKKDDDNNNNLRK.............',
+    '..KcGAWAKKKDDDDNNNLRK.............',
+    '..KKGAAWGKKKDDDNNNLRK.............',
+    '...KKGAAGKKKDDDNNNRK..............',
+    '....KKGGGKKDDDDDNNRK..............',
+    '.......KKKKKKKKKKKKK..............',
+    '.......KKKKKKGGGGKKK..............',
+    '.......KKDDNNKGGKDRK..............',
+    '.......KcDDNLNKKDDRK..............',
+    '.......KKDDNLLNKDNRK..............',
+    '...KKKKGGDDDNLNDDRK...............',
+    '..KccccAAADDNLLNDRK...............',
+    '..KcGAAAAADDDNLNRK................',
+    '..KcGAAAAADDDNNNRK................',
+    '..KcNGAAAAADDGGGGK................',
+    '..KcLNGAGGGDGAWAGK................',
+    '..KcLNDGGGGGGAWWAGK...............',
+    '..KcNNDGGGKGGAAWAGK...............',
+    '...KcDDKKKKGGGAAWAGK..............',
+    '...KcDKK...KcGAAAWAcK.............',
+    '...KKKK....KcGGANLLRK.............',
+    '....KK.....KcGDDNNLLRK............',
+    '...........KcDDDDNNLLRK...........',
+    '...........KKKKKKDDDDRK...........'
+  ],
+  [
+    '..........KKKKKKK.................',
+    '.........KRRRRRRRK............KK..',
+    '........KRNNNNLLLRKKKKKKKKKKKKAAK.',
+    '........KcDDDbBDDDRRKcccccccccGWcK',
+    '........KKDSsKKKKSKKKLAWWWAALNGAYK',
+    '........KKDsSSSSSSKKKNNNNNNNNNGAYK',
+    '........KKKsSSSsSKKKKDKAWWWAKDGAcK',
+    '.....KKKKKGGAAGKKKKKKKKGAAAGKKGGK.',
+    '....KRRRRDKGGAAAAAKKLLRKGAGAGKKK..',
+    '...KRNNNNLKKKKKKKKRNNLRKGGGGGK....',
+    '...KKDDNNNADNNLLLLNDNNLKKDNLRK....',
+    '....KKKKKDWDDNNLLLLKDNNLKDNLRK....',
+    '....KcDDNKAKDDNNNNNKDDNNDNNLRK....',
+    '...KcDNLNKKDDNNLLLLRKDDDNNNLRK....',
+    '...KcNNLNKKDDNNNLLLRKKKDDDNRK.....',
+    '..KcNNGGKKKDDDNNNLLRK..KKKKK......',
+    '..KcNGAGKKKDDDNNNNLRK.............',
+    '..KcGAWAKKKDDDDNNNLRK.............',
+    '..KKGAAWGKKKDDDNNNLRK.............',
+    '...KKGAAGKKKDDDNNNRK..............',
+    '....KKGGGKKDDDDDNNRK..............',
+    '.......KKKKKKKKKKKKK..............',
+    '.......KKKKKKGGGGKKK..............',
+    '.......KcDDNKKGGKNRK..............',
+    '.......KcDDNNKKKNNNRK.............',
+    '.......KcDDNLNKKNNLRK.............',
+    '.......KcDNNLNDDDNLLRK............',
+    '.......KcDNLLNDDDNNLRK............',
+    '......KRDDNLRKKDDDNLLRK...........',
+    '......KcDDNLRKKGGGNNLRK...........',
+    '......KcGGGGNGGAAAGNNRK...........',
+    '......KcGAWAGAAAAAAGRK............',
+    '......KcGAWWAGAAAAGGK.............',
+    '......KcGAAWAGAAGGGGK.............',
+    '......KcGAAWAGGGGGGK..............',
+    '.....KcGGAAWAGGGGKK...............',
+    '.....KcGGANLLNGKK.................',
+    '.....KcGDDNNLLRK..................',
+    '.....KcDDDDNNLLRK.................',
+    '.....KKKKKKDDDDRK.................'
+  ],
+  [
+    '..........KKKKKKK.................',
+    '.........KRRRRRRRK............KK..',
+    '........KRNNNNLLLRKKKKKKKKKKKKAAK.',
+    '........KcDDDbBDDDRRKcccccccccGWcK',
+    '........KKDSsKKKKSKKKLAWWWAALNGAYK',
+    '........KKDsSSSSSSKKKNNNNNNNNNGAYK',
+    '........KKKsSSSsSKKKKDKAWWWAKDGAcK',
+    '.....KKKKKGGAAGKKKKKKKKGAAAGKKGGK.',
+    '....KRRRRDKGGAAAAAKKLLRKGAGAGKKK..',
+    '...KRNNNNLKKKKKKKKRNNLRKGGGGGK....',
+    '...KKDDNNNADNNLLLLNDNNLKKDNLRK....',
+    '....KKKKKDWDDNNLLLLKDNNLKDNLRK....',
+    '....KcDDNKAKDDNNNNNKDDNNDNNLRK....',
+    '...KcDNLNKKDDNNLLLLRKDDDNNNLRK....',
+    '...KcNNLNKKDDNNNLLLRKKKDDDNRK.....',
+    '...KcNNGGKKDDDNNNLLRK..KKKKK......',
+    '...KcNGAGKKDDDNNNNLRK.............',
+    '...KcGAWAKKDDDDNNNLRK.............',
+    '...KKGAAWGKKDDDNNNLRK.............',
+    '....KKGAAGKKDDDNNNRK..............',
+    '.....KKGGGKDDDDDNNRK..............',
+    '.......KKKKKKKKKKKKK..............',
+    '.......KKKKKKGGGGKKKK.............',
+    '.......KcDDNKKGGKNNRRKK...........',
+    '.......KcDDNNKKKNNLNNRRK..........',
+    '.......KcDNNLNKKDDNNLLLRK.........',
+    '......KRDDNLLNDDDDDDNNLRK.........',
+    '......KcDDNLRKKDDDDDDGGRK.........',
+    '......KcDNLLRK.KKDDGGAAGK.........',
+    '.....KRDDNLNRK...KcGAAAGK.........',
+    '.....KcDGGNRK....KcGAWAGK.........',
+    '.....KcGAAGRK...KcGGAWAGK.........',
+    '.....KcGAWAGK...KcGAAWAGK.........',
+    '....KcGAAWAGK..KcGGAAWAGK.........',
+    '....KcGAAWAGK..KcGGDDNNGK.........',
+    '...KcGGAAWAGK...KcDDNLNRK.........',
+    '...KcGGAAAAGK....KcDNNLLRK........',
+    '...KcGDDNLLRK.....KKDDNLRK........',
+    '...KcDDDDNLLRK......KKDDRK........',
+    '....KKKDDNNLLRK.......KKK.........',
+    '.....KKKKDDDDRK...................'
+  ],
+  [
+    '..........KKKKKKK.................',
+    '.........KRRRRRRRK............KK..',
+    '........KRNNNNLLLRKKKKKKKKKKKKAAK.',
+    '........KcDDDbBDDDRRKcccccccccGWcK',
+    '........KKDSsKKKKSKKKLAWWWAALNGAYK',
+    '........KKDsSSSSSSKKKNNNNNNNNNGAYK',
+    '........KKKsSSSsSKKKKDKAWWWAKDGAcK',
+    '.....KKKKKGGAAGKKKKKKKKGAAAGKKGGK.',
+    '....KRRRRDKGGAAAAAKKLLRKGAGAGKKK..',
+    '...KRNNNNLKKKKKKKKRNNLRKGGGGGK....',
+    '...KKDDNNNADNNLLLLNDNNLKKDNLRK....',
+    '....KKKKKDWDDNNLLLLKDNNLKDNLRK....',
+    '....KcDDNKAKDDNNNNNKDDNNDNNLRK....',
+    '....KcDNLNKDDNNLLLLRKDDDNNNLRK....',
+    '....KcNNLNKDDNNNLLLRKKKDDDNRK.....',
+    '....KcNNGGKDDDNNNLLRK..KKKKK......',
+    '....KcNGAGKDDDNNNNLRK.............',
+    '....KcGAWAKDDDDNNNLRK.............',
+    '....KKGAAWGKDDDNNNLRK.............',
+    '.....KKGAAGKDDDNNNRK..............',
+    '......KKGGGDDDDDNNRK..............',
+    '.......KKKKKKKKKKKKK..............',
+    '.......KKKKKKGGGGKKK..............',
+    '.......KcDNKKKGGKDNRK.............',
+    '.......KcDNNNKKKDNLLRK............',
+    '.......KcDNNLNKKDNNLLRK...........',
+    '.......KcDNNLRKDDNNLLLRK..........',
+    '..KKKKKKDNNNLRKKDDNNLLRK..........',
+    '.KcccccGGNNLLRK.KcDNNLNRK.........',
+    '.KcGAAAAAGLLLRK.KcDDNNNRK.........',
+    '.KcGAAAWWAGLLRK..KcDGGGGK.........',
+    '.KcNGAWWAAAGNRK..KcGAWAGK.........',
+    '.KcLNGAAAGGGRK...KcGAWWAGK........',
+    '.KcLNDGGGGGGK....KcGAAWAGK........',
+    '.KcNDDGGGGKK.....KcGAAWWAGK.......',
+    '.KcDDKGGKK.......KcGAAAWAGK.......',
+    '.KcDKKKK.........KcGGANLLRK.......',
+    '.KKKK............KcGDDNNLLRK......',
+    '..KK.............KcDDDDNNLLRK.....',
+    '.................KKKKKKDDDDRK.....'
+  ]
+];
+const HERO_RECOIL = [
+  [
+    '..........KKKKKKK.................',
+    '.........KRRRRRRRK...........KK...',
+    '........KRNNNNLLLRKKKKKKKKKKKAAK..',
+    '........KcDDDbBDDDRRcccccccccGWcK.',
+    '........KKDSsKKKKSKKLAWWWAALNGcYK.',
+    '........KKDsSSSSSSKKNNNNNNNNNGcYK.',
+    '........KKKsSSSsSKKKDKAWWWAKDGAcK.',
+    '.....KKKKKGGAAGKKKKKKKGAAAGKKGGK..',
+    '....KRRRRDKGGAAAAAKKLLRKGAGAGKKK..',
+    '...KRNNNNLKKKKKKKKRNNLRKGGGGGK....',
+    '...KKDDNNNADNNLLLLNDNNLKKDNLRK....',
+    '....KKKKKDWDDNNLLLLKDNNLKDNLRK....',
+    '....KcDDNKAKDDNNNNNKDDNNDNNLRK....',
+    '...KcDNLNKKDDNNLLLLRKDDDNNNLRK....',
+    '...KcNNLNKKDDNNNLLLRKKKDDDNRK.....',
+    '..KcNNGGKKKDDDNNNLLRK..KKKKK......',
+    '..KcNGAGKKKDDDNNNNLRK.............',
+    '..KcGAWAKKKDDDDNNNLRK.............',
+    '..KKGAAWGKKKDDDNNNLRK.............',
+    '...KKGAAGKKKDDDNNNRK..............',
+    '....KKGGGKKDDDDDNNRK..............',
+    '......KKKKKKKKKKKKKK..............',
+    '.......KKKKKKGGGGKKK..............',
+    '.......KKDDNNKGGKDRK..............',
+    '.......KcDDNLNKKDDRK..............',
+    '.......KKDDNLLNKDNRK..............',
+    '...KKKKGGDDDNLNDDRK...............',
+    '..KccccAAADDNLLNDRK...............',
+    '..KcGAAAAADDDNLNRK................',
+    '..KcGAAAAADDDNNNRK................',
+    '..KcNGAAAAADDGGGGK................',
+    '..KcLNGAGGGDGAWAGK................',
+    '..KcLNDGGGGGGAWWAGK...............',
+    '..KcNNDGGGKGGAAWAGK...............',
+    '...KcDDKKKKGGGAAWAGK..............',
+    '...KcDKK...KcGAAAWAcK.............',
+    '...KKKK....KcGGANLLRK.............',
+    '....KK.....KcGDDNNLLRK............',
+    '...........KcDDDDNNLLRK...........',
+    '...........KKKKKKDDDDRK...........'
+  ]
+][0];   // gun-recoil twin of run frame 2 (same legs)
+const HIT_FLASH = [
+  [
+    '.............',
+    '.............',
+    '.............',
+    '.............',
+    '......3......',
+    '.....323.....',
+    '....33333....',
+    '.....323.....',
+    '......3......',
+    '.............',
+    '.............',
+    '.............',
+    '.............'
+  ],
+  [
+    '.............',
+    '......2......',
+    '......3......',
+    '...1..3..1...',
+    '....2333.2...',
+    '....33333....',
+    '.2333333333.2',
+    '....33333....',
+    '....23332....',
+    '...1..3..1...',
+    '......3......',
+    '......2......',
+    '.............'
+  ],
+  [
+    '......1......',
+    '..1...2...1..',
+    '...2.....2...',
+    '....1...1....',
+    '.....222.....',
+    '1.2.2...2.2.1',
+    '....2...2....',
+    '.....222.....',
+    '....1...1....',
+    '...2.....2...',
+    '..1...2...1..',
+    '......1......',
+    '.............'
+  ],
+  [
+    '......1......',
+    '.1.........1.',
+    '.............',
+    '.............',
+    '..1.......1..',
+    '.............',
+    '1...........1',
+    '.............',
+    '..1.......1..',
+    '.............',
+    '.............',
+    '.1.........1.',
+    '......1......'
+  ]
+];
+const HERO_X = 28, HW = 34, HH = 40;            // feet on buffer row HH-1
+const FIRE = 2;                                   // run frame that fires; laser on FIRE and FIRE+1, hit flash FIRE..FIRE+3
+function heroFrame(f) {
+  const L = new Buf('hero', HW, HH), map = f === FIRE ? HERO_RECOIL : HERO_FRAMES[f];
+  stamp(L, 0, 0, map, GUARD);
+  L.ox = HERO_X; L.oy = GROUND - HH;
+  const ys = map.flatMap((row, i) => row.includes('Y') ? [i] : []), r = ys[ys.length >> 1];   // middle of the lens
+  L.lens = { x: L.ox + map[r].indexOf('Y') + 1, y: L.oy + r };
+  return L;
+}
+const HIT_AT = { x: 268, y: 144 };                // impact point: the drone's glass eye under the hull
+/* laser from the lens to the drone: white core, cyan mid, blue edge; second frame thins out.
+   Climbs in clean 1:n steps (equal runs, half runs at both ends) and ends exactly on HIT_AT.y */
+function drawLaser(f, x0, y0) {
+  const L = new Buf('laser', W, H), k = f % 6 - FIRE;
+  if (k < 0 || k > 1) return L;
+  const dy = Math.max(1, y0 - HIT_AT.y), n = Math.round((HIT_AT.x - x0) / dy), len = n * dy, h = n >> 1;
+  for (let d = 0; d <= len; d++) {
+    const y = y0 - Math.min(dy, Math.floor((d + h) / n)), w = d < 3 ? 1 : k === 0 ? 2 : 1;
+    for (let j = -w; j <= w; j++) L.set(x0 + d, y + j, Math.abs(j) === w ? LZ[1] : j === 0 ? LZ[3] : LZ[2]);
+    if (k === 1 && d % 2) L.set(x0 + d, y, LZ[2]);
+  }
+  return L;
+}
+function drawHit(f) {
+  const L = new Buf('hitflash', 13, 13), k = f % 6 - FIRE;
+  if (k >= 0 && k < 4) stamp(L, 0, 0, HIT_FLASH[k], LZ);
+  L.ox = HIT_AT.x - 6; L.oy = HIT_AT.y - 6;
+  return L;
+}
+
+/* ======================================================================
+   HAZARDS: vent unit (jump), live cable (jump), patrol drone (duck)
+   ====================================================================== */
+function drawAC(f) {
+  const L = new Buf('ac', 36, 28), x = 2, y = 2;
+  L.rect(x, y, 32, 21, P.acP);
+  L.rect(x, y, 4, 21, P.acp);                                                        // shadow side
+  L.rect(x, y, 32, 3, P.acQ); L.rect(x, y, 4, 3, P.acP); L.rect(x, y + 3, 32, 1, P.acv); // glossy lid
+  L.rect(x + 6, y, 12, 1, P.white); L.rect(x + 20, y + 1, 3, 1, P.white);
+  L.rect(x + 31, y, 1, 21, P.acQ);                                                   // rim light
+  L.rect(x + 3, y + 21, 4, 2, P.acv); L.rect(x + 25, y + 21, 4, 2, P.acv);
+  disc(L, x + 13, y + 13, 7.5, P.ink); disc(L, x + 13, y + 13, 6.5, P.acv);
+  const cx = x + 12, cy = y + 12;
+  if (f % 2 === 0) { L.rect(cx - 4, cy, 10, 2, P.acp); L.rect(cx, cy - 4, 2, 10, P.acp); L.rect(cx + 2, cy, 4, 1, P.acQ); }
+  else for (let k = -4; k <= 4; k++) { L.rect(cx + k, cy + k, 2, 2, P.acp); L.rect(cx + k, cy - k, 2, 2, P.acp); }
+  L.rect(cx, cy, 2, 2, P.acQ); L.set(cx + 1, cy, P.white);
+  for (let k = 0; k < 5; k++) { L.rect(x + 22, y + 6 + k * 3, 7, 1, P.acv); L.rect(x + 22, y + 7 + k * 3, 7, 1, P.acQ); }
+  [[x + 6, y + 5], [x + 6, y + 19], [x + 28, y + 5], [x + 28, y + 19]].forEach(([a, b]) => { L.set(a, b, P.acQ); L.set(a + 1, b + 1, P.acv); });
+  outline(L, P.ink);
+  L.ox = 186; L.oy = GROUND - 1 - 25;
+  return L;
+}
+const SPARK = [
+  ['...Y...', '...Y...', '..YWY..', 'YYWWWYY', '..YWY..', '...Y...', '...Y...'],
+  ['.O...O.', '..Y.Y..', '...W...', '..YWY..', '...W...', '..Y.Y..', '.O...O.'],
+  ['...O...', '.Y.Y.Y.', '..YWY..', 'OYWWWYO', '..YWY..', '.Y.Y.Y.', '...O...'],
+];
+function drawCable(f) {
+  const L = new Buf('cable', 52, 26);
+  L.rect(1, 10, 10, 13, P.stP); L.rect(1, 10, 3, 13, P.stp); L.rect(10, 10, 1, 13, P.stQ); L.rect(4, 10, 6, 1, P.stQ); L.set(5, 10, P.white);
+  stamp(L, 4, 14, ['.YY.', 'YKKY', 'YYYY'], { Y: P.warn, K: P.ink });
+  const path = [[11, 19], [14, 20], [18, 21], [22, 21], [26, 20], [30, 20], [34, 21], [37, 21]];
+  for (let k = 0; k < path.length - 1; k++) for (let x = path[k][0]; x < path[k + 1][0]; x++) { L.rect(x, path[k][1], 1, 2, P.cable); L.set(x, path[k][1], P.cableHi); }
+  L.rect(37, 20, 3, 2, P.copper);
+  outline(L, P.ink);
+  stamp(L, 38, 13, SPARK[f % 3], { Y: P.sparkY, W: P.white, O: P.sparkO });
+  L.ox = 124; L.oy = GROUND - 23;
+  return L;
+}
+const DRONE = [
+  '...........KLLK...........',
+  '........rRRRRRHHHH........',
+  '......rRRRRRRRHWWHH.......',
+  '.pPPPprRRRRRRRRRHHRPPPPQ..',
+  '.pppppsrRRRRRRRRRRRppppp..',
+  '......ssrrrrrrrrrrrr......',
+  '.......ssrKKKKKKrrr.......',
+  '.........KEEWEEK..........',
+  '..........KEEEK...........',
+];
+function drawDrone(f) {
+  const L = new Buf('drone', 30, 18);
+  const on = f % 4 < 2;
+  stamp(L, 2, 5, DRONE, { K: P.ink, L: on ? P.lampOn : P.lampOff, H: P.redHi, R: P.red, r: P.redSh, s: P.ink, W: P.white, Q: P.stQ, P: P.stP, p: P.stp, E: P.glass });
+  if (on) L.set(14, 5, P.white);
+  L.rect(5, 3, 1, 5, P.stp); L.rect(24, 3, 1, 5, P.stp);
+  if (f % 2 === 0) { L.rect(1, 2, 9, 1, P.stQ); L.rect(20, 2, 9, 1, P.stQ); }
+  else { L.rect(3, 1, 5, 2, P.stP); L.rect(22, 1, 5, 2, P.stP); }
+  outline(L, P.ink);
+  L.ox = 252; L.oy = 132 + (f % 4 === 1 || f % 4 === 2 ? 1 : 0);
+  return L;
+}
+
+/* ======================================================================
+   HUD on the 8x8 fix layer: chunky 6x6 font, 2 px strokes, ink outline
+   ====================================================================== */
+const FONT = {
+  0: ['.XXXX.', 'XX..XX', 'XX.XXX', 'XXX.XX', 'XX..XX', '.XXXX.'],
+  1: ['..XX..', '.XXX..', '..XX..', '..XX..', '..XX..', '.XXXX.'],
+  2: ['.XXXX.', 'XX..XX', '...XX.', '..XX..', '.XX...', 'XXXXXX'],
+  3: ['XXXXX.', '....XX', '..XXX.', '....XX', '....XX', 'XXXXX.'],
+  4: ['XX.XX.', 'XX.XX.', 'XX.XX.', 'XXXXXX', '...XX.', '...XX.'],
+  5: ['XXXXXX', 'XX....', 'XXXXX.', '....XX', 'XX..XX', '.XXXX.'],
+  6: ['.XXXX.', 'XX....', 'XXXXX.', 'XX..XX', 'XX..XX', '.XXXX.'],
+  7: ['XXXXXX', '....XX', '...XX.', '..XX..', '..XX..', '..XX..'],
+  8: ['.XXXX.', 'XX..XX', '.XXXX.', 'XX..XX', 'XX..XX', '.XXXX.'],
+  9: ['.XXXX.', 'XX..XX', 'XX..XX', '.XXXXX', '....XX', '.XXXX.'],
+  S: ['.XXXXX', 'XX....', '.XXXX.', '....XX', '....XX', 'XXXXX.'],
+  C: ['.XXXX.', 'XX..XX', 'XX....', 'XX....', 'XX..XX', '.XXXX.'],
+  O: ['.XXXX.', 'XX..XX', 'XX..XX', 'XX..XX', 'XX..XX', '.XXXX.'],
+  R: ['XXXXX.', 'XX..XX', 'XX..XX', 'XXXXX.', 'XX.XX.', 'XX..XX'],
+  E: ['XXXXXX', 'XX....', 'XXXXX.', 'XX....', 'XX....', 'XXXXXX'],
+  H: ['XX..XX', 'XX..XX', 'XXXXXX', 'XX..XX', 'XX..XX', 'XX..XX'],
+  I: ['XXXXXX', '..XX..', '..XX..', '..XX..', '..XX..', 'XXXXXX'],
+};
+const LIFE = ['..KKKK..', '.KNNBLK.', 'KDNNNNLK', 'KKKKKKKK', '.KsSSTK.', '.KsSKSK.', '..KsSK..', '...KK...'];
+function drawHUD() {
+  const L = new Buf('hud', W, H);
+  const text = (col, row, s, top, low) => [...s].forEach((ch, k) => {
+    const g = FONT[ch]; if (!g) return;
+    stamp(L, (col + k) * 8 + 1, row * 8 + 1, g.map((r, j) => r.replace(/X/g, j < 4 ? 'a' : 'b')), { a: top, b: low });
+  });
+  text(2, 2, 'SCORE', P.hudY, P.hudO); text(8, 2, '00012450', P.hudW, P.hudB);
+  text(27, 2, 'HI', P.hudY, P.hudO); text(30, 2, '00098760', P.hudW, P.hudB);
+  outline(L, P.ink);
+  for (let k = 0; k < 3; k++) stamp(L, (18 + k) * 8, 16, LIFE, HMAP);
+  return L;
+}
+
+/* ======================================================================
+   BUILD, CHECK, COMPOSE
+   ====================================================================== */
+const report = { sprites: {}, fix: null };
+function prep(L) {
+  const before = tileStats(L, 16); enforceTiles(L, 16); const after = tileStats(L, 16);
+  const r = report.sprites[L.name];
+  if (!r) report.sprites[L.name] = { tiles: after.tiles, maxBefore: before.max, overBefore: before.over, maxAfter: after.max, overAfter: after.over };
+  else { r.maxBefore = Math.max(r.maxBefore, before.max); r.overBefore += before.over; r.maxAfter = Math.max(r.maxAfter, after.max); r.overAfter += after.over; }
+  return L;
+}
+const staticBack = [drawSky(), drawMoon(), drawClouds(), drawFar(), drawMid(), drawRoof()].map(prep);
+const hud = drawHUD(); { const s = tileStats(hud, 8); report.fix = { cells: s.tiles, max: s.max, over: s.over }; }
+function compose(layers) {
+  const out = new Int32Array(W * H).fill(0);
+  for (const L of layers) for (let y = 0; y < L.h; y++) { const sy = y + L.oy; if (sy < 0 || sy >= H) continue; for (let x = 0; x < L.w; x++) { const sx = x + L.ox; if (sx < 0 || sx >= W) continue; const c = L.d[y * L.w + x]; if (c >= 0) out[sy * W + sx] = c; } }
+  return out;
+}
+const NF = 12, frames = Array.from({ length: NF }, (_, f) => {
+  const hero = prep(heroFrame(f % 6));
+  const beam = prep(drawLaser(f, hero.lens.x, hero.lens.y));
+  const [sky, moon, clouds, far, mid, roof] = staticBack;
+  return compose([sky, prep(drawLights(f)), moon, clouds, far, mid, roof, beam, prep(drawCable(f)), prep(drawAC(f)), prep(drawDrone(f)), prep(drawHit(f)), hero, hud]);
+});
+const cv = document.getElementById('screen'), ctx = cv.getContext('2d'), img = ctx.createImageData(W, H);
+function show(f) { const px = frames[f]; for (let i = 0; i < W * H; i++) { const c = px[i]; img.data[i * 4] = (c >> 16) & 255; img.data[i * 4 + 1] = (c >> 8) & 255; img.data[i * 4 + 2] = c & 255; img.data[i * 4 + 3] = 255; } ctx.putImageData(img, 0, 0); }
+const m = location.hash.match(/^#raw(\d{0,2})$/);
+if (m) { document.body.classList.add('raw'); show(Math.min(NF - 1, +(m[1] || 0))); }
+else { let f = 0; show(0); setInterval(() => { f = (f + 1) % NF; show(f); }, 100); }
+report.frames = NF;
+const bad = Object.entries(report.sprites).filter(([, s]) => s.overAfter > 0 || s.overBefore > 0);
+report.verdict = bad.length || report.fix.over ? 'FAIL' : 'PASS';
+document.getElementById('check').textContent = JSON.stringify(report);
+console.log('[tile check]', JSON.stringify(report));
+</script>
+</body>
+</html>

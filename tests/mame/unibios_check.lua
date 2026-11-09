@@ -1,0 +1,76 @@
+-- Headless check under UniBIOS 4.0 (make test-unibios): video state survives the BIOS
+-- re-entry on coin. A real BIOS (UniBIOS, and the SNK MVS BIOS on the cabinet) clears
+-- palette RAM before it sends USER command 3 (title) when a coin is inserted. nullbios
+-- does not, so make test cannot see this. The resume path in src/main.c must reload the
+-- palettes; before that fix the screen went black after the coin while the game ran on.
+-- Asserts: palette words read before the coin (fix text palette 0 colour 1, hero palette
+-- slot 2 colour 1) are back 60 frames after the coin, and g_frame_counter never goes back.
+-- City palettes (4 slots x 16 words from g_bg_pal_first_entry) and the backdrop (last palette RAM entry)
+-- are checked the same way: a checksum of all of them must be unchanged and nonzero.
+-- Env: ROOFLINE_FRAME_ADDR, ROOFLINE_BG_PAL_ADDR (hex, nm on the ELF), ROOFLINE_RESULT (file).
+local frame_addr = tonumber(os.getenv("ROOFLINE_FRAME_ADDR"), 16)
+local bgpal_addr = tonumber(os.getenv("ROOFLINE_BG_PAL_ADDR"), 16)
+local result     = os.getenv("ROOFLINE_RESULT")
+local mem = manager.machine.devices[":maincpu"].spaces["program"]
+local USER_REQUEST = 0x10fdae
+local PAL_TEXT_C1, PAL_HERO_C1 = 0x400002, 0x400042
+local COIN_FRAME, CHECK_FRAME = 900, 960
+local PAL_BACKDROP = 0x400000 + 4095 * 2
+
+-- Position-weighted sum of the 64 city palette words, and the backdrop word.
+local function city_sum()
+  local first = mem:read_u16(bgpal_addr)
+  local s = 0
+  for i = 0, 63 do s = s + mem:read_u16(0x400000 + (first + i) * 2) * (i + 1) end
+  return s, mem:read_u16(PAL_BACKDROP)
+end
+
+local coin
+for name, f in pairs(manager.machine.ioport.ports[":AUDIO_COIN"].fields) do
+  if name == "Coin 1" then coin = f end
+end
+
+local function finish(ok, msg)
+  local f = io.open(result, "w")
+  f:write((ok and "PASS " or "FAIL ") .. msg .. "\n")
+  f:close()
+  print("ROOFLINE_TEST " .. (ok and "PASS " or "FAIL ") .. msg)
+  manager.machine:exit()
+end
+
+local n, prev, text_before, hero_before, saw_title = 0, nil, nil, nil, false
+local city_before, back_before
+emu.register_frame_done(function()
+  n = n + 1
+  if n >= COIN_FRAME - 20 then
+    local c = mem:read_u32(frame_addr)
+    if prev and c < prev then
+      finish(false, string.format("counter not monotonic at frame %d: %d -> %d", n, prev, c))
+      return
+    end
+    prev = c
+  end
+  if n == COIN_FRAME - 1 then
+    text_before, hero_before = mem:read_u16(PAL_TEXT_C1), mem:read_u16(PAL_HERO_C1)
+    city_before, back_before = city_sum()
+    if text_before == 0 or hero_before == 0 or prev == 0 or city_before == 0 or back_before == 0 then
+      finish(false, string.format("game not running before coin (text %04x hero %04x counter %d)",
+        text_before, hero_before, prev))
+      return
+    end
+  elseif n == COIN_FRAME then coin:set_value(1)
+  elseif n == COIN_FRAME + 6 then coin:set_value(0)
+  end
+  if n > COIN_FRAME and mem:read_u8(USER_REQUEST) == 3 then saw_title = true end
+  if n == CHECK_FRAME then
+    local t, h = mem:read_u16(PAL_TEXT_C1), mem:read_u16(PAL_HERO_C1)
+    if not saw_title then
+      finish(false, "BIOS never sent USER command 3 after the coin")
+    elseif t ~= text_before or h ~= hero_before then
+      finish(false, string.format("palettes lost after coin: text %04x (was %04x) hero %04x (was %04x)",
+        t, text_before, h, hero_before))
+    else
+      finish(true, string.format("palettes kept after UniBIOS coin re-entry (text %04x hero %04x city sum %d backdrop %04x)", t, h, city_before, back_before))
+    end
+  end
+end)

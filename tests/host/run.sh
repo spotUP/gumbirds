@@ -1,0 +1,55 @@
+#!/bin/sh
+# Host tests for the Roofline core. Usage: tests/host/run.sh
+# Output goes to the scratchpad; only a summary is printed.
+set -u
+HERE=$(cd "$(dirname "$0")" && pwd)
+ROOT=$(cd "$HERE/../.." && pwd)
+OUT=${ROOFLINE_TEST_OUT:-/private/tmp/claude-501/-Users-spot-Code-ArcadeGame/06a12133-dc4e-43e6-b08a-169b50911a0f/scratchpad/core}
+mkdir -p "$OUT"
+CC="nice -n 19 clang -std=c99 -Wall -Wextra -Werror -pedantic"
+SRC="$ROOT/src/core/rng.c $ROOT/src/core/game.c $ROOT/src/core/hiscore.c $ROOT/src/core/nameentry.c $ROOT/src/core/flow.c $ROOT/src/core/obstacle_view.c $ROOT/src/core/bg_scroll.c $ROOT/src/core/laser_view.c $ROOT/src/core/hero_view.c $ROOT/src/core/vram_queue.c"
+fail=0
+
+$CC -o "$OUT/test_core" "$HERE/test_core.c" $SRC >"$OUT/build.log" 2>&1 || { echo "[ERROR] build failed"; tail -n 20 "$OUT/build.log"; exit 1; }
+nice -n 19 "$OUT/test_core" >"$OUT/test_core.log" 2>&1 || fail=1
+tail -n 1 "$OUT/test_core.log"; grep FAIL "$OUT/test_core.log" | head -n 10
+
+$CC -o "$OUT/test_flow" "$HERE/test_flow.c" $SRC >"$OUT/build.log" 2>&1 || { echo "[ERROR] flow build failed"; tail -n 20 "$OUT/build.log"; exit 1; }
+nice -n 19 "$OUT/test_flow" >"$OUT/test_flow.log" 2>&1 || fail=1
+tail -n 1 "$OUT/test_flow.log"; grep FAIL "$OUT/test_flow.log" | head -n 10
+
+$CC -o "$OUT/test_bg" "$HERE/test_bg.c" $SRC >"$OUT/build.log" 2>&1 || { echo "[ERROR] bg build failed"; tail -n 20 "$OUT/build.log"; exit 1; }
+nice -n 19 "$OUT/test_bg" >"$OUT/test_bg.log" 2>&1 || fail=1
+tail -n 1 "$OUT/test_bg.log"; grep FAIL "$OUT/test_bg.log" | head -n 10
+
+$CC -o "$OUT/test_laser_view" "$HERE/test_laser_view.c" $SRC >"$OUT/build.log" 2>&1 || { echo "[ERROR] laser_view build failed"; tail -n 20 "$OUT/build.log"; exit 1; }
+nice -n 19 "$OUT/test_laser_view" >"$OUT/test_laser_view.log" 2>&1 || fail=1
+tail -n 1 "$OUT/test_laser_view.log"; grep FAIL "$OUT/test_laser_view.log" | head -n 10
+
+$CC -o "$OUT/test_vram_queue" "$HERE/test_vram_queue.c" $SRC >"$OUT/build.log" 2>&1 || { echo "[ERROR] vram_queue build failed"; tail -n 20 "$OUT/build.log"; exit 1; }
+nice -n 19 "$OUT/test_vram_queue" >"$OUT/test_vram_queue.log" 2>&1 || fail=1
+tail -n 1 "$OUT/test_vram_queue.log"; grep FAIL "$OUT/test_vram_queue.log" | head -n 10
+
+$CC -o "$OUT/test_hero_view" "$HERE/test_hero_view.c" $SRC >"$OUT/build.log" 2>&1 || { echo "[ERROR] hero_view build failed"; tail -n 20 "$OUT/build.log"; exit 1; }
+nice -n 19 "$OUT/test_hero_view" >"$OUT/test_hero_view.log" 2>&1 || fail=1
+tail -n 1 "$OUT/test_hero_view.log"; grep FAIL "$OUT/test_hero_view.log" | head -n 10
+
+# Knob completeness: every #define in tuning.h (except documented exemptions) has an override.
+defs=$(grep '^#define [A-Z_]* ' "$ROOT/src/core/tuning.h" | awk '{print $2}' | grep -v -e '^SCREEN_W$' -e '^SCREEN_H$' -e '^MAX_OBSTACLES$' | sort)
+listed=$(awk '{print $1}' "$HERE/knobs.txt" | sort)
+if [ "$defs" != "$listed" ]; then echo "[ERROR] knobs.txt does not match tuning.h"; fail=1; fi
+
+$CC -o "$OUT/knob_base" "$HERE/knob_digest.c" $SRC >"$OUT/build.log" 2>&1 || { echo "[ERROR] knob build"; tail -n 20 "$OUT/build.log"; exit 1; }
+base=$("$OUT/knob_base")
+n=0; bad=0
+while read -r name val; do
+    n=$((n + 1))
+    $CC -D"$name=$val" -o "$OUT/knob_var" "$HERE/knob_digest.c" $SRC >"$OUT/build.log" 2>&1 || { echo "[ERROR] knob $name build"; tail -n 5 "$OUT/build.log"; bad=$((bad + 1)); continue; }
+    d=$("$OUT/knob_var")
+    if [ "$d" = "$base" ]; then echo "[FAIL] knob $name=$val does not change output"; bad=$((bad + 1)); fi
+done < "$HERE/knobs.txt"
+echo "knobs: $n checked, $bad failed"
+[ "$bad" -eq 0 ] || fail=1
+rm -f "$OUT/knob_var" "$OUT/knob_base"
+if [ "$fail" -eq 0 ]; then echo "[OK] all host tests passed"; else echo "[FAIL] host tests failed"; fi
+exit $fail

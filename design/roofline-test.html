@@ -1,0 +1,851 @@
+<title>Roofline Test Screen</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* One 320x224 Neo Geo test screen, scaled 3x with hard pixels. Dark ground so the screen reads like a cabinet monitor. */
+:root {
+  --bg: #08070e;
+  --fg: #a3a1b8;
+}
+body {
+  background: var(--bg);
+  color: var(--fg);
+  margin: 0;
+  padding: 24px max(16px, env(safe-area-inset-right, 0px)) 24px max(16px, env(safe-area-inset-left, 0px));
+  font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+.wrap { max-width: 960px; margin: 0 auto; }
+canvas {
+  display: block;
+  width: 100%;
+  max-width: 960px;
+  aspect-ratio: 320 / 224;
+  image-rendering: crisp-edges;
+  image-rendering: pixelated;
+}
+p { margin: 10px 0 0; }
+body.raw { padding: 0; }
+body.raw .wrap { max-width: none; margin: 0; }
+body.raw canvas { width: 960px; }
+body.raw p { display: none; }
+</style>
+<div class="wrap">
+  <canvas id="screen" width="320" height="224"></canvas>
+  <p>Roofline test screen: night guard run on the rooftops. Native 320x224, 5-bit colour, at most 15 colours per 16x16 sprite tile.</p>
+</div>
+<pre id="check" hidden></pre>
+<script>
+'use strict';
+const W = 320, H = 224;
+
+/* ---------- colour: everything rounds to 5 bits per channel ---------- */
+const q5 = v => { const n = Math.max(0, Math.min(31, Math.round(v * 31 / 255))); return (n << 3) | (n >> 2); };
+const hex = h => { const n = parseInt(h.replace('#', ''), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
+const pk = (r, g, b) => (q5(r) << 16) | (q5(g) << 8) | q5(b);
+const C = h => { const [r, g, b] = hex(h); return pk(r, g, b); };
+const un = c => [(c >> 16) & 255, (c >> 8) & 255, c & 255];
+function ramp(n, stops) {
+  const cs = stops.map(hex), out = [];
+  for (let i = 0; i < n; i++) {
+    const t = i / (n - 1) * (cs.length - 1), k = Math.min(cs.length - 2, Math.floor(t)), f = t - k;
+    const a = cs[k], b = cs[k + 1];
+    out.push(pk(a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f));
+  }
+  return out;
+}
+const BY = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+const bay = (x, y) => (BY[((y | 0) & 3) * 4 + ((x | 0) & 3)] + 0.5) / 16;
+const clamp = (v, a = 0, b = 1) => Math.max(a, Math.min(b, v));
+/* level in ramp-index units, ordered dither between neighbours; d < 1 narrows the dither band */
+function lv(r, l, x, y, d = 1) {
+  const n = r.length; l = clamp(l, 0, n - 1);
+  let i = Math.floor(l), fr = l - i;
+  if (d < 1) fr = clamp((fr - 0.5) / Math.max(d, 0.001) + 0.5);
+  if (fr > bay(x, y)) i++;
+  return r[Math.min(n - 1, i)];
+}
+function nearest(pal, r, g, b) {
+  let best = pal[0], bd = 1e12;
+  for (const c of pal) {
+    const dr = ((c >> 16) & 255) - r, dg = ((c >> 8) & 255) - g, db = (c & 255) - b;
+    const d = dr * dr * 2 + dg * dg * 4 + db * db * 3;
+    if (d < bd) { bd = d; best = c; }
+  }
+  return best;
+}
+const mixv = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+function gradAt(stops, v) { // stops: [[pos, hex], ...]
+  if (v <= stops[0][0]) return hex(stops[0][1]);
+  for (let i = 1; i < stops.length; i++) if (v <= stops[i][0]) {
+    const [p0, c0] = stops[i - 1], [p1, c1] = stops[i];
+    return mixv(hex(c0), hex(c1), (v - p0) / (p1 - p0));
+  }
+  return hex(stops[stops.length - 1][1]);
+}
+
+/* ---------- noise and rng ---------- */
+function mulberry(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+function hash(x, y, s = 0) { let h = (Math.imul(x | 0, 374761393) + Math.imul(y | 0, 668265263) + Math.imul(s | 0, 1442695041)) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); h ^= h >>> 16; return (h >>> 0) / 4294967296; }
+function vn(x, y, s = 0) {
+  const xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi;
+  const u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf);
+  const a = hash(xi, yi, s), b = hash(xi + 1, yi, s), c = hash(xi, yi + 1, s), d = hash(xi + 1, yi + 1, s);
+  return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
+}
+function fbm(x, y, s = 0, o = 4) { let v = 0, a = 0.5, f = 1, t = 0; for (let i = 0; i < o; i++) { v += a * vn(x * f, y * f, s + i * 17); t += a; f *= 2; a *= 0.5; } return v / t; }
+
+/* ---------- sprite layer buffers ---------- */
+class Buf {
+  constructor(name, w, h, ox = 0, oy = 0) { this.name = name; this.w = w; this.h = h; this.ox = ox; this.oy = oy; this.d = new Int32Array(w * h).fill(-1); }
+  set(x, y, c) { x = Math.floor(x); y = Math.floor(y); if (c == null || c < 0 || x < 0 || y < 0 || x >= this.w || y >= this.h) return; this.d[y * this.w + x] = c; }
+  get(x, y) { x = Math.floor(x); y = Math.floor(y); if (x < 0 || y < 0 || x >= this.w || y >= this.h) return -1; return this.d[y * this.w + x]; }
+  rect(x, y, w, h, c) { for (let j = y; j < y + h; j++) for (let i = x; i < x + w; i++) this.set(i, j, typeof c === 'function' ? c(i, j) : c); }
+}
+function inPoly(p, x, y) { let c = false; for (let i = 0, j = p.length - 1; i < p.length; j = i++) { const [xi, yi] = p[i], [xj, yj] = p[j]; if (((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi)) c = !c; } return c; }
+function fillPoly(L, p, fn) {
+  const xs = p.map(q => q[0]), ys = p.map(q => q[1]);
+  for (let y = Math.floor(Math.min(...ys)); y <= Math.ceil(Math.max(...ys)); y++)
+    for (let x = Math.floor(Math.min(...xs)); x <= Math.ceil(Math.max(...xs)); x++)
+      if (inPoly(p, x + 0.5, y + 0.5)) L.set(x, y, fn(x, y));
+}
+function line(L, x0, y0, x1, y1, c) {
+  x0 = Math.round(x0); y0 = Math.round(y0); x1 = Math.round(x1); y1 = Math.round(y1);
+  const dx = Math.abs(x1 - x0), dy = -Math.abs(y1 - y0), sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1; let e = dx + dy;
+  for (;;) { L.set(x0, y0, typeof c === 'function' ? c(x0, y0) : c); if (x0 === x1 && y0 === y1) break; const e2 = 2 * e; if (e2 >= dy) { e += dy; x0 += sx; } if (e2 <= dx) { e += dx; y0 += sy; } }
+}
+function stamp(L, x, y, rows, map) {
+  rows.forEach((row, j) => [...row].forEach((ch, i) => { if (ch !== '.' && map[ch] != null) L.set(x + i, y + j, map[ch]); }));
+}
+
+/* ---------- per-tile colour budget: check and enforce (hardware: 15 + transparent per tile) ---------- */
+function tileStats(L, ts) {
+  let max = 0, over = 0, tiles = 0;
+  for (let ty = 0; ty < L.h; ty += ts) for (let tx = 0; tx < L.w; tx += ts) {
+    const s = new Set();
+    for (let y = ty; y < Math.min(L.h, ty + ts); y++) for (let x = tx; x < Math.min(L.w, tx + ts); x++) { const c = L.d[y * L.w + x]; if (c >= 0) s.add(c); }
+    if (s.size) tiles++;
+    max = Math.max(max, s.size); if (s.size > 15) over++;
+  }
+  return { tiles, max, over };
+}
+const cdist = (a, b) => { const A = un(a), B = un(b); return (A[0] - B[0]) ** 2 * 2 + (A[1] - B[1]) ** 2 * 4 + (A[2] - B[2]) ** 2 * 3; };
+function enforceTiles(L, ts = 16) {
+  for (let ty = 0; ty < L.h; ty += ts) for (let tx = 0; tx < L.w; tx += ts) {
+    const cnt = new Map();
+    for (let y = ty; y < Math.min(L.h, ty + ts); y++) for (let x = tx; x < Math.min(L.w, tx + ts); x++) { const c = L.d[y * L.w + x]; if (c >= 0) cnt.set(c, (cnt.get(c) || 0) + 1); }
+    if (cnt.size <= 15) continue;
+    let live = [...cnt.entries()].map(([c, n]) => ({ c, n })); const remap = new Map();
+    while (live.length > 15) {
+      let bi = 0, bj = 1, bs = Infinity;
+      for (let i = 0; i < live.length; i++) for (let j = i + 1; j < live.length; j++) { const s = cdist(live[i].c, live[j].c) * Math.min(live[i].n, live[j].n); if (s < bs) { bs = s; bi = i; bj = j; } }
+      const a = live[bi], b = live[bj], keep = a.n >= b.n ? a : b, drop = keep === a ? b : a;
+      keep.n += drop.n; remap.set(drop.c, keep.c); for (const [k, v] of remap) if (v === drop.c) remap.set(k, keep.c);
+      live = live.filter(e => e !== drop);
+    }
+    for (let y = ty; y < Math.min(L.h, ty + ts); y++) for (let x = tx; x < Math.min(L.w, tx + ts); x++) { const i = y * L.w + x, c = L.d[i]; if (remap.has(c)) L.d[i] = remap.get(c); }
+  }
+}
+
+/* ======================================================================
+   LAYER 0: SKY (dithered gradient, moon halo, city glow, stars)
+   ====================================================================== */
+const MX = 84, MY = 54, MR = 21;
+function drawSky() {
+  const L = new Buf('sky', W, 184);
+  const pal = ['#08081c', '#0e0e2a', '#141638', '#1c1c48', '#262658', '#302c66', '#3e3474', '#4c3a7c', '#643e80', '#84467e', '#a45478', '#3a4884', '#52609c', '#7484b8', '#a0aed0'].map(C);
+  const stops = [[0, '#09091f'], [50, '#14163c'], [95, '#242456'], [130, '#3a2e6c'], [152, '#5a3a7c'], [168, '#88467e'], [184, '#a8567a']];
+  for (let y = 0; y < L.h; y++) for (let x = 0; x < W; x++) {
+    let c = gradAt(stops, y + (fbm(x * 0.02, y * 0.06, 3) - 0.5) * 18);
+    const d = Math.hypot(x - MX, (y - MY) * 1.15);
+    let h = clamp(1 - (d - MR) / 78); h = h * h * 0.8;
+    c = mixv(c, hex('#8a9ad0'), h);
+    const o = (bay(x, y) - 0.5) * 26;
+    L.set(x, y, nearest(pal, c[0] + o, c[1] + o, c[2] + o));
+  }
+  const r = mulberry(11);
+  for (let i = 0; i < 110; i++) {
+    const x = Math.floor(r() * W), y = Math.floor(r() * 120);
+    if (Math.hypot(x - MX, y - MY) < MR + 26) continue;
+    const big = r() < 0.08;
+    L.set(x, y, pal[big ? 14 : (r() < 0.5 ? 13 : 12)]);
+    if (big) { L.set(x - 1, y, pal[12]); L.set(x + 1, y, pal[12]); L.set(x, y - 1, pal[12]); L.set(x, y + 1, pal[12]); }
+  }
+  return L;
+}
+
+/* ---------- moon: own sprite ---------- */
+function drawMoon() {
+  const L = new Buf('moon', 48, 48, MX - 24, MY - 24);
+  const pal = ['#5c5e94', '#74749e', '#9290a8', '#b0aaac', '#ccc4b0', '#e2d8b8', '#f4eac6', '#fffadc'].map(C);
+  const Lx = -0.42, Ly = -0.36, Lz = 0.83;
+  const craters = [[-7, -6, 4.2], [6, 4, 3.2], [-2, 9, 2.6], [9, -8, 2.2], [-11, 4, 2.0], [2, -12, 1.8], [12, 10, 1.6]];
+  for (let y = 0; y < 48; y++) for (let x = 0; x < 48; x++) {
+    const dx = x + 0.5 - 24, dy = y + 0.5 - 24, d = Math.hypot(dx, dy);
+    if (d > MR) continue;
+    const nx = dx / MR, ny = dy / MR, nz = Math.sqrt(Math.max(0, 1 - nx * nx - ny * ny));
+    let I = (nx * Lx + ny * Ly + nz * Lz) * 0.55 + 0.5;
+    const m = fbm(x * 0.11, y * 0.13, 5, 4);
+    if (m > 0.56) I -= 0.16; if (m > 0.64) I -= 0.08;
+    for (const [cx, cy, cr] of craters) {
+      const ex = dx - cx, ey = dy - cy, e = Math.hypot(ex, ey);
+      if (e < cr) { I -= 0.13; if (ex + ey < -cr * 0.5) I -= 0.08; }
+      else if (e < cr + 1.1 && ex + ey > 0) I += 0.12;
+    }
+    if (d > MR - 1.3) I -= 0.12;
+    L.set(x, y, lv(pal, I * 7.6, x, y, 0.55));
+  }
+  return L;
+}
+
+/* ---------- clouds: own sprite strip, moonlit rims, city underglow ---------- */
+function drawClouds() {
+  const L = new Buf('clouds', W, 160);
+  const pal = ['#18163e', '#22204c', '#2c2a5a', '#3a3668', '#4c4678', '#62588a', '#7e74a0', '#a09ab8', '#c8c2d4', '#ece4d2', '#6a3866', '#8c4a6e', '#b06274'].map(C);
+  const E = [[56, 70, 44, 3.6], [100, 67, 30, 3], [134, 72, 22, 2.6], [30, 74, 20, 2.4],
+    [212, 112, 54, 8], [268, 104, 52, 10], [318, 110, 40, 9], [160, 120, 40, 5.5], [246, 120, 36, 5],
+    [232, 34, 34, 3], [284, 27, 28, 2.6], [8, 128, 44, 6], [60, 133, 30, 4]];
+  const D = (x, y) => { let m = -1; for (const [cx, cy, rx, ry] of E) { const v = 1 - ((x - cx) / rx) ** 2 - ((y - cy) / ry) ** 2; if (v > m) m = v; } return m + (fbm(x * 0.06, y * 0.16, 9) - 0.5) * 1.1; };
+  for (let y = 0; y < L.h; y++) for (let x = 0; x < W; x++) {
+    const d = D(x, y); if (d <= 0) continue;
+    const top = clamp(1 - D(x, y - 3) * 3), bot = clamp(1 - D(x, y + 2) * 3);
+    const rim = clamp(1 - d / 0.4);
+    const mp = clamp(1 - Math.hypot(x - MX, y - MY) / 110);
+    let l = 2.2 - d * 1.6 + rim * (1.5 + mp * 6.5) + top * (1.4 + mp * 2);
+    if (y > 95 && bot > 0.5 && top < 0.5) { L.set(x, y, lv([pal[2], pal[10], pal[11], pal[12]], bot * 2.4, x, y, 0.7)); continue; }
+    L.set(x, y, lv(pal.slice(0, 10), l, x, y, 0.7));
+  }
+  return L;
+}
+
+/* ======================================================================
+   LAYER 1: FAR SKYLINE (silhouettes, lit window specks, haze)
+   ====================================================================== */
+function drawFar() {
+  const L = new Buf('far', W, 184);
+  const r = mulberry(7);
+  const body = C('#1c1840'), lit = C('#26224e'), edge = C('#383466'), dark = C('#120e2c');
+  const wDim = C('#3a3266'), wWarm = C('#a46a42'), wHot = C('#e8b060'), wCool = C('#5e6aa4'), red = C('#f04050');
+  const haze = [C('#2a2454'), C('#3a2e64'), C('#4e3870'), C('#663e78')];
+  const tower = (x0, w, top) => {
+    L.rect(x0, top, w, 184 - top, body);
+    for (let y = top; y < 184; y++) L.set(x0, y, edge);
+  };
+  let x = -6;
+  while (x < 326) {
+    const w = 9 + Math.floor(r() * 20), top = 104 + Math.floor(r() * 40);
+    tower(x, w, top);
+    for (let y = top; y < 184; y++) L.set(x + 1, y, r() < 0.7 ? lit : body);
+    const f = r();
+    if (f < 0.25) { const sw = Math.max(3, Math.floor(w * 0.5)), sx = x + Math.floor((w - sw) / 2), sh = 4 + Math.floor(r() * 9); tower(sx, sw, top - sh); }
+    else if (f < 0.5) { const ax = x + 2 + Math.floor((w - 4) * r()), ah = 6 + Math.floor(r() * 14); for (let y = top - ah; y < top; y++) L.set(ax, y, dark); L.set(ax, top - ah - 1, red); L.set(ax - 1, top - ah + 3, dark); L.set(ax + 1, top - ah + 3, dark); }
+    else if (f < 0.62) { const tx = x + 2; L.rect(tx, top - 6, 6, 4, body); L.set(tx, top - 6, edge); L.set(tx + 1, top - 2, dark); L.set(tx + 4, top - 2, dark); L.set(tx + 1, top - 1, dark); L.set(tx + 4, top - 1, dark); L.rect(tx + 1, top - 7, 4, 1, body); }
+    for (let wy = top + 3; wy < 172; wy += 3) {
+      const floorLit = r() < 0.35;
+      for (let wx = x + 2; wx < x + w - 1; wx += 2) {
+        const q = r();
+        if (q < (floorLit ? 0.45 : 0.08)) L.set(wx, wy, r() < 0.12 ? wHot : wWarm);
+        else if (q < 0.55) L.set(wx, wy, wDim);
+        else if (q < 0.58) L.set(wx, wy, wCool);
+      }
+    }
+    x += w - 1 + Math.floor(r() * 3) - (r() < 0.35 ? 5 : 0);
+  }
+  // landmark spire with blink light
+  tower(204, 13, 76); tower(207, 7, 64); tower(209, 3, 52);
+  for (let y = 36; y < 52; y++) L.set(210, y, dark);
+  L.set(210, 35, red); L.set(209, 35, C('#802040')); L.set(211, 35, C('#802040'));
+  for (let wy = 80; wy < 172; wy += 4) for (let wx = 206; wx < 216; wx += 3) if (hash(wx, wy, 3) < 0.4) L.set(wx, wy, wWarm);
+  for (let y = 140; y < 184; y++) for (let x2 = 0; x2 < W; x2++) {
+    if (L.get(x2, y) < 0) continue;
+    const t = (y - 140) / 44;
+    if (bay(x2, y) < t * 0.95) L.set(x2, y, haze[Math.min(3, Math.floor(t * 3.6 + bay(x2 + 1, y) * 0.8))]);
+  }
+  return L;
+}
+
+/* ======================================================================
+   LAYER 2: MID BUILDINGS (facades, windows, water tank, billboard, neon)
+   ====================================================================== */
+const CR = ramp(9, ['#0c0c22', '#16183a', '#22284a', '#30385a', '#424e6e', '#5a6888', '#7c8cac']);
+const BR1 = ramp(9, ['#120a22', '#1c1028', '#281630', '#361e38', '#462840', '#5a3448', '#744458']);
+const WL = ['#4a2028', '#8a4430', '#c87c3c', '#eeb058', '#ffe2a0'].map(C);
+const WU = ['#0c0e26', '#161c3c', '#24305a', '#3e5084'].map(C);
+function bldg(L, o) {
+  const r = mulberry(o.seed), R = o.ramp, n = R.length - 1;
+  for (let y = o.top; y < 184; y++) for (let x = o.x0; x < o.x1; x++) {
+    let l = o.base + (fbm(x * 0.35, y * 0.35, o.seed) - 0.5) * 1.3 + (1 - (y - o.top) / 70) * 0.9;
+    const ex = x - o.x0;
+    if (ex === 0) l += 3; else if (ex === 1) l += 1.4;
+    if (o.x1 - 1 - x === 0) l -= 1.2;
+    if (o.brick) { const by = (y - o.top) % 3, bx = (x + (Math.floor((y - o.top) / 3) % 2) * 3) % 6; if (by === 2) l -= 0.8; else if (bx === 0) l -= 0.5; }
+    if (y > 150) l -= (y - 150) / 26;
+    L.set(x, y, lv(R, l, x, y, 0.6));
+  }
+  for (let x = o.x0 - 1; x <= o.x1; x++) {
+    L.set(x, o.top - 3, R[n]); L.set(x, o.top - 2, R[n - 2]); L.set(x, o.top - 1, R[1]);
+    if ((x - o.x0) % 3 === 0) L.set(x, o.top, R[0]); else L.set(x, o.top, R[2]);
+  }
+  for (let wy = o.wy0; wy + o.wh < 178; wy += o.gy) for (let wx = o.x0 + o.wx0; wx + o.ww <= o.x1 - 2; wx += o.gx) {
+    const lit = r() < o.litP, kind = r();
+    for (let y = wy; y < wy + o.wh; y++) for (let x = wx; x < wx + o.ww; x++) {
+      const ix = x - wx, iy = y - wy, edge = ix === 0 || iy === 0 || ix === o.ww - 1;
+      if (edge) { L.set(x, y, R[0]); continue; }
+      if (lit) {
+        let l = 3.6 - iy / o.wh * 2.2;
+        if (kind < 0.35 && iy % 2 === 0) l -= 1;
+        if (kind > 0.7 && (ix === 1 || (ix === o.ww - 2 && kind > 0.85))) l = 1;
+        L.set(x, y, lv(WL, l, x, y, 0.5));
+      } else L.set(x, y, ((ix + iy + wx) % 6 === 0) ? WU[3] : lv(WU, 2 - iy / o.wh * 1.6, x, y, 0.5));
+    }
+    if (lit && kind > 0.45 && kind < 0.55 && o.wh > 6) { const px = wx + Math.floor(o.ww / 2); L.set(px, wy + o.wh - 3, WL[0]); L.set(px, wy + o.wh - 2, WL[0]); L.set(px - 1, wy + o.wh - 2, WL[0]); L.set(px + 1, wy + o.wh - 2, WL[0]); L.set(px, wy + o.wh - 4, WL[0]); }
+    for (let x = wx - 1; x <= wx + o.ww; x++) { L.set(x, wy + o.wh, R[n - 1]); L.set(x, wy + o.wh + 1, R[1]); }
+  }
+}
+function drawMid() {
+  const L = new Buf('mid', W, 184);
+  bldg(L, { x0: -2, x1: 70, top: 118, ramp: BR1, base: 3.2, brick: true, ww: 7, wh: 10, gx: 13, gy: 17, wx0: 5, wy0: 126, litP: 0.4, seed: 21 });
+  bldg(L, { x0: 98, x1: 178, top: 92, ramp: CR, base: 2.6, ww: 5, wh: 7, gx: 8, gy: 11, wx0: 4, wy0: 99, litP: 0.3, seed: 33 });
+  bldg(L, { x0: 186, x1: 238, top: 134, ramp: BR1, base: 2.4, brick: true, ww: 5, wh: 7, gx: 9, gy: 12, wx0: 4, wy0: 140, litP: 0.35, seed: 44 });
+  bldg(L, { x0: 238, x1: 302, top: 84, ramp: CR, base: 3, ww: 4, wh: 6, gx: 7, gy: 10, wx0: 14, wy0: 91, litP: 0.42, seed: 55 });
+  bldg(L, { x0: 302, x1: 322, top: 102, ramp: BR1, base: 2.2, brick: true, ww: 5, wh: 7, gx: 9, gy: 12, wx0: 4, wy0: 108, litP: 0.3, seed: 66 });
+  // fire escape on B2
+  const fe = C('#090a18'), feL = C('#4a5476');
+  for (let py = 106; py < 178; py += 11) {
+    for (let x = 160; x < 178; x++) { L.set(x, py, feL); L.set(x, py + 1, fe); if ((x - 160) % 3 === 0) { L.set(x, py - 1, fe); L.set(x, py - 2, fe); L.set(x, py - 3, fe); } }
+    for (let x = 160; x < 178; x++) L.set(x, py - 4, fe);
+    const up = ((py - 106) / 11) % 2 === 0;
+    line(L, up ? 162 : 175, py - 1, up ? 174 : 163, py - 10, fe);
+    line(L, up ? 163 : 176, py - 1, up ? 175 : 164, py - 10, feL);
+  }
+  // wooden water tank on B2
+  const WD = ramp(9, ['#140c1e', '#22142a', '#34202e', '#4a2e34', '#62403c', '#7c5444', '#9a6c50']);
+  const iron = [C('#0a0a14'), C('#2a2c44'), C('#6a7090')];
+  for (const lx of [114, 120, 140, 146]) for (let y = 78; y < 92; y++) L.set(lx, y, iron[0]);
+  line(L, 114, 80, 120, 90, iron[0]); line(L, 120, 80, 114, 90, iron[0]); line(L, 140, 80, 146, 90, iron[0]); line(L, 146, 80, 140, 90, iron[0]);
+  for (let x = 112; x < 149; x++) { L.set(x, 78, iron[1]); L.set(x, 79, iron[0]); }
+  for (let y = 60; y < 78; y++) for (let x = 112; x < 149; x++) {
+    const u = (x - 112) / 36; let l = (1 - Math.abs(u - 0.28) * 1.7) * 7.5 + (fbm(x * 0.5, y * 0.12, 8) - 0.5) * 1.4;
+    if ((x - 112) % 3 === 2) l -= 1.2;
+    if (y > 73) l -= (y - 73) * 0.4;
+    L.set(x, y, lv(WD, l, x, y, 0.5));
+  }
+  for (const hy of [63, 69, 75]) for (let x = 112; x < 149; x++) { const u = (x - 112) / 36; L.set(x, hy, u < 0.4 && u > 0.12 ? iron[2] : (u < 0.7 ? iron[1] : iron[0])); }
+  fillPoly(L, [[130, 49], [151, 60], [110, 60]], (x, y) => { const u = (x - 110) / 41; return lv(WD, (1 - Math.abs(u - 0.3) * 1.8) * 6 + 1 + (y - 49) * 0.05, x, y, 0.5); });
+  for (let x = 110; x < 152; x++) L.set(x, 60, WD[1]);
+  line(L, 130, 49, 110, 59, WD[8]); L.set(130, 47, iron[1]); L.set(130, 48, iron[2]);
+  // billboard back (lattice + catwalk) on B3
+  const bb0 = C('#0a0a18'), bb1 = C('#1a1c34'), bb2 = C('#2c3050'), bb3 = C('#525a80');
+  for (let y = 104; y < 126; y++) for (let x = 190; x < 234; x++) L.set(x, y, (x - 190) % 11 === 0 ? bb0 : (y === 104 ? bb3 : lv([bb1, bb2], 1 - (y - 104) / 26 + (x < 200 ? 0.4 : 0), x, y, 0.5)));
+  for (let x = 190; x < 234; x += 11) { line(L, x, 106, x + 11, 125, bb0); line(L, x + 11, 106, x, 125, bb0); }
+  for (let y = 126; y < 134; y++) for (const px of [192, 210, 231]) L.set(px, y, bb0);
+  for (let x = 188; x < 236; x++) { L.set(x, 126, bb3); L.set(x, 127, bb0); if (x % 3 === 0) L.set(x, 123, bb0); L.set(x, 122, bb0); }
+  // neon sign on B4: HOTEL, solid tubes with a dithered halo
+  const neon = { box: C('#150a1e'), tube: C('#ff58b8'), core: C('#ffd2f0'), glow: C('#8a2a70'), halo: C('#4a1c48'), bulbA: C('#40d0e8'), bulbB: C('#b8f8ff') };
+  const sx0 = 241, sy0 = 74, sw = 11, sh = 50;
+  for (let y = sy0 - 5; y < sy0 + sh + 5; y++) for (let x = sx0 - 5; x < sx0 + sw + 5; x++) {
+    const dx = Math.max(sx0 - x, 0, x - (sx0 + sw - 1)), dy = Math.max(sy0 - y, 0, y - (sy0 + sh - 1)), d = Math.hypot(dx, dy);
+    if (d > 0 && d < 5 && bay(x, y) < (1 - d / 5) * 0.55) L.set(x, y, neon.halo);
+  }
+  L.rect(sx0, sy0, sw, sh, neon.box);
+  for (let y = sy0; y < sy0 + sh; y++) for (let x = sx0; x < sx0 + sw; x++) { const e = x === sx0 || x === sx0 + sw - 1 || y === sy0 || y === sy0 + sh - 1; if (e) L.set(x, y, ((x + y) % 2) ? neon.bulbA : neon.bulbB); }
+  const G = { H: ['#...#', '#...#', '#...#', '#####', '#...#', '#...#', '#...#'], O: ['.###.', '#...#', '#...#', '#...#', '#...#', '#...#', '.###.'], T: ['#####', '..#..', '..#..', '..#..', '..#..', '..#..', '..#..'], E: ['#####', '#....', '#....', '####.', '#....', '#....', '#####'], L: ['#....', '#....', '#....', '#....', '#....', '#....', '#####'] };
+  [...'HOTEL'].forEach((ch, k) => {
+    const gx = sx0 + 3, gy = sy0 + 3 + k * 9;
+    G[ch].forEach((row, j) => [...row].forEach((c, i) => { if (c !== '#') return; for (const [ax, ay] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) if (L.get(gx + i + ax, gy + j + ay) === neon.box) L.set(gx + i + ax, gy + j + ay, neon.glow); }));
+    G[ch].forEach((row, j) => [...row].forEach((c, i) => { if (c === '#') L.set(gx + i, gy + j, (i + j + k) % 4 === 0 ? neon.core : neon.tube); }));
+  });
+  for (const by of [sy0 + 6, sy0 + sh - 7]) { L.set(sx0 + sw, by, CR[0]); L.set(sx0 + sw + 1, by, CR[0]); L.set(sx0 + sw + 1, by - 1, CR[5]); }
+  return L;
+}
+
+/* ======================================================================
+   LAYER 3: OUR ROOFTOP (parapets, tar floor, brick wall, stairwell, lamp, antenna, litter)
+   ====================================================================== */
+const LX = 276, LY = 131;
+const lampI = (x, y) => clamp(1 - Math.hypot(x - LX, (y - LY) * 0.85) / 95);
+const BRK = ramp(11, ['#140a1c', '#200e20', '#2e1424', '#3e1a28', '#50202c', '#642a30', '#783634', '#8e4438', '#a65640', '#c06e4a', '#da8c58']);
+const MORT = ['#0e0a18', '#1c1826', '#2c2836', '#46404a'].map(C);
+const CON = ramp(10, ['#12122a', '#1c1c36', '#2a2a44', '#3a3a56', '#4e4c68', '#64607c', '#7c7892', '#9894aa', '#b6b2c2']);
+const CONW = ramp(5, ['#5a4040', '#86603e', '#b48650', '#dcae66']);
+const TAR = ramp(9, ['#100c20', '#18122a', '#201a34', '#2a223e', '#352c4a', '#443858', '#584a68']);
+const TARW = ramp(7, ['#2e1e2e', '#4a2e30', '#683e30', '#8a5434', '#ac703c', '#cc9048']);
+function brickWall(L, x0, y0, x1, y1, base, seed, bh = 4, bw = 10) {
+  for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) {
+    const row = Math.floor((y - y0) / (bh + 1)), ry = (y - y0) % (bh + 1), off = row % 2 ? Math.floor(bw / 2) + 1 : 0;
+    const col = Math.floor((x + off) / (bw + 1)), rx = (x + off) % (bw + 1);
+    const li = lampI(x, y), streak = clamp((fbm(x * 0.45, 3, seed + 2, 2) - 0.55) * 4) * clamp(1 - (y - y0) / (8 + 26 * hash(x, 0, seed)));
+    const chip = hash(col, row, seed + 9);
+    if (ry === bh || rx === bw) {
+      let m = 1; if (hash(x, y, seed) < 0.18) m = 0; if (li > 0.45) m = 2; if (li > 0.7 && hash(x, y, seed + 1) < 0.5) m = 3;
+      L.set(x, y, MORT[m]); continue;
+    }
+    let l = base + hash(col, row, seed) * 2.4 - 0.6;
+    if (ry === 0) l += 1; if (rx === 0) l += 0.6; if (ry === bh - 1) l -= 0.9; if (rx === bw - 1) l -= 0.6;
+    if (hash(x, y, seed + 3) > 0.9) l -= 1.2;
+    l += li * li * 6.5 - streak * 2.6;
+    if (chip > 0.86 && ((ry === 0 && rx < 2) || (ry === bh - 1 && rx > bw - 3))) { L.set(x, y, MORT[0]); continue; }
+    L.set(x, y, lv(BRK, l, x, y, 0.55));
+  }
+}
+function drawRoof() {
+  const L = new Buf('roof', W, H);
+  const r = mulberry(91);
+  const ink = C('#08060e'), inkL = C('#3c3c62');
+  // back parapet (far edge of our roof)
+  brickWall(L, 0, 170, W, 177, 1.6, 5, 2, 6);
+  for (let x = 0; x < W; x++) { const li = lampI(x, 168); L.set(x, 168, li > 0.55 ? CONW[3] : CON[7]); L.set(x, 169, li > 0.55 ? CONW[1] : CON[4]); if (x % 17 === 0) L.set(x, 169, CON[1]); }
+  // tar floor, depth 177..190
+  for (let y = 177; y < 191; y++) for (let x = 0; x < W; x++) {
+    const depth = (y - 177) / 13;
+    let l = 2.4 + depth * 0.9 + (fbm(x * 0.12, y * 0.5, 13) - 0.5) * 1.8;
+    const g = hash(x, y, 77); if (g > 0.86) l += 1.3; else if (g < 0.08) l -= 1.2;
+    if (y === 181 || y === 186) l -= 1.4; if (y === 180 || y === 185) l += 0.6;
+    if (y === 177) l -= 1.5;
+    let pw = 1 - ((x - 252) / 62) ** 2 - ((y - 185) / 9) ** 2;
+    const door = (y - 178) / 12, dl = 292 - door * 10, dr = 308 + door * 9;
+    if (x >= dl && x <= dr && y >= 178) pw = Math.max(pw, 0.75 - door * 0.45);
+    if (pw > 0 && bay(x, y) < pw * 2.2) { L.set(x, y, lv(TARW, pw * 5.5 + (g > 0.86 ? 1 : 0), x, y, 0.6)); continue; }
+    L.set(x, y, lv(TAR, l, x, y, 0.6));
+  }
+  // front coping stones 191..196
+  for (let y = 191; y < 197; y++) for (let x = 0; x < W; x++) {
+    const li = lampI(x, y), blk = Math.floor((x + 6) / 23), bx = (x + 6) % 23;
+    let l = y === 191 ? 7.5 : y === 192 ? 6 : 4.2 - (y - 193) * 0.7;
+    l += (hash(blk, 1, 4) - 0.5) * 1.2 + (fbm(x * 0.3, y * 0.6, 17) - 0.5) * 1.5;
+    if (bx === 0) { L.set(x, y, CON[0]); continue; }
+    if (bx === 1 && y > 191) l += 1;
+    if (y === 196) l = 0.5;
+    if (li > 0.5 && y < 194) { L.set(x, y, lv(CONW, (li - 0.5) * 7 + (y === 191 ? 1 : 0), x, y, 0.5)); continue; }
+    L.set(x, y, lv(CON, l, x, y, 0.55));
+  }
+  for (let k = 0; k < 9; k++) { let cx = Math.floor(r() * W), cy = 193; for (let s = 0; s < 4; s++) { L.set(cx, cy, CON[1]); cx += r() < 0.5 ? 1 : -1; cy++; if (cy > 195) break; } }
+  // front brick wall 197..224, gets darker downward
+  brickWall(L, 0, 197, W, H, 3.2, 1);
+  for (let y = 214; y < H; y++) for (let x = 0; x < W; x++) if (bay(x, y) < (y - 213) / 12) L.set(x, y, (y - 197) % 5 === 4 ? MORT[0] : BRK[1]);
+  // wall vent grille
+  for (let y = 202; y < 213; y++) for (let x = 26; x < 44; x++) {
+    const e = x === 26 || y === 202, e2 = x === 43 || y === 212;
+    L.set(x, y, e ? CON[6] : e2 ? CON[0] : ((y - 203) % 2 === 0 ? CON[4] : CON[0]));
+  }
+  for (let x = 27; x < 43; x++) if (hash(x, 9, 1) < 0.35) for (let y = 213; y < 213 + Math.floor(hash(x, 2, 2) * 6); y++) L.set(x, y, BRK[1]);
+  // drain pipe with brackets and moss
+  const PIPE = ramp(6, ['#0c1018', '#1a2230', '#2c3a4a', '#4a5e6e', '#7890a0']);
+  for (let y = 190; y < H; y++) [0, 3, 4, 2, 1].forEach((l, i) => L.set(150 + i, y, PIPE[l]));
+  for (let y = 188; y < 194; y++) for (let x = 148; x < 157; x++) L.set(x, y, PIPE[y === 188 ? 4 : (x === 148 ? 3 : (x === 156 ? 0 : 2))]);
+  for (const by of [202, 214]) for (let x = 149; x < 156; x++) { L.set(x, by, PIPE[0]); L.set(x, by - 1, PIPE[4]); if (x === 149 || x === 155) L.set(x, by, PIPE[4]); }
+  for (const [mx, my] of [[149, 222], [148, 223], [156, 221], [155, 223], [157, 222], [12, 201], [13, 202], [96, 198], [97, 199], [214, 198]]) L.set(mx, my, hash(mx, my, 5) < 0.5 ? C('#2c4a36') : C('#4c6c3e'));
+  for (let y = 203; y < 215; y++) if (hash(y, 3, 3) < 0.6) L.set(151, y + 1, C('#6a3a26'));
+  // stairwell housing with door and sodium wall lamp
+  brickWall(L, 266, 122, W, 177, 1.8, 3);
+  for (let y = 122; y < 177; y++) { L.set(266, y, CON[6]); L.set(267, y, lv(BRK, 5, 267, y)); }
+  for (let y = 116; y < 122; y++) for (let x = 264; x < W; x++) L.set(x, y, y === 116 ? CON[8] : y === 117 ? CON[6] : y === 121 ? CON[0] : lv(CON, 3.5 - (y - 118) * 0.6 + lampI(x, y) * 3, x, y, 0.5));
+  for (let x = 264; x < W; x += 9) for (let y = 117; y < 121; y++) L.set(x, y, CON[1]);
+  // door: frame, warm interior, leaf ajar
+  const DOOR = ramp(6, ['#a85a30', '#d48a40', '#f0b85a', '#ffdc8a', '#fff2c4']);
+  for (let y = 143; y < 177; y++) for (let x = 290; x < 311; x++) {
+    if (x === 290 || x === 310 || y === 143) { L.set(x, y, x === 290 ? CON[7] : CON[2]); continue; }
+    if (x > 303) { L.set(x, y, x === 304 ? C('#fff2c4') : (y % 6 === 0 ? C('#1a1424') : C('#2c2234'))); continue; }
+    let l = 4.6 - (y - 144) / 33 * 3.2; if (x > 296 && y > 160 && (x - 296) + (y - 160) * 0.5 > 6) l -= 2.2;
+    if (y > 166 && (y - 166) % 3 === 0 && x > 294) l -= 1.8;
+    L.set(x, y, lv(DOOR, l, x, y, 0.6));
+  }
+  for (let x = 292; x < 302; x++) { L.set(x, 138, CON[1]); L.set(x, 139, C('#e8d040')); L.set(x, 140, C('#e8d040')); L.set(x, 141, CON[1]); }
+  for (let x = 293; x < 301; x += 2) L.set(x, 140, C('#140c18'));
+  // conduit + meter box on housing
+  for (let y = 122; y < 177; y++) { L.set(314, y, PIPE[1]); L.set(315, y, PIPE[3]); }
+  for (let y = 150; y < 160; y++) for (let x = 312; x < 319; x++) L.set(x, y, x === 312 || y === 150 ? PIPE[4] : (x === 318 || y === 159 ? PIPE[0] : PIPE[2]));
+  // lamp: bracket, hood, bulb, dithered glow
+  const lampHood = [C('#0a0810'), C('#2a2430'), C('#5a4a48'), C('#8a6a50')];
+  line(L, 284, 123, 284, 129, lampHood[0]); line(L, 283, 124, 279, 126, lampHood[0]); line(L, 283, 123, 279, 125, lampHood[2]);
+  fillPoly(L, [[271, 126], [282, 126], [284, 130], [269, 130]], (x, y) => y === 126 ? lampHood[3] : (y === 130 ? lampHood[0] : lampHood[1]));
+  const glowC = [C('#5a3a3a'), C('#8a5a3c'), C('#c88a48'), C('#ffd27a'), C('#fff4c8')];
+  for (let y = 118; y < 146; y++) for (let x = 258; x < 296; x++) {
+    const d = Math.hypot(x - LX, (y - LY - 1) * 1.1); if (d > 13 || (y < 130 && x > 268 && x < 286)) continue;
+    const g = 1 - d / 13; if (bay(x, y) < g * g * 1.2) L.set(x, y, glowC[Math.min(2, Math.floor(g * 3.2))]);
+  }
+  for (let x = 271; x < 282; x++) { L.set(x, 131, glowC[4]); L.set(x, 132, x > 272 && x < 280 ? glowC[3] : -1); }
+  L.set(274, 133, glowC[3]); L.set(277, 133, glowC[3]);
+  // TV antenna (fishbone) with guy wires
+  for (let y = 92; y < 170; y++) { L.set(18, y, inkL); L.set(19, y, ink); }
+  [[96, 7], [100, 9], [104, 11], [108, 13], [113, 9]].forEach(([y, w]) => { for (let x = 19 - w; x <= 19 + w; x++) L.set(x, y + Math.round(Math.abs(x - 19) * 0.15), ink); L.set(19 - w, y + Math.round(w * 0.15) - 1, inkL); });
+  line(L, 19, 124, 2, 170, ink); line(L, 19, 124, 36, 170, ink);
+  for (let y = 164; y < 170; y++) for (let x = 14; x < 24; x++) L.set(x, y, x === 14 || y === 164 ? CON[6] : CON[2]);
+  // overhead cable from antenna to housing, sagging, with birds
+  let prev = null;
+  for (let x = 19; x <= 266; x++) { const t = (x - 19) / 247, y = Math.round(98 + (122 - 98) * t + 34 * 4 * t * (1 - t) * 0.5); L.set(x, y, ink); if (prev !== null && y - prev > 1) for (let k = prev + 1; k < y; k++) L.set(x, k, ink); prev = y; }
+  const bird = ['.KK.', 'KKKK', '.KK.', '.K..'];
+  for (const bx of [170, 177]) { const t = (bx - 19) / 247, by = Math.round(98 + 24 * t + 68 * t * (1 - t)); stamp(L, bx, by - 4, bird, { K: ink }); L.set(bx + 3, by - 4, ink); }
+  // gooseneck vent and litter on the floor
+  for (let y = 166; y < 179; y++) [1, 3, 5, 4, 2, 0].forEach((l, i) => L.set(160 + i, y, PIPE[Math.min(4, l)]));
+  for (let x = 157; x < 169; x++) { L.set(x, 164, PIPE[4]); L.set(x, 165, PIPE[1]); }
+  const can = [C('#2a0c1c'), C('#7a1e30'), C('#c83a44'), C('#f08a80'), C('#c0c4d0')];
+  stamp(L, 102, 185, ['.4444.', '012321', '011210', '.0000.'], { 0: can[0], 1: can[1], 2: can[2], 3: can[3], 4: can[4] });
+  const paper = [C('#4a4a64'), C('#7a7a92'), C('#a8a8bc'), C('#d0ccd8')];
+  stamp(L, 226, 186, ['..2333..', '.211223.', '2121212.', '.11110..'], { 0: paper[0], 1: paper[1], 2: paper[2], 3: paper[3] });
+  for (const [bx, by] of [[86, 189], [118, 179], [214, 188], [62, 181], [300, 186]]) { L.set(bx, by, C('#d8c8a8')); L.set(bx + 1, by, C('#c87838')); }
+  return L;
+}
+
+/* ---------- sodium lamp cone: hard-edged bands, sparse irregular stray pixels at the falloff only ---------- */
+function drawCone() {
+  const L = new Buf('cone', W, H);
+  const c = [C('#ffd470'), C('#d08848'), C('#7a4a5c')];
+  const ax = LX, ay = LY + 2, bl = 196, br = 300, by = 186;
+  for (let y = ay + 1; y < by; y++) {
+    const t = (y - ay) / (by - ay), xl = ax + (bl - ax) * t, xr = ax + (br - ax) * t, mid = (xl + xr) / 2, hw = (xr - xl) / 2;
+    for (let x = Math.floor(xl); x <= Math.ceil(xr); x++) {
+      if (x >= 266 && y < 177) continue; // wall itself is lit in the roof layer
+      const q = Math.abs(x - mid) / Math.max(1, hw);
+      if (y < 150 && hash(x >> 1, y >> 1, 11) > 0.22) continue; // thin air: only a faint scatter
+      const i = lightBand(x, y, Math.max(q * 0.92, t * 0.95), [0.34, 0.66, 0.95], 9);
+      if (i >= 0) L.set(x, y, c[Math.min(2, i)]);
+    }
+  }
+  return L;
+}
+
+/* ======================================================================
+   LAYER 4: HAZARDS
+   ====================================================================== */
+const ACR = ramp(10, ['#0c0d1a', '#151828', '#1e2438', '#28304a', '#36405a', '#46526c', '#5a6880', '#728298', '#909fb2', '#b6c2ce']);
+const ACW = ramp(5, ['#6a5a5a', '#8c7466', '#b2946e', '#d8b682', '#f2d49a']);
+const RUST = ['#4a2420', '#74402a', '#9a5c32'].map(C);
+function drawAC() {
+  const L = new Buf('ac', 56, 48, 166, 142);
+  const X = x => x - 166, Y = y => y - 142;
+  const S = (x, y, c) => L.set(X(x), Y(y), c);
+  // ground shadow (cast left, away from lamp)
+  for (let y = 183; y < 188; y++) for (let x = 166; x < 214; x++) if ((x + y) % 2 === 0 && x < 206 - (y - 183)) S(x, y, ACR[0]);
+  // feet rails
+  for (let x = 170; x < 210; x++) { S(x, 184, ACR[1]); S(x, 185, ACR[0]); }
+  for (const fx of [171, 205]) for (let y = 182; y < 186; y++) { S(fx, y, ACR[0]); S(fx + 1, y, ACR[3]); }
+  // right side face, lamp-lit
+  fillPoly({ set: (x, y, c) => S(x, y, c) }, [[208, 158], [214, 151], [214, 177], [208, 184]], (x, y) => {
+    let l = 2.6 + (y < 162 ? 0.6 : 0) - (y - 152) / 40; if ((y - 160) % 3 === 0 && y > 160 && y < 180) l -= 1.1; return lv(ACW, l, x, y, 0.5);
+  });
+  // top face, moonlit, fan grille
+  fillPoly({ set: (x, y, c) => S(x, y, c) }, [[170, 158], [208, 158], [214, 151], [176, 151]], (x, y) => {
+    const fx = (x - 192) / 12.5, fy = (y - 154.5) / 2.6, f = fx * fx + fy * fy;
+    if (f < 1) { const rr = Math.sqrt(f); if (rr < 0.22) return ACR[6]; return (Math.floor(rr * 6) % 2 === 0) ? ACR[1] : ACR[4]; }
+    if (f < 1.25) return ACR[8];
+    return lv(ACR, 6.2 + (x - 170) / 60 + (y === 157 ? 1.6 : 0) + lampI(x, y) * 2, x, y, 0.5);
+  });
+  for (let x = 177; x < 214; x++) S(x, 151, ACR[9]);
+  // front face with louvres, frame bevel, rivets
+  for (let y = 158; y < 184; y++) for (let x = 170; x < 208; x++) {
+    const fx = x - 170, fy = y - 158;
+    let l;
+    if (fy === 0) l = 8.6; else if (fx === 0) l = 6; else if (fx === 37) l = 1.2; else if (fy === 25) l = 0.6;
+    else if (fx >= 4 && fx <= 33 && fy >= 5 && fy <= 22) { const s = (fy - 5) % 3; l = s === 0 ? 6.4 : s === 1 ? 3.4 : 0.6; if (fx === 4) l -= 1.5; if (fx === 33) l += 0.6; }
+    else { l = 4.6 - fy / 30 + (fbm(x * 0.4, y * 0.4, 31) - 0.5) * 1.4; if (fx === 3 || fy === 4) l = 1.6; if (fx === 34 || fy === 23) l = 6.2; }
+    S(x, y, lv(ACR, l + lampI(x, y) * 1.5, x, y, 0.5));
+  }
+  for (const [rx, ry] of [[172, 160], [205, 160], [172, 181], [205, 181], [188, 160], [188, 181]]) { S(rx, ry, ACR[9]); S(rx + 1, ry + 1, ACR[1]); }
+  for (const [rx, ry, n] of [[172, 162, 6], [205, 162, 9], [188, 162, 3], [181, 182, 2]]) for (let k = 0; k < n; k++) if (hash(rx, ry + k, 3) < 0.75) S(rx + (k > 4 ? 1 : 0), ry + k, RUST[k < 2 ? 2 : k < 5 ? 1 : 0]);
+  // caution label
+  for (let x = 192; x < 202; x++) for (let y = 159; y < 162; y++) S(x, y, ((x + y) % 4 < 2) ? C('#f0c830') : C('#1a1018'));
+  // copper pipes out of the side into the roof
+  const CU = [C('#2a1416'), C('#6a3220'), C('#a2582c'), C('#d88c4c')];
+  for (const [py, k] of [[171, 0], [175, 1]]) {
+    for (let x = 214; x < 218 + k * 2; x++) { S(x, py, CU[3]); S(x, py + 1, CU[1]); }
+    for (let y = py; y < 186; y++) { S(218 + k * 2, y, CU[2]); S(219 + k * 2, y, CU[0]); }
+  }
+  for (let y = 177; y < 180; y++) { S(218, y, C('#14101c')); S(219, y, C('#2a2434')); S(220, y, C('#14101c')); S(221, y, C('#2a2434')); }
+  return L;
+}
+function drawBox() {
+  const L = new Buf('box', 48, 40, 112, 154);
+  const S = (x, y, c) => L.set(x - 112, y - 154, c);
+  const BX = ramp(8, ['#0e141c', '#18222c', '#24323c', '#34464e', '#4a5e62', '#66807c', '#8aa49a']);
+  for (let y = 158; y < 178; y++) for (let x = 134; x < 150; x++) {
+    const fx = x - 134, fy = y - 158;
+    let l = 3.6 - fy / 26 + (fbm(x * 0.5, y * 0.5, 41) - 0.5) * 1.2;
+    if (fy === 0) l = 6.8; else if (fy === 1) l = 2; else if (fx === 0) l = 5; else if (fx === 15) l = 0.6; else if (fx === 14) l = 1.6;
+    if (fx === 1 && (fy === 4 || fy === 14)) l = 6;
+    S(x, y, lv(BX, l, x, y, 0.5));
+  }
+  for (let x = 133; x < 151; x++) { S(x, 157, BX[7]); S(x, 158, BX[4]); }
+  stamp(L, 138 - 112, 163 - 154, ['...Y...', '..YkY..', '..YkY..', '.YYkYY.', '.YkYkY.', 'YYYYYYY'], { Y: C('#f0c830'), k: C('#140c10') });
+  for (let y = 170; y < 177; y++) if (hash(y, 4, 4) < 0.7) S(140, y, RUST[1]);
+  for (let y = 176; y < 179; y++) for (let x = 133; x < 151; x++) if ((x + y) % 2 === 0) S(x, y + 1, BX[0]);
+  // puddle
+  const PD = ramp(7, ['#080c22', '#10183a', '#1c2a54', '#2e4478', '#5070a8', '#86a8d8', '#c8e0f8']);
+  for (let y = 182; y < 191; y++) for (let x = 112; x < 154; x++) {
+    const e = ((x - 131) / 19) ** 2 + ((y - 186.5) / 3.6) ** 2 + (fbm(x * 0.2, y * 0.5, 61) - 0.5) * 0.5;
+    if (e > 1) continue;
+    let l = 1.2 + (y - 183) * 0.15;
+    if (e > 0.78) l = 2.6;
+    if ((y === 184 || y === 187) && hash(x, y, 8) < 0.45) l = 3.6;
+    if (y === 185 && x > 136 && x < 142) l = 5.2;
+    S(x, y, lv(PD, l, x, y, 0.5));
+  }
+  // cable from box to puddle: thick, moonlit top
+  const cab = C('#08060e'), cabL = C('#4a4a70');
+  let pts = []; for (let i = 0; i <= 40; i++) { const t = i / 40, a = [149, 171], b = [160, 178], c2 = [138, 186], d = [129, 184]; const u = 1 - t; pts.push([u * u * u * a[0] + 3 * u * u * t * b[0] + 3 * u * t * t * c2[0] + t * t * t * d[0], u * u * u * a[1] + 3 * u * u * t * b[1] + 3 * u * t * t * c2[1] + t * t * t * d[1]]); }
+  for (const [px, py] of pts) { S(px, py, cab); S(px, py + 1, cab); S(px + 1, py, cab); }
+  for (const [px, py] of pts) if (L.get(Math.floor(px) - 112, Math.floor(py) - 155) < 0 || hash(Math.floor(px), 0, 9) < 0.5) S(px, py - 1, cabL);
+  stamp(L, 126 - 112, 182 - 154, ['Y.y', '.yY', 'yY.'], { Y: C('#ffd070'), y: C('#c87a30') });
+  return L;
+}
+function drawSparks(f) {
+  const L = new Buf('sparks', 40, 40, 110, 158);
+  const S = (x, y, c) => L.set(x - 110, y - 158, c);
+  const r = mulberry(300 + f * 17);
+  const col = [C('#ffffff'), C('#fff07a'), C('#ffb040'), C('#e05a20'), C('#8af4ff'), C('#3aa0e8')];
+  const tx = 128, ty = 183;
+  const rays = 4 + Math.floor(r() * 3);
+  for (let k = 0; k < rays; k++) {
+    const a = -Math.PI * (0.1 + r() * 0.8), len = 3 + Math.floor(r() * 7);
+    for (let s = 1; s <= len; s++) S(tx + Math.cos(a) * s, ty + Math.sin(a) * s, col[s < 2 ? 0 : s < len * 0.6 ? 1 : (s < len - 1 ? 2 : 3)]);
+  }
+  for (let k = 0; k < 5; k++) { const a = -Math.PI * r(), d = 6 + r() * 9; S(tx + Math.cos(a) * d, ty + Math.sin(a) * d * 0.8, col[1 + Math.floor(r() * 3)]); }
+  // zigzag arc down into the puddle
+  let x = tx, y = ty; for (let s = 0; s < 6; s++) { S(x, y, col[s % 2 ? 4 : 0]); x += r() < 0.5 ? -1 : 1; y += 1; if (y > 188) break; S(x, y, col[5]); }
+  S(tx, ty, col[0]); S(tx - 1, ty, col[1]); S(tx + 1, ty, col[1]); S(tx, ty - 1, col[1]);
+  // reflection in the puddle
+  for (let k = 0; k < 4; k++) S(tx - 3 + Math.floor(r() * 7), 188 + Math.floor(r() * 2), col[k % 2 ? 2 : 1]);
+  return L;
+}
+function drawDrone(f) {
+  const L = new Buf('drone', 48, 32, 222, 126);
+  const S = (x, y, c) => L.set(x - 222, y - 126, c);
+  const DR = ramp(9, ['#08080e', '#121422', '#1c2032', '#2a3046', '#3c445c', '#525c76', '#6e7a94', '#929eb6', '#bcc6d6']);
+  const warm = [C('#b09078'), C('#e8c898')];
+  const on = f % 2 === 0;
+  // arms
+  for (let x = 228; x < 261; x++) { S(x, 137, DR[x > 244 ? 6 : 4]); S(x, 138, DR[1]); }
+  // rotor hubs + blur discs (dithered, alternate per frame)
+  for (const hx of [229, 259]) {
+    for (let y = 133; y < 138; y++) { S(hx - 1, y, DR[1]); S(hx, y, DR[5]); S(hx + 1, y, DR[2]); }
+    S(hx, 132, DR[7]);
+    for (let x = hx - 9; x <= hx + 9; x++) for (let y = 130; y <= 133; y++) {
+      const e = ((x - hx) / 9.5) ** 2 + ((y - 131.5) / 1.8) ** 2; if (e > 1 || (Math.abs(x - hx) < 2 && y > 131)) continue;
+      if (((x + y + f) % 3 === 0) || e > 0.8 && (x + f) % 2 === 0) S(x, y, e > 0.7 ? DR[6] : DR[8]);
+    }
+  }
+  // main pod
+  for (let y = 134; y < 148; y++) for (let x = 234; x < 256; x++) {
+    const nx = (x - 245) / 10.5, ny = (y - 140.5) / 6.6, e = nx * nx + ny * ny; if (e > 1) continue;
+    const nz = Math.sqrt(1 - e); let I = nx * 0.55 + ny * -0.6 + nz * 0.58;
+    let l = 1 + I * 6.5; if (y === 141 && x > 237) l -= 2; if (x === 248 && y < 141) l -= 1.5;
+    if (e > 0.82) l = Math.min(l, 1.2);
+    if (I > 0.86) { S(x, y, warm[I > 0.94 ? 1 : 0]); continue; }
+    S(x, y, lv(DR, l, x, y, 0.5));
+  }
+  for (const [rx, ry] of [[240, 137], [251, 137], [251, 144]]) S(rx, ry, DR[8]);
+  // eye lens, facing the runner
+  const eye = on ? [C('#5a0a18'), C('#d81830'), C('#ff5a5a'), C('#ffd0d0')] : [C('#2a0610'), C('#4a0a18'), C('#7a1a28'), C('#a04050')];
+  stamp(L, 236 - 222, 139 - 126, ['.KKK.', 'K122K', 'K233K', 'K122K', '.KKK.'], { K: DR[0], 1: eye[0], 2: eye[1], 3: eye[2] });
+  S(238, 141, eye[3]);
+  if (on) for (let y = 135; y < 148; y++) for (let x = 228; x < 238; x++) { const d = Math.hypot(x - 238, y - 141); if (d > 2.8 && d < 7 && bay(x, y) < (1 - d / 7) * 0.5 && L.get(x - 222, y - 126) < 0) S(x, y, C('#a01830')); }
+  // antenna + blink, skids, sensor
+  for (let y = 129; y < 135; y++) S(247, y, DR[1]); S(247, 128, on ? C('#40ff80') : C('#1a6030'));
+  for (let x = 238; x < 253; x++) S(x, 150, DR[x < 241 ? 6 : 2]);
+  for (const sx of [240, 250]) { S(sx, 148, DR[1]); S(sx, 149, DR[1]); }
+  for (let x = 243; x < 248; x++) S(x, 148, DR[x === 243 ? 4 : 2]);
+  S(245, 149, eye[1]);
+  // dark silhouette outline on the hull so the drone reads against the lamp light
+  const glowC = C('#a01830'), edge = [];
+  for (let y = 7; y < L.h; y++) for (let x = 0; x < L.w; x++) {
+    if (L.get(x, y) >= 0 && L.get(x, y) !== glowC) continue;
+    if ([[1, 0], [-1, 0], [0, 1], [0, -1]].some(([a, c]) => { const v = L.get(x + a, y + c); return v >= 0 && v !== glowC && y + c >= 8; })) edge.push([x, y]);
+  }
+  edge.forEach(([x, y]) => L.set(x, y, DR[0]));
+  return L;
+}
+
+/* ======================================================================
+   LAYER 5: HERO - hand-authored pixel rows (no procedural shapes).
+   Light: key upper right (moon/lamp), rim from the left.
+   Keys: K outline, 0-3 skin, a/b/c/d navy dark..light, e/f boot/belt, g steel, y/Y gold, w white, @ lens.
+   ====================================================================== */
+const HP = { K: '#0a0410', s0: '#6a2848', s1: '#c8584c', s2: '#f49a68', s3: '#ffe4ac', n0: '#080a22', n1: '#1a2a78', n2: '#4468d8', n3: '#b4dcff', b0: '#240e24', b1: '#8c5a5c', gr: '#c4c8e8', g0: '#d08a18', g1: '#fff070', W: '#ffffff' };
+const HC = {}; for (const k in HP) HC[k] = C(HP[k]);
+const SK = { K: 'K', w: 'W', 0: 's0', 1: 's1', 2: 's2', 3: 's3', a: 'n0', b: 'n1', c: 'n2', d: 'n3', e: 'b0', f: 'b1', g: 'gr', y: 'g0', Y: 'g1' };
+const HBW = 48, HBH = 56, GRD = 54;
+const DARKEN = { d: 'c', c: 'b', b: 'a', f: 'e', g: 'f', 3: '1', 2: '0', 1: '0' };
+const shade = rows => rows.map(r => [...r].map(ch => DARKEN[ch] || ch).join(''));
+
+// Head with peaked cap (brim lit on top edge, gold badge), eye, nose, ear, nape hair.
+const HEAD = [
+  '....KKKKKKK.........',
+  '...KbbbbbccKK.......',
+  '..KbbbbbcccddK......',
+  '..KabbbbccYYcdK.....',
+  '..KabbbbbcYydK......',
+  '.KKaaabbbbbcddKK....',
+  '.KaKKKKKKKKKKKffgK..',
+  '.KeK00000000KKeeeK..',
+  '.KeeK011122222K.....',
+  '.KeK0K1122w22222K...',
+  '..KK0K1122K222233K..',
+  '...K01122222222222K.',
+  '...KK0122222222K2K..',
+  '....KK011222222KK...',
+  '.....KKK0122222K....',
+  '.......KK011111K....',
+];
+// Torso with jacket, folds, chest badge, belt with buckle, pants top. Back (radio) at left.
+const TORSO = [
+  '...KKKKKKKKKKK.....',
+  '..KdbbbbbbbcccK....',
+  '.KdcbbbbbbbccddK...',
+  '.KdbbbbbbbYbcccdK..',
+  '.KdbbbbbbYybcccdK..',
+  '.KdabbbbbbbbbccdK..',
+  '.KdabbbabbbbbbcdK..',
+  '.KdaabbbbbbbbbccK..',
+  '.KKdaabbbbbbbbbcK..',
+  '..KKeeeeeeYYeeeeK..',
+  '..KeKffeeeeeKeefK..',
+  '...KKaabbbbbbbccK..',
+  '....KaabbbbbbbcdK..',
+];
+const ARM_NEAR = [ // swing from trailing to forward; lighter sleeve so it separates from the torso; shoulder at the top
+  ['.....KKKK.....','....KcccdK....','...KbcccdK....','..KbbccdK.....','.KabbccdK.....','.KaabcdK......','KaabbcK.......','KaabcK........','KaaK..........','K11K..........','K12K..........','.KK...........'],
+  ['....KKKK.....','...KcccdK.....','...KbcccdK....','...KbbccdK....','..KabbccdK....','..KaabccK.....','..KaabcK......','.KaabbK.......','.KaaK.........','.K11K.........','.K12K.........','..KK..........'],
+  ['....KKKK.....','...KcccdK.....','...KbcccdK....','...KbbccdK....','...KabbccK....','...KaabcdK....','....KaabcK....','....KaabbK....','....KKaaK.....','.....K11K.....','.....K12K.....','......KK......'],
+  ['...KKKK.........','..KcccdK........','..KbcccdK.......','..KbbccdK.......','...KabbcdK......','...KKaabbcKK....','.....KKaabccdK..','.......KKaabcK..','.........KK11K..','..........K12K..','...........KK...'],
+  ['...KKKK..........','..KcccdK.........','..KbcccdK........','..KbbccdK........','...KabbcdK.......','....KKabbcKK.....','......KKKbbccKK..','........KKaabccdK','.........KKK11K12','...........KK12K.','............KKK..'],
+];
+const ARM_FAR = [ // dark far arm holding the flashlight; '@' marks the lens
+  ['KKKK..............','KaabKK............','.KaabbKK..........','..KaabbbKKK.......','....KKaabbKKKKKKKK.','......KKK11eeffggg@','.......K12KeeffgggK','........KKKKKKKKKK.'],
+];
+const LEG = [
+  { g: 1, rows: ['.......KaabbccK', '.......KaabbbcdK', '........KaabbbcdK', '........KaabbbcK', '.........KaabbbcdK', '.........KaaabbcdK', '..........KaabbbcK', '..........KaaabbcdK', '...........KaabbbcK', '...........KaabbcdK', '............KaabbcK', '............KaabbcK', '.............KaabcK', '.............KaabcdK', '..............KKbcK', '.............KeeffK', '..............KefgK', '.............KeeffK', '............KeefffKK', '...........KeeKKfffffK', '..........KKKKK.KfffggK', '.................KKKKKK'] },
+  { g: 1, rows: ['.......KaabbccK', '.......KaabbbcdK', '.......KaabbbcdK', '........KaabbbcdK', '........KaabbbbcK', '.........KaabbbbcdK', '.........KaaabbbbcK', '..........KaabbbcK', '...........KaabbbcdK', '............KaabbbcK', '............KaabbcdK', '............KaabbcK', '............KaabcK', '............KaabcK', '............KKbcK', '...........KeeffK', '...........KefgK', '...........KeeffK', '..........KKeeffffKK', '.........KeeeeffffffK', '.........KKKKKKKKKKKK'] },
+  { g: 1, rows: ['......KaabbccK', '......KaabbbcdK', '......KaabbbcdK', '.......KaabbbcdK', '.......KaabbbcK', '.......KaaabbcdK', '.......KaabbbcK', '........KaabbbcdK', '........KaabbbcK', '........KaabbcdK', '........KaabbcK', '.........KaabbcK', '.........KaabbcK', '.........KaabcK', '.........KaabcdK', '.........KKbcK', '.........KeeffK', '.........KefgK', '.........KeeffK', '.......KKKKeefffK', '......KeeeeeffffffK', '......KKKKKKKKKKKKK'] },
+  { g: 1, rows: ['......KaabbccK', '.....KaabbbcdK', '....KaabbbcdK', '...KaabbbcK', '...KaabbbcdK', '..KaabbbcdK', '..KaabbbcK', '.KaabbbcdK', '.KaabbbcK', 'KaabbbcdK', 'KaabbcK', 'KaabcK', 'KaabcK', 'KaabcK', '.KKbcK', 'KeefK', 'KefgK', 'KeefK', 'KeeffKK', '.KeeffffK', '..KKKKKKKK'] },
+  { g: 0, rows: ['......KaabbccK', '....KaabbbcdK', '...KaabbbcdK', '..KaabbbcK', '..KaabbbcdK', '.KaabbbcK', 'KaabbbcK', 'KaabbcK', 'KaabcK', 'KKbcK', 'KeefK', 'KefgK', 'KeefK', 'KeefK', 'KeffK', 'KKKK'] },
+  { g: 0, rows: ['......KaabbccK', '......KaabbbcdK', '.....KaabbbcdK', '.....KaabbbcK', '....KaabbbcdK', '...KaabbbbcK', '..KaabbbcdK', '.KaabbbcK', 'KKaabbbcK', 'KeKaabbcK', 'KeeKKaabcK', 'KefK.KKbcK', 'KfgK..KKK', 'KeeK', '.KKK'] },
+  { g: 0, rows: ['......KaabbccK', '.......KaabbbcdK', '........KaabbbbcdK', '.........KaabbbbcdK', '..........KaabbbbcK', '...........KaabbbcdK', '...........KaaabbcK', '..........KKaabbcK', '.........KaabbbcK', '........KaabbbcK', '........KaabbcK', '........KaabcK', '........KKbcK', '........KeefK', '........KefgK', '........KeffKK', '........KeeffffK', '.........KKKKKKK'] },
+  { g: 0, rows: ['......KaabbccK', '.......KaabbbcdK', '........KaabbbbcdK', '.........KaabbbbbcdK', '..........KaabbbbbcK', '...........KaabbbbcdK', '............KaabbbbcK', '.............KaabbbcdK', '..............KaabbcK', '...............KaabcK', '................KKbcK', '................KeeffK', '.................KefgK', '................KeefffK', '...............KeeffffK', '...............KeKfffffgK', '...............KKKKKKKKKK'] },
+];
+// Leg phase for the near leg per frame; far leg is half a cycle later.
+const LEGX = 10; // column of the hip inside LEG sprites
+const ARM_SEQ = [0, 1, 2, 3, 4, 3, 2, 1];
+const FAR_SEQ = [1, 2, 1, 0, 1, 2, 1, 0];
+const BOB = [1, 2, 1, 0, 1, 2, 1, 0];
+const HX0 = 14, HIPY = 33;
+function stampRows(L, x, y, rows, map) { stamp(L, x, y, rows, map); }
+function lensOf(rows) { for (let j = 0; j < rows.length; j++) { const i = rows[j].indexOf('@'); if (i >= 0) return [i, j]; } return null; }
+function heroFrame(fi) {
+  const L = new Buf('hero', HBW, HBH);
+  const map = {}; for (const k in SK) map[k] = HC[SK[k]];
+  const bob = BOB[fi];
+  const put = (x, y, rows, g) => { const r = g ? rows.map(s => s) : rows; stamp(L, x, y, r.map(s => s.replace('@', 'g')), map); };
+  const leg = (ph, far) => {
+    const S = LEG[ph], rows = far ? shade(S.rows) : S.rows;
+    const y = S.g ? GRD + 1 - rows.length : HIPY + bob - 2;
+    stamp(L, HX0 - LEGX, y, rows, map);
+  };
+  const FA = ARM_FAR[0], fdy = FAR_SEQ[fi] - 1;
+  // back to front: far leg, far arm with flashlight, torso, head, near leg, near arm
+  leg((fi + 4) % 8, true);
+  const fax = HX0 + 9, fay = HIPY + bob - 12 + fdy;
+  stamp(L, fax, fay, shade(FA).map(s => s.replace('@', 'g')), map);
+  stamp(L, HX0 - 3, HIPY + bob - 13, TORSO, map);
+  stamp(L, HX0 + 1, HIPY + bob - 29, HEAD, map);
+  leg(fi, false);
+  const NA = ARM_NEAR[ARM_SEQ[fi]];
+  stamp(L, HX0 - 1, HIPY + bob - 12, NA, map);
+  const ln = lensOf(FA);
+  const lx = fax + ln[0], ly = fay + ln[1];
+  L.set(lx, ly, HC.W); L.set(lx, ly + 1, HC.g1); L.set(lx, ly - 1, HC.g1); L.set(lx - 1, ly, HC.g1);
+  // crisp rim light from the left: first lit pixel inside the outline on left-facing edges, broken every few rows
+  const rimOf = { [HC.n1]: HC.n3, [HC.n2]: HC.n3, [HC.n0]: HC.n2, [HC.s1]: HC.s3, [HC.s2]: HC.s3 };
+  for (let y = 0; y < HBH; y++) for (let x = 1; x < HBW - 1; x++) {
+    if (L.get(x, y) === HC.K && L.get(x - 1, y) < 0 && (y % 4 !== 3)) { const r = rimOf[L.get(x + 1, y)]; if (r) L.set(x + 1, y, r); }
+  }
+  // ground contact shadow, checker dithered
+  for (let x = HX0 - 10; x <= HX0 + 14; x++) if (L.get(x, GRD) < 0 && (x + fi) % 2 === 0) L.set(x, GRD, HC.K);
+  L.beam = { x: lx + 1, y: ly, dx: 1, dy: [0.05, 0.1, 0.05, 0, 0.05, 0.1, 0.05, 0][fi] };
+  return L;
+}
+
+/* Light as bands: hard-edged tone steps, with sparse irregular stray pixels only at the falloff edges (no alpha, no Bayer). */
+function lightBand(x, y, v, t, k) { // organic band edges from coarse noise, a few strays right at a step, outer band as clusters
+  const j = v + (vn(x / 6, y / 5, k) - 0.5) * 0.3;
+  for (let i = 0; i < t.length; i++) if (j < t[i]) {
+    if (i === t.length - 1 && vn(x / 2.5, y / 2.5, k + 9) < 0.5) return -1;
+    if (j > t[i] - 0.025 && hash(x, y, k + 3) > 0.6) return Math.min(i + 1, t.length - 1);
+    return i;
+  }
+  return -1;
+}
+function drawBeam(b) {
+  const L = new Buf('beam', W, H);
+  const c = [C('#fffbe4'), C('#ffc65c'), C('#c8703c')];
+  for (let y = 100; y < 196; y++) for (let x = b.x; x < b.x + 76; x++) {
+    const rx = x - b.x, ry = y - b.y, al = rx * b.dx + ry * b.dy, pr = Math.abs(-rx * b.dy + ry * b.dx);
+    if (al < 0 || al > 74) continue;
+    const hw = 1.3 + al * 0.17; if (pr > hw + 1) continue;
+    const v = Math.max(pr / hw * 0.9, al / 74 * 1.05);
+    const i = lightBand(x, y, v, [0.28, 0.62, 1.0], 5);
+    if (i >= 0) L.set(x, y, c[i]);
+  }
+  return L;
+}
+
+/* ======================================================================
+   FIX LAYER: HUD on the 8x8 grid
+   ====================================================================== */
+const FONT = {
+  0: ['.###.', '##.##', '##.##', '##.##', '##.##', '.###.'], 1: ['.##..', '###..', '.##..', '.##..', '.##..', '####.'],
+  2: ['####.', '...##', '.###.', '##...', '##...', '#####'], 3: ['####.', '...##', '.###.', '...##', '...##', '####.'],
+  4: ['##.##', '##.##', '##.##', '#####', '...##', '...##'], 5: ['#####', '##...', '####.', '...##', '...##', '####.'],
+  6: ['.###.', '##...', '####.', '##.##', '##.##', '.###.'], 7: ['#####', '...##', '..##.', '.##..', '.##..', '.##..'],
+  8: ['.###.', '##.##', '.###.', '##.##', '##.##', '.###.'], 9: ['.###.', '##.##', '##.##', '.####', '...##', '.###.'],
+  S: ['.####', '##...', '.###.', '...##', '...##', '####.'], C: ['.####', '##...', '##...', '##...', '##...', '.####'],
+  O: ['.###.', '##.##', '##.##', '##.##', '##.##', '.###.'], R: ['####.', '##.##', '##.##', '####.', '##.##', '##.##'],
+  E: ['#####', '##...', '####.', '##...', '##...', '#####'], H: ['##.##', '##.##', '#####', '##.##', '##.##', '##.##'],
+  I: ['####.', '.##..', '.##..', '.##..', '.##..', '####.'],
+};
+function drawHUD() {
+  const L = new Buf('hud', W, H);
+  const ink = C('#0c0610');
+  const gold = ['#fff8c8', '#ffe478', '#ffc040', '#f49428', '#d46420', '#a04018'].map(C);
+  const ice = ['#f0ffff', '#b0f0ff', '#68c8f8', '#3c98e0', '#2c6cc0', '#1e4a98'].map(C);
+  const text = (col, row, s, g) => [...s].forEach((ch, k) => {
+    const gl = FONT[ch]; if (!gl) return; const x0 = (col + k) * 8, y0 = row * 8;
+    const on = (i, j) => i >= 0 && j >= 0 && i < 5 && j < 6 && gl[j][i] === '#';
+    for (let j = -1; j <= 6; j++) for (let i = -1; i <= 5; i++) {
+      if (on(i, j)) L.set(x0 + 1 + i, y0 + 1 + j, g[j]);
+      else if ([[-1, 0], [1, 0], [0, -1], [0, 1], [1, 1], [-1, 1], [1, -1], [-1, -1]].some(([a, c]) => on(i + a, j + c))) L.set(x0 + 1 + i, y0 + 1 + j, ink);
+    }
+  });
+  text(2, 1, 'SCORE', gold); text(8, 1, '00012450', gold);
+  text(27, 1, 'HI', ice); text(30, 1, '00500000', ice);
+  const icon = ['....KKKKKKKK....', '...KbbbbbbcdK...', '..KbbbbbbccdK...', '..KbbbbYYbcdK...', '..KaabbYybccdK..', '.KKaaaaabbbbcKKK', '.KaKKKKKKKKKKfgK', '.KaK1111111KKK..', '..K11122w222K...', '..K1112wK222K...', '..K1122222233K..', '...K1122222K....', '...KK1222KK.....', '..KKbbKKbbKK....', '.KbbbbbYbbbbK...', '.KaabbbbbbbaaK..'];
+  const m = { K: ink, b: HC.n1, a: HC.n0, c: HC.n2, d: HC.n3, Y: HC.g1, y: HC.g0, f: HC.b1, g: HC.gr, 1: HC.s1, 2: HC.s2, 3: HC.s3, w: HC.W };
+  for (let k = 0; k < 3; k++) stamp(L, 16 + k * 20, 16, icon, m);
+  return L;
+}
+
+/* ======================================================================
+   BUILD, CHECK, COMPOSE
+   ====================================================================== */
+const report = { sprites: {}, fix: null };
+function prep(L) { const before = tileStats(L, 16); enforceTiles(L, 16); const after = tileStats(L, 16); report.sprites[L.name] = report.sprites[L.name] || { tiles: after.tiles, maxBefore: before.max, overBefore: before.over, maxAfter: after.max, overAfter: after.over }; return L; }
+const staticBack = [drawSky(), drawMoon(), drawClouds(), drawFar(), drawMid(), drawRoof(), drawCone(), drawAC(), drawBox()].map(prep);
+const hud = drawHUD(); { const s = tileStats(hud, 8); report.fix = { cells: s.tiles, max: s.max, over: s.over }; }
+function compose(layers) {
+  const out = new Int32Array(W * H).fill(0);
+  for (const L of layers) for (let y = 0; y < L.h; y++) { const sy = y + L.oy; if (sy < 0 || sy >= H) continue; for (let x = 0; x < L.w; x++) { const sx = x + L.ox; if (sx < 0 || sx >= W) continue; const c = L.d[y * L.w + x]; if (c >= 0) out[sy * W + sx] = c; } }
+  return out;
+}
+const HERO_X = 80, GROUND = 185;
+const NF = 8, frames = [0, 1, 2, 3, 4, 5, 6, 7].map(f => {
+  const hero = prep(heroFrame(f)); hero.name = 'hero'; hero.ox = HERO_X - HX0; hero.oy = GROUND - GRD;
+  const beam = prep(drawBeam({ x: hero.beam.x + hero.ox, y: hero.beam.y + hero.oy, dx: hero.beam.dx, dy: hero.beam.dy }));
+  return compose([...staticBack, prep(drawSparks(f >> 1)), prep(drawDrone(f >> 1)), beam, hero, hud]);
+});
+const cv = document.getElementById('screen'), ctx = cv.getContext('2d'), img = ctx.createImageData(W, H);
+function show(f) { const px = frames[f]; for (let i = 0; i < W * H; i++) { const c = px[i]; img.data[i * 4] = (c >> 16) & 255; img.data[i * 4 + 1] = (c >> 8) & 255; img.data[i * 4 + 2] = c & 255; img.data[i * 4 + 3] = 255; } ctx.putImageData(img, 0, 0); }
+const m = location.hash.match(/^#raw(\d?)/);
+if (m) { document.body.classList.add('raw'); show(+(m[1] || 0)); }
+else { let f = 0; show(0); setInterval(() => { f = (f + 1) % NF; show(f); }, 75); }
+const bad = Object.entries(report.sprites).filter(([, s]) => s.overAfter > 0);
+report.verdict = bad.length || report.fix.over ? 'FAIL' : 'PASS';
+document.getElementById('check').textContent = JSON.stringify(report);
+console.log('[tile check]', JSON.stringify(report));
+</script>
