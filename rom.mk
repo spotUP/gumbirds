@@ -41,4 +41,4 @@ VROM1=$(ROM)/$(GAMEROM)-v1.v1
 # use variable VROMTEMPLATE below to build your music and SFX
 # assets with vromtool instead of defining dependencies manually
 # in makefile. See build.mk for more details
-# VROMTEMPLATE=$(ROM)/$(GAMEROM)-vX.vX
+VROMTEMPLATE=$(ROM)/$(GAMEROM)-vX.vX

@@ -25,7 +25,7 @@ BUILDDIR=build
 # all directories that contain source to be compiled
 SRCDIRS=assets src
 # default build flags, can be overriden per target
-CFLAGS=-I$(BUILDDIR) -std=c99 -fomit-frame-pointer -O2 -g
+CFLAGS=-I$(BUILDDIR) -std=c99 -fomit-frame-pointer -O2 -g -MMD -MP
 LDFLAGS=
 Z80FLAGS=
 Z80LDFLAGS=
@@ -60,8 +60,8 @@ include emu.mk
 # 
 # Note: build rules (%.c -> %.o -> %.elf) are defined in Makefile.build
 ELF=$(BUILDDIR)/rom.elf
-CORE_SRCS=rng game hiscore nameentry flow obstacle_view bg_scroll laser_view hero_view vram_queue
-$(ELF):	$(BUILDDIR)/src/main.o $(BUILDDIR)/gen/hero_sprites.o $(BUILDDIR)/gen/obs_sprites.o $(BUILDDIR)/gen/city_sprites.o $(BUILDDIR)/gen/heat_sprites.o $(BUILDDIR)/src/bg.o $(BUILDDIR)/src/gfx.o $(CORE_SRCS:%=$(BUILDDIR)/src/core/%.o)
+CORE_SRCS=rng game hiscore nameentry flow obstacle_view bg_scroll laser_view hero_view vram_queue obj_pool sound_queue sound_events
+$(ELF):	$(BUILDDIR)/src/main.o $(BUILDDIR)/gen/hero_sprites.o $(BUILDDIR)/gen/obs_sprites.o $(BUILDDIR)/gen/city_sprites.o $(BUILDDIR)/gen/heat_sprites.o $(BUILDDIR)/src/bg.o $(BUILDDIR)/src/gfx.o $(BUILDDIR)/src/sound.o $(CORE_SRCS:%=$(BUILDDIR)/src/core/%.o)
 $(PROM1): $(ELF)
 
 
@@ -119,24 +119,50 @@ $(BUILDDIR)/src/main.o $(BUILDDIR)/src/bg.o $(BUILDDIR)/src/gfx.o: $(BUILDDIR)/g
 
 
 
-# sound driver ROM: nullsound + your configured sound commands
-# Add your dependencies below to compile your z80 sources into a HEX binary
-# that is used as the sound driver ROM (referenced by symbol MROM1)
-#
-# By default, this makefile uses the empty sound driver provided by ngdevkit
-# Note: build rules (%.s -> %.o -> %.ihx) are defined in Makefile.build
-SOUND_DRIVER=$(BUILDDIR)/assets/base-sound-driver.ihx
+# sound driver ROM: nullsound (Z80) + generated command table, built from source by gmake.
+# Plan: thoughts/shared/plans/2026-11-09-sound-driver.md. Nothing under build/sound is committed.
+#   assets/sound/*.yaml            music and sample maps (soundtool.py)
+#   tools/make_standin_fur.py      stand-in music (no upstream asset copied, licence unclear)
+#   tools/make_sfx_placeholders.py placeholder SFX WAVs (replaced by real samples later)
+# Generation order: `gmake` runs the sound-gen target (CUSTOM_GENERATE_TARGETS) before anything is
+# compiled, so build/snd_commands.h exists for the 68k and nss-deps.mk exists for the include below.
+SOUND_DIR=$(BUILDDIR)/sound
+SOUND_YAMLS=assets/sound/music-map.yaml assets/sound/sample-map.yaml
+SFX_NAMES=jump hit laser game_over coin
+SFX_WAVS=$(SFX_NAMES:%=$(SOUND_DIR)/sfx/%.wav)
+SOUND_DRIVER=$(SOUND_DIR)/driver.ihx
+
+$(SOUND_DIR)/ingame.fur: tools/make_standin_fur.py
+	mkdir -p $(@D)
+	$(PYTHON) -I tools/make_standin_fur.py $@
+$(SFX_WAVS): tools/make_sfx_placeholders.py
+	mkdir -p $(@D)
+	$(PYTHON) -I tools/make_sfx_placeholders.py $(SOUND_DIR)/sfx
+SOUND_ASSETS=$(SOUND_DIR)/ingame.fur $(SFX_WAVS)
+
+# build.mk recipes read the maps through $^, so the generated assets are order-only prerequisites
+# (they exist before soundtool/vromtool run). After changing a generator script run `gmake generate`.
+$(VROM1) $(Z80_SAMPLES_IN_VROM) $(Z80_SOUND_COMMANDS) $(SOUND_COMMANDS): $(SOUND_YAMLS) | $(SOUND_ASSETS)
+$(SOUND_DIR)/nss-deps.mk: $(SOUND_YAMLS)
+	mkdir -p $(@D)
+	$(SOUNDTOOL) -m -s $^ > $@
+-include $(SOUND_DIR)/nss-deps.mk
+
+$(BUILDDIR)/src/sound/user_commands.rel: src/sound/user_commands.s $(Z80_SAMPLES_IN_VROM) $(Z80_SOUND_COMMANDS)
+	mkdir -p $(@D)
+	$(Z80SDAS) -g -l -p -u -I$(NGZ80INCLUDEDIR)/nullsound -I$(BUILDDIR) -o $@ $<
+$(SOUND_DRIVER): $(BUILDDIR)/src/sound/user_commands.rel
+	mkdir -p $(@D)
+	$(Z80SDLD) -m -b DATA=0xf800 -i $@ $(NGZ80LIBDIR)/nullsound.lib $^
 $(MROM1): $(SOUND_DRIVER)
+$(BUILDDIR)/src/main.o $(BUILDDIR)/src/sound.o: $(SOUND_COMMANDS) src/sound.h src/core/sound_queue.h src/core/sound_events.h
+
+sound-gen: $(Z80_SAMPLES_IN_VROM) $(Z80_SOUND_COMMANDS) $(SOUND_COMMANDS) $(SOUND_DIR)/nss-deps.mk
+.PHONY: sound-gen
 
 
 
-# sound FX ROM: all your ADPCM samples
-# Add your dependencies below to convert your samples into suitable
-# ADPCM data and pack it into the sound ROM (referenced by symbol VROM1)
-#
-# Music and SFX assets can be managed with <> rather to generate
-# the dependencies automatically.
-# By default, no sample is used, so the VROM is empty
+# sound FX ROM: ADPCM-A samples, packed by vromtool from the sample map (VROMTEMPLATE in rom.mk)
 # Note: build rules (%.wav-> %.adpcm<a,b>) are defined in Makefile.build
 
 
@@ -158,7 +184,7 @@ $(MROM1): $(SOUND_DRIVER)
 #     the right ROM bank based on your input assets
 # Those actions can be achieved by creating custom make targets
 # that get invoked automatically when added to the variable below.
-CUSTOM_GENERATE_TARGETS=
+CUSTOM_GENERATE_TARGETS=sound-gen
 
 
 
@@ -171,12 +197,14 @@ CUSTOM_GENERATE_TARGETS=
 .DEFAULT_GOAL := all
 
 # Window run, MVS BIOS, backup RAM kept in nvram/
-# Windowed, 3x native 320x224, so dev runs never grab the whole screen.
+# Windowed, 3x native 320x224, so dev runs never grab the whole screen. -artpath: the crt-geom
+# chains load their aperture PNGs from artwork/bgfx/...; the default artpath is ./artwork, so
+# without it MAME logged "Unable to load chain ... falling back to no post processing".
 MAME_SHADER?=crt-geom-deluxe
-ROOFLINE_WINDOW_FLAGS=-window -nomaximize -resolution 960x672 -nofilter -video bgfx -bgfx_path $(shell brew --prefix)/share/mame/bgfx -bgfx_screen_chains $(MAME_SHADER)
+ROOFLINE_WINDOW_FLAGS=-window -nomaximize -resolution 960x672 -nofilter -video bgfx -bgfx_path $(shell brew --prefix)/share/mame/bgfx -bgfx_screen_chains $(MAME_SHADER) -artpath $(shell brew --prefix)/share/mame/artwork
 # UniBIOS 4.0 for make run only (user decision 2026-11-09). The zip is never copied into the
 # repo: build/unibios/neogeo.zip = nullbios files + uni-bios_4_0.rom, searched before $(ROM).
-# Missing UNIBIOS file: make run falls back to nullbios. make test always uses nullbios.
+# Missing UNIBIOS file: make run falls back to nullbios. make test uses nullbios except test-reach (UniBIOS).
 UNIBIOS?=$(HOME)/Downloads/uni-bios-40.zip
 UNIBIOS_DIR=$(BUILDDIR)/unibios
 $(UNIBIOS_DIR)/neogeo.zip: $(UNIBIOS) $(ROM)/neogeo.zip
@@ -205,8 +233,11 @@ NM=$(M68KGCC:%gcc=%nm)
 test: cart
 	nice -n 19 tests/host/run.sh
 	@$(MAKE) --no-print-directory test-laser
+	@$(MAKE) --no-print-directory test-reach
 	@$(MAKE) --no-print-directory test-hit
 	@$(MAKE) --no-print-directory test-vblank
+	@$(MAKE) --no-print-directory test-scroll
+	@$(MAKE) --no-print-directory test-sound
 	@set -e; T=$$(mktemp -d $(BUILDDIR)/test-run.XXXXXX); \
 	ROOFLINE_FRAME_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_frame_counter"{print $$1}') \
 	ROOFLINE_FLOW_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flow"{print $$1}') \
@@ -216,7 +247,7 @@ test: cart
 	ROOFLINE_BG_WRITES_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_bg_column_writes"{print $$1}') \
 	ROOFLINE_OBS_LAYOUT="$$($(M68KGCC) -std=c99 -S -o - tests/mame/layout_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
 	ROOFLINE_RESULT=$$T/result.txt \
-	nice -n 19 $(MAME) -window -nomaximize -video none -sound none -nothrottle -seconds_to_run $(TEST_SECONDS) -noautosave -skip_gameinfo -hash $(ROM) -rp $(ROM) -nvram_directory $$T -snapshot_directory $$T/snap -autoboot_script tests/mame/boot_check.lua neogeo -cart1 $(GAMEROM) > $$T/mame.log 2>&1 || true; \
+	SDL_VIDEODRIVER=dummy nice -n 19 $(MAME) -window -nomaximize -video none -sound none -nothrottle -seconds_to_run $(TEST_SECONDS) -noautosave -skip_gameinfo -hash $(ROM) -rp $(ROM) -nvram_directory $$T -snapshot_directory $$T/snap -autoboot_script tests/mame/boot_check.lua neogeo -cart1 $(GAMEROM) > $$T/mame.log 2>&1 || true; \
 	if [ ! -f $$T/result.txt ]; then tail -n 15 $$T/mame.log; echo "[FAIL] no result from Lua script"; exit 1; fi; \
 	cat $$T/result.txt; \
 	mkdir -p $(BUILDDIR)/test-snap; cp $$T/snap/*.png $(BUILDDIR)/test-snap/ 2>/dev/null || true; \
@@ -233,12 +264,38 @@ test-laser: cart
 	ROOFLINE_FRAME_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_frame_counter"{print $$1}') \
 	ROOFLINE_LASER_LAYOUT="$$($(M68KGCC) -std=c99 -S -o - tests/mame/laser_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
 	ROOFLINE_RESULT=$$T/result.txt \
-	nice -n 19 $(MAME) -window -nomaximize -video none -sound none -nothrottle -seconds_to_run $(TEST_SECONDS) -noautosave -skip_gameinfo -hash $(ROM) -rp $(ROM) -nvram_directory $$T -snapshot_directory $$T/snap -autoboot_script tests/mame/laser_check.lua neogeo -cart1 $(GAMEROM) > $$T/mame.log 2>&1 || true; \
+	SDL_VIDEODRIVER=dummy nice -n 19 $(MAME) -window -nomaximize -video none -sound none -nothrottle -seconds_to_run $(TEST_SECONDS) -noautosave -skip_gameinfo -hash $(ROM) -rp $(ROM) -nvram_directory $$T -snapshot_directory $$T/snap -autoboot_script tests/mame/laser_check.lua neogeo -cart1 $(GAMEROM) > $$T/mame.log 2>&1 || true; \
 	if [ ! -f $$T/result.txt ]; then tail -n 15 $$T/mame.log; echo "[FAIL] no result from laser Lua script"; exit 1; fi; \
 	cat $$T/result.txt; \
 	mkdir -p $(BUILDDIR)/test-snap; for f in heat_zero beam kill; do cp $$T/snap/$$f.png $(BUILDDIR)/test-snap/laser_$$f.png 2>/dev/null || true; done; \
 	grep -q '^PASS' $$T/result.txt && $(PYTHON) -I tests/mame/check_laser_pixels.py build/gen/hero_sprites.c build/gen/obs_sprites.c build/gen/city_sprites.c build/gen/heat_sprites.c $$T/snap/heat_zero.png $$T/snap/beam.png $$T/snap/kill.png $$T/result.txt.laser || echo "[FAIL] laser check" >> $$T/result.txt; \
 	if ! grep -q 'FAIL' $$T/result.txt; then rm -rf $$T; echo "[OK] make test-laser passed"; else echo "[FAIL] make test-laser, log kept in $$T"; exit 1; fi
+
+# High score reachability, plan P5.1 (tests/mame/hiscore_reach.lua): boot 1 plays to game over, types the name
+# REACHTST through the real name entry screen and checks the save sentinel g_hiscore_saves and backup RAM; boot 2
+# on the same nvram dir checks the table holds that name and score at the same row. Run by make test.
+# Runs under UniBIOS 4.0 (cabinet BIOS class): the BIOS copies .bss.bram to backup RAM after the game returns
+# through SYSTEM_RETURN. Stock ngdevkit nullbios writes backup RAM without REG_SRAMUNLOCK, so nothing persists
+# there (see thoughts/shared/research/2026-11-09_p51-reachability.md). Needs the UNIBIOS file.
+REACH_SECONDS?=300
+REACH_BIOS_FLAGS?=-rp "$(UNIBIOS_DIR);$(ROM)" -bios unibios40
+test-reach: cart bios
+	@if [ ! -f "$(UNIBIOS)" ]; then echo "[FAIL] UNIBIOS file not found: $(UNIBIOS)"; exit 1; fi
+	@$(MAKE) --no-print-directory $(UNIBIOS_DIR)/neogeo.zip
+	@set -e; T=$$(mktemp -d $(BUILDDIR)/test-run.XXXXXX); \
+	for PH in 1 2; do \
+	ROOFLINE_PHASE=$$PH \
+	ROOFLINE_FLOW_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flow"{print $$1}') \
+	ROOFLINE_FRAME_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_frame_counter"{print $$1}') \
+	ROOFLINE_HISCORE_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_hiscore_image"{print $$1}') \
+	ROOFLINE_SAVES_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_hiscore_saves"{print $$1}') \
+	ROOFLINE_REACH_LAYOUT="$$($(M68KGCC) -std=c99 -S -o - tests/mame/reach_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
+	ROOFLINE_RESULT=$$T/result$$PH.txt ROOFLINE_EXPECT=$$T/expect.txt \
+	SDL_VIDEODRIVER=dummy nice -n 19 $(MAME) -window -nomaximize -video none -sound none -nothrottle -seconds_to_run $(REACH_SECONDS) -noautosave -skip_gameinfo -hash $(ROM) $(REACH_BIOS_FLAGS) -nvram_directory $$T/nvram -autoboot_script tests/mame/hiscore_reach.lua neogeo -cart1 $(GAMEROM) > $$T/mame$$PH.log 2>&1 || true; \
+	if [ ! -f $$T/result$$PH.txt ]; then tail -n 15 $$T/mame$$PH.log 2>/dev/null || echo "[ERROR] $$T/mame$$PH.log missing: the scratch dir was deleted during the run (another session cleaning build/test-run.*?)"; echo "[FAIL] test-reach boot $$PH: no result from Lua script"; exit 1; fi; \
+	cat $$T/result$$PH.txt; \
+	grep -q '^PASS' $$T/result$$PH.txt || { echo "[FAIL] make test-reach boot $$PH, log kept in $$T"; exit 1; }; \
+	done; rm -rf $$T; echo "[OK] make test-reach passed"
 
 # Hit look reachability (tests/mame/hit_check.lua): idle hero, first obstacle hit; reads the hero animation
 # sentinels the game wrote with the sprite registers. Run by make test; `make test-hit` alone re-runs only this.
@@ -249,7 +306,7 @@ test-hit: cart
 	ROOFLINE_HERO_FRAME_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_hero_shown_frame"{print $$1}') \
 	ROOFLINE_HIT_LAYOUT="$$($(M68KGCC) -std=c99 -S -o - tests/mame/hit_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
 	ROOFLINE_RESULT=$$T/result.txt \
-	nice -n 19 $(MAME) -window -nomaximize -video none -sound none -nothrottle -seconds_to_run $(TEST_SECONDS) -noautosave -skip_gameinfo -hash $(ROM) -rp $(ROM) -nvram_directory $$T -autoboot_script tests/mame/hit_check.lua neogeo -cart1 $(GAMEROM) > $$T/mame.log 2>&1 || true; \
+	SDL_VIDEODRIVER=dummy nice -n 19 $(MAME) -window -nomaximize -video none -sound none -nothrottle -seconds_to_run $(TEST_SECONDS) -noautosave -skip_gameinfo -hash $(ROM) -rp $(ROM) -nvram_directory $$T -autoboot_script tests/mame/hit_check.lua neogeo -cart1 $(GAMEROM) > $$T/mame.log 2>&1 || true; \
 	if [ ! -f $$T/result.txt ]; then tail -n 15 $$T/mame.log; echo "[FAIL] no result from hit Lua script"; exit 1; fi; \
 	cat $$T/result.txt; \
 	if ! grep -q 'FAIL' $$T/result.txt; then rm -rf $$T; echo "[OK] make test-hit passed"; else echo "[FAIL] make test-hit, log kept in $$T"; exit 1; fi
@@ -263,10 +320,37 @@ test-vblank: cart
 	ROOFLINE_FRAME_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_frame_counter"{print $$1}') \
 	ROOFLINE_HIT_LAYOUT="$$($(M68KGCC) -std=c99 -S -o - tests/mame/hit_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
 	ROOFLINE_RESULT=$$T/result.txt \
-	nice -n 19 $(MAME) -window -nomaximize -video none -sound none -nothrottle -seconds_to_run $(TEST_SECONDS) -noautosave -skip_gameinfo -hash $(ROM) -rp $(ROM) -nvram_directory $$T -autoboot_script tests/mame/vblank_check.lua neogeo -cart1 $(GAMEROM) > $$T/mame.log 2>&1 || true; \
+	SDL_VIDEODRIVER=dummy nice -n 19 $(MAME) -window -nomaximize -video none -sound none -nothrottle -seconds_to_run $(TEST_SECONDS) -noautosave -skip_gameinfo -hash $(ROM) -rp $(ROM) -nvram_directory $$T -autoboot_script tests/mame/vblank_check.lua neogeo -cart1 $(GAMEROM) > $$T/mame.log 2>&1 || true; \
 	if [ ! -f $$T/result.txt ]; then tail -n 15 $$T/mame.log; echo "[FAIL] no result from vblank Lua script"; exit 1; fi; \
 	cat $$T/result.txt; \
 	if ! grep -q 'FAIL' $$T/result.txt; then rm -rf $$T; echo "[OK] make test-vblank passed"; else echo "[FAIL] make test-vblank, log kept in $$T"; exit 1; fi
+
+# Background scroll reachability (tests/mame/scroll_check.lua): coin, start, play with jumps and fire, restart after
+# game over; a Lua VRAM shadow asserts every PLAYING frame each city ring shows the g_bg_scroll_px the game committed
+# for it (no late or skipped scroll writes), sentinel g_bg_scroll_flushes. Run by make test; `make test-scroll`
+# alone re-runs only this check. SCROLL_LOG=<file> keeps the per-frame log.
+test-scroll: cart
+	@set -e; T=$$(mktemp -d $(BUILDDIR)/test-run.XXXXXX); \
+	ROOFLINE_FLOW_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flow"{print $$1}') \
+	ROOFLINE_HIT_LAYOUT="$$($(M68KGCC) -std=c99 -S -o - tests/mame/hit_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
+	ROOFLINE_RESULT=$$T/result.txt ROOFLINE_SCROLL_LOG=$(SCROLL_LOG) \
+	SDL_VIDEODRIVER=dummy nice -n 19 $(MAME) -window -nomaximize -video none -sound none -nothrottle -seconds_to_run 90 -noautosave -skip_gameinfo -hash $(ROM) -rp $(ROM) -nvram_directory $$T -autoboot_script tests/mame/scroll_check.lua neogeo -cart1 $(GAMEROM) > $$T/mame.log 2>&1 || true; \
+	if [ ! -f $$T/result.txt ]; then tail -n 15 $$T/mame.log; echo "[FAIL] no result from scroll Lua script"; exit 1; fi; \
+	cat $$T/result.txt; \
+	if ! grep -q 'FAIL' $$T/result.txt; then rm -rf $$T; echo "[OK] make test-scroll passed"; else echo "[FAIL] make test-scroll, log kept in $$T"; exit 1; fi
+
+# Sound driver reachability (tests/mame/sound_check.lua): coin, start, jump, fire, idle to game over. Asserts the 68k
+# sentinels g_sound_sent/g_sound_last, the Z80 command port reads and the YM2610 key-on/FM writes agree for every
+# game sound event. Run by make test; `make test-sound` alone re-runs only this check.
+test-sound: cart
+	@set -e; T=$$(mktemp -d $(BUILDDIR)/test-run.XXXXXX); \
+	ROOFLINE_FLOW_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flow"{print $$1}') \
+	ROOFLINE_HIT_LAYOUT="$$($(M68KGCC) -std=c99 -S -o - tests/mame/hit_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
+	ROOFLINE_RESULT=$$T/result.txt \
+	SDL_VIDEODRIVER=dummy nice -n 19 $(MAME) -window -nomaximize -video none -sound none -nothrottle -seconds_to_run $(TEST_SECONDS) -noautosave -skip_gameinfo -hash $(ROM) -rp $(ROM) -nvram_directory $$T -autoboot_script tests/mame/sound_check.lua neogeo -cart1 $(GAMEROM) > $$T/mame.log 2>&1 || true; \
+	if [ ! -f $$T/result.txt ]; then tail -n 15 $$T/mame.log; echo "[FAIL] no result from sound Lua script"; exit 1; fi; \
+	cat $$T/result.txt; \
+	if ! grep -q 'FAIL' $$T/result.txt; then rm -rf $$T; echo "[OK] make test-sound passed"; else echo "[FAIL] make test-sound, log kept in $$T"; exit 1; fi
 
 # UniBIOS check (tests/mame/unibios_check.lua): palettes survive the real-BIOS coin re-entry.
 # Separate from make test, because it needs the UNIBIOS file from outside the repo.
@@ -276,10 +360,15 @@ test-unibios: cart bios
 	@set -e; T=$$(mktemp -d $(BUILDDIR)/test-run.XXXXXX); \
 	ROOFLINE_FRAME_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_frame_counter"{print $$1}') \
 	ROOFLINE_BG_PAL_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_bg_pal_first_entry"{print $$1}') \
+	ROOFLINE_FLOW_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flow"{print $$1}') \
+	ROOFLINE_REACH_LAYOUT="$$($(M68KGCC) -std=c99 -S -o - tests/mame/reach_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
 	ROOFLINE_RESULT=$$T/result.txt \
-	nice -n 19 $(MAME) -window -nomaximize -video none -sound none -nothrottle -seconds_to_run 30 -noautosave -skip_gameinfo -hash $(ROM) -rp "$(UNIBIOS_DIR);$(ROM)" -bios unibios40 -nvram_directory $$T -autoboot_script tests/mame/unibios_check.lua neogeo -cart1 $(GAMEROM) > $$T/mame.log 2>&1 || true; \
+	SDL_VIDEODRIVER=dummy nice -n 19 $(MAME) -window -nomaximize -video none -sound none -nothrottle -seconds_to_run 120 -noautosave -skip_gameinfo -hash $(ROM) -rp "$(UNIBIOS_DIR);$(ROM)" -bios unibios40 -nvram_directory $$T -autoboot_script tests/mame/unibios_check.lua neogeo -cart1 $(GAMEROM) > $$T/mame.log 2>&1 || true; \
 	if [ ! -f $$T/result.txt ]; then tail -n 15 $$T/mame.log; echo "[FAIL] no result from Lua script"; exit 1; fi; \
 	cat $$T/result.txt; \
 	if grep -q '^PASS' $$T/result.txt; then rm -rf $$T; echo "[OK] make test-unibios passed"; else echo "[FAIL] make test-unibios, log kept in $$T"; exit 1; fi
 
-.PHONY: run test test-laser test-hit test-vblank test-unibios
+.PHONY: run test test-laser test-reach test-hit test-vblank test-scroll test-sound test-unibios
+
+# Header dependencies from -MMD (build/**/*.d): a changed header rebuilds every object that includes it.
+-include $(shell find $(BUILDDIR) -name '*.d' 2>/dev/null)

@@ -20,6 +20,7 @@
 
 volatile u32 g_bg_scroll_px[3];
 volatile u32 g_bg_column_writes;
+volatile u32 g_bg_rebases; /* runs the scroll continued across (bg_update distance went back), test sentinel */
 /* First palette RAM entry of the city palettes; read by tests/mame/unibios_check.lua through nm. */
 const u16 g_bg_pal_first_entry = CITY_PAL_SLOT * 16;
 
@@ -161,8 +162,17 @@ static void lamp_set(const u16 e[2], int on) {
     if (e[1]) gfx_pal(e[1], on ? BG_LAMP_WHITE : BG_LAMP_OFF);
 }
 
+/* The scroll runs on the distance of all runs so far, so it never jumps back when a new run starts at distance 0.
+ * A jump makes every ring column change (bg_columns_to_write = BG_RING): 63 column strips, about 780 VRAM words,
+ * which take three vblank flushes, so for the first frames of a run the rings showed the old scroll and half
+ * written columns (make test-scroll, thoughts/spot/todos.md scroll entry). */
+static u32 g_dist_base, g_dist_last;
+
 void bg_update(u32 distance, u32 frame) {
-    for (int l = 0; l < BG_LAYER_COUNT; l++) update_ring(l, distance);
+    if (distance < g_dist_last) { g_dist_base += g_dist_last; g_bg_rebases++; }
+    g_dist_last = distance;
+    u32 total = g_dist_base + distance;
+    for (int l = 0; l < BG_LAYER_COUNT; l++) update_ring(l, total);
     g_valid = 1;
     /* frame % period without a 32-bit `%` (libgcc call) per frame: step the phases while frame advances by 1. */
     static u32 prev_frame;

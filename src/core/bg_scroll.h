@@ -4,7 +4,8 @@
  * City background scroll math (pure, host tested). Each layer is a ring of BG_RING sprite columns
  * over an art strip of BG_ART_COLS columns (320 px period). World column w sits in ring slot
  * w % BG_RING and shows art column w % BG_ART_COLS at screen x = 16 * w - scroll.
- * Scroll is a pure function of game distance (8.8 px), so it restarts with every run.
+ * Scroll is a pure function of distance (8.8 px). src/bg.c passes the distance of all runs so far, so the scroll
+ * continues across runs (a jump back would redraw every column, more than one vblank flush).
  * Rates are fixed art ratios (far 1/4, mid 9/16, roof 1 of the ground speed), not gameplay knobs,
  * so they live here and not in tuning.h (written exemption, plan 2026-11-09-city-background.md).
  */

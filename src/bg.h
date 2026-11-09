@@ -5,6 +5,7 @@
 
 /* Sentinels for the headless test (addresses from the ELF map). */
 extern volatile u32 g_bg_scroll_px[3];   /* scroll in px as last drawn: far, mid, roof */
+extern volatile u32 g_bg_rebases;        /* new runs the scroll continued across (test sentinel) */
 extern volatile u32 g_bg_column_writes;  /* SCB1 column strips written since boot */
 
 void bg_load_palettes(void);             /* palettes + backdrop colour; call from video_init() */

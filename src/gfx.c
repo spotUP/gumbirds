@@ -6,6 +6,7 @@
 VramQueue g_gfx_q; /* extern in gfx.h for the inline gfx_word dedupe test */
 static u16 g_last_us;
 volatile u16 g_gfx_flush_max;
+volatile u16 g_gfx_backlog_max; /* most queue ops left over after a flush (test sentinel; init drains count too) */
 
 void gfx_init(void) { vq_init(&g_gfx_q); }
 
@@ -40,10 +41,11 @@ void gfx_drain(void) {
 void gfx_word_push(u16 addr, u16 val) { RETRY(vq_scb_word_push(&g_gfx_q, addr, val)); }
 void gfx_scb1_word(u16 sprite, u16 val) { RETRY(vq_vram_word(&g_gfx_q, (u16)(ADDR_SCB1 + sprite * 64), val)); }
 void gfx_strip(u16 sprite, const u16 *tiles, u16 base, u8 rows, u16 attr) { RETRY(vq_strip(&g_gfx_q, sprite, tiles, base, rows, attr)); }
+void gfx_scb_run(u16 addr, u16 mod, const u16 *vals, u8 n) { RETRY(vq_scb_run(&g_gfx_q, addr, mod, vals, n)); }
 void gfx_pal(u16 idx, u16 val) { RETRY(vq_pal(&g_gfx_q, idx, val)); }
 
 void gfx_text(u8 x, u8 y, u8 pal, const char *s) {
-    for (; *s && x < VQ_FIX_COLS; s++, x++) vq_fix_put(&g_gfx_q, x, y, (u16)((pal << 12) | (SROM_TXT_TILE_OFFSET + (u8)*s)));
+    vq_fix_text(&g_gfx_q, x, y, (u16)(pal << 12), SROM_TXT_TILE_OFFSET, s);
 }
 
 void gfx_center_text(u8 y, u8 pal, const char *s) {
@@ -57,47 +59,80 @@ void gfx_cls(void) { vq_fix_fill(&g_gfx_q, SROM_EMPTY_TILE); }
 void gfx_commit(void) { RETRY(vq_fix_commit(&g_gfx_q)); }
 
 void gfx_sprite_block(u16 first, u8 cols, u8 rows, const u16 *tiles, u16 base, u16 attr, int left, int top) {
-    for (u8 c = 0; c < cols; c++) gfx_strip((u16)(first + c), &tiles[c * rows], base, rows, attr);
+    gfx_sprite_strips(first, cols, rows, tiles, base, attr);
+    gfx_sprite_place(first, cols, rows, left, top);
+}
+
+void gfx_sprite_strips(u16 first, u8 cols, u8 rows, const u16 *tiles, u16 base, u16 attr) {
+    u8 done;
+    while ((done = vq_strips(&g_gfx_q, first, cols, rows, tiles, base, attr)) < cols) {
+        gfx_drain(); /* queue full: same as RETRY, continue with the columns not queued yet */
+        first = (u16)(first + done);
+        cols = (u8)(cols - done);
+        tiles += done * rows;
+    }
+}
+
+void gfx_sprite_chain(u16 first, u8 cols) {
     gfx_word((u16)(ADDR_SCB2 + first), 0xFFF);
-    gfx_word((u16)(ADDR_SCB3 + first), (u16)((((496 - top) & 0x1FF) << 7) | rows));
-    gfx_word((u16)(ADDR_SCB4 + first), (u16)((left & 0x1FF) << 7));
     for (u8 c = 1; c < cols; c++) {
         gfx_word((u16)(ADDR_SCB2 + first + c), 0xFFF);
         gfx_word((u16)(ADDR_SCB3 + first + c), 1 << 6);
     }
 }
 
-/* Runs in the vblank interrupt. Kept tight (inline queue access, locals only): per-op overhead is most of the
- * vblank time an op takes, see vq_cost and GFX_FLUSH_BUDGET_US. */
+void gfx_sprite_place(u16 first, u8 cols, u8 rows, int left, int top) {
+    gfx_word((u16)(ADDR_SCB3 + first), gfx_scb3_word(rows, top));
+    gfx_word((u16)(ADDR_SCB4 + first), gfx_scb4_word(left));
+    gfx_sprite_chain(first, cols);
+}
+
+/* Runs in the vblank interrupt. The queue head and count live in registers for the whole loop and are stored once
+ * at the end: the u16 register writes may alias the queue (same type), so gcc reloaded and stored them on every op,
+ * which with the 12-byte op indexing and a 32-bit budget compare cost about 370 cycles (31 us) per word op. Now the
+ * op is walked by pointer and its cost is precomputed (vq_cost), so an op is a few compares plus its writes
+ * (thoughts/shared/research/2026-11-09_object-pool.md, section Flush speed fix). REG_VRAMMOD stays 1 except
+ * inside a VQ_RUN op. */
 void gfx_flush(void) {
-    const VqOp *op;
-    u16 next = 0xFFFF;
-    u16 us = 0;
-    *REG_VRAMMOD = 1;
-    while ((op = vq_peek(&g_gfx_q)) != 0 && us + vq_cost(op) <= GFX_FLUSH_BUDGET_US) {
-        us = (u16)(us + vq_cost(op));
-        if (op->kind == VQ_PAL) {
-            MMAP_PALBANK1[op->a] = op->b;
+    VramQueue *const q = &g_gfx_q;
+    u16 count = q->count, head = q->head, left = GFX_FLUSH_BUDGET_US;
+    const VqOp *op = &q->ops[head];
+    volatile u16 *const vaddr = REG_VRAMADDR, *const vrw = REG_VRAMRW, *const vmod = REG_VRAMMOD;
+    *vmod = 1;
+    for (; count; count--) {
+        u16 c = op->cost;
+        if (c > left) break;
+        left = (u16)(left - c);
+        u8 kind = op->kind;
+        if (kind == VQ_WORD) {
+            *vaddr = op->a;
+            *vrw = op->b;
+        } else if (kind == VQ_RUN) {
+            const u16 *s = op->tiles;
+            u16 m = op->b;
+            u8 r = op->rows;
+            *vaddr = op->a;
+            *vmod = m;
+            do { *vrw = *s; s += m; } while (--r);
+            *vmod = 1;
+        } else if (kind == VQ_STRIP) {
+            const u16 *t = op->tiles;
+            u16 base = op->b, attr = op->c;
+            u8 r = op->rows;
+            *vaddr = (u16)(ADDR_SCB1 + op->a * 64);
+            do { *vrw = (u16)(base + *t++); *vrw = attr; } while (--r);
         } else {
-            u16 a = op->kind == VQ_STRIP ? (u16)(ADDR_SCB1 + op->a * 64) : op->a;
-            if (next != a) *REG_VRAMADDR = a;
-            if (op->kind == VQ_STRIP) {
-                const u16 *t = op->tiles;
-                u16 base = op->b, attr = op->c;
-                for (u8 r = op->rows; r; r--) {
-                    *REG_VRAMRW = (u16)(base + *t++);
-                    *REG_VRAMRW = attr;
-                }
-                next = (u16)(a + 2 * op->rows);
-            } else {
-                *REG_VRAMRW = op->b;
-                next = (u16)(a + 1);
-            }
+            MMAP_PALBANK1[op->a] = op->b;
         }
-        vq_pop(&g_gfx_q);
+        op++;
+        if (++head == VQ_CAP) { head = 0; op = q->ops; }
     }
+    q->head = head;
+    q->count = count;
+    u16 us = (u16)(GFX_FLUSH_BUDGET_US - left);
     g_last_us = us;
     if (us > g_gfx_flush_max) g_gfx_flush_max = us;
+    if (count > g_gfx_backlog_max) g_gfx_backlog_max = count;
 }
 
 u16 gfx_last_flush_us(void) { return g_last_us; }
