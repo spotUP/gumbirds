@@ -2,7 +2,7 @@
 date: 2026-11-09
 topic: Flier physics and gameplay design (arena mode + endless trip mode skeleton), every gameplay rule equal to skeddles/balloon-fight-arena
 tags: [gameplay, physics, flier, design, modes, scoring, object-pool, plan, reference-audit]
-status: draft
+status: final
 ---
 
 # Flier gameplay design (reference-exact revision)
@@ -442,3 +442,22 @@ Open for the user: N1 to N11 (section 3.2) and the Trip points T1 to T8; plus th
 - The 60 Hz main loop is not fixed yet; all per-frame numbers assume one game step per video frame.
 - Box offsets in 1.6 are placeholders until flier art exists. Computer AI tuned against a 640x360 room: distances (50, 75, 150) may
   need a k-scaled review in the 320x224 room (not a rule change, a unit question).
+
+## Decisions settled 2026-11-09
+
+User rule: match the reference in everything. Where the reference has no rule, take the recommended option. Stop asking the user about these.
+
+- Edges: horizontal wrap (user call; reference v4.0.0 source shows boundary bounce, user states the reference wraps).
+- Precision: 16.16 fixed point for speed and position.
+- N1 1P: match vs computer fliers.
+- N2 lives: one per match.
+- N3 score: points for stomps and wins, one top 10 table (the cabinet competition needs a table; the reference has none).
+- N4 AI: one AI with stat profiles.
+- N5 respawn: none.
+- N6 hazards: kill tiles only.
+- N7 bonus wave: none (trip mode covers it).
+- N8 2P: free-for-all with stomps between humans, as in the reference.
+- N9 randomness: as in the reference.
+- N10 pod defaults: reference defaults.
+- N11 parachute: dead fall for all (reference default).
+- Trip mode T1-T8 stay open until the engine runs.
