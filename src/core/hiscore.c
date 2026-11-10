@@ -50,7 +50,7 @@ void hiscore_defaults(HiscoreTable *t)
 {
     int i;
     for (i = 0; i < HISCORE_ENTRIES; i++) {
-        set_name(t->name[i], "ROOFLINE");
+        set_name(t->name[i], "GUMBRAWL");
         t->score[i] = (uint32_t)(HISCORE_ENTRIES - i) * 1000u;
     }
 }

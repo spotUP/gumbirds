@@ -417,7 +417,7 @@ static void draw(const FlowView *v) {
         gfx_cls();
         g_draw_state = (int)v->state;
         g_hud_game = 0;
-        text(2, 2, PAL_TEXT, "ROOFLINE");
+        text(2, 2, PAL_TEXT, "BUBBLEGUM BRAWL");
         text(2, 3, PAL_TEXT, STATE_NAME[v->state]);
         /* pad so a shorter name overwrites a longer one */
         text(2 + (u8)0, 4, PAL_TEXT, "              ");
