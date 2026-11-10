@@ -389,17 +389,17 @@ Open points:
 
 Pool: one array of 32 objects with a kind field, or one pool per kind. No allocation during play; spawn fails quietly when full.
 
-### 5.2 Sprite budget (381 sprites, 96 per scanline)
+### 5.2 Sprite budget (381 hardware sprites, 323 slots used, 96 per scanline)
 
 | User | Sprites | Notes |
 |---|---|---|
-| City background (existing) | 89 (0..88) | roof ring (21) may be replaced by platforms in the arena |
+| City background (existing) | 110 (0..109): sky 20, far 21, mid A 22, mid B 23, near 24 | slots 110..119 free for clouds and airship |
 | Fliers | 8 x 1 = 8 (16x32, one column each); wrap seam duplicates up to 8 more | |
-| Platforms | 41 | widths from `src/core/stage.c`: 80, 80, 112, 80, 80, 96, 64, 64 px = 5 + 5 + 7 + 5 + 5 + 6 + 4 + 4 = 41 strips of 16 px, one sprite per strip when an island is one tile tall |
+| Platforms (islands) | 41 (slots 120..160, drawn by `src/island.c`) | widths from `src/core/stage.c`: 80, 80, 112, 80, 80, 96, 64, 64 px = 5 + 5 + 7 + 5 + 5 + 6 + 4 + 4 = 41 strips of 16 px, one sprite per strip when an island is one tile tall |
 | Hazards | 8 x 2 = 16 | |
 | Pickups | 10 x 1 = 10 | |
 | Effects | 8 x 1 = 8 | |
-| Total | about 172 (89 + 8 + 41 + 16 + 10 + 8) | slot ranges go into src/sprite_slots.h |
+| Total | slots 0..322 = 323 used of 381 (planes 110 + free 10 + islands 41 + pool 96 + hero 3 + hazard strip 48 + rain 10 + spray 4, with one gap slot); the rows above are the design maxima | slot ranges are in src/sprite_slots.h |
 
 Island sprite room (user decision 2026-11-10): island heights are staggered, and islands that share scanlines are one tile tall there. The real worst-line peak is measured in MAME before any cut. The foreground edge cable reservation (2 sprites) is dropped by user decision 2026-11-10 and is not counted. The two 56 px islands are now 64 px so every island width is a multiple of 16 px.
 
@@ -418,8 +418,7 @@ Accepted island layout (user decision 2026-11-10; x, y, width in px, every islan
 | 7 | 320 | 52 | 64 |
 | 8 | 304 | 164 | 80 |
 
-Scanline limit is the real constraint (far/mid/roof rings up to 63 on one line plus 16 stars; 8 fliers add 8 to 16). Unverified: measure
-the worst line count before fixing platform heights. The roof ring can be dropped in the arena.
+Scanline limit is the real constraint: the background planes, islands (worst 7 on lines 124..139) and 8 fliers share the line; the recorded worst line is 89 of the project limit 90 (BG-1c report, `thoughts/spot/todos.md`). The roof ring no longer exists as a separate reservation.
 
 ### 5.2a HUD and title (user decisions 2026-11-10)
 
