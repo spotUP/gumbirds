@@ -22,8 +22,8 @@
 #include "sound.h"
 
 /* Palette 0 = white text, palette 1 = yellow (highlight). Entry 0 of a palette is transparent; the backdrop is the last palette RAM entry (bg.c). */
-#define PAL_TEXT 0
-#define PAL_HIGH 1
+#define PAL_TEXT FIXFONT_PAL_WHITE
+#define PAL_HIGH FIXFONT_PAL_GOLD
 
 /* Hiscore image in battery backed RAM (.bss.bram at 0x100000). */
 u8 _backup_ram g_hiscore_image[HISCORE_IMAGE_SIZE];
@@ -403,9 +403,11 @@ static void hero_and_mode(const FlowView *v) {
     }
 }
 
+#ifdef GUMBIRDS_DEBUG_HEADER
 static const char *const STATE_NAME[] = {
     "TITLE", "HIGH SCORES", "DEMO", "PLAYING", "GAME OVER", "NAME ENTRY", "SAVE REMINDER"
 };
+#endif
 
 /* BIOS joypad: UP=1 DOWN=2 LEFT=4 RIGHT=8 A=0x10 B=0x20 C=0x40 D=0x80.
  * Core: A..D = 0x01..0x08, UP=0x10, DOWN=0x20, LEFT=0x40, RIGHT=0x80. */
@@ -472,10 +474,12 @@ static void draw(const FlowView *v) {
         gfx_cls();
         g_draw_state = (int)v->state;
         g_hud_game = 0;
+#ifdef GUMBIRDS_DEBUG_HEADER /* gmake DEBUG_HEADER=1; the normal build leaves the top rows to the HUD */
         text(2, 2, PAL_TEXT, "GUMBIRDS");
         text(2, 3, PAL_TEXT, STATE_NAME[v->state]);
         /* pad so a shorter name overwrites a longer one */
         text(2 + (u8)0, 4, PAL_TEXT, "              ");
+#endif
     }
     switch (v->state) {
     case FLOW_ATTRACT_TITLE:
@@ -572,9 +576,9 @@ static void game_loop(void);
 static void video_init(void) {
     gfx_init();
     gfx_cls();
-    /* Palette bank 1 for the fix layer: set both text palettes. */
-    gfx_pal(0, 0x8000); gfx_pal(1, 0x0fff); gfx_pal(2, 0x0555);
-    gfx_pal(16, 0x8000); gfx_pal(17, 0x0ff0); gfx_pal(18, 0x0550);
+    /* Fix layer palettes 0..FIX_PAL_COUNT-1 (generated with the font). */
+    for (u8 s = 0; s < FIX_PAL_COUNT; s++)
+        for (u8 i = 0; i < 16; i++) gfx_pal((u16)(s * 16 + i), fixfont_palettes[s][i]);
     soot_load_palettes();
     obs_load_palettes();
     island_load_palettes();

@@ -24,8 +24,21 @@ PLANES = ["sky", "far", "midA", "midB", "near"]
 # Screen y band of each plane (CITY_TABLE_PLANE_TOP and bottom in build/gen/city_tables.h), read at run time.
 HERO_MASK = (28, 112)
 BACKDROP = (0x1a, 0x12, 0x38)
-# Fix layer text palette PAL_TEXT as MAME draws it (src/main.c video_init: gfx_pal(1, 0x0fff), gfx_pal(2, 0x0555)).
-FIX_TEXT = [(247, 247, 247), (79, 79, 79)]
+# Fix layer text colours as MAME draws them: every colour of fix palette 0 (white, PAL_TEXT in src/main.c) from the generated
+# build/gen/fix_font.h, decoded the way the pipeline encodes them.
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "tools"))
+import sprite_pipeline as sp
+
+
+def fix_text_colours():
+    src = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "build", "gen", "fix_font.h")).read()
+    row = re.search(r"fixfont_palettes\[[^\n]*\n\s*\{([^}]*)\}", src).group(1)
+    words = [int(w, 16) for w in re.findall(r"0x([0-9a-fA-F]{4})", row)]
+    assert len(words) == 16, words
+    return sorted({sp.ng_to_rgb(w) for w in words[1:]})
+
+
+FIX_TEXT = fix_text_colours()
 MIN_BAND, MIN_SKY = 300, 0.9
 MIN_MATCH = 0.9
 FULL = (1 << 320) - 1

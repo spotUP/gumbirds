@@ -6,7 +6,10 @@
 -- Also: BIOS_USER_MODE is 2 while PLAYING (set by main.c), a second coin during play keeps the
 -- counter monotonic, the mode at 2 and the state PLAYING, and screen snapshots are written
 -- (pre_start.png before start, playing.png during play) for tests/mame/check_hero_pixels.py.
--- Env: BRAWL_FRAME_ADDR, BRAWL_FLOW_ADDR, BRAWL_HISCORE_ADDR (hex, from nm on the
+-- Also: the fix layer prints with the Gumdrop font (build/gen/fix_font.h): during play the VRAM words of "SCORE" (2,5) and
+-- "Balloons" (2,6, lowercase maps to capitals) equal palette 0 | fixfont_map[char], differ from the old ASCII tile numbers,
+-- and the debug header cell (2,2) is the blank tile (header is off in the normal build).
+-- Env: BRAWL_FIXFONT_H (path of build/gen/fix_font.h), BRAWL_FRAME_ADDR, BRAWL_FLOW_ADDR, BRAWL_HISCORE_ADDR (hex, from nm on the
 -- ELF), BRAWL_HISCORE_SIZE (hex, nm -S), BRAWL_RESULT (file).
 local frame_addr = tonumber(os.getenv("BRAWL_FRAME_ADDR"), 16)
 local flow_addr  = tonumber(os.getenv("BRAWL_FLOW_ADDR"), 16)
@@ -38,6 +41,32 @@ local function image()
 end
 
 local screen = manager.machine.screens[":screen"]
+
+-- Fix-layer proof: shadow every VRAM word written through the LSPC (address 0x3c0000, data 0x3c0002, modulo 0x3c0004).
+local fixfont_map = {}
+do
+  local src = io.open(os.getenv("BRAWL_FIXFONT_H")):read("a")
+  local body = src:match("fixfont_map%[256%] = {(.-)}")
+  for v in body:gmatch("%d+") do fixfont_map[#fixfont_map + 1] = tonumber(v) end
+end
+assert(#fixfont_map == 256, "fixfont_map has " .. #fixfont_map .. " entries")
+local FIX_BASE, FIX_ROWS = 0x7000, 32
+local vram, vaddr, vmod = {}, 0, 1
+tap_vram = mem:install_write_tap(0x3c0000, 0x3c000f, "fixshadow", function(offset, data, mask)
+  local r = offset & 0xe
+  if r == 0 then vaddr = data
+  elseif r == 4 then vmod = data
+  elseif r == 2 then vram[vaddr] = data; vaddr = (vaddr + vmod) & 0xffff end
+end)
+local function fix_cell(x, y) return vram[FIX_BASE + x * FIX_ROWS + y] end
+local function fix_text_ok(x, y, s)
+  for i = 1, #s do
+    local want = fixfont_map[s:upper():byte(i) + 1]
+    if fix_cell(x + i - 1, y) ~= want or want == s:byte(i) then return false end
+  end
+  return true
+end
+local fix_msg, fix_ok = "fix font unchecked", false
 local mode_play, mode_after_coin2, st_play, st_after_coin2 = nil, nil, nil, nil
 
 local n, st_early, st_late = 0, nil, nil
@@ -94,6 +123,9 @@ emu.register_frame_done(function()
     local bf = io.open(result .. ".bg", "w")
     bf:write(table.concat(bg_lines, "\n") .. "\n")
     bf:close()
+    fix_ok = fix_text_ok(2, 5, "SCORE") and fix_text_ok(2, 6, "Balloons") and fix_cell(2, 2) == 255
+    fix_msg = string.format("fix font %s (SCORE cell %s, header cell %s)", fix_ok and "in use" or "NOT in use",
+      tostring(fix_cell(2, 5)), tostring(fix_cell(2, 2)))
     mode_play = mem:read_u8(USER_MODE)
     st_play = mem:read_u8(flow_addr)
   elseif n == 500 and coin then coin:set_value(1)
@@ -110,9 +142,10 @@ emu.register_frame_done(function()
       tostring(coin ~= nil), tostring(start ~= nil), tostring(mode_play), tostring(mode_after_coin2),
       tostring(st_play), tostring(st_after_coin2))
     local play_ok = mode_play == 2 and mode_after_coin2 == 2 and st_play == 3 and st_after_coin2 == 3
+    msg = msg .. "; " .. fix_msg
     if reset_msg then msg = reset_msg .. "; " .. msg end
     -- FlowState: 0..2 attract, 3 playing
     finish(reset_msg == nil and c_last > c_first and c_end > c_last and img_ok and play_ok
-           and st_early <= 2 and st_late >= 3, msg)
+           and st_early <= 2 and st_late >= 3 and fix_ok, msg)
   end
 end)

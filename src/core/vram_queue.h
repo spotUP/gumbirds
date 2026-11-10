@@ -90,9 +90,10 @@ int vq_strip_attr(VramQueue *q, u16 sprite, const u16 *pairs, u16 base, u8 rows)
 u8 vq_strips(VramQueue *q, u16 first, u8 cols, u8 rows, const u16 *tiles, u16 base, u16 attr);
 int vq_pal(VramQueue *q, u16 idx, u16 val);
 void vq_fix_put(VramQueue *q, u8 x, u8 y, u16 cell);
-/* vq_fix_put of cell hi | (base + c) for every char c of s from (x, y) to the right, clipped at the last column. One call
- * per string with an incremental cell index: the HUD text goes through it every frame. */
-void vq_fix_text(VramQueue *q, u8 x, u8 y, u16 hi, u16 base, const char *s);
+/* vq_fix_put of cell hi | map[c] for every char c of s from (x, y) to the right, clipped at the last column. map has 256
+ * entries (the generated fixfont_* char to tile maps). One call per string with an incremental cell index: the HUD text
+ * goes through it every frame. */
+void vq_fix_text(VramQueue *q, u8 x, u8 y, u16 hi, const u16 *map, const char *s);
 void vq_fix_fill(VramQueue *q, u16 cell);
 int vq_fix_commit(VramQueue *q);           /* queue the changed fix cells; 0 when the queue filled up (call again) */
 /* The consumer side is inline: gfx_flush runs it in vblank, where a call per op cost more than the op's writes. */

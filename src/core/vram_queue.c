@@ -134,11 +134,11 @@ void vq_fix_put(VramQueue *q, u8 x, u8 y, u16 cell) {
     q->fix_dirty[x] = 1;
 }
 
-void vq_fix_text(VramQueue *q, u8 x, u8 y, u16 hi, u16 base, const char *s) {
+void vq_fix_text(VramQueue *q, u8 x, u8 y, u16 hi, const u16 *map, const char *s) {
     if (y >= VQ_FIX_ROWS) return;
     u16 i = (u16)(x * VQ_FIX_ROWS + y);
     for (; *s && x < VQ_FIX_COLS; s++, x++, i = (u16)(i + VQ_FIX_ROWS)) {
-        u16 cell = (u16)(hi | (u16)(base + (u8)*s));
+        u16 cell = (u16)(hi | map[(u8)*s]);
         if (q->fix_want[i] == cell) continue;
         q->fix_want[i] = cell;
         q->fix_dirty[x] = 1;

@@ -1,6 +1,7 @@
 /* Host tests for the video write queue (src/core/vram_queue.c): dedup, ordering, overflow, fix diff. */
 #include <stdio.h>
 #include "../../src/core/vram_queue.h"
+#include "gen/fix_font.h"
 
 static int failures, checks;
 #define CHECK(c) do { checks++; if (!(c)) { failures++; printf("FAIL %s:%d: %s\n", __FILE__, __LINE__, #c); } } while (0)
@@ -90,6 +91,29 @@ int main(void)
     (void)total_cost();
     vq_fix_put(&q, 40, 0, 1); /* out of range is ignored */
     CHECK(commit_all() == 0);
+    /* font maps: plain, backed, tall (two rows), space and unknown are the blank tile 255 */
+    vq_fix_fill(&q, FIXFONT_BLANK);
+    (void)commit_all();
+    vq_fix_text(&q, 0, 4, 3 << 12, fixfont_map, "A0 z\x01");
+    vq_fix_text(&q, 0, 6, 3 << 12, fixfont_map_backed, "A0");
+    vq_fix_text(&q, 0, 8, 1 << 12, fixfont_map_tall_top, "7");
+    vq_fix_text(&q, 0, 9, 1 << 12, fixfont_map_tall_bottom, "7");
+    CHECK(q.fix_want[0 * VQ_FIX_ROWS + 4] == (u16)((3 << 12) | FIXFONT_LETTER_A));
+    CHECK(q.fix_want[1 * VQ_FIX_ROWS + 4] == (u16)((3 << 12) | FIXFONT_DIGIT_0));
+    CHECK(q.fix_want[2 * VQ_FIX_ROWS + 4] == (u16)((3 << 12) | FIXFONT_BLANK));
+    CHECK(q.fix_want[3 * VQ_FIX_ROWS + 4] == (u16)((3 << 12) | fixfont_map['Z']) && fixfont_map['z'] == fixfont_map['Z']);
+    CHECK(q.fix_want[4 * VQ_FIX_ROWS + 4] == (u16)((3 << 12) | FIXFONT_BLANK));
+    CHECK(q.fix_want[0 * VQ_FIX_ROWS + 6] == (u16)((3 << 12) | (FIXFONT_LETTER_A + FIXFONT_BACKED)));
+    CHECK(q.fix_want[1 * VQ_FIX_ROWS + 6] == (u16)((3 << 12) | (FIXFONT_DIGIT_0 + FIXFONT_BACKED)));
+    CHECK(q.fix_want[0 * VQ_FIX_ROWS + 8] == (u16)((1 << 12) | (FIXFONT_TALL_TOP + 7)));
+    CHECK(q.fix_want[0 * VQ_FIX_ROWS + 9] == (u16)((1 << 12) | (FIXFONT_TALL_BOTTOM + 7)));
+    vq_fix_text(&q, 0, 10, 2 << 12, fixfont_map_tall_top_backed, "7");
+    vq_fix_text(&q, 0, 11, 2 << 12, fixfont_map_tall_bottom_backed, "7");
+    CHECK(q.fix_want[0 * VQ_FIX_ROWS + 10] == (u16)((2 << 12) | (FIXFONT_TALL_TOP + 7 + FIXFONT_TALL_BACKED)));
+    CHECK(q.fix_want[0 * VQ_FIX_ROWS + 11] == (u16)((2 << 12) | (FIXFONT_TALL_BOTTOM + 7 + FIXFONT_TALL_BACKED)));
+    vq_fix_fill(&q, 0x20); /* restore the state the next check expects: all 0x20 except one lit cell */
+    vq_fix_put(&q, 2, 3, 0x1042);
+    (void)commit_all();
     /* clear erases only what was lit */
     vq_fix_fill(&q, 0x20);
     CHECK(commit_all() == 1);

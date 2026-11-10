@@ -36,6 +36,9 @@ void gfx_scb_run(u16 addr, u16 mod, const u16 *vals, u8 n);
 void gfx_strip_attr(u16 sprite, const u16 *pairs, u16 base, u8 rows);
 void gfx_pal(u16 idx, u16 val);
 void gfx_text(u8 x, u8 y, u8 pal, const char *s);
+void gfx_text_backed(u8 x, u8 y, u8 pal, const char *s);
+void gfx_text_tall(u8 x, u8 y, u8 pal, const char *s);
+void gfx_text_tall_backed(u8 x, u8 y, u8 pal, const char *s);
 void gfx_center_text(u8 y, u8 pal, const char *s);
 void gfx_cls(void);
 void gfx_commit(void);              /* fold the fix layer changes into the queue (end of the frame's logic) */

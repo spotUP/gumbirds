@@ -2,6 +2,7 @@
 #include <ngdevkit/ng-fix.h>
 #include "gfx.h"
 #include "core/vram_queue.h"
+#include "gen/fix_font.h"
 
 VramQueue g_gfx_q; /* extern in gfx.h for the inline gfx_word dedupe test */
 static u16 g_last_us;
@@ -73,9 +74,17 @@ void gfx_scb_run(u16 addr, u16 mod, const u16 *vals, u8 n) { RETRY(vq_scb_run(&g
 void gfx_strip_attr(u16 sprite, const u16 *pairs, u16 base, u8 rows) { RETRY(vq_strip_attr(&g_gfx_q, sprite, pairs, base, rows)); }
 void gfx_pal(u16 idx, u16 val) { RETRY(vq_pal(&g_gfx_q, idx, val)); }
 
-void gfx_text(u8 x, u8 y, u8 pal, const char *s) {
-    vq_fix_text(&g_gfx_q, x, y, (u16)(pal << 12), SROM_TXT_TILE_OFFSET, s);
+_Static_assert(FIXFONT_BLANK == SROM_EMPTY_TILE, "the font keeps the ngdevkit blank tile");
+
+void gfx_text(u8 x, u8 y, u8 pal, const char *s) { vq_fix_text(&g_gfx_q, x, y, (u16)(pal << 12), fixfont_map, s); }
+void gfx_text_backed(u8 x, u8 y, u8 pal, const char *s) { vq_fix_text(&g_gfx_q, x, y, (u16)(pal << 12), fixfont_map_backed, s); }
+/* Tall text is two tiles high: top half on row y, bottom half on row y + 1. */
+static void text_tall(u8 x, u8 y, u8 pal, const u16 *top, const u16 *bottom, const char *s) {
+    vq_fix_text(&g_gfx_q, x, y, (u16)(pal << 12), top, s);
+    vq_fix_text(&g_gfx_q, x, (u8)(y + 1), (u16)(pal << 12), bottom, s);
 }
+void gfx_text_tall(u8 x, u8 y, u8 pal, const char *s) { text_tall(x, y, pal, fixfont_map_tall_top, fixfont_map_tall_bottom, s); }
+void gfx_text_tall_backed(u8 x, u8 y, u8 pal, const char *s) { text_tall(x, y, pal, fixfont_map_tall_top_backed, fixfont_map_tall_bottom_backed, s); }
 
 void gfx_center_text(u8 y, u8 pal, const char *s) {
     u8 n = 0;

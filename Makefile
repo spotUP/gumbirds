@@ -25,7 +25,10 @@ BUILDDIR=build
 # all directories that contain source to be compiled
 SRCDIRS=assets src
 # default build flags, can be overriden per target
-CFLAGS=-I$(BUILDDIR) -std=c99 -fomit-frame-pointer -O2 -g -MMD -MP
+# DEBUG_HEADER=1 builds the GUMBIRDS / state name header back in (src/main.c draw); off in the normal build. Objects do not track
+# the flag: gmake clean (or touch src/main.c) when switching.
+DEBUG_HEADER ?=
+CFLAGS=-I$(BUILDDIR) -std=c99 -fomit-frame-pointer -O2 -g -MMD -MP $(if $(DEBUG_HEADER),-DGUMBIRDS_DEBUG_HEADER)
 LDFLAGS=
 Z80FLAGS=
 Z80LDFLAGS=
@@ -70,11 +73,12 @@ $(PROM1): $(ELF)
 # Add your dependencies below to convert images to fixed tile binary data
 # and pack it into the fixed tile ROM (referenced by symbol SROM1)
 # 
-# By default, this makefile creates a tileset ROM with small and tall
-# latin characters for printing ASCII string, and tiles that are
-# displayed during the attract mode.
-# Note: build rules (%.gif -> %.fix) are defined in Makefile.build
-$(SROM1): $(BUILDDIR)/assets/base-srom-text-shadow.fix
+# The S-ROM is the Gumdrop font (tools/build_fix_font.py from assets/font/, imported by tools/import_font_sheet.py): 256 tiles,
+# tile index = sheet index, tile 255 blank (user decision 2026-11-10 replaced the ngdevkit ASCII font). The char to tile maps and the
+# five fix palettes come with it in build/gen/fix_font.h (src/gfx.c prints through the maps).
+$(BUILDDIR)/gen/fix_font.fix $(BUILDDIR)/gen/fix_font.h: assets/font/fix_font_sheet.png assets/font/fix_font.json tools/build_fix_font.py tools/sprite_pipeline.py
+	$(PYTHON) -I tools/build_fix_font.py --out $(BUILDDIR)/gen
+$(SROM1): $(BUILDDIR)/gen/fix_font.fix
 
 
 
@@ -130,7 +134,7 @@ $(BUILDDIR)/gen/island.c1 $(BUILDDIR)/gen/island.c2 $(BUILDDIR)/gen/island_sprit
 $(BUILDDIR)/gen/island_sprites.o: $(BUILDDIR)/gen/island_sprites.c
 	$(M68KGCC) $(NGCFLAGS) $(CFLAGS) -c $< -o $@
 
-$(BUILDDIR)/src/main.o $(BUILDDIR)/src/bg.o $(BUILDDIR)/src/gfx.o $(BUILDDIR)/src/hazard.o $(BUILDDIR)/src/island.o $(BUILDDIR)/src/core/sprite_budget.o $(BUILDDIR)/src/core/island_layout.o: $(BUILDDIR)/gen/island_tables.h $(BUILDDIR)/gen/city_tables.h $(BUILDDIR)/gen/island_sprites.h $(BUILDDIR)/gen/hazard_sprites.h $(BUILDDIR)/gen/obs_sprites.h $(BUILDDIR)/gen/city_sprites.h $(BUILDDIR)/gen/sootling_sprites.h src/core/flier_view.h src/vram_layout.h src/sprite_slots.h src/bg.h src/gfx.h src/hazard.h src/island.h src/core/island_layout.h src/core/vram_queue.h
+$(BUILDDIR)/src/main.o $(BUILDDIR)/src/bg.o $(BUILDDIR)/src/gfx.o $(BUILDDIR)/src/hazard.o $(BUILDDIR)/src/island.o $(BUILDDIR)/src/core/sprite_budget.o $(BUILDDIR)/src/core/island_layout.o: $(BUILDDIR)/gen/fix_font.h $(BUILDDIR)/gen/island_tables.h $(BUILDDIR)/gen/city_tables.h $(BUILDDIR)/gen/island_sprites.h $(BUILDDIR)/gen/hazard_sprites.h $(BUILDDIR)/gen/obs_sprites.h $(BUILDDIR)/gen/city_sprites.h $(BUILDDIR)/gen/sootling_sprites.h src/core/flier_view.h src/vram_layout.h src/sprite_slots.h src/bg.h src/gfx.h src/hazard.h src/island.h src/core/island_layout.h src/core/vram_queue.h
 
 
 
@@ -251,9 +255,23 @@ test-crom: cart
 	@for n in 1 2; do f=$(ROM)/$(GAMEROM)-c$$n.c$$n; cat $(CROM_SETS:%=$(BUILDDIR)/%.c$$n) > $(BUILDDIR)/crom-expect.bin; \
 	  head -c `wc -c < $(BUILDDIR)/crom-expect.bin` $$f | cmp -s - $(BUILDDIR)/crom-expect.bin || { echo "[FAIL] test-crom: $$f does not match its sets"; rm -f $(BUILDDIR)/crom-expect.bin; exit 1; }; done; \
 	rm -f $(BUILDDIR)/crom-expect.bin; echo "[OK] test-crom: C-ROMs match their sets"
+# The S-ROM must start with the generated font (FIXFONT_SROM_TILES tiles) and be SROMSIZE bytes (the rest zero).
+.PHONY: test-srom
+test-srom: cart
+	@f=$(ROM)/$(GAMEROM)-s1.s1; \
+	[ `wc -c < $$f` -eq $(SROMSIZE) ] || { echo "[FAIL] test-srom: $$f is not $(SROMSIZE) bytes"; exit 1; }; \
+	head -c `wc -c < $(BUILDDIR)/gen/fix_font.fix` $$f | cmp -s - $(BUILDDIR)/gen/fix_font.fix || { echo "[FAIL] test-srom: $$f does not start with fix_font.fix"; exit 1; }; \
+	echo "[OK] test-srom: S-ROM is the Gumdrop font, $(SROMSIZE) bytes"
+# Compile-only check of the debug header build (DEBUG_HEADER=1): src/main.c with -DGUMBIRDS_DEBUG_HEADER into its own object dir,
+# so the normal objects are untouched and no gmake clean is needed. A compile error fails the target.
+test-debug-header: cart
+	@mkdir -p $(BUILDDIR)/debug-header
+	@$(M68KGCC) $(NGCFLAGS) $(CFLAGS) -DGUMBIRDS_DEBUG_HEADER -c src/main.c -o $(BUILDDIR)/debug-header/main.o && echo "[OK] test-debug-header: src/main.c compiles with GUMBIRDS_DEBUG_HEADER"
 test: cart
 	nice -n 19 tests/host/run.sh
+	@$(MAKE) --no-print-directory test-debug-header
 	@$(MAKE) --no-print-directory test-crom
+	@$(MAKE) --no-print-directory test-srom
 	@$(MAKE) --no-print-directory test-flier
 	@$(MAKE) --no-print-directory test-reach
 	@$(MAKE) --no-print-directory test-vblank
@@ -268,6 +286,7 @@ test: cart
 	BRAWL_HISCORE_SIZE=$$($(NM) -S $(ELF) | awk '$$4=="g_hiscore_image"{print $$2}') \
 	BRAWL_BG_X_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_bg_plane_x"{print $$1}') \
 	BRAWL_BG_WRITES_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_bg_x_writes"{print $$1}') \
+	BRAWL_FIXFONT_H=$(BUILDDIR)/gen/fix_font.h \
 	BRAWL_RESULT=$$T/result.txt \
 	SDL_VIDEODRIVER=dummy nice -n 19 $(MAME) -window -nomaximize -video none -sound none -nothrottle -seconds_to_run $(TEST_SECONDS) -noautosave -skip_gameinfo -hash $(ROM) -rp $(ROM) -nvram_directory $$T -snapshot_directory $$T/snap -autoboot_script tests/mame/boot_check.lua neogeo -cart1 $(GAMEROM) > $$T/mame.log 2>&1 || true; \
 	if [ ! -f $$T/result.txt ]; then tail -n 15 $$T/mame.log; echo "[FAIL] no result from Lua script"; exit 1; fi; \
@@ -441,6 +460,7 @@ test-unibios: cart bios
 	@$(MAKE) --no-print-directory $(UNIBIOS_DIR)/neogeo.zip
 	@set -e; T=$$(mktemp -d $(BUILDDIR)/test-run.XXXXXX); \
 	BRAWL_FRAME_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_frame_counter"{print $$1}') \
+	BRAWL_FIXFONT_H=$(BUILDDIR)/gen/fix_font.h \
 	BRAWL_BG_PAL_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_bg_pal_first_entry"{print $$1}') \
 	BRAWL_BG_PAL_BYTES=$$($(NM) -S $(ELF) | awk '$$4=="city_palettes"{print $$2}') \
 	BRAWL_SOOT_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_soot_range"{print $$1}') \
@@ -452,7 +472,7 @@ test-unibios: cart bios
 	cat $$T/result.txt; \
 	if grep -q '^PASS' $$T/result.txt; then rm -rf $$T; echo "[OK] make test-unibios passed"; else echo "[FAIL] make test-unibios, log kept in $$T"; exit 1; fi
 
-.PHONY: run test test-camera test-sprite-peak test-flier test-reach test-vblank test-scroll test-slots test-hazard test-sound test-unibios
+.PHONY: run test test-crom test-srom test-debug-header test-camera test-sprite-peak test-flier test-reach test-vblank test-scroll test-slots test-hazard test-sound test-unibios
 
 # Header dependencies from -MMD (build/**/*.d): a changed header rebuilds every object that includes it.
 -include $(shell find $(BUILDDIR) -name '*.d' 2>/dev/null)

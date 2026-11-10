@@ -3,8 +3,9 @@
 /*
  * C-ROM tile bases and palette slots (bank 1). C-ROM order is the Makefile cat order:
  * logo (256 tiles), obstacles, city, Sootling (the fliers), hazard strip, floating islands. Every base is derived from the generated headers,
- * never typed. Palette slots 0..1 are the fix layer.
+ * never typed. Palette slots 0..FIX_PAL_COUNT-1 are the fix layer.
  */
+#include "gen/fix_font.h"
 #include "gen/obs_sprites.h"
 #include "gen/city_sprites.h"
 #include "gen/sootling_sprites.h"
@@ -24,7 +25,8 @@ _Static_assert((HAZARD_TILE_BASE & 7) == 0, "hazard tile base is not 8-aligned")
 #define ISLAND_TILE_BASE (HAZARD_TILE_BASE + HAZARD_TILE_COUNT)
 _Static_assert((ISLAND_TILE_BASE & 7) == 0, "island tile base is not 8-aligned");
 
-#define OBS_PAL_SLOT 2
+#define FIX_PAL_COUNT FIXFONT_PAL_COUNT /* fix palettes 0..4: white, pink, lime, gold, dim (build/gen/fix_font.h) */
+#define OBS_PAL_SLOT FIX_PAL_COUNT
 #define CITY_PAL_SLOT (OBS_PAL_SLOT + OBS_PALETTE_COUNT)
 #define SOOT_PAL_SLOT (CITY_PAL_SLOT + CITY_PALETTE_COUNT) /* palette 0: player, palette 1: computer fliers (red balloons) */
 

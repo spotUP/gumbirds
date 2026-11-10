@@ -29,7 +29,19 @@ local AFTER_DEATH, DEATH_TIMEOUT, STALL_LIMIT = 600, 2400, 60
 local mem = manager.machine.devices[":maincpu"].spaces["program"]
 local USER_REQUEST = 0x10fdae
 local soot_addr = tonumber(os.getenv("BRAWL_SOOT_ADDR"), 16)  -- g_soot_range: {first tile, tile count, palette slot, ...}
-local PAL_TEXT_C1 = 0x400002
+-- Fix palettes 0..FIXFONT_PAL_COUNT-1 (FIX_PAL_COUNT in src/vram_layout.h; the count is read from the generated fix_font.h,
+-- BRAWL_FIXFONT_H), colour 1 of each, packed into one hex string; 0 when any of them is unset.
+local FIX_PAL_COUNT = tonumber(io.open(os.getenv("BRAWL_FIXFONT_H")):read("a"):match("#define FIXFONT_PAL_COUNT%s+(%d+)"))
+assert(FIX_PAL_COUNT and FIX_PAL_COUNT > 0, "FIXFONT_PAL_COUNT not found in BRAWL_FIXFONT_H")
+local function fix_pal_c1()
+  local sig = ""
+  for slot = 0, FIX_PAL_COUNT - 1 do
+    local w = mem:read_u16(0x400000 + slot * 32 + 2)
+    if w == 0 then return 0 end
+    sig = sig .. string.format("%04x", w)
+  end
+  return sig
+end
 local PAL_HERO_C1 = 0x400000 + mem:read_u16(soot_addr + 4) * 32 + 2   -- Sootling player palette, colour 1
 local COIN_FRAME, CHECK_FRAME = 900, 960
 local PAL_BACKDROP = 0x400000 + 4095 * 2
@@ -142,10 +154,10 @@ emu.register_frame_done(function()
     prev = c
   end
   if n == COIN_FRAME - 1 then
-    text_before, hero_before = mem:read_u16(PAL_TEXT_C1), mem:read_u16(PAL_HERO_C1)
+    text_before, hero_before = fix_pal_c1(), mem:read_u16(PAL_HERO_C1)
     city_before, back_before = city_sum()
     if text_before == 0 or hero_before == 0 or prev == 0 or city_before == 0 or back_before == 0 then
-      finish(false, string.format("game not running before coin (text %04x hero %04x counter %d)",
+      finish(false, string.format("game not running before coin (text %s hero %04x counter %d)",
         text_before, hero_before, prev))
       return
     end
@@ -154,14 +166,14 @@ emu.register_frame_done(function()
   end
   if n > COIN_FRAME and mem:read_u8(USER_REQUEST) == 3 then saw_title = true end
   if n == CHECK_FRAME then
-    local t, h = mem:read_u16(PAL_TEXT_C1), mem:read_u16(PAL_HERO_C1)
+    local t, h = fix_pal_c1(), mem:read_u16(PAL_HERO_C1)
     if not saw_title then
       finish(false, "BIOS never sent USER command 3 after the coin")
     elseif t ~= text_before or h ~= hero_before then
-      finish(false, string.format("palettes lost after coin: text %04x (was %04x) hero %04x (was %04x)",
+      finish(false, string.format("palettes lost after coin: text %s (was %s) hero %04x (was %04x)",
         t, text_before, h, hero_before))
     else
-      p2_msg = string.format("palettes kept after UniBIOS coin re-entry (text %04x hero %04x city sum %d backdrop %04x)", t, h, city_before, back_before)
+      p2_msg = string.format("palettes kept after UniBIOS coin re-entry (text %s hero %04x city sum %d backdrop %04x)", t, h, city_before, back_before)
       p2 = "coin"
     end
   end
