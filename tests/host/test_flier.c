@@ -420,34 +420,44 @@ static void test_playtest_gravity(void) {
     CHECK_NEAR(fo * 1000 / fn, 1225, 61);                       /* ratio old / new = sqrt(1.5) +- 5% */
 }
 
-/* ---- B: stomp boxes follow the drawn art (sootling_sheet.png: feet cols 9..22 rows 46..47, two gums cols 5..26
- * rows 5..29, one gum cols 9..25 rows 6..28; art column 16 = x, art row 47 bottom = y + half height). ---- */
+/* ---- B: stomp boxes follow the drawn art (sootling_sheet.png, 24 x 32 frames: feet cols 8..15 rows 30..31, two gums
+ * cols 3..19 rows 0..9, one gum cols 7..15; art column 12 = x, art row 31 bottom = y + half height). ---- */
 static void test_stomp_art(void) {
     Flier a, v;
-    /* victim at (100, 100) with two balloons: drawn gum spans x 89..111, y 62.5..87.5. The attacker's drawn feet
-     * (x +-7, rows 46..47) overlap the right end of that gum at ax 108: the old 6 px box (97.5..103.5) says miss. */
+    /* victim at (100, 100) with two balloons: feet bottom 105.5, gum box 23..31 px above it (y 74.5..82.5), x 93..107.
+     * The attacker's feet box (x +-3, 3 tall) overlaps it for |dx| < 10: attacker y 74 puts its feet bottom 26 px above. */
     flier_init(&v, FL_PX(100), FL_PX(100), 2, 0);
-    flier_init(&a, FL_PX(108), FL_PX(80), 2, 0);
+    flier_init(&a, FL_PX(109), FL_PX(74), 2, 0);
     CHECK(flier_feet_hit(&a, &v) && flier_stomp(&a, &v) == 1 && v.balloons == 1);
-    /* the same on the left end, and high on the bubble (feet bottom 66 px above the victim's feet bottom less 3) */
+    /* the same on the left end, and high on the bubble (feet bottom 30 px above the victim's feet bottom) */
     flier_init(&v, FL_PX(100), FL_PX(100), 2, 0);
-    flier_init(&a, FL_PX(92), FL_PX(62), 2, 0);
+    flier_init(&a, FL_PX(91), FL_PX(70), 2, 0);
     CHECK(flier_stomp(&a, &v) == 1);
     /* near misses outside the drawn gum: beside it, below it, above it */
     flier_init(&v, FL_PX(100), FL_PX(100), 2, 0);
-    flier_init(&a, FL_PX(125), FL_PX(80), 2, 0);
+    flier_init(&a, FL_PX(115), FL_PX(74), 2, 0);
     CHECK(!flier_feet_hit(&a, &v) && flier_stomp(&a, &v) == 0 && v.balloons == 2);
     flier_init(&a, FL_PX(100), FL_PX(100), 2, 0);          /* feet at the victim's own feet: on the body, not the gum */
     CHECK(flier_stomp(&a, &v) == 0);
-    flier_init(&a, FL_PX(100), FL_PX(50), 2, 0);           /* feet 8 px above the top of the bubble */
+    flier_init(&a, FL_PX(100), FL_PX(50), 2, 0);           /* feet 19 px above the top of the bubble */
     CHECK(flier_stomp(&a, &v) == 0);
-    /* one gum is narrower: hit at 110 would hit two gums, misses one */
-    flier_init(&a, FL_PX(113), FL_PX(80), 2, 0);
+    /* the vertical edges to the pixel: feet bottom 21..30 px above the victim's feet bottom hit (feet box 3 tall against gum
+     * box 23..31), 31 px above (over the top of the bubble) and 20 px above (below its bottom edge) miss */
+    flier_init(&a, FL_PX(100), FL_PX(70), 2, 0);           /* 30 px */
+    CHECK(flier_feet_hit(&a, &v));
+    flier_init(&a, FL_PX(100), FL_PX(69), 2, 0);           /* 31 px */
+    CHECK(!flier_feet_hit(&a, &v));
+    flier_init(&a, FL_PX(100), FL_PX(79), 2, 0);           /* 21 px */
+    CHECK(flier_feet_hit(&a, &v));
+    flier_init(&a, FL_PX(100), FL_PX(80), 2, 0);           /* 20 px */
+    CHECK(!flier_feet_hit(&a, &v));
+    /* one gum is narrower: a hit at 106 (|dx| < 7), a miss at 107, where two gums still hit (|dx| < 10) */
+    flier_init(&a, FL_PX(109), FL_PX(74), 2, 0);
     CHECK(flier_stomp(&a, &v) == 1);
     flier_init(&v, FL_PX(100), FL_PX(100), 1, 0);
-    flier_init(&a, FL_PX(114), FL_PX(80), 2, 0);
+    flier_init(&a, FL_PX(107), FL_PX(74), 2, 0);
     CHECK(flier_stomp(&a, &v) == 0);
-    flier_init(&a, FL_PX(110), FL_PX(80), 2, 0);
+    flier_init(&a, FL_PX(106), FL_PX(74), 2, 0);
     CHECK(flier_stomp(&a, &v) == 1);
 }
 

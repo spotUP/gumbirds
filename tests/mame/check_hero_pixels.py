@@ -10,7 +10,7 @@ import pixel_common as pc
 
 FLIER_X, ISLAND_TOP_Y, BOX_W, BOX_H, MARGIN = 160, 140, 48, 48, 12
 # Sootling 2-balloon frames are 207-263 opaque px of which only part uses player-only colours (balloon greens, body);
-# measured 2026-11-10 with v5 art: playing 135, attract 196. The old 200 was the runner sprite. The city and obstacle
+# measured 2026-11-10 with v5 art: playing 135, attract 196; with the 24 x 32 art: playing 182, attract 0. The old 200 was the runner sprite. The city and obstacle
 # palettes share none of these colours, so an empty or wrong-art box stays near 0.
 MIN_PLAYING = 100
 

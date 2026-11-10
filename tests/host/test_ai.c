@@ -149,7 +149,7 @@ int main(void) {
         uint32_t before;
         game_reset(&g, 3);
         game_step_arena(&g, 0);
-        g.cpu[1].x = g.cpu[0].x; g.cpu[1].y = g.cpu[0].y - FL_PX(29);
+        g.cpu[1].x = g.cpu[0].x; g.cpu[1].y = g.cpu[0].y - FL_PX(26);
         g.cpu[1].vy = FL_PX(1);
         before = g.stomps;
         game_step_arena(&g, 0);

@@ -164,7 +164,7 @@ emu.register_frame_done(function() local ok_, err_ = pcall(function()
     if c0state > 1 or c0bal == 0 then finish(false, "computer flier 0 gone before the stomp test") return end
     stomp_stomps0, stomp_score0, stomp_bal0 = g32(O_STOMPS), g32(O_SCORE), c0bal
     mem:write_u32(flow_addr + O_X, g32(O_C0X))
-    mem:write_u32(flow_addr + O_Y, g32(O_C0Y) - 29 * 65536)
+    mem:write_u32(flow_addr + O_Y, g32(O_C0Y) - 26 * 65536)
     mem:write_u32(flow_addr + O_VX, 0)
     mem:write_u32(flow_addr + O_VY, 0)
     mem:write_u8(flow_addr + O_GROUND, 0)   -- teleported into the air

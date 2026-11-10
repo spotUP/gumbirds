@@ -44,7 +44,8 @@ int main(void)
     /* sheet facts */
     check(SOOTLING_FRAMES == 63, "frame count", SOOTLING_FRAMES, 63);
     check(SOOTLING_CLIP_COUNT == 7, "clip count", SOOTLING_CLIP_COUNT, 7);
-    check(SOOTLING_ART_W / 16 == 2, "columns per frame", SOOTLING_ART_W / 16, 2);
+    /* the pipeline pads art to whole 16 px tiles: 24 px art is still 2 strips (src/vram_layout.h SOOT_COLUMNS) */
+    check((SOOTLING_ART_W + 15) / 16 == 2, "columns per frame", (SOOTLING_ART_W + 15) / 16, 2);
     check(SOOTLING_BOX_LAST_COL - SOOTLING_BOX_FIRST_COL + 1 == 2 * FLIER_HALF_W, "hit box width",
           SOOTLING_BOX_LAST_COL - SOOTLING_BOX_FIRST_COL + 1, 2 * FLIER_HALF_W);
     check(SOOTLING_FEET_ROW == SOOTLING_ART_H - 1, "feet on last row", SOOTLING_FEET_ROW, SOOTLING_ART_H - 1);

@@ -131,7 +131,7 @@ static void test_arena_score(void)
     /* broad phase across the seam: player at x 383, computer flier at x 1 (2 px apart) is a stomp pair */
     arena_one_cpu(&g);
     g.cpu[0].x = FL_PX(1); g.cpu[0].y = FL_PX(100); g.cpu[0].vx = 0; g.cpu[0].vy = 0;
-    g.flier.x = FL_PX(383); g.flier.y = FL_PX(100 - 29); g.flier.vx = 0; g.flier.vy = 0;
+    g.flier.x = FL_PX(383); g.flier.y = FL_PX(100 - 26); g.flier.vx = 0; g.flier.vy = 0;
     before = g.stomps;
     game_step_arena(&g, 0);
     CHECK(g.stomps == before + 1);
@@ -170,7 +170,7 @@ static void test_arena_score(void)
     game_reset(&g, 77);
     game_step_arena(&g, 0);
     g.cpu_count = 2;
-    g.cpu[1].x = g.cpu[0].x; g.cpu[1].y = g.cpu[0].y - FL_PX(29);
+    g.cpu[1].x = g.cpu[0].x; g.cpu[1].y = g.cpu[0].y - FL_PX(26);
     g.cpu[1].vx = 0; g.cpu[1].vy = 0;
     g.flier.x = FL_PX(100); g.flier.y = FL_PX(100);    /* player away over the gap */
     game_step_arena(&g, 0);
@@ -199,8 +199,8 @@ static void test_arena_rematch(void)
 }
 
 /* User decision 2026-11-10, B: the stomp boxes follow the drawn art, for player and computer alike, through the real
- * game_step_arena broad phase. The attacker's feet are 13 px beside the victim (26 half pixels): the old broad phase
- * (9 half pixels) skipped that pair; the drawn gum is 22 px wide, so it is a real stomp. */
+ * game_step_arena broad phase. The attacker's feet are 9 px beside the victim (18 half pixels): the old broad phase
+ * (9 half pixels) skipped that pair; the drawn gum is 17 px wide (reach 20 half pixels), so it is a real stomp. */
 static void test_arena_art_boxes(void)
 {
     static Game g;
@@ -209,7 +209,7 @@ static void test_arena_art_boxes(void)
     arena_one_cpu(&g);
     g.cpu[0].x = FL_PX(200); g.cpu[0].y = FL_PX(100); g.cpu[0].vx = 0; g.cpu[0].vy = 0; g.cpu[0].on_ground = 0;
     g.cpu[0].invincible = 0;
-    g.flier.x = FL_PX(213); g.flier.y = FL_PX(100 - 29); g.flier.vx = 0; g.flier.vy = 0;
+    g.flier.x = FL_PX(209); g.flier.y = FL_PX(100 - 26); g.flier.vx = 0; g.flier.vy = 0;
     before = g.stomps;
     game_step_arena(&g, 0);
     CHECK(g.stomps == before + 1 && g.cpu[0].balloons == FLIER_START_BALLOONS - 1);
@@ -217,14 +217,14 @@ static void test_arena_art_boxes(void)
     arena_one_cpu(&g);
     g.flier.x = FL_PX(200); g.flier.y = FL_PX(100); g.flier.vx = 0; g.flier.vy = 0; g.flier.on_ground = 0;
     g.flier.invincible = 0;
-    g.cpu[0].x = FL_PX(213); g.cpu[0].y = FL_PX(100 - 29); g.cpu[0].vx = 0; g.cpu[0].vy = 0; g.cpu[0].on_ground = 0;
+    g.cpu[0].x = FL_PX(209); g.cpu[0].y = FL_PX(100 - 26); g.cpu[0].vx = 0; g.cpu[0].vy = 0; g.cpu[0].on_ground = 0;
     before = g.stomps;
     game_step_arena(&g, 0);
     CHECK(g.stomps == before + 1 && g.flier.balloons == FLIER_START_BALLOONS - 1);
-    /* 20 px beside the victim: outside the drawn gum, no pop */
+    /* 14 px beside the victim: outside the drawn gum, no pop */
     arena_one_cpu(&g);
     g.cpu[0].x = FL_PX(200); g.cpu[0].y = FL_PX(100); g.cpu[0].vx = 0; g.cpu[0].vy = 0; g.cpu[0].on_ground = 0;
-    g.flier.x = FL_PX(220); g.flier.y = FL_PX(100 - 29); g.flier.vx = 0; g.flier.vy = 0;
+    g.flier.x = FL_PX(214); g.flier.y = FL_PX(100 - 26); g.flier.vx = 0; g.flier.vy = 0;
     before = g.stomps;
     game_step_arena(&g, 0);
     CHECK(g.stomps == before);

@@ -17,6 +17,12 @@
 #define CITY_TILE_BASE (OBS_TILE_BASE + OBS_TILE_COUNT)
 
 #define SOOT_TILE_BASE (CITY_TILE_BASE + CITY_TILE_COUNT)
+/* A Sootling frame is drawn as SOOT_COLUMNS hardware strips of 16 px: the pipeline pads the art to whole tiles, centred
+   (tools/sprite_pipeline.py), so the sprite is wider than the art when ART_W is not a multiple of 16 (24 px art: 32 px
+   sprite, 4 px left pad). SOOT_BOX_DX is the hit box's first column inside the sprite: art column plus the left pad. */
+#define SOOT_COLUMNS SOOTLING_MAX_COLUMNS
+#define SOOT_SPRITE_W (SOOT_COLUMNS * 16)
+#define SOOT_BOX_DX ((SOOT_SPRITE_W - SOOTLING_ART_W) / 2 + SOOTLING_BOX_FIRST_COL)
 #define HAZARD_TILE_BASE (SOOT_TILE_BASE + SOOTLING_TILE_COUNT)
 /* Auto-animation replaces the low 3 bits of the tile number: the hazard base must be a multiple of 8. */
 _Static_assert((HAZARD_TILE_BASE & 7) == 0, "hazard tile base is not 8-aligned");

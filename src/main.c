@@ -47,14 +47,15 @@ static Flow g_flow;
  * Register sequence copied from ngdevkit-examples 03-sprite-animation/main.c:54-84.
  * Y register = 496 - screen top (wraps at 512), X register = screen x.
  */
-#define SOOT_COLUMNS (SOOTLING_ART_W / 16) /* a Sootling frame is 2 tile columns wide, 3 tiles high (32 x 48) */
-#define SOOT_BOX_DX SOOTLING_BOX_FIRST_COL /* sprite left = flier centre x - FLIER_HALF_W - 14: the 4 px hit box is art columns 14..17 */
+/* SOOT_COLUMNS, SOOT_SPRITE_W and SOOT_BOX_DX live in vram_layout.h (shared with tests/mame/camera_probe.c). A Sootling frame
+ * is 2 tile columns wide and 2 tiles high (24 x 32 art centred in a 32 x 32 sprite): the 4 px hit box is art columns 10..13,
+ * sprite columns 14..17, so the sprite left is the flier centre x - FLIER_HALF_W - SOOT_BOX_DX. */
 #define SOOT_FLIP 1     /* SCB1 attribute bit 0: horizontal flip; a mirrored frame also draws its columns in reverse order (soot_strips) */
 _Static_assert(SOOTLING_FRAME_COUNT == 2 * SOOTLING_FRAMES, "sheet: SOOTLING_FRAMES frames per palette (player, computer)");
-_Static_assert(SOOT_COLUMNS == SOOTLING_MAX_COLUMNS && SOOT_COLUMNS * 16 == SOOTLING_ART_W, "Sootling frames are 2 columns wide");
+_Static_assert(SOOT_COLUMNS == SOOTLING_MAX_COLUMNS && SOOT_SPRITE_W >= SOOTLING_ART_W && SOOT_SPRITE_W - SOOTLING_ART_W < 16, "Sootling frames are 2 columns wide, art padded to whole tiles");
 _Static_assert(SOOTLING_BOX_LAST_COL - SOOTLING_BOX_FIRST_COL + 1 == 2 * FLIER_HALF_W, "art hit box columns must equal the 4 px gameplay box");
 _Static_assert(SOOTLING_BOX_FIRST_COL + 2 * FLIER_HALF_W + SOOTLING_BOX_FIRST_COL == SOOTLING_ART_W, "art is centred on the hit box (a mirrored frame keeps the box)");
-_Static_assert(SOOTLING_ART_H == 48 && SOOTLING_FEET_ROW == SOOTLING_ART_H - 1, "frame is 48 px tall with the feet on its last row");
+_Static_assert(SOOTLING_ART_H == 32 && SOOTLING_FEET_ROW == SOOTLING_ART_H - 1, "frame is 32 px tall with the feet on its last row");
 
 /* Clip table and per frame ticks come from frames.json through the build (sootling_tables.h). */
 static const u8 k_clip_first[SOOTLING_CLIP_COUNT] = SOOTLING_TABLE_CLIP_FIRST;

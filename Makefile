@@ -273,6 +273,7 @@ test: cart
 	@$(MAKE) --no-print-directory test-crom
 	@$(MAKE) --no-print-directory test-srom
 	@$(MAKE) --no-print-directory test-flier
+	@$(MAKE) --no-print-directory test-small-sootling
 	@$(MAKE) --no-print-directory test-reach
 	@$(MAKE) --no-print-directory test-vblank
 	@$(MAKE) --no-print-directory test-scroll
@@ -308,6 +309,23 @@ test-flier: cart
 	if [ ! -f $$T/result.txt ]; then tail -n 15 $$T/mame.log; echo "[FAIL] no result from flier Lua script"; exit 1; fi; \
 	cat $$T/result.txt; \
 	if grep -q '^PASS' $$T/result.txt; then rm -rf $$T; echo "[OK] make test-flier passed"; else echo "[FAIL] make test-flier, log kept in $$T"; exit 1; fi
+
+# Small Sootling reachability (tests/mame/small_sootling_check.lua): the 24 x 32 sheet is what the real ROM draws for the
+# player (art size, tile count, SCB3 height, SCB1 tiles in range, frame-select sentinel, sprite top and x from the flier
+# position). Spec numbers are written in the Lua; a stale sheet fails. Run by make test; `make test-small-sootling` alone.
+test-small-sootling: cart
+	@set -e; T=$$(mktemp -d $(BUILDDIR)/test-run.XXXXXX); \
+	BRAWL_SOOT_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_soot_range"{print $$1}') \
+	BRAWL_CAM_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_cam_px"{print $$1}') \
+	BRAWL_FLOW_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flow"{print $$1}') \
+	BRAWL_FRAME_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_frame_counter"{print $$1}') \
+	BRAWL_FLIER_LAYOUT="$$($(M68KGCC) -std=c99 -S -o - tests/mame/flier_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
+	BRAWL_SOOT_LAYOUT="$$($(M68KGCC) $(NGCFLAGS) -Ibuild -std=c99 -S -o - tests/mame/small_sootling_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
+	BRAWL_RESULT=$$T/result.txt \
+	SDL_VIDEODRIVER=dummy nice -n 19 $(MAME) -window -nomaximize -video none -sound none -nothrottle -seconds_to_run $(TEST_SECONDS) -noautosave -skip_gameinfo -hash $(ROM) -rp $(ROM) -nvram_directory $$T -autoboot_script tests/mame/small_sootling_check.lua neogeo -cart1 $(GAMEROM) > $$T/mame.log 2>&1 || true; \
+	if [ ! -f $$T/result.txt ]; then tail -n 15 $$T/mame.log; echo "[FAIL] no result from small Sootling Lua script"; exit 1; fi; \
+	cat $$T/result.txt; \
+	if grep -q '^PASS' $$T/result.txt; then rm -rf $$T; echo "[OK] make test-small-sootling passed"; else echo "[FAIL] make test-small-sootling, log kept in $$T"; exit 1; fi
 
 # High score reachability, plan P5.1 (tests/mame/hiscore_reach.lua): boot 1 plays to game over, types the name
 # REACHTST through the real name entry screen and checks the save sentinel g_hiscore_saves and backup RAM; boot 2
@@ -472,7 +490,7 @@ test-unibios: cart bios
 	cat $$T/result.txt; \
 	if grep -q '^PASS' $$T/result.txt; then rm -rf $$T; echo "[OK] make test-unibios passed"; else echo "[FAIL] make test-unibios, log kept in $$T"; exit 1; fi
 
-.PHONY: run test test-crom test-srom test-debug-header test-camera test-sprite-peak test-flier test-reach test-vblank test-scroll test-slots test-hazard test-sound test-unibios
+.PHONY: run test test-crom test-srom test-debug-header test-camera test-sprite-peak test-flier test-small-sootling test-reach test-vblank test-scroll test-slots test-hazard test-sound test-unibios
 
 # Header dependencies from -MMD (build/**/*.d): a changed header rebuilds every object that includes it.
 -include $(shell find $(BUILDDIR) -name '*.d' 2>/dev/null)

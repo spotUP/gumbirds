@@ -53,19 +53,20 @@
 #define FLIER_HALF_H16_NOBAL       229376   /* 7 px tall / 2, without balloons, 16.16 */
 
 /* Stomp boxes follow the drawn Sootling art (user decision 2026-11-10: "i cant pop gums but they can pop mine").
- * Measured on assets/flier/sootling_sheet.png (32 x 48 frames; art column 16 is the flier x, art row 47 is the
- * feet bottom = y + half height; see thoughts/spot/2026-11-10-playtest-fixes.md). All whole pixels; a box is
- * centred on x and measured upward from the feet bottom of the flier that owns it. Player and computer share them.
- *   feet: drawn feet are art columns 9..22 on rows 46..47; box 10 wide, 4 tall.
- *   gum, two gums: drawn bubble columns 5..26 (-11..+11), rows 5..29 (-43..-18 from the feet bottom); inset 2.
- *   gum, one gum:  drawn bubble columns 9..25 (-7..+9), same rows; inset 1..2, centred (the art sits 1.5 px right of x).
- * Vertical gum range is the same for both: rows 7..27, i.e. 41 down to 20 px above the feet bottom. */
-#define FLIER_FEET_HALF_W          5        /* px */
-#define FLIER_FEET_H               4        /* px, ends at the feet bottom */
-#define FLIER_GUM_HALF_W2          9        /* px, victim with two balloons */
-#define FLIER_GUM_HALF_W1          6        /* px, victim with one balloon */
-#define FLIER_GUM_TOP              41       /* px above the victim's feet bottom */
-#define FLIER_GUM_BOTTOM           20       /* px above the victim's feet bottom */
+ * Measured on assets/flier/sootling_sheet.png (24 x 32 frames, drawn centred in a 32 x 32 sprite; art column 12 is the
+ * flier x, art row 31 is the feet bottom = y + half height; measure.txt in thoughts/shared/drafts/2026-11-10-sootling-small-sheet).
+ * All whole pixels; a box is centred on x and measured upward from the feet bottom of the flier that owns it. Player and
+ * computer share them.
+ *   feet: drawn feet are art columns 8..15 on rows 30..31 at rest (flight lifts them 1..2 rows); box 6 wide, 3 tall.
+ *   gum, two gums: drawn bubble columns 3..19 (-9..+8), rows 0..9 (32..22 px above the feet bottom); inset 1..2.
+ *   gum, one gum:  drawn bubble columns 7..15 (-5..+3); inset 1, centred.
+ * Vertical gum range is the same for both: 31 down to 23 px above the feet bottom. */
+#define FLIER_FEET_HALF_W          3        /* px */
+#define FLIER_FEET_H               3        /* px, ends at the feet bottom */
+#define FLIER_GUM_HALF_W2          7        /* px, victim with two balloons */
+#define FLIER_GUM_HALF_W1          4        /* px, victim with one balloon */
+#define FLIER_GUM_TOP              31       /* px above the victim's feet bottom */
+#define FLIER_GUM_BOTTOM           23       /* px above the victim's feet bottom */
 /* Widest horizontal reach of a stomp in half pixels (flier_feet_hit's unit), for the broad phase in game.c. */
 #define FLIER_STOMP_REACH_HALF     (2 * (FLIER_FEET_HALF_W + FLIER_GUM_HALF_W2))
 
