@@ -1,7 +1,7 @@
 ---
 date: 2026-11-09
 topic: Guard hero flashlight re-posed to an overhand cop grip
-tags: [hero, sprites, neo-geo, remix, roofline-v5]
+tags: [hero, sprites, neo-geo, remix, brawl-v5]
 status: partial
 ---
 
@@ -9,7 +9,7 @@ status: partial
 
 ## Verdict
 
-Page `design/roofline-test-v5.html` tile check: **PASS** (hero 7 tiles, worst 12 colours per tile, 0 over).
+Page `design/brawl-test-v5.html` tile check: **PASS** (hero 7 tiles, worst 12 colours per tile, 0 over).
 Laser now leaves the raised lens at head height (lens buffer row 4/5 -> y 148/149, was ~158) and still ends on `HIT_AT` (drone eye).
 
 ## What changed
@@ -43,7 +43,7 @@ Worst 16x16 tile across the whole sheet: 13 colours (aim_up tile 0,0, unchanged 
 
 ## Files
 
-- Render (fire frame): `/private/tmp/claude-501/-Users-spot-Code-ArcadeGame/06a12133-dc4e-43e6-b08a-169b50911a0f/scratchpad/v5/roofline-v5-grip.png`
+- Render (fire frame): `/private/tmp/claude-501/-Users-spot-Code-ArcadeGame/06a12133-dc4e-43e6-b08a-169b50911a0f/scratchpad/v5/brawl-v5-grip.png`
 - 4x sheet crop (forward rows): `/private/tmp/claude-501/-Users-spot-Code-ArcadeGame/06a12133-dc4e-43e6-b08a-169b50911a0f/scratchpad/v5/guard-grip-4x.png`
 - Tools: `/private/tmp/claude-501/-Users-spot-Code-ArcadeGame/06a12133-dc4e-43e6-b08a-169b50911a0f/scratchpad/grip/` (sheetdump.py, view.py, grip.py, page.py, upper.txt); originals saved there as sheet_before.png/json, page_before.html
 

@@ -1,11 +1,11 @@
 ---
 date: 2026-11-09
-topic: Free human-drawn pixel-art hero sprite sheets to remix into the Roofline night guard
-tags: [roofline, sprites, assets, licensing, neo-geo]
+topic: Free human-drawn pixel-art hero sprite sheets to remix into the Bubblegum Brawl night guard
+tags: [brawl, sprites, assets, licensing, neo-geo]
 status: complete
 ---
 
-# Free hero assets for Roofline
+# Free hero assets for Bubblegum Brawl
 
 Licenses were read from each OpenGameArt (OGA) page HTML (fetched with curl on 2026-11-09). Images were viewed by me. Scratch root: `/private/tmp/claude-501/-Users-spot-Code-ArcadeGame/06a12133-dc4e-43e6-b08a-169b50911a0f/scratchpad/assets/`. Not found: an ansimuz "Gunner" pack (search surfaced only the OGA tag "Gunners, Pugilists, and Swordsmen"). The itch.io Cyber Soldier (heosphorus) is a paid pack with no CC0 statement, so it is rejected.
 

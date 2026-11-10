@@ -13,7 +13,7 @@ code ran (sentinel counter), and asserts that the three layers scroll at 0.25x /
 
 ## Inputs read and what is missing
 
-- Source art: `design/roofline-test-v5.html`. Its background palette `P` is already purple-magenta (sky `#1a1238`, mid rim `#c0508a`),
+- Source art: `design/brawl-test-v5.html`. Its background palette `P` is already purple-magenta (sky `#1a1238`, mid rim `#c0508a`),
   which matches the "v7 purple city" entry in `2026-11-09_art-direction.md`. v8 and v9 changed only the guard rim. **v9 itself is not local
   (unverified that v5 background == v9 background).** The locked v9 page must be saved next to v5 (design/ is owned by the design session)
   or the user must confirm v5 background == v9 background. The numbers below were measured by running the v5 drawing code under node
@@ -116,7 +116,7 @@ background from 358. The base must not be hardcoded twice (see B4).
 
 Entry point: the real ROM under headless MAME via `make test` (`tests/mame/boot_check.lua`), same as the hero check.
 
-Sentinels the game exports (volatile, address from `nm` like `ROOFLINE_FRAME_ADDR`): `g_bg_scroll_px[3]` (far, mid, roof integer px) and
+Sentinels the game exports (volatile, address from `nm` like `BRAWL_FRAME_ADDR`): `g_bg_scroll_px[3]` (far, mid, roof integer px) and
 `g_bg_column_writes` (incremented in the strip writer). Lua writes these into the result file at the snapshot frames.
 
 Lua: take two PLAYING snapshots 12 frames apart (`bg_a.png`, `bg_b.png`) plus the existing `pre_start.png`; record the scroll values
@@ -155,7 +155,7 @@ Tick in the open with a running count ("n of 14 done").
 - [x] B8 (done: video_init/game_loop hooks, src/sprite_slots.h, HERO_SPRITE 192) `video_init()` calls `bg_load_palettes()` + `bg_init()`; `game_loop()` calls `bg_update()` every frame; `HERO_SPRITE` moved to 192
       and the sprite map above applied (coordinate with item 1).
 - [x] B9 (done: hero/obstacle checks exclude city colours; roof stv colour changed to avoid the hero outline colour) Fix `check_hero_pixels.py` for colour collisions.
-- [x] B10 (done: boot_check.lua bg_a.png at frame 420, playing.png at 450, result.txt.bg) `tests/mame/boot_check.lua`: two extra snapshots, export `g_bg_*` addresses (Makefile passes `ROOFLINE_BG_ADDR`).
+- [x] B10 (done: boot_check.lua bg_a.png at frame 420, playing.png at 450, result.txt.bg) `tests/mame/boot_check.lua`: two extra snapshots, export `g_bg_*` addresses (Makefile passes `BRAWL_BG_ADDR`).
 - [x] B11 (done: tests/mame/check_bg_pixels.py in make test) `tests/mame/check_bg_pixels.py` (colours, motion, ratios, sentinel) and wire into `make test`.
 - [x] B12 (done: unibios_check.lua city palettes + backdrop survive coin re-entry) `unibios_check.lua` background colours survive re-entry; run `make test-unibios`.
 - [x] B13 (done: bg_update disabled once: check_bg_pixels failed 8 checks, reverted) Mutation checks (rate changed, palette load skipped) fail, then revert.
@@ -164,7 +164,7 @@ Tick in the open with a running count ("n of 14 done").
 
 ## Open questions for the user
 
-- Q1 Is the v5 background identical to v9 background? Recommended: yes (v8 and v9 changed only the guard rim); save v9 as `design/roofline-test-v9.html` to confirm.
+- Q1 Is the v5 background identical to v9 background? Recommended: yes (v8 and v9 changed only the guard rim); save v9 as `design/brawl-test-v9.html` to confirm.
 - Q2 Roof line: move the art to the game's `GROUND_Y 176` (Recommended) or move the game to the art's 184 (changes jump, hero box, tests).
 - Q3 Art period 320 px (Recommended for v1, skyline repeats every 320 px of layer travel, about 10 to 13 s for far) or 640 px (more art work).
 - Q4 Scroll jump when a new game resets distance: accept (Recommended) or keep a persistent background offset.

@@ -4,7 +4,7 @@ BUILDDIR?=build
 ROM?=$(BUILDDIR)/rom
 
 # ROM name
-GAMEROM?=roofline
+GAMEROM?=brawl
 
 # program ROM
 PROMSIZE=1048576

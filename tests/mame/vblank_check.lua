@@ -14,13 +14,13 @@
 -- below the 224 visible lines or the flush is skipped) and the queue backlog after a flush (g_gfx_backlog_max) in that phase.
 -- Sentinel addresses come from the ELF map (nm path from config.mk, as the Makefile derives it), because make test-vblank
 -- only passes the env below.
--- Env: ROOFLINE_FLOW_ADDR, ROOFLINE_FRAME_ADDR (hex), ROOFLINE_HIT_LAYOUT (hit_probe.c output, first value = flow state offset),
--- ROOFLINE_RESULT (file).
-local flow_addr = tonumber(os.getenv("ROOFLINE_FLOW_ADDR"), 16)
-local frame_addr = tonumber(os.getenv("ROOFLINE_FRAME_ADDR"), 16)
-local result    = os.getenv("ROOFLINE_RESULT")
+-- Env: BRAWL_FLOW_ADDR, BRAWL_FRAME_ADDR (hex), BRAWL_HIT_LAYOUT (hit_probe.c output, first value = flow state offset),
+-- BRAWL_RESULT (file).
+local flow_addr = tonumber(os.getenv("BRAWL_FLOW_ADDR"), 16)
+local frame_addr = tonumber(os.getenv("BRAWL_FRAME_ADDR"), 16)
+local result    = os.getenv("BRAWL_RESULT")
 local lay = {}
-for v in (os.getenv("ROOFLINE_HIT_LAYOUT") or ""):gmatch("%d+") do lay[#lay + 1] = tonumber(v) end
+for v in (os.getenv("BRAWL_HIT_LAYOUT") or ""):gmatch("%d+") do lay[#lay + 1] = tonumber(v) end
 local O_STATE = lay[1]
 local POOL_MAX = lay[2]
 
@@ -63,7 +63,7 @@ local function finish(ok, msg)
   local f = io.open(result, "w")
   f:write((ok and "PASS " or "FAIL ") .. msg .. "\n")
   f:close()
-  print("ROOFLINE_TEST " .. (ok and "PASS " or "FAIL ") .. msg)
+  print("BRAWL_TEST " .. (ok and "PASS " or "FAIL ") .. msg)
   manager.machine:exit()
 end
 

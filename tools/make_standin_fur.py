@@ -38,7 +38,7 @@ def build():
     info += struct.pack("<HH", PATTERN_LEN, 1) + bytes([4, 16])
     info += struct.pack("<HHHI", 1, 0, 0, CHANNELS)
     info += chips + bytes([64]) + bytes(31) + bytes(32) + bytes(128)
-    info += s("Roofline stand-in") + s("generated")
+    info += s("Bubblegum Brawl stand-in") + s("generated")
     info += struct.pack("<f", 440.0) + bytes(20)
     ptr_pos = len(info)
     info += bytes(4 * (CHANNELS + 1))  # instrument pointer + pattern pointers, patched below
@@ -47,7 +47,7 @@ def build():
     info += b"".join(s("") for _ in range(2 * CHANNELS))
     info += s("") + struct.pack("<f", 1.0) + bytes(28) + struct.pack("<HH", 1, 1)
     info += s("") + s("") + bytes([0]) + bytes(3)
-    info += s("Neo Geo MVS") + s("Roofline") + s("") * 4 + bytes(12)
+    info += s("Neo Geo MVS") + s("Bubblegum Brawl") + s("") * 4 + bytes(12)
     info += struct.pack("<I", 0) + bytes([0]) + bytes(8) + bytes([1, 6])
     head_len = 32 + 8 + len(info)
     ins = b"INS2" + struct.pack("<IHH", 4 + 2 + 2 + len(s("lead")), 213, 6) + b"NA" + struct.pack("<H", len(s("lead"))) + s("lead")

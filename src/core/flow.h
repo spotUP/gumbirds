@@ -1,5 +1,5 @@
 /*
- * flow.h - top-level screen flow for Roofline. Portable C99, no libc, no drawing.
+ * flow.h - top-level screen flow for Bubblegum Brawl. Portable C99, no libc, no drawing.
  *
  * States: attract (title, high score table, demo play) cycling by knob durations; PLAYING;
  * GAME_OVER; NAME_ENTRY (only when the score ranks); SAVE_REMINDER (open the MiSTer menu
@@ -20,8 +20,8 @@
  *
  * Renderer: read flow_view(). Everything is read only; the renderer must not modify it.
  */
-#ifndef ROOFLINE_FLOW_H
-#define ROOFLINE_FLOW_H
+#ifndef BRAWL_FLOW_H
+#define BRAWL_FLOW_H
 
 #include <stdint.h>
 #include <stddef.h>

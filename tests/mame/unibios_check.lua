@@ -13,21 +13,21 @@
 -- 60-frame stall, flow reaches an attract state, and a start press then begins a second game
 -- (FLOW_PLAYING, credit used) whose counter still advances. Regression for BIOS_USER_MODE 1
 -- being set on entering GAME_OVER: UniBIOS stopped the callback and game_loop spun forever.
--- Env: ROOFLINE_FRAME_ADDR, ROOFLINE_BG_PAL_ADDR, ROOFLINE_FLOW_ADDR (hex, nm on the ELF),
--- ROOFLINE_REACH_LAYOUT (flow state offset first), ROOFLINE_RESULT (file).
-local frame_addr = tonumber(os.getenv("ROOFLINE_FRAME_ADDR"), 16)
-local bgpal_addr = tonumber(os.getenv("ROOFLINE_BG_PAL_ADDR"), 16)
-local flow_addr  = tonumber(os.getenv("ROOFLINE_FLOW_ADDR"), 16)
+-- Env: BRAWL_FRAME_ADDR, BRAWL_BG_PAL_ADDR, BRAWL_FLOW_ADDR (hex, nm on the ELF),
+-- BRAWL_REACH_LAYOUT (flow state offset first), BRAWL_RESULT (file).
+local frame_addr = tonumber(os.getenv("BRAWL_FRAME_ADDR"), 16)
+local bgpal_addr = tonumber(os.getenv("BRAWL_BG_PAL_ADDR"), 16)
+local flow_addr  = tonumber(os.getenv("BRAWL_FLOW_ADDR"), 16)
 local lay = {}
-for v in os.getenv("ROOFLINE_REACH_LAYOUT"):gmatch("%d+") do lay[#lay + 1] = tonumber(v) end
+for v in os.getenv("BRAWL_REACH_LAYOUT"):gmatch("%d+") do lay[#lay + 1] = tonumber(v) end
 local O_STATE = lay[1]
 local O_FX, O_FVX, O_FGROUND = lay[9], lay[10], lay[11]   -- arena slice flier x, vx (16.16), on_ground (reach_probe.c)
-local result     = os.getenv("ROOFLINE_RESULT")
+local result     = os.getenv("BRAWL_RESULT")
 local FLOW_ATTRACT_DEMO, FLOW_PLAYING, FLOW_GAME_OVER = 2, 3, 4
 local AFTER_DEATH, DEATH_TIMEOUT, STALL_LIMIT = 600, 2400, 60
 local mem = manager.machine.devices[":maincpu"].spaces["program"]
 local USER_REQUEST = 0x10fdae
-local soot_addr = tonumber(os.getenv("ROOFLINE_SOOT_ADDR"), 16)  -- g_soot_range: {first tile, tile count, palette slot, ...}
+local soot_addr = tonumber(os.getenv("BRAWL_SOOT_ADDR"), 16)  -- g_soot_range: {first tile, tile count, palette slot, ...}
 local PAL_TEXT_C1 = 0x400002
 local PAL_HERO_C1 = 0x400000 + mem:read_u16(soot_addr + 4) * 32 + 2   -- Sootling player palette, colour 1
 local COIN_FRAME, CHECK_FRAME = 900, 960
@@ -59,7 +59,7 @@ local function finish(ok, msg)
   local f = io.open(result, "w")
   f:write((ok and "PASS " or "FAIL ") .. msg .. "\n")
   f:close()
-  print("ROOFLINE_TEST " .. (ok and "PASS " or "FAIL ") .. msg)
+  print("BRAWL_TEST " .. (ok and "PASS " or "FAIL ") .. msg)
   manager.machine:exit()
 end
 

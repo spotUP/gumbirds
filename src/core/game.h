@@ -1,12 +1,12 @@
 /*
- * game.h - hardware independent game state and per-frame step for Roofline.
+ * game.h - hardware independent game state and per-frame step for Bubblegum Brawl.
  * Portable C99. Fixed point only. No malloc, no globals. The flow calls game_reset(seed) at start
  * press and game_step_arena(&g, input) once per frame, then the main loop draws from the public state.
  *
  * Coordinates: screen origin top-left, 320x224 (flier world 320x180, src/core/stage.h).
  */
-#ifndef ROOFLINE_GAME_H
-#define ROOFLINE_GAME_H
+#ifndef BRAWL_GAME_H
+#define BRAWL_GAME_H
 
 #include <stdint.h>
 #include <stddef.h>

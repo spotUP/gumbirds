@@ -10,8 +10,8 @@
  * - Physics only: the caller supplies the floor under the fighter each frame (level data, spec NIR-15) and
  *   routes input and fighter pairs here.
  */
-#ifndef ROOFLINE_FLIER_H
-#define ROOFLINE_FLIER_H
+#ifndef BRAWL_FLIER_H
+#define BRAWL_FLIER_H
 
 #include <stdint.h>
 

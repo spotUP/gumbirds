@@ -2,7 +2,7 @@
 -- steer it back over the gap (left + flap until vx <= 0) so it drops into the water (same sequence as flier_check.lua).
 -- Usage: local drive = dofile("tests/mame/flier_drive.lua")(mem, flow_addr, lay, abtn, lbtn, rbtn)
 --        drive()  -- once per frame while PLAYING
--- lay = ROOFLINE_FLIER_LAYOUT numbers (tests/mame/flier_probe.c): X at lay[6], VX at lay[8], on_ground at lay[12].
+-- lay = BRAWL_FLIER_LAYOUT numbers (tests/mame/flier_probe.c): X at lay[6], VX at lay[8], on_ground at lay[12].
 return function(mem, flow_addr, lay, abtn, lbtn, rbtn)
   local O_X, O_VX, O_GROUND = lay[6], lay[8], lay[12]
   local function s32(v) return v >= 0x80000000 and v - 0x100000000 or v end

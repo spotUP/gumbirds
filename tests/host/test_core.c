@@ -1,4 +1,4 @@
-/* Host tests for the Roofline core. See run.sh. */
+/* Host tests for the Bubblegum Brawl core. See run.sh. */
 #include <stdio.h>
 #include <string.h>
 #include "../../src/core/game.h"

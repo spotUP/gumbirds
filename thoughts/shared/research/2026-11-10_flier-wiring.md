@@ -57,14 +57,14 @@ Start (160,120) falls onto the middle island (112..208, top 140). Gaps between i
 
 Done 2026-11-10 (uncommitted). The runner tests are retired or re-pointed at the flier.
 
-Deleted: tests/mame/laser_check.lua, check_laser_pixels.py, laser_probe.c, hit_check.lua, check_obstacle_pixels.py, layout_probe.c. Makefile targets test-laser and test-hit removed (also from `test` and .PHONY, plus the obstacle pixel call and ROOFLINE_OBS_LAYOUT).
+Deleted: tests/mame/laser_check.lua, check_laser_pixels.py, laser_probe.c, hit_check.lua, check_obstacle_pixels.py, layout_probe.c. Makefile targets test-laser and test-hit removed (also from `test` and .PHONY, plus the obstacle pixel call and BRAWL_OBS_LAYOUT).
 
 Changed:
 - src/core/game.[ch]: new `Game.flaps` counter, bumped on a flap press edge while the flier lives.
 - src/core/sound_events.[ch], src/sound.c: SE_JUMP, SE_HIT, SE_LASER removed. New SE_FLAP (0x01) fires when `flaps` grows and plays the old jump sample. SFX files and the ids hit/laser stay in SFX_NAMES in the Makefile.
 - src/core/flow.[ch], tuning.h: demo input flaps to hold DEMO_HOVER_Y and sweeps left/right every DEMO_SWEEP_FRAMES. Old DEMO_JUMP_ODDS, DEMO_DUCK_ODDS, DEMO_DUCK_FRAMES and `duck_left` removed.
 - tests/host: knobs.txt (DEMO_HOVER_Y, DEMO_SWEEP_FRAMES; both move the digest), run.sh (old exemption removed), knob_digest.c (mixes flaps and flier x/y), test_sound_queue.c.
-- tests/mame: scroll_check.lua asserts a still city (scroll triple constant on every PLAYING frame); the g_bg_rebases sentinel is dropped because bg_update gets distance 0 forever. sound_check.lua expects coin, music, flap, stop, game over. New flier_drive.lua (shared walk-off-and-drown input, used by scroll and sound checks, layout via ROOFLINE_FLIER_LAYOUT in the Makefile). boot_check.lua lost the obstacle snapshot. check_hero_pixels.py now boxes the flier spawn; the pre-start bound is dropped because the attract demo flies the flier (pre-start count is reported only).
+- tests/mame: scroll_check.lua asserts a still city (scroll triple constant on every PLAYING frame); the g_bg_rebases sentinel is dropped because bg_update gets distance 0 forever. sound_check.lua expects coin, music, flap, stop, game over. New flier_drive.lua (shared walk-off-and-drown input, used by scroll and sound checks, layout via BRAWL_FLIER_LAYOUT in the Makefile). boot_check.lua lost the obstacle snapshot. check_hero_pixels.py now boxes the flier spawn; the pre-start bound is dropped because the attract demo flies the flier (pre-start count is reported only).
 - RULES.md: Test, Flier, Scroll, Sound lines updated.
 
 Results: see the final test run in the session report (host, flier, reach, vblank, scroll, sound, boot/pixels).

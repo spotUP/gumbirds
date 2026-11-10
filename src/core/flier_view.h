@@ -6,8 +6,8 @@
  * Up = flapping (button held) or rising in the air; down = sinking in the air with 2 balloons (1 and 0 balloons
  * have no down frame and glide). On the ground: glide. The sprite is mirrored when the flier faces left.
  */
-#ifndef ROOFLINE_FLIER_VIEW_H
-#define ROOFLINE_FLIER_VIEW_H
+#ifndef BRAWL_FLIER_VIEW_H
+#define BRAWL_FLIER_VIEW_H
 
 #include "flier.h"
 

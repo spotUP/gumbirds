@@ -48,7 +48,7 @@ gfx_text 2.4. Still about 1.1 frames of busy time per game step.
 - src/bg.c: update_ring computes first_slot once per layer; write_column uses bg_ring_slot.
 - src/core/vram_queue.c/.h: vq_scb_word is an inline dedupe test in the header; the push part is
   vq_scb_word_push.
-- tests/mame/vblank_check.lua + Makefile test-vblank: ROOFLINE_FRAME_ADDR; asserts at most 2 PLAYING frames
+- tests/mame/vblank_check.lua + Makefile test-vblank: BRAWL_FRAME_ADDR; asserts at most 2 PLAYING frames
   without a g_frame_counter step (regression check for the 30 Hz loop; fails before, still fails now).
 
 ## Next steps (in order)
@@ -94,7 +94,7 @@ Tests:
   and the laser is not locked out, jump vents and close bots (B edge), duck cables (C). The beam snapshot is
   taken one frame after the bolt is seen in RAM (VRAM is written in the next vblank, so the screen shows the
   previous step); at 30 Hz this lag was hidden. Fails if PLAYING is left before a kill; reports hits/lives
-  (last run: hits 0, lives 3 -> 3). Only a 6000-frame watchdog remains. Makefile passes ROOFLINE_FRAME_ADDR;
+  (last run: hits 0, lives 3 -> 3). Only a 6000-frame watchdog remains. Makefile passes BRAWL_FRAME_ADDR;
   tests/mame/laser_probe.c appends lives, hero_h, hero_vy, invuln.
 - tests/mame/check_bg_pixels.py: BG_LAMP_OFF (written at run time by lamp_set into both far and mid
   palettes) is excluded from layer-unique colours. At 60 Hz the playing snapshot lands in the lamp-off phase

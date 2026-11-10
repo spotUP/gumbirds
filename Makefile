@@ -40,9 +40,9 @@ include config.mk
 # This defines the layout of your game cartridge
 # You can customize it to match your requirements
 # Name of the rom file created
-GAMEROM=roofline
+GAMEROM=brawl
 # Game title, long description
-GAMETITLE=Roofline
+GAMETITLE=Bubblegum Brawl
 HASH_GNGEO=
 include rom.mk
 
@@ -194,7 +194,7 @@ CUSTOM_GENERATE_TARGETS=sound-gen
 # you can customize clean up by adding dependencies to those targets
 
 
-# ---- Roofline targets (see RULES.md) ----
+# ---- Bubblegum Brawl targets (see RULES.md) ----
 .DEFAULT_GOAL := all
 
 # Window run, MVS BIOS, backup RAM kept in nvram/
@@ -202,7 +202,7 @@ CUSTOM_GENERATE_TARGETS=sound-gen
 # chains load their aperture PNGs from artwork/bgfx/...; the default artpath is ./artwork, so
 # without it MAME logged "Unable to load chain ... falling back to no post processing".
 MAME_SHADER?=crt-geom-deluxe
-ROOFLINE_WINDOW_FLAGS=-window -nomaximize -resolution 960x672 -nofilter -video bgfx -bgfx_path $(shell brew --prefix)/share/mame/bgfx -bgfx_screen_chains $(MAME_SHADER) -artpath $(shell brew --prefix)/share/mame/artwork
+BRAWL_WINDOW_FLAGS=-window -nomaximize -resolution 960x672 -nofilter -video bgfx -bgfx_path $(shell brew --prefix)/share/mame/bgfx -bgfx_screen_chains $(MAME_SHADER) -artpath $(shell brew --prefix)/share/mame/artwork
 # UniBIOS 4.0 for make run only (user decision 2026-11-09). The zip is never copied into the
 # repo: build/unibios/neogeo.zip = nullbios files + uni-bios_4_0.rom, searched before $(ROM).
 # Missing UNIBIOS file: make run falls back to nullbios. make test uses nullbios except test-reach (UniBIOS).
@@ -223,7 +223,7 @@ RUN_BIOS_FLAGS=-rp $(ROM)
 endif
 run: cart bios $(RUN_BIOS_DEPS)
 	mkdir -p nvram
-	$(MAME) $(ROOFLINE_WINDOW_FLAGS) -noautosave -skip_gameinfo -hash $(ROM) $(RUN_BIOS_FLAGS) -nvram_directory nvram neogeo -cart1 $(GAMEROM)
+	$(MAME) $(BRAWL_WINDOW_FLAGS) -noautosave -skip_gameinfo -hash $(ROM) $(RUN_BIOS_FLAGS) -nvram_directory nvram neogeo -cart1 $(GAMEROM)
 
 
 # Test: host core tests, then headless MAME Lua check (tests/mame/boot_check.lua) that the
@@ -246,13 +246,13 @@ test: cart
 	@$(MAKE) --no-print-directory test-scroll
 	@$(MAKE) --no-print-directory test-sound
 	@set -e; T=$$(mktemp -d $(BUILDDIR)/test-run.XXXXXX); \
-	ROOFLINE_FRAME_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_frame_counter"{print $$1}') \
-	ROOFLINE_FLOW_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flow"{print $$1}') \
-	ROOFLINE_HISCORE_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_hiscore_image"{print $$1}') \
-	ROOFLINE_HISCORE_SIZE=$$($(NM) -S $(ELF) | awk '$$4=="g_hiscore_image"{print $$2}') \
-	ROOFLINE_BG_SCROLL_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_bg_scroll_px"{print $$1}') \
-	ROOFLINE_BG_WRITES_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_bg_column_writes"{print $$1}') \
-	ROOFLINE_RESULT=$$T/result.txt \
+	BRAWL_FRAME_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_frame_counter"{print $$1}') \
+	BRAWL_FLOW_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flow"{print $$1}') \
+	BRAWL_HISCORE_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_hiscore_image"{print $$1}') \
+	BRAWL_HISCORE_SIZE=$$($(NM) -S $(ELF) | awk '$$4=="g_hiscore_image"{print $$2}') \
+	BRAWL_BG_SCROLL_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_bg_scroll_px"{print $$1}') \
+	BRAWL_BG_WRITES_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_bg_column_writes"{print $$1}') \
+	BRAWL_RESULT=$$T/result.txt \
 	SDL_VIDEODRIVER=dummy nice -n 19 $(MAME) -window -nomaximize -video none -sound none -nothrottle -seconds_to_run $(TEST_SECONDS) -noautosave -skip_gameinfo -hash $(ROM) -rp $(ROM) -nvram_directory $$T -snapshot_directory $$T/snap -autoboot_script tests/mame/boot_check.lua neogeo -cart1 $(GAMEROM) > $$T/mame.log 2>&1 || true; \
 	if [ ! -f $$T/result.txt ]; then tail -n 15 $$T/mame.log; echo "[FAIL] no result from Lua script"; exit 1; fi; \
 	cat $$T/result.txt; \
@@ -264,11 +264,11 @@ test: cart
 # Game.flier_steps (src/core/game.c game_step_arena) must track the PLAYING frames.
 test-flier: cart
 	@set -e; T=$$(mktemp -d $(BUILDDIR)/test-run.XXXXXX); \
-	ROOFLINE_SOOT_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_soot_range"{print $$1}') \
-	ROOFLINE_FLOW_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flow"{print $$1}') \
-	ROOFLINE_FRAME_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_frame_counter"{print $$1}') \
-	ROOFLINE_FLIER_LAYOUT="$$($(M68KGCC) -std=c99 -S -o - tests/mame/flier_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
-	ROOFLINE_RESULT=$$T/result.txt \
+	BRAWL_SOOT_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_soot_range"{print $$1}') \
+	BRAWL_FLOW_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flow"{print $$1}') \
+	BRAWL_FRAME_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_frame_counter"{print $$1}') \
+	BRAWL_FLIER_LAYOUT="$$($(M68KGCC) -std=c99 -S -o - tests/mame/flier_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
+	BRAWL_RESULT=$$T/result.txt \
 	SDL_VIDEODRIVER=dummy nice -n 19 $(MAME) -window -nomaximize -video none -sound none -nothrottle -seconds_to_run $(TEST_SECONDS) -noautosave -skip_gameinfo -hash $(ROM) -rp $(ROM) -nvram_directory $$T -autoboot_script tests/mame/flier_check.lua neogeo -cart1 $(GAMEROM) > $$T/mame.log 2>&1 || true; \
 	if [ ! -f $$T/result.txt ]; then tail -n 15 $$T/mame.log; echo "[FAIL] no result from flier Lua script"; exit 1; fi; \
 	cat $$T/result.txt; \
@@ -287,14 +287,14 @@ test-reach: cart bios
 	@$(MAKE) --no-print-directory $(UNIBIOS_DIR)/neogeo.zip
 	@set -e; T=$$(mktemp -d $(BUILDDIR)/test-run.XXXXXX); \
 	for PH in 1 2; do \
-	ROOFLINE_PHASE=$$PH \
-	ROOFLINE_FLOW_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flow"{print $$1}') \
-	ROOFLINE_FRAME_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_frame_counter"{print $$1}') \
-	ROOFLINE_HISCORE_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_hiscore_image"{print $$1}') \
-	ROOFLINE_SAVES_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_hiscore_saves"{print $$1}') \
-	ROOFLINE_NAMESEC_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_name_seconds_shown"{print $$1}') \
-	ROOFLINE_REACH_LAYOUT="$$($(M68KGCC) -std=c99 -S -o - tests/mame/reach_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
-	ROOFLINE_RESULT=$$T/result$$PH.txt ROOFLINE_EXPECT=$$T/expect.txt \
+	BRAWL_PHASE=$$PH \
+	BRAWL_FLOW_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flow"{print $$1}') \
+	BRAWL_FRAME_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_frame_counter"{print $$1}') \
+	BRAWL_HISCORE_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_hiscore_image"{print $$1}') \
+	BRAWL_SAVES_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_hiscore_saves"{print $$1}') \
+	BRAWL_NAMESEC_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_name_seconds_shown"{print $$1}') \
+	BRAWL_REACH_LAYOUT="$$($(M68KGCC) -std=c99 -S -o - tests/mame/reach_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
+	BRAWL_RESULT=$$T/result$$PH.txt BRAWL_EXPECT=$$T/expect.txt \
 	SDL_VIDEODRIVER=dummy nice -n 19 $(MAME) -window -nomaximize -video none -sound none -nothrottle -seconds_to_run $(REACH_SECONDS) -noautosave -skip_gameinfo -hash $(ROM) $(REACH_BIOS_FLAGS) -nvram_directory $$T/nvram -autoboot_script tests/mame/hiscore_reach.lua neogeo -cart1 $(GAMEROM) > $$T/mame$$PH.log 2>&1 || true; \
 	if [ ! -f $$T/result$$PH.txt ]; then tail -n 15 $$T/mame$$PH.log 2>/dev/null || echo "[ERROR] $$T/mame$$PH.log missing: the scratch dir was deleted during the run (another session cleaning build/test-run.*?)"; echo "[FAIL] test-reach boot $$PH: no result from Lua script"; exit 1; fi; \
 	cat $$T/result$$PH.txt; \
@@ -306,10 +306,10 @@ test-reach: cart bios
 # Run by make test; `make test-vblank` alone re-runs only this check.
 test-vblank: cart
 	@set -e; T=$$(mktemp -d $(BUILDDIR)/test-run.XXXXXX); \
-	ROOFLINE_FLOW_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flow"{print $$1}') \
-	ROOFLINE_FRAME_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_frame_counter"{print $$1}') \
-	ROOFLINE_HIT_LAYOUT="$$($(M68KGCC) -std=c99 -S -o - tests/mame/hit_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
-	ROOFLINE_RESULT=$$T/result.txt \
+	BRAWL_FLOW_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flow"{print $$1}') \
+	BRAWL_FRAME_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_frame_counter"{print $$1}') \
+	BRAWL_HIT_LAYOUT="$$($(M68KGCC) -std=c99 -S -o - tests/mame/hit_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
+	BRAWL_RESULT=$$T/result.txt \
 	SDL_VIDEODRIVER=dummy nice -n 19 $(MAME) -window -nomaximize -video none -sound none -nothrottle -seconds_to_run $(TEST_SECONDS) -noautosave -skip_gameinfo -hash $(ROM) -rp $(ROM) -nvram_directory $$T -autoboot_script tests/mame/vblank_check.lua neogeo -cart1 $(GAMEROM) > $$T/mame.log 2>&1 || true; \
 	if [ ! -f $$T/result.txt ]; then tail -n 15 $$T/mame.log; echo "[FAIL] no result from vblank Lua script"; exit 1; fi; \
 	cat $$T/result.txt; \
@@ -321,10 +321,10 @@ test-vblank: cart
 # alone re-runs only this check. SCROLL_LOG=<file> keeps the per-frame log.
 test-scroll: cart
 	@set -e; T=$$(mktemp -d $(BUILDDIR)/test-run.XXXXXX); \
-	ROOFLINE_FLOW_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flow"{print $$1}') \
-	ROOFLINE_HIT_LAYOUT="$$($(M68KGCC) -std=c99 -S -o - tests/mame/hit_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
-	ROOFLINE_FLIER_LAYOUT="$$($(M68KGCC) -std=c99 -S -o - tests/mame/flier_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
-	ROOFLINE_RESULT=$$T/result.txt ROOFLINE_SCROLL_LOG=$(SCROLL_LOG) \
+	BRAWL_FLOW_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flow"{print $$1}') \
+	BRAWL_HIT_LAYOUT="$$($(M68KGCC) -std=c99 -S -o - tests/mame/hit_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
+	BRAWL_FLIER_LAYOUT="$$($(M68KGCC) -std=c99 -S -o - tests/mame/flier_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
+	BRAWL_RESULT=$$T/result.txt BRAWL_SCROLL_LOG=$(SCROLL_LOG) \
 	SDL_VIDEODRIVER=dummy nice -n 19 $(MAME) -window -nomaximize -video none -sound none -nothrottle -seconds_to_run 90 -noautosave -skip_gameinfo -hash $(ROM) -rp $(ROM) -nvram_directory $$T -autoboot_script tests/mame/scroll_check.lua neogeo -cart1 $(GAMEROM) > $$T/mame.log 2>&1 || true; \
 	if [ ! -f $$T/result.txt ]; then tail -n 15 $$T/mame.log; echo "[FAIL] no result from scroll Lua script"; exit 1; fi; \
 	cat $$T/result.txt; \
@@ -335,10 +335,10 @@ test-scroll: cart
 # game sound event. Run by make test; `make test-sound` alone re-runs only this check.
 test-sound: cart
 	@set -e; T=$$(mktemp -d $(BUILDDIR)/test-run.XXXXXX); \
-	ROOFLINE_FLOW_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flow"{print $$1}') \
-	ROOFLINE_HIT_LAYOUT="$$($(M68KGCC) -std=c99 -S -o - tests/mame/hit_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
-	ROOFLINE_FLIER_LAYOUT="$$($(M68KGCC) -std=c99 -S -o - tests/mame/flier_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
-	ROOFLINE_RESULT=$$T/result.txt \
+	BRAWL_FLOW_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flow"{print $$1}') \
+	BRAWL_HIT_LAYOUT="$$($(M68KGCC) -std=c99 -S -o - tests/mame/hit_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
+	BRAWL_FLIER_LAYOUT="$$($(M68KGCC) -std=c99 -S -o - tests/mame/flier_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
+	BRAWL_RESULT=$$T/result.txt \
 	SDL_VIDEODRIVER=dummy nice -n 19 $(MAME) -window -nomaximize -video none -sound none -nothrottle -seconds_to_run $(TEST_SECONDS) -noautosave -skip_gameinfo -hash $(ROM) -rp $(ROM) -nvram_directory $$T -autoboot_script tests/mame/sound_check.lua neogeo -cart1 $(GAMEROM) > $$T/mame.log 2>&1 || true; \
 	if [ ! -f $$T/result.txt ]; then tail -n 15 $$T/mame.log; echo "[FAIL] no result from sound Lua script"; exit 1; fi; \
 	cat $$T/result.txt; \
@@ -350,12 +350,12 @@ test-unibios: cart bios
 	@if [ ! -f "$(UNIBIOS)" ]; then echo "[FAIL] UNIBIOS file not found: $(UNIBIOS)"; exit 1; fi
 	@$(MAKE) --no-print-directory $(UNIBIOS_DIR)/neogeo.zip
 	@set -e; T=$$(mktemp -d $(BUILDDIR)/test-run.XXXXXX); \
-	ROOFLINE_FRAME_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_frame_counter"{print $$1}') \
-	ROOFLINE_BG_PAL_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_bg_pal_first_entry"{print $$1}') \
-	ROOFLINE_SOOT_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_soot_range"{print $$1}') \
-	ROOFLINE_FLOW_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flow"{print $$1}') \
-	ROOFLINE_REACH_LAYOUT="$$($(M68KGCC) -std=c99 -S -o - tests/mame/reach_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
-	ROOFLINE_RESULT=$$T/result.txt \
+	BRAWL_FRAME_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_frame_counter"{print $$1}') \
+	BRAWL_BG_PAL_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_bg_pal_first_entry"{print $$1}') \
+	BRAWL_SOOT_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_soot_range"{print $$1}') \
+	BRAWL_FLOW_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flow"{print $$1}') \
+	BRAWL_REACH_LAYOUT="$$($(M68KGCC) -std=c99 -S -o - tests/mame/reach_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
+	BRAWL_RESULT=$$T/result.txt \
 	SDL_VIDEODRIVER=dummy nice -n 19 $(MAME) -window -nomaximize -video none -sound none -nothrottle -seconds_to_run 120 -noautosave -skip_gameinfo -hash $(ROM) -rp "$(UNIBIOS_DIR);$(ROM)" -bios unibios40 -nvram_directory $$T -autoboot_script tests/mame/unibios_check.lua neogeo -cart1 $(GAMEROM) > $$T/mame.log 2>&1 || true; \
 	if [ ! -f $$T/result.txt ]; then tail -n 15 $$T/mame.log; echo "[FAIL] no result from Lua script"; exit 1; fi; \
 	cat $$T/result.txt; \

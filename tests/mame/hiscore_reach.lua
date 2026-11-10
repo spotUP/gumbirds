@@ -1,27 +1,27 @@
 -- High score reachability (make test-reach, plan P5.1). Two MAME boots share one nvram dir; the Makefile
--- passes ROOFLINE_PHASE=1 or 2. Sentinel-driven, no fixed frame numbers (the cap is only a hang guard).
+-- passes BRAWL_PHASE=1 or 2. Sentinel-driven, no fixed frame numbers (the cap is only a hang guard).
 --   Phase 1: coin, start, autoplay (as flier_check.lua) until the score passes the table minimum, then idle
---            until the hero dies; GAME_OVER -> NAME_ENTRY; type ROOFLINE_NAME with the joystick (up cycles,
+--            until the hero dies; GAME_OVER -> NAME_ENTRY; type BRAWL_NAME with the joystick (up cycles,
 --            A confirms) by reading the cursor position and symbol from RAM; wait for the table screen.
 --            Asserts: score > 0 and ranks, g_hiscore_saves went 0 -> 1, backup RAM image holds name and
---            score at the row computed from the pre-insert table. Writes name/score/row to ROOFLINE_EXPECT.
+--            score at the row computed from the pre-insert table. Writes name/score/row to BRAWL_EXPECT.
 --            Then keeps running 1500 frames past the BIOS title timeout: the game loop must not stall and the
 --            text palette must stay set (PLAYER_START regression: blink, only the sky, after the save).
 --   Phase 2: fresh boot, same nvram: backup RAM image and the flow table hold that name and score at that
 --            row, g_hiscore_saves is 0 (loaded, not re-saved).
--- Env (hex addresses from nm): ROOFLINE_FLOW_ADDR, ROOFLINE_FRAME_ADDR, ROOFLINE_HISCORE_ADDR,
---   ROOFLINE_SAVES_ADDR; ROOFLINE_REACH_LAYOUT (reach_probe.c output); ROOFLINE_RESULT, ROOFLINE_EXPECT (files).
-local phase_no   = tonumber(os.getenv("ROOFLINE_PHASE"))
-local flow_addr  = tonumber(os.getenv("ROOFLINE_FLOW_ADDR") or "", 16)
-local frame_addr = tonumber(os.getenv("ROOFLINE_FRAME_ADDR") or "", 16)
-local hs_addr    = tonumber(os.getenv("ROOFLINE_HISCORE_ADDR") or "", 16)
-local saves_addr = tonumber(os.getenv("ROOFLINE_SAVES_ADDR") or "", 16)
-local namesec_addr = tonumber(os.getenv("ROOFLINE_NAMESEC_ADDR") or "", 16)   -- g_name_seconds_shown (countdown sentinel)
-local result     = os.getenv("ROOFLINE_RESULT")
-local expect     = os.getenv("ROOFLINE_EXPECT")
+-- Env (hex addresses from nm): BRAWL_FLOW_ADDR, BRAWL_FRAME_ADDR, BRAWL_HISCORE_ADDR,
+--   BRAWL_SAVES_ADDR; BRAWL_REACH_LAYOUT (reach_probe.c output); BRAWL_RESULT, BRAWL_EXPECT (files).
+local phase_no   = tonumber(os.getenv("BRAWL_PHASE"))
+local flow_addr  = tonumber(os.getenv("BRAWL_FLOW_ADDR") or "", 16)
+local frame_addr = tonumber(os.getenv("BRAWL_FRAME_ADDR") or "", 16)
+local hs_addr    = tonumber(os.getenv("BRAWL_HISCORE_ADDR") or "", 16)
+local saves_addr = tonumber(os.getenv("BRAWL_SAVES_ADDR") or "", 16)
+local namesec_addr = tonumber(os.getenv("BRAWL_NAMESEC_ADDR") or "", 16)   -- g_name_seconds_shown (countdown sentinel)
+local result     = os.getenv("BRAWL_RESULT")
+local expect     = os.getenv("BRAWL_EXPECT")
 local NAME       = "REACHTST"
 local lay = {}
-for v in (os.getenv("ROOFLINE_REACH_LAYOUT") or ""):gmatch("%d+") do lay[#lay + 1] = tonumber(v) end
+for v in (os.getenv("BRAWL_REACH_LAYOUT") or ""):gmatch("%d+") do lay[#lay + 1] = tonumber(v) end
 local O_STATE, O_LAST, O_TNAME, O_TSCORE, O_ENAME, O_ESYM, O_EPOS, O_EDONE = table.unpack(lay, 1, 8)
 local O_FX, O_FVX, O_FGROUND, O_SCORE = table.unpack(lay, 9, 12)
 local O_FY, O_FVY, O_CX, O_CY, O_CSTATE, O_CBALL = table.unpack(lay, 13, 18)
@@ -65,7 +65,7 @@ local function finish(ok, msg)
   local f = io.open(result, "w")
   f:write((ok and "PASS " or "FAIL ") .. msg .. "\n")
   f:close()
-  print("ROOFLINE_TEST " .. (ok and "PASS " or "FAIL ") .. msg)
+  print("BRAWL_TEST " .. (ok and "PASS " or "FAIL ") .. msg)
   manager.machine:exit()
 end
 

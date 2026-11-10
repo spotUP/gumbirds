@@ -2,8 +2,8 @@
  * stage.h - the static arena stage: up to STAGE_PLATFORM_COUNT platform rectangles in world pixels.
  * Portable C99, no globals but the const table. Platforms are solid from above only.
  */
-#ifndef ROOFLINE_STAGE_H
-#define ROOFLINE_STAGE_H
+#ifndef BRAWL_STAGE_H
+#define BRAWL_STAGE_H
 
 #include <stdint.h>
 #include "tuning.h"

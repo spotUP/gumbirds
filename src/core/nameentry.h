@@ -10,8 +10,8 @@
  * Result: name[8], space padded, valid when done is 1. If nothing was confirmed the name is
  * NAME_ENTRY_DEFAULT.
  */
-#ifndef ROOFLINE_NAMEENTRY_H
-#define ROOFLINE_NAMEENTRY_H
+#ifndef BRAWL_NAMEENTRY_H
+#define BRAWL_NAMEENTRY_H
 
 #include <stdint.h>
 #include "tuning.h"

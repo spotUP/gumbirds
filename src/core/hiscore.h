@@ -11,8 +11,8 @@
  *    126     4    checksum: FNV-1a 32 bit over bytes 0..125
  * Total HISCORE_IMAGE_SIZE = 130 bytes.
  */
-#ifndef ROOFLINE_HISCORE_H
-#define ROOFLINE_HISCORE_H
+#ifndef BRAWL_HISCORE_H
+#define BRAWL_HISCORE_H
 
 #include <stdint.h>
 #include <stddef.h>

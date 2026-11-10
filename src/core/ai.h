@@ -8,8 +8,8 @@
  * Chase and flee steer when |dir.x| > AI_STEER_MIN and flap when dir.y < AI_FLAP_MAX (Q15, y down). Flee negates dir.
  * Distances are screen pixels (reference values halved: the world is 320x180, reference scale 0.5).
  */
-#ifndef ROOFLINE_AI_H
-#define ROOFLINE_AI_H
+#ifndef BRAWL_AI_H
+#define BRAWL_AI_H
 
 #include <stdint.h>
 #include "tuning.h"

@@ -1,6 +1,6 @@
 /* rng.h - xorshift32 pseudo random numbers. Portable C99, no libc. */
-#ifndef ROOFLINE_RNG_H
-#define ROOFLINE_RNG_H
+#ifndef BRAWL_RNG_H
+#define BRAWL_RNG_H
 #include <stdint.h>
 
 typedef struct {

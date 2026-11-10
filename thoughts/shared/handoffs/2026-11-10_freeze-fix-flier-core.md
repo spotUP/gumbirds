@@ -13,7 +13,7 @@ status: draft
   VBlank callback and game_loop spun in gfx_wait_vblank. Fix: mode 2 through GAME_OVER, NAME_ENTRY,
   SAVE_REMINDER; 1 only in attract. Regression: make test-unibios two-coin phase (FAIL before:
   0 of 600 frames; PASS after). make test-reach PASS.
-- Done (uncommitted, unverified): Makefile ROOFLINE_WINDOW_FLAGS gets -artpath brew share/mame/artwork
+- Done (uncommitted, unverified): Makefile BRAWL_WINDOW_FLAGS gets -artpath brew share/mame/artwork
   so crt-geom-deluxe finds aperture PNGs. Check the make run log has no "Unable to load chain".
 - Done (uncommitted): flier physics core src/core/flier.[ch], tests/host/test_flier.c (2107 checks,
   no div/long multiply on m68k). Not wired into the game.

@@ -10,14 +10,14 @@ status: done-except-cabinet
 - P0.1 DONE (not committed): git init, .gitignore, RULES.md, CLAUDE.md, thoughts layout.
 - P0.2 DONE: ngdevkit 0.5+202611061802-1 and ngdevkit-toolchain installed (source build of the cross toolchain, ~35 min). `brew install` exited 1 only after install (trailing Python upgrade notes); packages are present. SDCC is `z80-neogeo-ihx-sdcc`; nullsound at /opt/homebrew/share/ngdevkit/nullsound_driver.ihx and z80-neogeo-ihx/lib/nullsound.lib. Plain `sdcc` is not on PATH.
 - Gotchas: examples/Makefile need Python with Pillow. `brew install pillow` puts it in python3.14 only; the framework Python 3.9 has none. tools/gen_config.sh writes config.mk using python3.14 (override with PYTHON=). ./configure from ngdevkit-examples is not needed in the repo. The gngeo hash step fails without gngeo; Makefile sets HASH_GNGEO= to skip it.
-- P0.3 DONE: example 01-helloworld built and booted headless; then repo skeleton (Makefile, build.mk, emu.mk, rom.mk, setup/ngdevkit-assets copied from 00-template, src/main.c prints ROOFLINE on the fix layer). `make` builds build/rom/roofline.zip; `make test` boots in MAME. Proof: `Average speed: 1539.81% (9 seconds)` then `[OK] MAME booted roofline headless for 10s`. MAME prints BIOS CRC mismatch warnings (sp-s2.sp1, sm1.sm1, sfix.sfix) because ngdevkit ships its own open-source BIOS in build/rom/neogeo.zip; expected, not an error. Fix-layer text correctness was NOT checked visually (human/snapshot check pending).
-- P0.4 DONE for packaging: `tools/package_mister.sh` produced build/mister/roofline.neo (6033408 bytes) with neosdconv 1.0.2 on Node 24. Boot on MiSTer UNVERIFIED.
+- P0.3 DONE: example 01-helloworld built and booted headless; then repo skeleton (Makefile, build.mk, emu.mk, rom.mk, setup/ngdevkit-assets copied from 00-template, src/main.c prints ROOFLINE on the fix layer). `make` builds build/rom/brawl.zip; `make test` boots in MAME. Proof: `Average speed: 1539.81% (9 seconds)` then `[OK] MAME booted brawl headless for 10s`. MAME prints BIOS CRC mismatch warnings (sp-s2.sp1, sm1.sm1, sfix.sfix) because ngdevkit ships its own open-source BIOS in build/rom/neogeo.zip; expected, not an error. Fix-layer text correctness was NOT checked visually (human/snapshot check pending).
+- P0.4 DONE for packaging: `tools/package_mister.sh` produced build/mister/brawl.neo (6033408 bytes) with neosdconv 1.0.2 on Node 24. Boot on MiSTer UNVERIFIED.
 
 # MiSTer packaging
 
 - Format: NeoSD `.neo`, via neosdconv 1.0.2 (npm; repo URL in npm metadata is github.com/city41/neosdconv, which returns 404 via the GitHub API today; the npm tarball was fetched and its README and lib read). Last npm modify 2024-07-01.
-- neosdconv input dir: files matching `<text>-<p|s|m|v|c><n>.<type><n>` (e.g. `roofline-p1.p1`) or `*<type><n>.rom|.bin`. This matches ngdevkit's rom names (verified by reading lib/buildNeoFile.js).
-- Command: `npx --yes neosdconv@1.0.2 -i build/rom -o build/mister/roofline.neo -n Roofline -g Other -y 2026 -m Roofline` (wrapped in tools/package_mister.sh).
+- neosdconv input dir: files matching `<text>-<p|s|m|v|c><n>.<type><n>` (e.g. `brawl-p1.p1`) or `*<type><n>.rom|.bin`. This matches ngdevkit's rom names (verified by reading lib/buildNeoFile.js).
+- Command: `npx --yes neosdconv@1.0.2 -i build/rom -o build/mister/brawl.neo -n Bubblegum Brawl -g Other -y 2026 -m Bubblegum Brawl` (wrapped in tools/package_mister.sh).
 - Install location on MiSTer: /media/fat/games/NeoGeo/ (from core README, see 2026-11-09_mister-neogeo-platform.md).
 - UNVERIFIED: that neosdconv output from ngdevkit ROMs boots on the MiSTer core; whether a ROM with a 1 MB P is accepted; GitHub availability of city41/neosdconv source (npm package only); behaviour with the core's current version. Test on cabinet (P1.3).
 - neosdconv ran fine on Node 24 (verified).
@@ -31,7 +31,7 @@ status: done-except-cabinet
 - Input mapping for main.c: BIOS bios_p1current bits are UP=1,DOWN=2,LEFT=4,RIGHT=8,A=0x10,B=0x20,C=0x40,D=0x80. Core wants A..D=0x01..0x08, UP=0x10.. so core_in = ((cur>>4)&0xF) | ((cur&0xF)<<4). Start is in bios_statchange & CNT_START1, not p1current.
 - Backup RAM: `u8 _backup_ram buf[HISCORE_IMAGE_SIZE]` (130 bytes) goes to .bss.bram at 0x100000 (example 11 pattern).
 - Do not redefine ng_cls/ng_text in main.c: ng-fix.h provides ng_cls, ng_text, ng_center_text; ng-video.h provides ng_wait_vblank.
-- OPEN (P0.3 remainder): real src/main.c (input, flow_step per frame, flow_view text, backup RAM), Makefile ELF link of src/core/*.c, `make run` window title "Roofline - P0 dev", `make test` = tests/host/run.sh + MAME Lua check of a RAM frame counter (68k RAM at 0x100000, read with program-space read_u32; address from `nm` on the ELF).
+- OPEN (P0.3 remainder): real src/main.c (input, flow_step per frame, flow_view text, backup RAM), Makefile ELF link of src/core/*.c, `make run` window title "Bubblegum Brawl - P0 dev", `make test` = tests/host/run.sh + MAME Lua check of a RAM frame counter (68k RAM at 0x100000, read with program-space read_u32; address from `nm` on the ELF).
 
 # P0 step 3: real main.c, core linked, make test with MAME Lua (agent run)
 
@@ -54,7 +54,7 @@ Host part: test_core 3859 checks 0 failures, test_flow 36172 checks 0 failures, 
 Finding: after coin + start the frame counter resets (300 at frame 300, then 30 at frame ~350): the BIOS re-enters main() when the game is started from the title, so BSS/flow is re-initialised. flow_init then runs again from ATTRACT_TITLE, yet state is PLAYING a few frames later because bios_statchange still shows START1. Consequences: the 40 s counter test samples both values after the restart (frames 500 and 700). Whether the hiscore table survives this restart is unchecked (g_hiscore_image is in .bss.bram, which the BIOS should preserve; not tested). Needs a look before P1: either confirm USER-call handling (ngdevkit examples use the same main) or handle the restart deliberately.
 
 Package
-- tools/package_mister.sh: build/mister/roofline.neo (see size below). Boot on MiSTer still UNVERIFIED.
+- tools/package_mister.sh: build/mister/brawl.neo (see size below). Boot on MiSTer still UNVERIFIED.
 
 Open
 - MAME has no window-title option (checked `mame -showusage`: no title flag). `make run` title is MAME's default; a title needs an SDL/OSD patch or a wrapper that sets it after launch.
@@ -68,7 +68,7 @@ Root cause
 - The BIOS jumps to the cartridge USER vector again after boot. Measured in MAME: at frame 321 (the coin-insert frame) `BIOS_USER_REQUEST` (0x10fdae) = 3 (title), `BIOS_USER_MODE` = 1, and `g_frame_counter` drops 320 -> 0. So it is the coin, not the start press, that re-enters.
 - ngdevkit crt0 (`/opt/homebrew/Cellar/ngdevkit/0.5+202611061802-1/m68k-neogeo-elf/lib/ngdevkit-crt0.o`, disassembled): `USER` (0x122) jumps to `wrapper_user` (0x35c), which reads 0x10fdae, indexes the table at 0x34c [rom_mvs_startup_init, rom_eye_catcher, rom_game, rom_title] and jsr's the entry, then jumps to SYSTEM_RETURN (0xc00444).
 - `rom_title_default` (0x2ec) and `rom_game_default` (0x31c, same address as `rom_eye_catcher_default`) both do: SR=0x2700, IRQ ack, watchdog, `jsr init_c_runtime` (0x270: clears .bss from `__bss_start_in_ram`, copies .data), SR=0x2000, `_init`, REG_CRTFIX=1, then `jsr main_mvs_title` / `jsr main`. So every command 2/3 wipes all RAM globals and runs main() again.
-- `ngdevkit.ld` lines 74-80: `rom_game`, `rom_title`, `rom_mvs_startup_init`, `rom_eye_catcher`, `main_mvs_title` are link-time hooks that fall back to the crt0 defaults. Roofline did not define them.
+- `ngdevkit.ld` lines 74-80: `rom_game`, `rom_title`, `rom_mvs_startup_init`, `rom_eye_catcher`, `main_mvs_title` are link-time hooks that fall back to the crt0 defaults. Bubblegum Brawl did not define them.
 - Backup RAM: `.bss.bram` (0x100000) sits before `__bss_start_in_ram`, so init_c_runtime does not clear `g_hiscore_image`; the harm was flow_init re-running (state, unsaved table) and the counter. Measured: image bytes unchanged across the window both before and after the fix.
 - ngdevkit examples: not installed locally (only neogeo.zip/aes.zip/nullsound in share/ngdevkit); not checked.
 

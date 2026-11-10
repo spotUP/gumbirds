@@ -1,15 +1,15 @@
 ---
 date: 2026-11-09
-topic: Gameplay spec for the Roofline flier, extracted from the reference skeddles/balloon-fight-arena
-tags: [roofline, flier, physics, reference-spec, neo-geo, fixed-point, balloon-fight]
+topic: Gameplay spec for the Bubblegum Brawl flier, extracted from the reference skeddles/balloon-fight-arena
+tags: [brawl, flier, physics, reference-spec, neo-geo, fixed-point, balloon-fight]
 status: draft
 ---
 
-# Roofline flier: gameplay spec taken from the reference
+# Bubblegum Brawl flier: gameplay spec taken from the reference
 
 ## 0. Read this first: what the reference is and is not
 
-The reference is `github.com/skeddles/balloon-fight-arena`, commit `e4ef30398f15888b936352aba586fcfb568bbddb` (2024-05-11, version 4.0.0 in `project.godot:12`), a Godot 4.2 project. It was cloned shallow and only read; nothing was run or installed. No licence exists, so this document describes behaviour and numbers only. No code or assets are reproduced, and all names, art and theme in Roofline stay our own.
+The reference is `github.com/skeddles/balloon-fight-arena`, commit `e4ef30398f15888b936352aba586fcfb568bbddb` (2024-05-11, version 4.0.0 in `project.godot:12`), a Godot 4.2 project. It was cloned shallow and only read; nothing was run or installed. No licence exists, so this document describes behaviour and numbers only. No code or assets are reproduced, and all names, art and theme in Bubblegum Brawl stay our own.
 
 Findings that change the plan:
 
@@ -136,7 +136,7 @@ So the reference is a pure "steer only by flapping" model, and horizontal speed 
 | Parachute | last balloon lost in air, character has the ability, 500 ms invincibility | `vy += 0.1 * 200 = 20 px/s^2` (0.0027778 px/frame^2, raw 182), no clamp | `vx = lerp(vx, sin(ms/500) * 32, 0.1)`; note `ms/500` is integer division, so the target changes once per 500 ms (30 frames) to `sin(n) * 32 px/s` (0.26667 px/frame, raw 17476) for integer n | landing on ground | `character.gd:68-73,231-235` |
 | Dropping (Alice, Samm only) | action pressed in air with a balloon: all balloons set to 0, `vx = 0`, `vy = +50 px/s` | `vy += 200 * DroppingGravity` (0.9 default, Samm 1.0) | no control | lands, or after DroppingDistance (default 999 px, effectively never) | `character.gd:23-25,75-81,134-146` |
 
-Dropping and the parachute are optional character abilities. Recommended for Roofline: omit both (they only matter in the versus arena); NIR-5 covers the choice.
+Dropping and the parachute are optional character abilities. Recommended for Bubblegum Brawl: omit both (they only matter in the versus arena); NIR-5 covers the choice.
 
 ### 3.6 Ceiling, side edges, floor of the world
 
@@ -199,7 +199,7 @@ Shapes are capsules; we approximate with axis-aligned boxes of the same bounding
 
 ### 4.5 Refilling balloons (versus-arena feature)
 
-Standing on the floor with `vx < 5 px/s`, spare balloons greater than 0 and current less than 4: each press of fill starts a refill animation of 24 frames (3 frames lasting 1, 2, 1 units at 10 animation fps = 0.4 s, `character.tscn` refill animation, speed 10); a new press is accepted only after the previous animation ends. After the fourth completed press one spare balloon becomes a current balloon. Any direction input or flap resets progress to 0 (`character.gd:104-121,254-266`). Roofline default: omit (NIR-5).
+Standing on the floor with `vx < 5 px/s`, spare balloons greater than 0 and current less than 4: each press of fill starts a refill animation of 24 frames (3 frames lasting 1, 2, 1 units at 10 animation fps = 0.4 s, `character.tscn` refill animation, speed 10); a new press is accepted only after the previous animation ends. After the fourth completed press one spare balloon becomes a current balloon. Any direction input or flap resets progress to 0 (`character.gd:104-121,254-266`). Bubblegum Brawl default: omit (NIR-5).
 
 ## 5. Enemies and AI
 
@@ -215,7 +215,7 @@ CPU decision loop (`cpu2.gd:21-62`): every 100 ms (6 frames, `cpu2.gd:28`) score
 | Attack | `640 * 2^(-ln(d/640)) + 14^(balloons/1.05)`, times `(1.25 + enemyDir)` | 100 ms | `state-attack.gd:6,15-19,23` |
 | Movement helper | flap at most every 150 ms (9 frames) when the path direction points up; direction change at most every 200 ms (12 frames), dead zone 0.1 | | `move-towards-point.gd:4-20` |
 
-Paths come from Godot navigation grids placed in each stage (README, "Stages"). That part needs an engine feature we do not have. For Roofline the recommendation in section 8 (NIR-6) replaces it with simple steering.
+Paths come from Godot navigation grids placed in each stage (README, "Stages"). That part needs an engine feature we do not have. For Bubblegum Brawl the recommendation in section 8 (NIR-6) replaces it with simple steering.
 
 ## 6. Game modes
 
@@ -241,7 +241,7 @@ Inputs are sampled once per 60 Hz physics tick. A flap is a single-tick edge, so
 
 ## 8. Items NOT IN REFERENCE, each with one recommended default
 
-Defaults are chosen to follow the reference constants and keep one rule set; all are Roofline decisions awaiting approval.
+Defaults are chosen to follow the reference constants and keep one rule set; all are Bubblegum Brawl decisions awaiting approval.
 
 | ID | Missing | Recommended default (ours) |
 |---|---|---|
@@ -259,7 +259,7 @@ Defaults are chosen to follow the reference constants and keep one rule set; all
 | NIR-12 | Capsule collision and the origin-based knockback angle | Use AABBs of the same size; for knockback use the direction between the two characters (victim away at 40 px/s, attacker away at 75 px/s) to avoid the reference's screen-position-dependent angle. If bit-exact copying is wanted, say so and use the formula in 4.3 item 2. |
 | NIR-13 | Neo Geo input mapping | Stick left/right = move, A = flap, B/C/D unused. |
 | NIR-14 | Respawn after death | None (matches reference); game over screen with score. |
-| NIR-15 | Stage tile and platform layout for Roofline | Own level data; keep 8 px (16 reference px) platforms spaced so a 22-reference-px-tall body fits through gaps of at least 12 px ours. |
+| NIR-15 | Stage tile and platform layout for Bubblegum Brawl | Own level data; keep 8 px (16 reference px) platforms spaced so a 22-reference-px-tall body fits through gaps of at least 12 px ours. |
 
 **Count of NOT IN REFERENCE items: 15.**
 

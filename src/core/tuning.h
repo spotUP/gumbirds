@@ -1,5 +1,5 @@
 /*
- * tuning.h - every gameplay constant for Roofline in one place.
+ * tuning.h - every gameplay constant for Bubblegum Brawl in one place.
  *
  * Units: positions and speeds are fixed point 8.8 (value / 256 = pixels) where the name says
  * "8.8"; everything else is whole pixels or whole frames. The game runs at 60 frames per second.
@@ -13,8 +13,8 @@
  * Exemptions (constants that are not knobs): SCREEN_W and SCREEN_H are hardware facts, not tuning. They are not
  * overridable in tests.
  */
-#ifndef ROOFLINE_TUNING_H
-#define ROOFLINE_TUNING_H
+#ifndef BRAWL_TUNING_H
+#define BRAWL_TUNING_H
 
 #define SCREEN_W 320
 #define SCREEN_H 224
@@ -144,4 +144,4 @@
 #define SCORE_MATCH_CLEAN 2000 /* extra when no player balloon was lost in the match */
 #endif
 
-#endif /* ROOFLINE_TUNING_H */
+#endif /* BRAWL_TUNING_H */

@@ -5,14 +5,14 @@
 --   4. drown: walk right off the island, steer back over the gap between islands with left+flap until vx <= 0, then
 --      no input: the flier falls to the water (y 180), state DROWNED, and the flow leaves PLAYING for GAME_OVER;
 --   5. sentinel: Game.flier_steps (counts flier_step calls) must track the game loop frames spent in PLAYING.
--- The frame cap is only a hang watchdog. Env: ROOFLINE_FLOW_ADDR, ROOFLINE_FRAME_ADDR (hex), ROOFLINE_FLIER_LAYOUT
--- (flier_probe.c output), ROOFLINE_RESULT (file).
-local flow_addr  = tonumber(os.getenv("ROOFLINE_FLOW_ADDR"), 16)
-local frame_addr = tonumber(os.getenv("ROOFLINE_FRAME_ADDR") or "", 16)
-local result     = os.getenv("ROOFLINE_RESULT")
-local soot_addr  = tonumber(os.getenv("ROOFLINE_SOOT_ADDR") or "", 16)   -- g_soot_range (main.c): range, then sentinels
+-- The frame cap is only a hang watchdog. Env: BRAWL_FLOW_ADDR, BRAWL_FRAME_ADDR (hex), BRAWL_FLIER_LAYOUT
+-- (flier_probe.c output), BRAWL_RESULT (file).
+local flow_addr  = tonumber(os.getenv("BRAWL_FLOW_ADDR"), 16)
+local frame_addr = tonumber(os.getenv("BRAWL_FRAME_ADDR") or "", 16)
+local result     = os.getenv("BRAWL_RESULT")
+local soot_addr  = tonumber(os.getenv("BRAWL_SOOT_ADDR") or "", 16)   -- g_soot_range (main.c): range, then sentinels
 local lay = {}
-for v in (os.getenv("ROOFLINE_FLIER_LAYOUT") or ""):gmatch("%d+") do lay[#lay + 1] = tonumber(v) end
+for v in (os.getenv("BRAWL_FLIER_LAYOUT") or ""):gmatch("%d+") do lay[#lay + 1] = tonumber(v) end
 local O_STATE, O_FRAME, O_STEPS, O_OVER, O_SCORE, O_X, O_Y, O_VX, O_VY, O_FSTATE, O_BAL, O_GROUND =
   lay[1], lay[2], lay[3], lay[4], lay[5], lay[6], lay[7], lay[8], lay[9], lay[10], lay[11], lay[12]
 local O_CPUN, O_CPUALIVE, O_STOMPS, O_WON, O_C0X, O_C0Y, O_THINKS, O_C1X =
@@ -49,7 +49,7 @@ local function finish(ok, msg)
   local f = io.open(result, "w")
   f:write((ok and "PASS " or "FAIL ") .. msg .. "\n")
   f:close()
-  print("ROOFLINE_TEST " .. (ok and "PASS " or "FAIL ") .. msg)
+  print("BRAWL_TEST " .. (ok and "PASS " or "FAIL ") .. msg)
   manager.machine:exit()
 end
 
@@ -71,7 +71,7 @@ emu.register_frame_done(function() local ok_, err_ = pcall(function()
     return
   end
   if not (coin and start and abtn and rbtn and lbtn) then finish(false, "missing input field") return end
-  if not frame_addr or not O_GROUND then finish(false, "missing ROOFLINE_FRAME_ADDR or probe layout") return end
+  if not frame_addr or not O_GROUND then finish(false, "missing BRAWL_FRAME_ADDR or probe layout") return end
   local state = mem:read_u8(flow_addr + O_STATE)
   local fc = mem:read_u32(frame_addr)
 

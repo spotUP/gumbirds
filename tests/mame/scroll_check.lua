@@ -12,13 +12,13 @@
 -- PLAYING frame of every run (no scroll in the arena), and the shadow must show exactly that scroll (a ring redrawn
 -- or moved in play fails the ring check). The old g_bg_rebases sentinel is dropped: bg_update gets distance 0 forever,
 -- so it can never count.
--- Env: ROOFLINE_FLOW_ADDR (hex), ROOFLINE_HIT_LAYOUT (hit_probe.c output, first value = flow state offset),
--- ROOFLINE_RESULT (file), ROOFLINE_SCROLL_LOG (optional per-frame log file).
-local flow_addr = tonumber(os.getenv("ROOFLINE_FLOW_ADDR"), 16)
-local result    = os.getenv("ROOFLINE_RESULT")
-local log_path  = os.getenv("ROOFLINE_SCROLL_LOG")
+-- Env: BRAWL_FLOW_ADDR (hex), BRAWL_HIT_LAYOUT (hit_probe.c output, first value = flow state offset),
+-- BRAWL_RESULT (file), BRAWL_SCROLL_LOG (optional per-frame log file).
+local flow_addr = tonumber(os.getenv("BRAWL_FLOW_ADDR"), 16)
+local result    = os.getenv("BRAWL_RESULT")
+local log_path  = os.getenv("BRAWL_SCROLL_LOG")
 local lay = {}
-for v in (os.getenv("ROOFLINE_HIT_LAYOUT") or ""):gmatch("%d+") do lay[#lay + 1] = tonumber(v) end
+for v in (os.getenv("BRAWL_HIT_LAYOUT") or ""):gmatch("%d+") do lay[#lay + 1] = tonumber(v) end
 local O_STATE = lay[1]
 
 local function sym_addrs()
@@ -59,7 +59,7 @@ local lbtn  = field(":edge:joy:JOY1", "P1 Left")
 local abtn  = field(":edge:joy:JOY1", "P1 A")
 
 local flay = {}
-for v in (os.getenv("ROOFLINE_FLIER_LAYOUT") or ""):gmatch("%d+") do flay[#flay + 1] = tonumber(v) end
+for v in (os.getenv("BRAWL_FLIER_LAYOUT") or ""):gmatch("%d+") do flay[#flay + 1] = tonumber(v) end
 local drive = dofile("tests/mame/flier_drive.lua")(mem, flow_addr, flay, abtn, lbtn, rbtn)
 
 local logf = log_path and io.open(log_path, "w") or nil
@@ -68,7 +68,7 @@ local function finish(ok, msg)
   local f = io.open(result, "w")
   f:write((ok and "PASS " or "FAIL ") .. msg .. "\n")
   f:close()
-  print("ROOFLINE_TEST " .. (ok and "PASS " or "FAIL ") .. msg)
+  print("BRAWL_TEST " .. (ok and "PASS " or "FAIL ") .. msg)
   manager.machine:exit()
 end
 

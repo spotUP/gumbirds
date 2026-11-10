@@ -10,8 +10,8 @@
  *   sprites. A freed object is flagged in `hide`; the view hides its run once (obj_pool_take_hidden).
  * - No 32-bit `/` or `%` anywhere (68000 libgcc calls); per-frame paths are add, compare, shift.
  */
-#ifndef ROOFLINE_OBJ_POOL_H
-#define ROOFLINE_OBJ_POOL_H
+#ifndef BRAWL_OBJ_POOL_H
+#define BRAWL_OBJ_POOL_H
 
 #include <stdint.h>
 

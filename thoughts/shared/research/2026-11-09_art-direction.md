@@ -5,7 +5,7 @@ tags: [design, art, palette, neo-geo]
 status: draft
 ---
 
-# Art direction: B "Roofline" (theme picked 2026-11-09; art style REJECTED)
+# Art direction: B "Bubblegum Brawl" (theme picked 2026-11-09; art style REJECTED)
 
 User feedback 2026-11-09: "i hate the art style in you mockup", "it needs to look genuinely neo geo". The draft art (small flat rect sprites, few shades) is not the target. The palette and sprite notes below describe the rejected draft only.
 
@@ -14,13 +14,13 @@ User feedback 2026-11-09: "i hate the art style in you mockup", "it needs to loo
 - "your mockup looks dry and modern". Target: peak Neo Geo pixel art, with the Metal Slug series as
   style inspiration. Take the style traits only; never copy Metal Slug characters, sprites or layouts.
 - Hero: a night security guard running the rooftops (the company makes software for the guarding industry).
-- The Roofline theme stays: night city rooftops, jump and duck hazards.
+- The Bubblegum Brawl theme stays: night city rooftops, jump and duck hazards.
 - Next step: one hand-pixelled gameplay test screen at full fidelity. The user judges it before any
   other screens are made.
 
 ## Test screen v1 (2026-11-09)
 
-- File `design/roofline-test.html`, published at https://claude.ai/artifact/KGPNLd5NKVMRGaFx1m6qoD
+- File `design/brawl-test.html`, published at https://claude.ai/artifact/KGPNLd5NKVMRGaFx1m6qoD
   (private). Native 320x224, 4-frame loop, `#raw` shows a static frame. Tile check PASS (every
   16x16 sprite tile has 15 or fewer colours; every HUD cell has 7 or fewer).
 - Self-rating: about 6.5 of 10 against Metal Slug. The background is strongest.
@@ -32,7 +32,7 @@ User feedback 2026-11-09: "i hate the art style in you mockup", "it needs to loo
 
 Source drafts: `design/art-directions.html`, published at
 https://claude.ai/artifact/7zYTGwUs888XWDrQkYZXHt (private). The drafts showed three directions
-(A Coffee Run, B Roofline, C Torchlight). The user picked **B Roofline**.
+(A Coffee Run, B Bubblegum Brawl, C Torchlight). The user picked **B Bubblegum Brawl**.
 
 ## Concept
 
@@ -54,7 +54,7 @@ Near miss under a drone gives `+500`, shown as floating sprite text.
 - HUD on the fix layer, row 1 labels, row 2 values: SCORE at column 2, HI at column 17, LIVES at
   column 32. Lives are shown as cyan visor icons.
 - Keep the HUD inside the 8 px side border that many MVS monitors crop.
-- Title: the logo "ROOFLINE" in 4x sprite letters with an outline and a moving highlight band.
+- Title: the logo "BUBBLEGUM BRAWL" (working title was ROOFLINE) in 4x sprite letters with an outline and a moving highlight band.
   The tagline "RUN THE CITY AT NIGHT" and a blinking "PRESS START" go on the fix layer.
 - Name entry and the top 10 table use a solid panel (sky0 fill, roofEdge border, sky3 inner line).
 
@@ -82,7 +82,7 @@ Fix-layer text (5): sh #07060f, hud #ffffff, dim #b9b2ea, hi #48f0ff, accent #ff
   The single-palette counts above are a ceiling per layer, not a hard plan.
 - The 1 px dark outline is baked into sprite tiles (colour `ol`).
 - Font: 5 x 7 glyphs in 8 x 8 fix-layer cells, with a 1 px drop shadow baked into the tile.
-- Working title "Roofline". The final name is decided in P4.3.
+- Working title "Roofline", now Bubblegum Brawl. The final name is decided in P4.3.
 
 ## Feedback on v1 gradients (2026-11-09, user)
 
@@ -109,8 +109,8 @@ Fix-layer text (5): sh #07060f, hud #ffffff, dim #b9b2ea, hi #48f0ff, accent #ff
 - New direction: simple flat style with SMB3 traits. Bold dark outlines, flat fills with 1 or 2
   shade steps, chunky readable shapes, a bright saturated palette, and simple patterned tiles.
   Take the style traits only. Never copy SMB3 characters, blocks, pipes, enemies, tiles or layouts.
-- The theme stays Roofline (rooftops, night guard hero). The next step is test screen v3 in
-  `design/roofline-test-v3.html`.
+- The theme stays Bubblegum Brawl (rooftops, night guard hero). The next step is test screen v3 in
+  `design/brawl-test-v3.html`.
 - Update, same day: the user changed the target twice. First: "megaman for snes is a much better
   target than super mario bros 3". Then: "megaman x is even better". The current target is the
   Mega Man X (SNES) style: clean outlines, cel shading with 3 or 4 hard tone steps, hue-shifted
@@ -119,7 +119,7 @@ Fix-layer text (5): sh #07060f, hud #ffffff, dim #b9b2ea, hi #48f0ff, accent #ff
 
 ## Test screen v3 (2026-11-09)
 
-- File `design/roofline-test-v3.html`, published at https://claude.ai/artifact/MpiykVT4cz2n7uSDBcHxWd
+- File `design/brawl-test-v3.html`, published at https://claude.ai/artifact/MpiykVT4cz2n7uSDBcHxWd
   (private). 12-frame loop at 100 ms, `#raw` / `#rawN` show static frames. Tile check PASS (worst
   sprite tile 13 colours, worst HUD cell 8).
 - Self-rating 7 of 10.
@@ -130,12 +130,12 @@ Fix-layer text (5): sh #07060f, hud #ffffff, dim #b9b2ea, hi #48f0ff, accent #ff
 - Verdict (user): "the backgrounds are good the guard looks bad he should not be bigger probably
   smaller". Decisions: the v3 background, hazards and HUD are frozen. Redraw only the guard,
   smaller: about 32 px tall (2 sprite tiles high) instead of about 45 px. Every pose is drawn as
-  hand-placed pixel rows; no capsule `limb()` shading. Output goes to `design/roofline-test-v4.html`
+  hand-placed pixel rows; no capsule `limb()` shading. Output goes to `design/brawl-test-v4.html`
   so v3 stays as the baseline.
 
 ## Test screen v4 (2026-11-09)
 
-- File `design/roofline-test-v4.html`, published as a new artifact. The guard is now 32 px tall
+- File `design/brawl-test-v4.html`, published as a new artifact. The guard is now 32 px tall
   in a 36x33 buffer. Its 6 run frames are hand-placed row maps (`HERO_FRAMES`). It uses 15 colours,
   the worst tile has 14, and the verdict is PASS. Self-rating 7 of 10.
 - Weak points: the navy uniform blends into the blue-violet buildings, the torso is boxy, the
@@ -148,12 +148,12 @@ Fix-layer text (5): sh #07060f, hud #ffffff, dim #b9b2ea, hi #48f0ff, accent #ff
   `thoughts/shared/research/2026-11-09_free-hero-assets.md`.
 - Pick (user): Space Police Hero by Master484 (CC-BY 4.0). Credit "Hero sprites based on Space
   Police Hero by Master484 (CC-BY 4.0)" on the attract screen. The hero is about 38-42 px tall.
-  The remix goes to `design/roofline-test-v5.html` and `assets/hero/guard_sheet.png`, with
+  The remix goes to `design/brawl-test-v5.html` and `assets/hero/guard_sheet.png`, with
   `assets/CREDITS.md`.
 
 ## Test screen v5 (2026-11-09) - hero ACCEPTED
 
-- `design/roofline-test-v5.html`, published at https://claude.ai/artifact/Dp7hipLm3QtfSKLnBoB5aB.
+- `design/brawl-test-v5.html`, published at https://claude.ai/artifact/Dp7hipLm3QtfSKLnBoB5aB.
   The guard is remixed from Space Police Hero: 40 px tall, 13 colours, worst tile 11, PASS.
   The engine source is `assets/hero/guard_sheet.png` + `guard_sheet.json`; credits are in
   `assets/CREDITS.md`.

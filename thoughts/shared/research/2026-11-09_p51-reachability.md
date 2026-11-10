@@ -25,7 +25,7 @@ layout in flow.o differed from main.o by 8 bytes. I touched flow.c, nameentry.c,
 Add -MMD deps or `make clean`.
 
 ## Test notes
-Autoplay jump lead is 4 frames of travel (ROOFLINE_JL overrides); vent window is tight at start speed.
+Autoplay jump lead is 4 frames of travel (BRAWL_JL overrides); vent window is tight at start speed.
 Threshold for idle-until-death: score above 1200 (table minimum 1000, ties rank below).
 
 ## Persistence fix

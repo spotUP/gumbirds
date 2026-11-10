@@ -7,12 +7,12 @@
 --            FM/SSG register writes on port A) show the driver acted: every SFX command is followed by the key-on
 --            of its channel (bit from build/snd_commands.inc, i.e. sample-map.yaml channel - 1), the music command by
 --            port A writes.
--- Ids come from build/snd_commands.h. Env: ROOFLINE_FLOW_ADDR (hex), ROOFLINE_HIT_LAYOUT (first value = flow
--- state offset), ROOFLINE_RESULT. Symbols from nm on build/rom.elf as in vblank_check.lua.
-local flow_addr = tonumber(os.getenv("ROOFLINE_FLOW_ADDR"), 16)
-local result    = os.getenv("ROOFLINE_RESULT")
+-- Ids come from build/snd_commands.h. Env: BRAWL_FLOW_ADDR (hex), BRAWL_HIT_LAYOUT (first value = flow
+-- state offset), BRAWL_RESULT. Symbols from nm on build/rom.elf as in vblank_check.lua.
+local flow_addr = tonumber(os.getenv("BRAWL_FLOW_ADDR"), 16)
+local result    = os.getenv("BRAWL_RESULT")
 local lay = {}
-for v in (os.getenv("ROOFLINE_HIT_LAYOUT") or ""):gmatch("%d+") do lay[#lay + 1] = tonumber(v) end
+for v in (os.getenv("BRAWL_HIT_LAYOUT") or ""):gmatch("%d+") do lay[#lay + 1] = tonumber(v) end
 local O_STATE = lay[1]
 local FLOW_PLAYING, FLOW_GAME_OVER = 3, 4
 local WATCHDOG = 6000
@@ -81,7 +81,7 @@ local lbtn  = field(":edge:joy:JOY1", "P1 Left")
 local abtn  = field(":edge:joy:JOY1", "P1 A")
 
 local flay = {}
-for v in (os.getenv("ROOFLINE_FLIER_LAYOUT") or ""):gmatch("%d+") do flay[#flay + 1] = tonumber(v) end
+for v in (os.getenv("BRAWL_FLIER_LAYOUT") or ""):gmatch("%d+") do flay[#flay + 1] = tonumber(v) end
 local drive = dofile("tests/mame/flier_drive.lua")(mem, flow_addr, flay, abtn, lbtn, rbtn)
 
 local done = false
@@ -92,7 +92,7 @@ local function finish(ok, msg)
   local f = io.open(result, "w")
   f:write((ok and "PASS " or "FAIL ") .. msg .. "\n")
   f:close()
-  print("ROOFLINE_TEST " .. (ok and "PASS " or "FAIL ") .. msg)
+  print("BRAWL_TEST " .. (ok and "PASS " or "FAIL ") .. msg)
   manager.machine:exit()
 end
 

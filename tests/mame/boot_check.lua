@@ -6,15 +6,15 @@
 -- Also: BIOS_USER_MODE is 2 while PLAYING (set by main.c), a second coin during play keeps the
 -- counter monotonic, the mode at 2 and the state PLAYING, and screen snapshots are written
 -- (pre_start.png before start, playing.png during play) for tests/mame/check_hero_pixels.py.
--- Env: ROOFLINE_FRAME_ADDR, ROOFLINE_FLOW_ADDR, ROOFLINE_HISCORE_ADDR (hex, from nm on the
--- ELF), ROOFLINE_HISCORE_SIZE (hex, nm -S), ROOFLINE_RESULT (file).
-local frame_addr = tonumber(os.getenv("ROOFLINE_FRAME_ADDR"), 16)
-local flow_addr  = tonumber(os.getenv("ROOFLINE_FLOW_ADDR"), 16)
-local hs_addr    = tonumber(os.getenv("ROOFLINE_HISCORE_ADDR"), 16)
-local hs_size    = tonumber(os.getenv("ROOFLINE_HISCORE_SIZE"), 16)
-local result     = os.getenv("ROOFLINE_RESULT")
-local bg_scroll_addr = tonumber(os.getenv("ROOFLINE_BG_SCROLL_ADDR"), 16)  -- g_bg_scroll_px[3]
-local bg_writes_addr = tonumber(os.getenv("ROOFLINE_BG_WRITES_ADDR"), 16)  -- g_bg_column_writes
+-- Env: BRAWL_FRAME_ADDR, BRAWL_FLOW_ADDR, BRAWL_HISCORE_ADDR (hex, from nm on the
+-- ELF), BRAWL_HISCORE_SIZE (hex, nm -S), BRAWL_RESULT (file).
+local frame_addr = tonumber(os.getenv("BRAWL_FRAME_ADDR"), 16)
+local flow_addr  = tonumber(os.getenv("BRAWL_FLOW_ADDR"), 16)
+local hs_addr    = tonumber(os.getenv("BRAWL_HISCORE_ADDR"), 16)
+local hs_size    = tonumber(os.getenv("BRAWL_HISCORE_SIZE"), 16)
+local result     = os.getenv("BRAWL_RESULT")
+local bg_scroll_addr = tonumber(os.getenv("BRAWL_BG_SCROLL_ADDR"), 16)  -- g_bg_scroll_px[3]
+local bg_writes_addr = tonumber(os.getenv("BRAWL_BG_WRITES_ADDR"), 16)  -- g_bg_column_writes
 local mem  = manager.machine.devices[":maincpu"].spaces["program"]
 local ports = manager.machine.ioport.ports
 
@@ -59,7 +59,7 @@ local function finish(ok, msg)
   local f = io.open(result, "w")
   f:write((ok and "PASS " or "FAIL ") .. msg .. "\n")
   f:close()
-  print("ROOFLINE_TEST " .. (ok and "PASS " or "FAIL ") .. msg)
+  print("BRAWL_TEST " .. (ok and "PASS " or "FAIL ") .. msg)
   manager.machine:exit()
 end
 

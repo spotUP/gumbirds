@@ -5,8 +5,8 @@
  * The obstacle sheet lists its animations in ObstacleType order (vent, cable, drone, bot), so
  * the animation index of an obstacle is its type (main.c asserts OBS_ANIM_* == OB_*).
  */
-#ifndef ROOFLINE_OBSTACLE_VIEW_H
-#define ROOFLINE_OBSTACLE_VIEW_H
+#ifndef BRAWL_OBSTACLE_VIEW_H
+#define BRAWL_OBSTACLE_VIEW_H
 
 #include <stdint.h>
 

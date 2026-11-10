@@ -1,21 +1,21 @@
 ---
 date: 2026-11-09
-topic: Roofline ROM with core logic and hero sprite on screen
-tags: [handoff, neogeo, ngdevkit, roofline]
+topic: Bubblegum Brawl ROM with core logic and hero sprite on screen
+tags: [handoff, neogeo, ngdevkit, brawl]
 status: final
 ---
 
 # Handoff: ROM runs core, hero on screen
 
 ## Tasks
-Roofline Neo Geo MVS endless runner. This session: art lock (v9), game core + flow (host tests), P0 toolchain and ROM, BIOS USER re-entry fix, hero sprite pipeline and display.
+Bubblegum Brawl Neo Geo MVS endless runner. This session: art lock (v9), game core + flow (host tests), P0 toolchain and ROM, BIOS USER re-entry fix, hero sprite pipeline and display.
 
 ## Critical references
 - Plan: /Users/spot/.claude/plans/buzzing-kindling-heron.md
 - Ledger (order of remaining work): thoughts/spot/todos.md
 - thoughts/shared/research/2026-11-09_p0-toolchain.md (sections "P0 step 3", "BIOS USER re-entry")
 - thoughts/shared/research/2026-11-09_hero-sprites.md (section "Hero on screen")
-- thoughts/shared/research/2026-11-09_art-direction.md (locked v9), design/roofline-test-v5.html
+- thoughts/shared/research/2026-11-09_art-direction.md (locked v9), design/brawl-test-v5.html
 - thoughts/shared/research/2026-11-09_game-core.md, 2026-11-09_flow-nameentry.md, 2026-11-09_game-design-shooting.md
 
 ## Recent changes

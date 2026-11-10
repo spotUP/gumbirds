@@ -1,10 +1,10 @@
 #!/bin/sh
-# Host tests for the Roofline core. Usage: tests/host/run.sh
-# Output goes to build/test-host (override with ROOFLINE_TEST_OUT); only a summary is printed.
+# Host tests for the Bubblegum Brawl core. Usage: tests/host/run.sh
+# Output goes to build/test-host (override with BRAWL_TEST_OUT); only a summary is printed.
 set -u
 HERE=$(cd "$(dirname "$0")" && pwd)
 ROOT=$(cd "$HERE/../.." && pwd)
-OUT=${ROOFLINE_TEST_OUT:-$ROOT/build/test-host}
+OUT=${BRAWL_TEST_OUT:-$ROOT/build/test-host}
 mkdir -p "$OUT"
 CC="nice -n 19 clang -std=c99 -Wall -Wextra -Werror -pedantic"
 SRC="$ROOT/src/core/rng.c $ROOT/src/core/game.c $ROOT/src/core/hiscore.c $ROOT/src/core/nameentry.c $ROOT/src/core/flow.c $ROOT/src/core/obstacle_view.c $ROOT/src/core/bg_scroll.c $ROOT/src/core/vram_queue.c $ROOT/src/core/obj_pool.c $ROOT/src/core/sound_queue.c $ROOT/src/core/sound_events.c $ROOT/src/core/flier.c $ROOT/src/core/stage.c $ROOT/src/core/ai.c $ROOT/src/core/flier_view.c"

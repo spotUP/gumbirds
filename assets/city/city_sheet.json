@@ -1,5 +1,5 @@
 {
- "source": "original art, Python port of design/roofline-test-v5.html background drawing; assets/city/draw_city.py",
+ "source": "original art, Python port of design/brawl-test-v5.html background drawing; assets/city/draw_city.py",
  "origin": "sheet rows: far y0..112 = screen y 64..176 (tile rows 4..10); mid y112..192 = screen y 96..176 (rows 6..10); roof y192..240 = screen y 176..224 (rows 11..13). All 320 px wide = 20 tile columns, torus period 320 px. sky frames: 0 moon+clouds (screen 208,32), 1 left clouds (screen 16,48), 2 star dot, 3 star plus (16x16, star pixel at 8,8).",
  "backdrop": "#1a1238",
  "lamp_on": "#ff394a",
