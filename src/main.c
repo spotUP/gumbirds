@@ -46,11 +46,26 @@ static Flow g_flow;
  * Register sequence copied from ngdevkit-examples 03-sprite-animation/main.c:54-84.
  * Y register = 496 - screen top (wraps at 512), X register = screen x.
  */
-#define SOOT_COLUMNS 1  /* a Sootling frame is one 16x32 tile column */
-#define SOOT_BOX_DX 6   /* sprite left = flier centre x - FLIER_HALF_W - 6: the 4 px hit box is art columns 6..9 */
-#define SOOT_FLIP 1     /* SCB1 attribute bit 0: horizontal flip (columns need no reorder with one column) */
-_Static_assert(SOOTLING_FRAME_COUNT == 2 * FV_POSE_COUNT, "sheet: one row of FV_POSE_COUNT frames per palette (player, computer)");
-_Static_assert(SOOT_COLUMNS == SOOTLING_MAX_COLUMNS, "Sootling frames are one column wide");
+#define SOOT_COLUMNS (SOOTLING_ART_W / 16) /* a Sootling frame is 2 tile columns wide, 3 tiles high (32 x 48) */
+#define SOOT_BOX_DX SOOTLING_BOX_FIRST_COL /* sprite left = flier centre x - FLIER_HALF_W - 14: the 4 px hit box is art columns 14..17 */
+#define SOOT_FLIP 1     /* SCB1 attribute bit 0: horizontal flip; a mirrored frame also draws its columns in reverse order (soot_strips) */
+_Static_assert(SOOTLING_FRAME_COUNT == 2 * SOOTLING_FRAMES, "sheet: SOOTLING_FRAMES frames per palette (player, computer)");
+_Static_assert(SOOT_COLUMNS == SOOTLING_MAX_COLUMNS && SOOT_COLUMNS * 16 == SOOTLING_ART_W, "Sootling frames are 2 columns wide");
+_Static_assert(SOOTLING_BOX_LAST_COL - SOOTLING_BOX_FIRST_COL + 1 == 2 * FLIER_HALF_W, "art hit box columns must equal the 4 px gameplay box");
+_Static_assert(SOOTLING_BOX_FIRST_COL + 2 * FLIER_HALF_W + SOOTLING_BOX_FIRST_COL == SOOTLING_ART_W, "art is centred on the hit box (a mirrored frame keeps the box)");
+_Static_assert(SOOTLING_ART_H == 48 && SOOTLING_FEET_ROW == SOOTLING_ART_H - 1, "frame is 48 px tall with the feet on its last row");
+
+/* Clip table and per frame ticks come from frames.json through the build (sootling_tables.h). */
+static const u8 k_clip_first[SOOTLING_CLIP_COUNT] = SOOTLING_TABLE_CLIP_FIRST;
+static const u8 k_clip_count[SOOTLING_CLIP_COUNT] = SOOTLING_TABLE_CLIP_COUNT;
+static const u8 k_clip_loop[SOOTLING_CLIP_COUNT] = SOOTLING_TABLE_CLIP_LOOP;
+static const u8 k_frame_ticks[SOOTLING_FRAMES] = SOOTLING_TABLE_FRAME_TICKS;
+static const FlierClips k_clips = {
+    k_clip_first, k_clip_count, k_clip_loop, k_frame_ticks,
+    SOOTLING_CLIP_FLAP2, SOOTLING_CLIP_FLAP1, SOOTLING_CLIP_POP2, SOOTLING_CLIP_POP1, SOOTLING_CLIP_INFLATE,
+    SOOTLING_CLIP_FALL, SOOTLING_CLIP_IDLE
+};
+static FlierAnim g_hero_anim;
 
 /* Test sentinels (tests/mame/flier_check.lua): first tile number last written to the sprite registers for the player
  * and for a computer flier (0 until drawn, player 0 again while hidden), and computer draws so far. g_soot_range holds
@@ -77,9 +92,17 @@ static void hero_hide(void) {
     g_soot_player_tile = 0;
 }
 
-/* Sheet frame of a pose: anim 0 is the player row, anim 1 the computer row (SOOTLING_ANIM_*). */
-static u8 soot_frame(u8 anim, FlierPose pose) {
-    return (u8)(sootling_anims[anim].first_frame + pose);
+/* Sheet frame of a clip frame: anim 0 is the player palette, anim 1 the computer palette (SOOTLING_ANIM_*). */
+static u8 soot_frame(u8 anim, u8 clip_frame) {
+    return (u8)(sootling_anims[anim].first_frame + clip_frame);
+}
+
+/* Queue the tile columns of a frame. A mirrored frame draws its columns in reverse order (the flip bit mirrors each
+ * tile only); one strip per column, from the const table, since the queue keeps the pointers. */
+static void soot_strips(u16 slot, const SootlingFrame *f, const u16 *tiles, int flip, u16 attr) {
+    for (u8 c = 0; c < SOOT_COLUMNS; c++)
+        gfx_sprite_strips((u16)(slot + c), 1, f->tiles_h, tiles + (flip ? SOOT_COLUMNS - 1 - c : c) * f->tiles_h,
+                          SOOT_TILE_BASE, attr);
 }
 
 static void hero_show(const Game *g) {
@@ -87,8 +110,7 @@ static void hero_show(const Game *g) {
     int feet = (int)((fl->y + flier_half_h(fl)) >> 16);
     if (fl->state == FLIER_GONE || feet > SCREEN_H) { hero_hide(); return; }
     int flip;
-    FlierPose pose = flier_view_pose(fl, &flip);
-    const SootlingFrame *f = &sootling_frames[soot_frame(SOOTLING_ANIM_PLAYER, pose)];
+    const SootlingFrame *f = &sootling_frames[soot_frame(SOOTLING_ANIM_PLAYER, flier_anim_step(&g_hero_anim, fl, &k_clips, &flip))];
     const u16 *tiles = &sootling_tile_index[f->tile_offset];
     g_soot_player_tile = (u16)(SOOT_TILE_BASE + tiles[0]);
     int top = feet - f->tiles_h * 16;
@@ -96,7 +118,8 @@ static void hero_show(const Game *g) {
     if (!camera_visible(sx, SOOT_COLUMNS * 16)) { hero_hide(); return; }
     int left = sx;
     u16 attr = (u16)(((SOOT_PAL_SLOT + f->palette) << 8) | (flip ? SOOT_FLIP : 0));
-    gfx_sprite_block(HERO_SPRITE, SOOT_COLUMNS, f->tiles_h, tiles, SOOT_TILE_BASE, attr, left, top);
+    soot_strips(HERO_SPRITE, f, tiles, flip, attr);
+    gfx_sprite_place(HERO_SPRITE, SOOT_COLUMNS, f->tiles_h, left, top);
 }
 
 /*
@@ -141,7 +164,7 @@ _Static_assert(SOOT_COLUMNS <= POOL_COLS, "Sootling frames must fit a pool run")
 /* Animation frame whose SCB1 tile strips object i's run holds, + 1 (0: unknown). Strips are not deduped by the
  * queue and cost most of the vblank budget (vq_cost), so a moving object only requeues them on a frame change. */
 static u8 g_pool_drawn[POOL_MAX];
-_Static_assert(OBS_FRAME_COUNT < 255 && SOOTLING_FRAME_COUNT < 64, "pool frame cache holds frame index + 1 (+ 64 mirrored) in a byte");
+_Static_assert(OBS_FRAME_COUNT < 255 && SOOTLING_FRAME_COUNT < 127, "pool frame cache holds frame index + 1 (+ 128 mirrored) in a byte");
 
 /* Columns object i's sticky chain (SCB2 + column SCB3) and hidden spare columns were sent for (0: unknown). A hide
  * zeroes every column's SCB3, so it clears this too; an animation frame of the same width keeps the chain. */
@@ -191,7 +214,8 @@ static void pool_sync_stage(void) {
     }
 }
 
-/* Computer fliers: one pool object each while on screen (anchor: centre x, feet y). type = FlierPose (flier_view_pose), flags POOL_F_FLIP when facing left. */
+/* Computer fliers: one pool object each while on screen (anchor: centre x, feet y). type = sheet frame of the clip (flier_anim_step), flags POOL_F_FLIP when facing left. */
+static FlierAnim g_cpu_anim[STAGE_SPAWN_COUNT];
 static void pool_sync_cpus(const Game *g) {
     for (int i = 0; i < STAGE_SPAWN_COUNT; i++) {
         const Flier *c = &g->cpu[i];
@@ -202,14 +226,15 @@ static void pool_sync_cpus(const Game *g) {
             continue;
         }
         if (k == POOL_NONE) {
-            k = obj_pool_alloc(&g_pool, FV_GLIDE2, 0, 0, 0, 0);
+            k = obj_pool_alloc(&g_pool, 0, 0, 0, 0, 0);
             if (k == POOL_NONE) continue;
+            flier_anim_init(&g_cpu_anim[i]);
             g_pool.obj[k].flags |= POOL_F_HERO;
             g_cpu_obj[i] = k;
         }
         PoolObj *p = &g_pool.obj[k];
         int flip;
-        p->type = (u8)flier_view_pose(c, &flip);
+        p->type = flier_anim_step(&g_cpu_anim[i], c, &k_clips, &flip); /* sheet frame; the player palette offset is added in pool_show_hero */
         if (flip) p->flags |= POOL_F_FLIP; else p->flags &= (u8)~POOL_F_FLIP;
         p->x = c->x;
         p->y = (int32_t)(c->y + flier_half_h(c));
@@ -244,7 +269,7 @@ static u16 g_pool_scb4[POOL_MAX];
 
 /* Same run layout as an obstacle, with the Sootling frame table, tile base and the computer palette. */
 static void pool_show_hero(PoolObj *p, u8 i, u16 *scb3) {
-    u8 fi = soot_frame(SOOTLING_ANIM_CPU, (FlierPose)p->type);
+    u8 fi = soot_frame(SOOTLING_ANIM_CPU, p->type);
     const SootlingFrame *f = &sootling_frames[fi];
     int flip = (p->flags & POOL_F_FLIP) != 0;
     int x = camera_screen_x(obj_pool_px(p->x) - FLIER_HALF_W - SOOT_BOX_DX, g_cam_px, SOOT_COLUMNS * 16);
@@ -252,10 +277,9 @@ static void pool_show_hero(PoolObj *p, u8 i, u16 *scb3) {
     if (!camera_visible(x, SOOT_COLUMNS * 16)) { pool_hide_run(i); return; }
     int top = obj_pool_px(p->y) - f->tiles_h * 16;
     const u16 *tiles = &sootling_tile_index[f->tile_offset];
-    u8 key = (u8)(fi + 1 + (flip ? 64 : 0)); /* frame and mirror state the strips hold */
+    u8 key = (u8)(fi + 1 + (flip ? 128 : 0)); /* frame and mirror state the strips hold */
     if (g_pool_drawn[i] != key) {
-        gfx_sprite_strips(slot, SOOT_COLUMNS, f->tiles_h, tiles, SOOT_TILE_BASE,
-                          (u16)(((SOOT_PAL_SLOT + f->palette) << 8) | (flip ? SOOT_FLIP : 0)));
+        soot_strips(slot, f, tiles, flip, (u16)(((SOOT_PAL_SLOT + f->palette) << 8) | (flip ? SOOT_FLIP : 0)));
         if (g_pool_cols[i] != SOOT_COLUMNS) { gfx_sprite_chain(slot, SOOT_COLUMNS); g_pool_cols[i] = SOOT_COLUMNS; }
         g_pool_drawn[i] = key;
     }
@@ -386,6 +410,7 @@ static void hero_and_mode(const FlowView *v) {
         else bios_user_mode = 1;
         g_cam_px = 0;
         g_edge_col = 0xFF; /* draw() clears the fix layer with the state change */
+        flier_anim_init(&g_hero_anim);
         hero_hide();
         if (g_pool.live) pool_free_all();
         pool_show(); /* hides the freed runs once */

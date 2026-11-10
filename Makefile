@@ -99,7 +99,7 @@ $(CROM_LAYOUT): crom-layout-check
 	@mkdir -p $(@D); echo '$(CROM_SETS)' | cmp -s - $@ || echo '$(CROM_SETS)' > $@
 # Flier (Sootling) sprite pipeline (tools/build_flier_sprites.py). The sheet is imported from a draft PNG by
 # tools/import_flier_sheet.py and committed under assets/flier/; re-importing a new draft is the whole art swap.
-$(BUILDDIR)/gen/sootling.c1 $(BUILDDIR)/gen/sootling.c2 $(BUILDDIR)/gen/sootling_sprites.c $(BUILDDIR)/gen/sootling_sprites.h: assets/flier/sootling_sheet.png assets/flier/sootling_sheet.json tools/build_flier_sprites.py tools/sprite_pipeline.py
+$(BUILDDIR)/gen/sootling.c1 $(BUILDDIR)/gen/sootling.c2 $(BUILDDIR)/gen/sootling_sprites.c $(BUILDDIR)/gen/sootling_sprites.h $(BUILDDIR)/gen/sootling_tables.h: assets/flier/sootling_sheet.png assets/flier/sootling_sheet.json tools/build_flier_sprites.py tools/sprite_pipeline.py
 	$(PYTHON) -I tools/build_flier_sprites.py --out $(BUILDDIR)/gen
 $(BUILDDIR)/gen/sootling_sprites.o: $(BUILDDIR)/gen/sootling_sprites.c
 	$(M68KGCC) $(NGCFLAGS) $(CFLAGS) -c $< -o $@
@@ -118,7 +118,7 @@ $(BUILDDIR)/gen/city_sprites.o: $(BUILDDIR)/gen/city_sprites.c
 
 # Hazard strip sprite set (tools/build_hazard_sprites.py over tools/sprite_pipeline.py). The sheet is cut from
 # assets/hazard/frames_*_1x.png by assets/hazard/build_sheet.py and committed under assets/hazard/.
-$(BUILDDIR)/gen/hazard.c1 $(BUILDDIR)/gen/hazard.c2 $(BUILDDIR)/gen/hazard_sprites.c $(BUILDDIR)/gen/hazard_sprites.h: assets/hazard/hazard_sheet.png assets/hazard/hazard_sheet.json tools/build_hazard_sprites.py tools/sprite_pipeline.py
+$(BUILDDIR)/gen/hazard.c1 $(BUILDDIR)/gen/hazard.c2 $(BUILDDIR)/gen/hazard_sprites.c $(BUILDDIR)/gen/hazard_sprites.h $(BUILDDIR)/gen/hazard_tables.h: assets/hazard/hazard_sheet.png assets/hazard/hazard_sheet.json tools/build_hazard_sprites.py tools/sprite_pipeline.py
 	$(PYTHON) -I tools/build_hazard_sprites.py --out $(BUILDDIR)/gen
 $(BUILDDIR)/gen/hazard_sprites.o: $(BUILDDIR)/gen/hazard_sprites.c
 	$(M68KGCC) $(NGCFLAGS) $(CFLAGS) -c $< -o $@
@@ -380,8 +380,8 @@ test-hazard: cart
 	BRAWL_SWAPS_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_swap_count"{print $$1}') \
 	BRAWL_MATCHES_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_hazard_matches"{print $$1}') \
 	BRAWL_PALMAX_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_pal_words_frame_max"{print $$1}') \
-	BRAWL_HAZARD_STEPS="$$(sed -n 's/.*HAZARD_TABLE_STEP_FRAMES *{\(.*\)}.*/\1/p' $(BUILDDIR)/gen/hazard_sprites.h)" \
-	BRAWL_HAZARD_VARIANTS="$$(sed -n 's/.*HAZARD_TABLE_VARIANTS *{\(.*\)}.*/\1/p' $(BUILDDIR)/gen/hazard_sprites.h)" \
+	BRAWL_HAZARD_STEPS="$$(sed -n 's/.*HAZARD_TABLE_STEP_FRAMES *{\(.*\)}.*/\1/p' $(BUILDDIR)/gen/hazard_tables.h)" \
+	BRAWL_HAZARD_VARIANTS="$$(sed -n 's/.*HAZARD_TABLE_VARIANTS *{\(.*\)}.*/\1/p' $(BUILDDIR)/gen/hazard_tables.h)" \
 	BRAWL_HIT_LAYOUT="$$($(M68KGCC) -std=c99 -S -o - tests/mame/hit_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
 	BRAWL_FLIER_LAYOUT="$$($(M68KGCC) -std=c99 -S -o - tests/mame/flier_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
 	BRAWL_HAZARD_LAYOUT="$$($(M68KGCC) $(NGCFLAGS) -Ibuild -std=c99 -S -o - tests/mame/hazard_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
