@@ -23,7 +23,7 @@ uint8_t obj_pool_alloc(ObjPool *p, uint8_t type, int32_t x, int32_t y, int32_t v
     o->type = type;
     o->flags = POOL_F_LIVE;
     o->anim = 0;
-    o->anim_tick = 0;
+    o->anim_tick = i; /* phase seed: obj_pool_anim reduces it mod the animation period, spreading frame changes (strip re-queues) over frames */
     p->hide &= ~((uint32_t)1 << i); /* reused before the view hid it: it draws over its own run */
     if (++p->live > p->peak) p->peak = p->live;
     return i;

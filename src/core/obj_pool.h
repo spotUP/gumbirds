@@ -29,7 +29,7 @@ typedef struct {
     uint8_t type;        /* game kind */
     uint8_t flags;       /* POOL_F_* */
     uint8_t anim;        /* animation frame index */
-    uint8_t anim_tick;   /* frames shown of the current animation frame */
+    uint8_t anim_tick;   /* frames shown of the current animation frame; a fresh object holds its slot index until the first obj_pool_anim reduces it to its period (staggers the phase) */
 } PoolObj;
 
 typedef struct {
@@ -54,6 +54,7 @@ void obj_pool_step(ObjPool *p);
 static inline void obj_pool_anim(PoolObj *o, uint8_t ticks, uint8_t count) {
     if (ticks == 0 || count == 0) { o->anim = 0; o->anim_tick = 0; return; }
     if (o->anim >= count) o->anim = 0; /* count changed under it (type change) */
+    if (o->anim_tick >= ticks) o->anim_tick %= ticks; /* once per object: the slot-index seed from obj_pool_alloc becomes slot mod period, so at most ceil(n/ticks) objects change frame on one frame */
     if (++o->anim_tick < ticks) return;
     o->anim_tick = 0;
     if (++o->anim >= count) o->anim = 0;

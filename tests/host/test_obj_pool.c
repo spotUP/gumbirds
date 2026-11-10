@@ -105,12 +105,33 @@ static void test_anim(void) {
     CHECK(o.anim < 2);
 }
 
+/* Objects spawned on the same frame must not change animation frame on the same frame. */
+static void test_anim_stagger(void) {
+    obj_pool_init(&P, 96);
+    for (int k = 0; k < 16; k++) obj_pool_alloc(&P, 1, 0, 0, 0, 0);
+    uint8_t prev[16];
+    int worst = 0;
+    for (int k = 0; k < 16; k++) prev[k] = P.obj[k].anim;
+    for (int f = 0; f < 64; f++) {
+        int changed = 0;
+        for (int k = 0; k < 16; k++) {
+            obj_pool_anim(&P.obj[k], 2, 2); /* drone: 2 frames per animation frame */
+            if (P.obj[k].anim != prev[k]) changed++;
+            prev[k] = P.obj[k].anim;
+        }
+        if (changed > worst) worst = changed;
+    }
+    printf("anim stagger: worst %d of 16 drones change frame on one frame\n", worst);
+    CHECK(worst <= 8);
+}
+
 int main(void) {
     test_alloc_free();
     test_sprite_runs();
     test_hide_once();
     test_motion();
     test_anim();
+    test_anim_stagger();
     printf("obj_pool: %d checks, %d failures\n", checks, failures);
     return failures != 0;
 }
