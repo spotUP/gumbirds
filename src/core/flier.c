@@ -52,6 +52,7 @@ void flier_init(Flier *f, int32_t x, int32_t y, uint8_t balloons, uint8_t has_pa
     f->x = x; f->y = y;
     f->balloons = balloons > FLIER_MAX_BALLOONS ? FLIER_MAX_BALLOONS : balloons;
     f->has_parachute = has_parachute;
+    f->facing = 1;
 }
 
 static void start_falling(Flier *f) {
@@ -148,6 +149,7 @@ void flier_step(Flier *f, const FlierInput *in, int32_t floor_y) {
             if (in->dir) {
                 int32_t t = in->dir > 0 ? FLIER_TOP_AIR_SPEED : -FLIER_TOP_AIR_SPEED;
                 f->vx += mul_0_2(t - f->vx);
+    if (in->dir) f->facing = in->dir > 0;
             }
         }
     }

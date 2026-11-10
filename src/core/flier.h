@@ -69,6 +69,7 @@ typedef struct {
     uint8_t flap_prev;   /* button level last frame, for the press edge */
     uint8_t has_parachute;
     uint8_t sway_tick;
+    uint8_t facing;      /* 1 = right, 0 = left: the last non-zero input dir (view only, never read by the physics) */
 } Flier;
 
 typedef struct {

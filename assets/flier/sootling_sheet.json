@@ -1,0 +1,94 @@
+{
+ "source": "Sootling, design A of thoughts/shared/drafts/2026-11-10-flier, imported by tools/import_flier_sheet.py",
+ "origin": "16x32 slot per frame, art 16x24 on rows 8..31, feet on row 31; frame order glide2 up2 down2 glide1 up1 glide0 fall; hit box columns 6..9",
+ "animations": {
+  "player": [
+   {
+    "x": 0,
+    "y": 0,
+    "w": 16,
+    "h": 32
+   },
+   {
+    "x": 16,
+    "y": 0,
+    "w": 16,
+    "h": 32
+   },
+   {
+    "x": 32,
+    "y": 0,
+    "w": 16,
+    "h": 32
+   },
+   {
+    "x": 48,
+    "y": 0,
+    "w": 16,
+    "h": 32
+   },
+   {
+    "x": 64,
+    "y": 0,
+    "w": 16,
+    "h": 32
+   },
+   {
+    "x": 80,
+    "y": 0,
+    "w": 16,
+    "h": 32
+   },
+   {
+    "x": 96,
+    "y": 0,
+    "w": 16,
+    "h": 32
+   }
+  ],
+  "cpu": [
+   {
+    "x": 0,
+    "y": 32,
+    "w": 16,
+    "h": 32
+   },
+   {
+    "x": 16,
+    "y": 32,
+    "w": 16,
+    "h": 32
+   },
+   {
+    "x": 32,
+    "y": 32,
+    "w": 16,
+    "h": 32
+   },
+   {
+    "x": 48,
+    "y": 32,
+    "w": 16,
+    "h": 32
+   },
+   {
+    "x": 64,
+    "y": 32,
+    "w": 16,
+    "h": 32
+   },
+   {
+    "x": 80,
+    "y": 32,
+    "w": 16,
+    "h": 32
+   },
+   {
+    "x": 96,
+    "y": 32,
+    "w": 16,
+    "h": 32
+   }
+  ]
+ }
+}
