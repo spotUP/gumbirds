@@ -61,7 +61,7 @@ include emu.mk
 # Note: build rules (%.c -> %.o -> %.elf) are defined in Makefile.build
 ELF=$(BUILDDIR)/rom.elf
 CORE_SRCS=rng game hiscore nameentry flow obstacle_view bg_scroll flier_view vram_queue obj_pool sound_queue sound_events flier stage ai
-$(ELF):	$(BUILDDIR)/src/main.o $(BUILDDIR)/gen/hero_sprites.o $(BUILDDIR)/gen/sootling_sprites.o $(BUILDDIR)/gen/obs_sprites.o $(BUILDDIR)/gen/city_sprites.o $(BUILDDIR)/src/bg.o $(BUILDDIR)/src/gfx.o $(BUILDDIR)/src/sound.o $(CORE_SRCS:%=$(BUILDDIR)/src/core/%.o)
+$(ELF):	$(BUILDDIR)/src/main.o $(BUILDDIR)/gen/sootling_sprites.o $(BUILDDIR)/gen/obs_sprites.o $(BUILDDIR)/gen/city_sprites.o $(BUILDDIR)/src/bg.o $(BUILDDIR)/src/gfx.o $(BUILDDIR)/src/sound.o $(CORE_SRCS:%=$(BUILDDIR)/src/core/%.o)
 $(PROM1): $(ELF)
 
 
@@ -86,16 +86,17 @@ $(SROM1): $(BUILDDIR)/assets/base-srom-text-shadow.fix
 # By default, this makefile creates CROMs with tiles for displaying a ngdevkit
 # logo during the attract mode.
 # Note: build rules (%.gif -> %.c<1,2>) are defined in Makefile.build
-# Hero tiles come after the logo (256 tiles = HERO_TILE_BASE in src/main.c), obstacle tiles after the
-# hero tiles, city tiles after the obstacles (bases in src/vram_layout.h, from the generated headers); prerequisite order = cat order.
-$(CROM1): $(BUILDDIR)/assets/base-crom-logo.c1 $(BUILDDIR)/gen/hero.c1 $(BUILDDIR)/gen/obs.c1 $(BUILDDIR)/gen/city.c1 $(BUILDDIR)/gen/sootling.c1
-$(CROM2): $(BUILDDIR)/assets/base-crom-logo.c2 $(BUILDDIR)/gen/hero.c2 $(BUILDDIR)/gen/obs.c2 $(BUILDDIR)/gen/city.c2 $(BUILDDIR)/gen/sootling.c2
-
-# Hero sprite pipeline (tools/build_hero_sprites.py); one run makes all four files.
-$(BUILDDIR)/gen/hero.c1 $(BUILDDIR)/gen/hero.c2 $(BUILDDIR)/gen/hero_sprites.c $(BUILDDIR)/gen/hero_sprites.h: assets/hero/guard_sheet.png assets/hero/guard_sheet.json tools/build_hero_sprites.py tools/sprite_pipeline.py
-	$(PYTHON) -I tools/build_hero_sprites.py --out $(BUILDDIR)/gen
-$(BUILDDIR)/gen/hero_sprites.o: $(BUILDDIR)/gen/hero_sprites.c
-	$(M68KGCC) $(NGCFLAGS) $(CFLAGS) -c $< -o $@
+# Obstacle tiles come after the logo (256 tiles = OBS_TILE_BASE in src/vram_layout.h), city tiles after the obstacles (bases in src/vram_layout.h, from the generated headers); prerequisite order = cat order.
+CROM_SETS=assets/base-crom-logo gen/obs gen/city gen/sootling
+CROM_LAYOUT=$(BUILDDIR)/gen/crom-layout.stamp
+$(CROM1): $(CROM_SETS:%=$(BUILDDIR)/%.c1) $(CROM_LAYOUT)
+$(CROM2): $(CROM_SETS:%=$(BUILDDIR)/%.c2) $(CROM_LAYOUT)
+# The stamp holds the set list and changes only when the list does. Without it, dropping or reordering a set
+# leaves the old C-ROM in place (no prerequisite is newer) while the program ROM gets the new tile bases:
+# every sprite then draws the wrong tiles. build.mk leaves %.stamp out of the cat.
+.PHONY: crom-layout-check
+$(CROM_LAYOUT): crom-layout-check
+	@mkdir -p $(@D); echo '$(CROM_SETS)' | cmp -s - $@ || echo '$(CROM_SETS)' > $@
 # Flier (Sootling) sprite pipeline (tools/build_flier_sprites.py). The sheet is imported from a draft PNG by
 # tools/import_flier_sheet.py and committed under assets/flier/; re-importing a new draft is the whole art swap.
 $(BUILDDIR)/gen/sootling.c1 $(BUILDDIR)/gen/sootling.c2 $(BUILDDIR)/gen/sootling_sprites.c $(BUILDDIR)/gen/sootling_sprites.h: assets/flier/sootling_sheet.png assets/flier/sootling_sheet.json tools/build_flier_sprites.py tools/sprite_pipeline.py
@@ -115,7 +116,7 @@ $(BUILDDIR)/gen/city.c1 $(BUILDDIR)/gen/city.c2 $(BUILDDIR)/gen/city_sprites.c $
 $(BUILDDIR)/gen/city_sprites.o: $(BUILDDIR)/gen/city_sprites.c
 	$(M68KGCC) $(NGCFLAGS) $(CFLAGS) -c $< -o $@
 
-$(BUILDDIR)/src/main.o $(BUILDDIR)/src/bg.o $(BUILDDIR)/src/gfx.o: $(BUILDDIR)/gen/hero_sprites.h $(BUILDDIR)/gen/obs_sprites.h $(BUILDDIR)/gen/city_sprites.h $(BUILDDIR)/gen/sootling_sprites.h src/core/flier_view.h src/vram_layout.h src/sprite_slots.h src/bg.h src/gfx.h src/core/vram_queue.h
+$(BUILDDIR)/src/main.o $(BUILDDIR)/src/bg.o $(BUILDDIR)/src/gfx.o: $(BUILDDIR)/gen/obs_sprites.h $(BUILDDIR)/gen/city_sprites.h $(BUILDDIR)/gen/sootling_sprites.h src/core/flier_view.h src/vram_layout.h src/sprite_slots.h src/bg.h src/gfx.h src/core/vram_queue.h
 
 
 
@@ -230,8 +231,15 @@ run: cart bios $(RUN_BIOS_DEPS)
 # Addresses come from nm on the ELF. Fresh nvram dir and result file per run. Non-zero on fail.
 TEST_SECONDS?=40
 NM=$(M68KGCC:%gcc=%nm)
+# The C-ROMs must start with their sets in CROM_SETS order (the tile bases in src/vram_layout.h assume it).
+.PHONY: test-crom
+test-crom: cart
+	@for n in 1 2; do f=$(ROM)/$(GAMEROM)-c$$n.c$$n; cat $(CROM_SETS:%=$(BUILDDIR)/%.c$$n) > $(BUILDDIR)/crom-expect.bin; \
+	  head -c `wc -c < $(BUILDDIR)/crom-expect.bin` $$f | cmp -s - $(BUILDDIR)/crom-expect.bin || { echo "[FAIL] test-crom: $$f does not match its sets"; rm -f $(BUILDDIR)/crom-expect.bin; exit 1; }; done; \
+	rm -f $(BUILDDIR)/crom-expect.bin; echo "[OK] test-crom: C-ROMs match their sets"
 test: cart
 	nice -n 19 tests/host/run.sh
+	@$(MAKE) --no-print-directory test-crom
 	@$(MAKE) --no-print-directory test-flier
 	@$(MAKE) --no-print-directory test-reach
 	@$(MAKE) --no-print-directory test-vblank
@@ -249,7 +257,7 @@ test: cart
 	if [ ! -f $$T/result.txt ]; then tail -n 15 $$T/mame.log; echo "[FAIL] no result from Lua script"; exit 1; fi; \
 	cat $$T/result.txt; \
 	mkdir -p $(BUILDDIR)/test-snap; cp $$T/snap/*.png $(BUILDDIR)/test-snap/ 2>/dev/null || true; \
-	grep -q '^PASS' $$T/result.txt && $(PYTHON) -I tests/mame/check_hero_pixels.py build/gen/sootling_sprites.c build/gen/obs_sprites.c build/gen/city_sprites.c $$T/snap/pre_start.png $$T/snap/playing.png && $(PYTHON) -I tests/mame/check_bg_pixels.py build/gen/city_sprites.c build/gen/hero_sprites.c build/gen/obs_sprites.c $$T/snap/pre_start.png $$T/snap/bg_a.png $$T/snap/playing.png $$T/result.txt.bg || echo "[FAIL] pixel check" >> $$T/result.txt; \
+	grep -q '^PASS' $$T/result.txt && $(PYTHON) -I tests/mame/check_hero_pixels.py build/gen/sootling_sprites.c build/gen/obs_sprites.c build/gen/city_sprites.c $$T/snap/pre_start.png $$T/snap/playing.png && $(PYTHON) -I tests/mame/check_bg_pixels.py build/gen/city_sprites.c build/gen/obs_sprites.c $$T/snap/pre_start.png $$T/snap/bg_a.png $$T/snap/playing.png $$T/result.txt.bg || echo "[FAIL] pixel check" >> $$T/result.txt; \
 	if ! grep -q 'FAIL' $$T/result.txt; then rm -rf $$T; echo "[OK] make test passed"; else echo "[FAIL] make test, log kept in $$T"; exit 1; fi
 
 # Flier reachability (tests/mame/flier_check.lua): coin, start, flap with A, steer, drown, game over. Sentinel:

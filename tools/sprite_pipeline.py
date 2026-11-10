@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Shared sprite pipeline: PNG sheet + json -> Neo Geo C-ROM sprite data. Used for every sprite
-set (hero, obstacles); the thin entry scripts tools/build_hero_sprites.py and
-tools/build_obstacle_sprites.py call main() with their set name and default inputs.
+"""Shared sprite pipeline: PNG sheet + json -> Neo Geo C-ROM sprite data. Used by the obstacle
+set; the thin entry script tools/build_obstacle_sprites.py calls main() with its set name and
+default inputs.
 
 Outputs in --out (generated, not committed), for a set called NAME:
     NAME.c1 NAME.c2        C-ROM tile pairs (tiletool.py --sprite -c, same as build.mk)

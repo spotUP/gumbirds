@@ -37,7 +37,7 @@ volatile u8 g_name_seconds_shown = 0xff;
 static Flow g_flow;
 
 /*
- * Hero set sprites (assets/hero/guard_sheet.json) are still in the C-ROM but nothing draws them. The fliers are the
+ * The fliers are the
  * Sootling set (assets/flier/sootling_sheet.png), drawn below. Tile bases and palette slots come from vram_layout.h,
  * sprite slots from sprite_slots.h. A multi-column frame is several hardware sprites: the first has position and
  * height, the others are sticky (SCB3 bit 6) and follow it 16 px apart.
@@ -57,12 +57,6 @@ volatile u16 g_soot_range[6] = { SOOT_TILE_BASE, SOOTLING_TILE_COUNT, SOOT_PAL_S
 #define g_soot_player_tile g_soot_range[3]
 #define g_soot_cpu_tile g_soot_range[4]
 #define g_soot_cpu_draws g_soot_range[5]
-
-static void hero_load_palettes(void) {
-    for (int p = 0; p < HERO_PALETTE_COUNT; p++)
-        for (int i = 0; i < 16; i++)
-            gfx_pal((HERO_PAL_SLOT + p) * 16 + i, hero_palettes[p][i]);
-}
 
 static void soot_load_palettes(void) {
     for (int p = 0; p < SOOTLING_PALETTE_COUNT; p++)
@@ -96,7 +90,7 @@ static void hero_show(const Game *g) {
 }
 
 /*
- * Obstacle-sheet sprites. Tiles follow the hero tiles in the C-ROM (Makefile cat order), palettes follow the hero
+ * Obstacle-sheet sprites. Tiles follow the logo tiles in the C-ROM (Makefile cat order), palettes follow the fix-layer
  * palettes. They draw through the object pool (src/core/obj_pool.h): each pool object holds a sprite run (POOL_COLS
  * hardware sprites from POOL_SPRITE_BASE, sprite_slots.h); the animation index of an object is its type. Live users:
  * the arena platforms (pool_sync_stage) and the pool stress test hook.
@@ -526,7 +520,6 @@ static void video_init(void) {
     /* Palette bank 1 for the fix layer: set both text palettes. */
     gfx_pal(0, 0x8000); gfx_pal(1, 0x0fff); gfx_pal(2, 0x0555);
     gfx_pal(16, 0x8000); gfx_pal(17, 0x0ff0); gfx_pal(18, 0x0550);
-    hero_load_palettes();
     soot_load_palettes();
     obs_load_palettes();
     bg_load_palettes();

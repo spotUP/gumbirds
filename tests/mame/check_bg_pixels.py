@@ -1,5 +1,5 @@
 """Visual proof by pixels for the city background (python3.14 -I, Pillow).
-Usage: check_bg_pixels.py city_sprites.c hero_sprites.c obs_sprites.c pre_start.png bg_a.png bg_b.png result.txt.bg
+Usage: check_bg_pixels.py city_sprites.c obs_sprites.c pre_start.png bg_a.png bg_b.png result.txt.bg
 bg file (written by boot_check.lua at the two snapshot frames): "a far mid roof writes" / "b far mid roof writes"
 (scroll px of each layer as the game exported it, and the column strip write counter).
 Checks, each independent of the hero and obstacle checks (only colours unique to one layer are counted):
@@ -89,9 +89,9 @@ def pixel_scores(ima, imb, y0, y1):
 
 
 def main():
-    city_c, hero_c, obs_c, pre, a_png, b_png, bg_txt = sys.argv[1:8]
+    city_c, obs_c, pre, a_png, b_png, bg_txt = sys.argv[1:7]
     bg = load_bg(bg_txt)
-    others = set(pc.colours(hero_c, "hero")) | set(pc.colours(obs_c, "obs")) | set(RUNTIME_SHARED)
+    others = set(pc.colours(obs_c, "obs")) | set(RUNTIME_SHARED)
     pal = pc.palettes_rgb(city_c, "city")
     layer_cols = {n: set(pal[i]) for i, n in enumerate(LAYERS + ["sky"])}
     ok = True

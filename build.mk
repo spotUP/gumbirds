@@ -157,13 +157,13 @@ $(BUILDDIR)/%.c1 $(BUILDDIR)/%.c2: %.gif
 	$(TILETOOL) --sprite -c $< -o $(@:%.c2=%.c1) $(@:%.c1=%.c2)
 
 $(CROM1): | $(ROM)
-	echo $^ | xargs -r cat > $@ && $(TRUNCATE) -s $(CROMSIZE) $@
+	echo $(filter-out %.stamp,$^) | xargs -r cat > $@ && $(TRUNCATE) -s $(CROMSIZE) $@
 $(CROM2): | $(ROM)
-	echo $^ | xargs -r cat > $@ && $(TRUNCATE) -s $(CROMSIZE) $@
+	echo $(filter-out %.stamp,$^) | xargs -r cat > $@ && $(TRUNCATE) -s $(CROMSIZE) $@
 $(CROM3): | $(ROM)
-	echo $^ | xargs -r cat > $@ && $(TRUNCATE) -s $(CROMSIZE) $@
+	echo $(filter-out %.stamp,$^) | xargs -r cat > $@ && $(TRUNCATE) -s $(CROMSIZE) $@
 $(CROM4): | $(ROM)
-	echo $^ | xargs -r cat > $@ && $(TRUNCATE) -s $(CROMSIZE) $@
+	echo $(filter-out %.stamp,$^) | xargs -r cat > $@ && $(TRUNCATE) -s $(CROMSIZE) $@
 $(CROM5): | $(ROM)
 	echo $^ | xargs -r cat > $@ && $(TRUNCATE) -s $(CROM5SIZE) $@
 $(CROM6): | $(ROM)
