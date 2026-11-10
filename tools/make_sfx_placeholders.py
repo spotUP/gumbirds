@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Writes placeholder sound effects (square and noise blips, mono 16-bit 18500 Hz WAV) for the sample map:
-jump, hit, laser, game_over, coin. Replaced by real samples later; ids and file names stay the same.
+jump, hit, game_over, coin. Replaced by real samples later; ids and file names stay the same.
 Usage: make_sfx_placeholders.py OUT_DIR"""
 import math
 import os
@@ -39,7 +39,6 @@ def sequence(*parts):
 SOUNDS = {
     "jump": lambda: square(300, 700, 0.18),
     "hit": lambda: noise(0.30),
-    "laser": lambda: square(1800, 300, 0.22, 0.45),
     "game_over": lambda: sequence(square(440, 440, 0.2), square(330, 330, 0.2), square(220, 220, 0.5)),
     "coin": lambda: sequence(square(988, 988, 0.08), square(1319, 1319, 0.30)),
 }

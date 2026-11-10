@@ -10,10 +10,6 @@
     name: hit
     uri: file://build/sound/sfx/hit.wav
 - adpcm_a:
-    channel: 3
-    name: laser
-    uri: file://build/sound/sfx/laser.wav
-- adpcm_a:
     channel: 2
     name: game_over
     uri: file://build/sound/sfx/game_over.wav

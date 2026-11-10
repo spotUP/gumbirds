@@ -128,7 +128,7 @@ $(BUILDDIR)/src/main.o $(BUILDDIR)/src/bg.o $(BUILDDIR)/src/gfx.o: $(BUILDDIR)/g
 # compiled, so build/snd_commands.h exists for the 68k and nss-deps.mk exists for the include below.
 SOUND_DIR=$(BUILDDIR)/sound
 SOUND_YAMLS=assets/sound/music-map.yaml assets/sound/sample-map.yaml
-SFX_NAMES=jump hit laser game_over coin
+SFX_NAMES=jump hit game_over coin
 SFX_WAVS=$(SFX_NAMES:%=$(SOUND_DIR)/sfx/%.wav)
 SOUND_DRIVER=$(SOUND_DIR)/driver.ihx
 

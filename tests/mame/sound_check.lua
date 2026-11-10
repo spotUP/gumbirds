@@ -29,7 +29,7 @@ local function read_ids()
   return ids
 end
 local ids = read_ids()
--- A flap plays the jump sample (SE_FLAP in src/core/sound_events.c); hit and laser sounds have no game event in the arena.
+-- A flap plays the jump sample (SE_FLAP in src/core/sound_events.c); the hit sound has no game event in the arena.
 local ID_MUSIC, ID_JUMP, ID_OVER, ID_COIN =
   ids.SND_MUSIC_INGAME, ids.SND_SFX_JUMP, ids.SND_SFX_GAME_OVER, ids.SND_SFX_COIN
 -- ADPCM-A key-on bit per SFX, read from the driver's own generated table (build/snd_commands.inc, line
