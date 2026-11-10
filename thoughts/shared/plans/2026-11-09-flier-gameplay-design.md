@@ -344,7 +344,7 @@ Core loop (fixed):
 - The screen scrolls right over the city endlessly. Same flier physics as the arena. Side edges: the left edge pushes (a flier pinned
   at x = 0 moves with the scroll) and the right edge reflects (bounce rule, min 50); wrap does not apply in a scrolling world.
 - Scroll speed starts at 0.75 px/frame and ramps to 1.25 px/frame, below top air speed so the player can always reach the right side.
-- Bottom kills at once (as arena). Gumbirds below: rooftops (landing allowed) and gaps.
+- Bottom kills at once (as arena). City roofline below: rooftops (landing allowed) and gaps.
 - Hazards (placeholders): kill tiles / spark cables, drones, searchlight beams, vents. Pickups (placeholders): floating score items.
 
 Score (fixed part): distance 1 point per 8 px scrolled; pickups with a streak counter that grows per pickup and resets on a miss or a
@@ -355,7 +355,7 @@ Open points for the user:
 - T2: do pickups pop (stomp/touch) or are they collected, and what are they in our world?
 - T3: streak rule: what breaks a streak (missed pickup scrolls off, any hit, landing)?
 - T4: which hazards, their density curve over distance, any fixed sequences vs random?
-- T5: may the player land on rooftops, or is the brawl purely visual (always airborne)?
+- T5: may the player land on rooftops, or is the roofline purely visual (always airborne)?
 - T6: enemies in trip mode: none, or occasional fliers?
 - T7: fixed seed for the whole run or random?
 - T8: unlock: always selectable, or reached from the arena (for example every 8 matches)?
