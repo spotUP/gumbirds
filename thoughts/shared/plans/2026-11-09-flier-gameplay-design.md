@@ -1,6 +1,6 @@
 ---
 date: 2026-11-09
-topic: Flier physics and gameplay design (arena mode + endless trip mode skeleton), every gameplay rule equal to skeddles/balloon-fight-arena
+topic: Flier physics and gameplay design (arena mode + endless Gum Trip mode), every gameplay rule equal to skeddles/balloon-fight-arena
 tags: [gameplay, physics, flier, design, modes, scoring, object-pool, plan, reference-audit]
 status: final
 ---
@@ -20,7 +20,7 @@ Reference audited again on 2026-11-09 (github.com/skeddles/balloon-fight-arena, 
 `scenes/character.tscn`, `scenes/characters/*.tscn`, all eight `scenes/stages/*.tscn`, `project.godot`, `CHANGELOG.md`, `README.md`.
 Line numbers below refer to those files as fetched on that date. The repo has NO license and is a fangame of a commercial game:
 only behaviour is taken, in our own words and numbers. No code, names, characters, art, sounds, music or layouts are copied.
-On-screen names in this doc (Gumbirds, earlier Bubblegum Brawl, gas pods, Rooftop Arena, Night Trip) are ours and are working names.
+On-screen names in this doc (Gumbirds, earlier Bubblegum Brawl, gas pods, Rooftop Arena, Gum Trip) are ours and are working names.
 
 Words: **flier** = any flying character (player or computer). **Pod** = the lift device a flier hangs from (our balloon, D3).
 **Stomp** = the feet zone of one flier entering the pod zone of another.
@@ -80,7 +80,7 @@ Units: reference px = our px (k = 1.0); 60 Hz; `px/s` converted per frame in 1.3
 | Bounce min: kill tile | 25, and pop one pod | `character.gd` 169-175 | 25 |
 | Bounce on ground contact | none (bounce branch needs not on floor) | `character.gd` 189 | none |
 | Left, right edge | boundary shapes at x = 0 and x = 640, group "bounce" (bounce); no wrap code found | `scenes/stages/lake.tscn` 47-63 (same in all 8 stages); `CHANGELOG.md` 11-12 | wrap per user (see 1.5) |
-| Ceiling | boundary shape at y = 0, group "ceiling" | `lake.tscn` 55-58 | y = 16 (HUD rows), bounce |
+| Ceiling | boundary shape at y = 0, group "ceiling" | `lake.tscn` 55-58 | y = 16 (below HUD fix rows 0 and 1), bounce |
 | Bottom | "water" boundary at y = 360 (screen bottom): kills at once, even with pods; no bounce | `lake.tscn` 90-94; `character.gd` 201-206 | screen bottom kills at once |
 | Dead fall | vx = 0, vy = -50, full gravity, collisions off, removed below y = 400 | `character.gd` 242-252, 64-66 | same (removed 40 px below screen) |
 | Pod pop invulnerability | 1000 ms; parachute 500 ms | `character.gd` 235, 240 | 60 frames; 30 frames |
@@ -208,12 +208,12 @@ Reference quirks kept: steering needs a press frame; flapping without pods does 
   `terrace`), `character.gd` 189-193 bounces off them, `CHANGELOG.md` 4.0.0 says "bounce off tiles and world boundaries", and
   grep of every script found no `wrap`, `posmod` or position reset. The user should confirm which reference build they mean
   (an older release than 4.0.0 would be the place to look). Until confirmed: wrap, as instructed.
-- Ceiling at y = 16 (below the 2-row HUD): reflect, minimum BOUNCE_MIN (50 px/s). Same rule as any bounce surface.
+- Ceiling at y = 16 (below the HUD's top fix rows 0 and 1; the HUD also uses fix row 27 at the bottom, see 5.2a): reflect, minimum BOUNCE_MIN (50 px/s). Same rule as any bounce surface.
 - Platform tops: standing (on floor) = no bounce, no gravity. Platform sides and undersides in the air: reflect, minimum 50.
   Kill tiles: reflect minimum 25 and pop one pod (skipped when invulnerable).
 - Bottom: the screen bottom (reference water at the bottom edge). A flier whose box reaches y = 224 dies at once in any state,
   with or without pods, and does not bounce. Our theme: street/void gap instead of water.
-- Trip mode edges: section 4.
+- Gum Trip mode edges: section 4 (left edge pushes, right edge blocks).
 - Cabinet overscan unverified: if the MiSTer CRT cuts the side 8 px, the wrap seam moves (one tuning constant).
 
 ### 1.6 Collisions between fliers
@@ -292,7 +292,7 @@ The B auto-flap and the dive option are removed. Name entry for the score table 
 - A match has 2 or more fliers on one screen; humans and computer fliers mix freely; last flier alive wins (`level.gd` 14-25).
 - Every flier is equal: any flier can stomp any other (no teams, no friendly-fire rule). 2P on one cabinet = two humans who can stomp
   each other, plus computer fliers.
-- One screen, no scroll during a match. The city parallax layers stay behind (our art). Platform layouts are ours, at most 8
+- Arena 384 px wide with a wrapping camera (64 px of scroll): the camera follows the midpoint of the human players and holds at the seam, where an edge marker shows. Superseded 2026-11-10 (user decision): the earlier "one screen, no scroll" rule; see the 384 px arena decision and src/core/bg_scroll.c. The city parallax layers stay behind (our art). Platform layouts are ours, at most 8
   rectangles per stage; kill tiles are the only hazard.
 - Stages: several layouts; the reference picks a stage by menu or at random (`debug_launcher.gd` 86-88).
 - Computer fliers follow the reference AI exactly (states, 500 ms think, one flap per think, nearest target, thresholds in
@@ -316,7 +316,7 @@ N5. **Respawn.** None in the reference (a dead flier is removed). (a) no respawn
     (b) respawn at the spawn ledge with 1 s invulnerability under N2b/c; (c) respawn only for humans.
 N6. **Other hazards** (patrol drones, updraft vents, moving cables). Reference has static kill tiles only. (a) kill tiles only
     (recommended); (b) add updraft vents later; (c) add drones.
-N7. **Bonus wave.** Not in the reference (it is the NES original's Trip mode idea, kept as section 4). (a) none; trip mode instead
+N7. **Bonus wave.** Not in the reference (the solo scrolling run covers this need, see section 4). (a) none; Gum Trip mode instead
     (recommended); (b) bonus round every 4th match.
 N8. **Co-op teams.** The reference is free-for-all. (a) 2P free-for-all with computer fliers, humans may stomp each other
     (recommended, equals the reference and the D9 pick); (b) teams without friendly stomps; (c) 1P first, 2P later.
@@ -336,29 +336,42 @@ and INFLATE states, pod-pop score chain, lasers.
 Points are ours (reference has none); keep the table minimal so it can change: stomp pop 500, defeat of a pod-less flier 1000,
 fall into the bottom 250, match win 1000, no pod lost in match +2000. Marked NOT IN REFERENCE, values for the user to tune.
 
-## 4. Night Trip mode skeleton (endless, details from the user later)
+## 4. Gum Trip mode (solo, endless; decisions of 2026-11-10, tuning numbers and hazards open)
 
-Not part of the reference. Skeleton kept as written; physics identical to 1.
+Not part of the reference. Physics identical to 1. Renamed from "Gum Trip" on 2026-11-10 (user decision).
 
-Core loop (fixed):
-- The screen scrolls right over the city endlessly. Same flier physics as the arena. Side edges: the left edge pushes (a flier pinned
-  at x = 0 moves with the scroll) and the right edge reflects (bounce rule, min 50); wrap does not apply in a scrolling world.
+Settled 2026-11-10 (user, by multiple-choice questions):
+- Gum level replaces lives. The flier's gum bubble decays slowly during the run; gum pickups, collected on touch, grow it back.
+  The player must keep the gum level up. The user's words: "the gums should be slowly decaying and we add pickups that are gums that
+  makes them grow again so you have to keep the gum level up during the gum trip". The alternative the user floated, a blow button
+  for a leaking gum, was not chosen. Supersedes the earlier T1 (lives) and T2 (what pickups are) points.
+- Scroll: endless forced scroll, no wrap. The left screen edge pushes the flier, the right screen edge blocks it. This needs camera
+  code separate from the 384 px wrapping arena camera (1.5). Superseded 2026-11-10 (user decision): the earlier skeleton rule that the
+  right edge reflects (bounce rule, min 50); the right edge now blocks.
+- Rooftops: the flier is always airborne; the roofline below is scenery only. Superseded 2026-11-10 (user decision): the placeholder
+  "rooftops (landing allowed)". Supersedes T5.
+- Enemies: rival Sootlings appear during the run and can pop the player's gum. The user chose this over "no enemies". Supersedes T6.
+- Gum level zero: the gum is gone, the flier falls and the run ends. Hits from hazards and rival Sootlings take a chunk of gum
+  instead of ending the run outright.
+- Streak (T3): only a hit breaks the pickup streak; a missed pickup that scrolls off does not.
+- Course (T7): random per run.
+- Unlock (T8): the mode is always selectable at start for one player and has its own high-score table.
+
+Core loop (kept from the skeleton):
+- The screen scrolls right over the city endlessly. Same flier physics as the arena.
 - Scroll speed starts at 0.75 px/frame and ramps to 1.25 px/frame, below top air speed so the player can always reach the right side.
-- Bottom kills at once (as arena). City roofline below: rooftops (landing allowed) and gaps.
-- Hazards (placeholders): kill tiles / spark cables, drones, searchlight beams, vents. Pickups (placeholders): floating score items.
+- Bottom kills at once (as arena).
+- Hazards (placeholders): kill tiles / spark cables, drones, searchlight beams, vents. Pickups: gum pickups (settled above); other
+  score items are placeholders.
 
-Score (fixed part): distance 1 point per 8 px scrolled; pickups with a streak counter that grows per pickup and resets on a miss or a
-hit; every N pickups the scroll gets a step faster and pickups are worth more.
+Score (fixed part): distance 1 point per 8 px scrolled; pickups with a streak counter that grows per pickup and resets on a hit
+(a missed pickup does not break it); every N pickups the scroll gets a step faster and pickups are worth more.
 
-Open points for the user:
-- T1: lives: one hit ends the run, or 2 pods (first hit pops one), or lives as in the arena?
-- T2: do pickups pop (stomp/touch) or are they collected, and what are they in our world?
-- T3: streak rule: what breaks a streak (missed pickup scrolls off, any hit, landing)?
-- T4: which hazards, their density curve over distance, any fixed sequences vs random?
-- T5: may the player land on rooftops, or is the roofline purely visual (always airborne)?
-- T6: enemies in trip mode: none, or occasional fliers?
-- T7: fixed seed for the whole run or random?
-- T8: unlock: always selectable, or reached from the arena (for example every 8 matches)?
+Open points:
+- T4: which hazards, their density curve over distance (to tune), any fixed sequences vs random?
+- Decay rate and refill amount per gum pickup: to tune.
+- Size of the gum chunk a hit takes (hazard and rival Sootling), and whether rival Sootlings drop pickups (to tune).
+- Rival Sootling behaviour in a forced scroll (open).
 
 ## 5. Engine needs (input to the object-pool work)
 
@@ -368,8 +381,8 @@ Open points for the user:
 |---|---|---|
 | Players | 2 | |
 | Computer fliers | 6 | includes CHUTE, standing pod-less, DEAD_FALL (same object) |
-| Hazards | 8 | kill tiles are platform data; moving hazards only if N6 or trip mode |
-| Pickups | 10 | trip mode (and N7b) |
+| Hazards | 8 | kill tiles are platform data; moving hazards only if N6 or Gum Trip mode |
+| Pickups | 10 | Gum Trip mode (and N7b) |
 | Projectiles | 0 | laser dropped (reference has none) |
 | Effects | 8 | pod pop puff, defeat flash, score popups |
 | Platforms | 8 | static rectangles per stage, not pool objects |
@@ -382,14 +395,40 @@ Pool: one array of 32 objects with a kind field, or one pool per kind. No alloca
 |---|---|---|
 | City background (existing) | 89 (0..88) | roof ring (21) may be replaced by platforms in the arena |
 | Fliers | 8 x 1 = 8 (16x32, one column each); wrap seam duplicates up to 8 more | |
-| Platforms | 8 x 4 = 32 | up to 64 px wide each |
+| Platforms | 41 | widths from `src/core/stage.c`: 80, 80, 112, 80, 80, 96, 64, 64 px = 5 + 5 + 7 + 5 + 5 + 6 + 4 + 4 = 41 strips of 16 px, one sprite per strip when an island is one tile tall |
 | Hazards | 8 x 2 = 16 | |
 | Pickups | 10 x 1 = 10 | |
 | Effects | 8 x 1 = 8 | |
-| Total | about 171 | slot ranges go into src/sprite_slots.h |
+| Total | about 172 (89 + 8 + 41 + 16 + 10 + 8) | slot ranges go into src/sprite_slots.h |
+
+Island sprite room (user decision 2026-11-10): island heights are staggered, and islands that share scanlines are one tile tall there. The real worst-line peak is measured in MAME before any cut. The foreground edge cable reservation (2 sprites) is dropped by user decision 2026-11-10 and is not counted. The two 56 px islands are now 64 px so every island width is a multiple of 16 px.
+
+Island looks: three looks, one per mood (moon night = roof chunk, ember dusk = garden slab, storm = airship deck; this pairing is a default the user may change), with one island palette on screen at a time. Drafts: `thoughts/shared/drafts/2026-11-10-islands/`; final sheets: `thoughts/shared/drafts/2026-11-10-islands-final/` (user verdict 2026-11-10: build as drawn).
+
+Accepted island layout (user decision 2026-11-10; x, y, width in px, every island one tile tall; worst scanline 7 island sprites on lines 124..139). A user playtest of jump feel is owed after the build. `src/core/stage.c` is the source of truth once the build lands; until then the code may still hold old values.
+
+| Island | x | y | Width |
+|---|---|---|---|
+| 1 | 0 | 148 | 80 |
+| 2 | 136 | 128 | 112 |
+| 3 | 32 | 92 | 80 |
+| 4 | 280 | 108 | 80 |
+| 5 | 144 | 68 | 96 |
+| 6 | 0 | 36 | 64 |
+| 7 | 320 | 52 | 64 |
+| 8 | 304 | 164 | 80 |
 
 Scanline limit is the real constraint (far/mid/roof rings up to 63 on one line plus 16 stars; 8 fliers add 8 to 16). Unverified: measure
 the worst line count before fixing platform heights. The roof ring can be dropped in the arena.
+
+### 5.2a HUD and title (user decisions 2026-11-10)
+
+- Title logo: option A, stretched gum lettering drawn as sprites, with an inflating bubble and a drip.
+- Font: option A "Gumdrop", 8x8 characters with 8x16 score digits.
+- HUD layout: "corner tags" on fix rows 0, 1 and 27, no band across the screen.
+- Content: six score digits, gum count icons, and a PRESS START join prompt in the player 2 corner.
+- Final sheets: `thoughts/shared/drafts/2026-11-10-hud-title-final/` (user verdict 2026-11-10: build as drawn).
+- Fix row 27 sits over the bottom hazard strip area: to check in build.
 
 ### 5.3 Collision types (axis-aligned boxes, integer pixels)
 
@@ -398,7 +437,7 @@ the worst line count before fixing platform heights. The roof ring can be droppe
 3. Flier feet vs flier pods: stomp.
 4. Flier body vs flier body: reflect; pod-less flier dies.
 5. Flier vs kill tile: reflect min 25, pop one pod.
-6. Flier body vs pickup: collect (trip mode).
+6. Flier body vs pickup: collect (Gum Trip mode).
 
 Per-frame worst case about 230 box tests (about 2 ms on the 68000) plus the seam copies. The 60 Hz loop fix must land first (todos).
 
@@ -434,13 +473,13 @@ Settled (user pick, or reference rule):
 16. **D16 anti-camping** reference has none: removed.
 17. **D17 bonus wave** NOT IN REFERENCE, N7.
 
-Open for the user: N1 to N11 (section 3.2) and the Trip points T1 to T8; plus the wrap source question (1.5).
+Open for the user: N1 to N11 (section 3.2) and the Gum Trip point T4 and the numbers and rival behaviour listed in section 4; plus the wrap source question (1.5).
 
 ## Risks and unverified
 
 - Wrap versus the reference's bouncing boundary shapes (1.5, Correction 10): user must confirm the build they mean.
 - Parachute sway integer-division behaviour of the reference not run, read from source only (Correction 4).
-- Scanline sprite count of the city rings not measured (5.2). Cabinet overscan not checked (1.5).
+- City ring scanline count: composed sprite peak 85 of the 96 per line limit (measured in MAME by the BG-1b build agent, moon mood only; dusk and storm not measured yet) (5.2). Cabinet overscan not checked (1.5).
 - The 60 Hz main loop is not fixed yet; all per-frame numbers assume one game step per video frame.
 - Box offsets in 1.6 are placeholders until flier art exists. Computer AI tuned against a 640x360 room: distances (50, 75, 150) may
   need a k-scaled review in the 320x224 room (not a rule change, a unit question).
@@ -457,9 +496,11 @@ User rule: match the reference in everything. Where the reference has no rule, t
 - N4 AI: one AI with stat profiles.
 - N5 respawn: none.
 - N6 hazards: kill tiles only.
-- N7 bonus wave: none (trip mode covers it).
+- N7 bonus wave: none (Gum Trip mode covers it).
 - N8 2P: free-for-all with stomps between humans, as in the reference.
 - N9 randomness: as in the reference.
 - N10 pod defaults: reference defaults.
 - N11 parachute: dead fall for all (reference default).
-- Trip mode T1-T8 stay open until the engine runs.
+- Gum Trip mode T1-T8 stay open until the engine runs. Superseded 2026-11-10 (user decision): T1, T2, T5, T6 are settled, see the next bullet; later the same day T3, T7, T8 were settled too; T4 stays open.
+- 2026-11-10 (user): Gum Trip mode (renamed from Night Trip) uses a gum level instead of lives: slow decay, gum pickups on touch refill it; endless forced scroll without wrap (left edge pushes, right edge blocks, separate camera code); always airborne with the roofline as scenery; rival Sootlings appear and can pop the gum. Also decided 2026-11-10 (user): gum level zero ends the run (the flier falls); hazard and rival Sootling hits take a chunk of gum instead of ending the run; only a hit breaks the pickup streak, a missed pickup does not (T3); the course is random per run (T7); the mode is always selectable at start for one player with its own high-score table (T8). Open: T4 hazard mix and density curve, decay rate and refill numbers, gum chunk size per hit, rival Sootling behaviour in a forced scroll.
+- 2026-11-10 (user): island widths follow the stage table (80 / 96 / 112 px, the two 56 px islands become 64 px); island looks are one per mood on one palette; title logo A, font A, corner tags HUD with six score digits, gum count icons and PRESS START in the player 2 corner; the foreground edge cable reservation is dropped. Later 2026-11-10 (user): islands art and HUD/logo/font sheets "build as drawn" (`thoughts/shared/drafts/2026-11-10-islands-final/`, `thoughts/shared/drafts/2026-11-10-hud-title-final/`); the island layout in 5.2 is accepted, with a user playtest of jump feel owed after the build.
