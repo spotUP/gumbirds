@@ -1,9 +1,9 @@
 -- Sprite draw-order proof (make test-slots, plan 2026-11-10-neo-geo-graphics-max.md G1). Runs the real game to
 -- PLAYING, takes the head sprite of a live object pool run (src/sprite_slots.h POOL_SPRITE_BASE..) from a Lua VRAM
 -- shadow and forges a copy of it with an all-magenta palette (palette 250, colours 1..15) at the same position:
---   behind copy: slot BG_CLOUDBANK_SPRITE, a background plane slot below the pool. The pool sprite covers it, so
+--   behind copy: slot BG_NEAR_SPRITE, a background plane slot below the pool. The pool sprite covers it, so
 --                the screen must show 0 magenta pixels.
---   front copy:  slot HAZARD_SPRITE, above the hero. It covers the pool sprite, so the screen must show N > 0
+--   front copy:  slot FG_RAIN_SPRITE, above the hero (not the hazard strip: its two bank heads swap hide and show every few frames, which wipes a forged head). It covers the pool sprite, so the screen must show N > 0
 --                magenta pixels (the copy's opaque pixels) and the pool sprite's own words stay unchanged.
 -- Both slots are reserved and unused by the game, so the copies are the only writers. Env: BRAWL_FLOW_ADDR,
 -- BRAWL_HIT_LAYOUT, BRAWL_RESULT, BRAWL_SLOT_LAYOUT (tests/mame/slot_probe.c output).
@@ -82,7 +82,7 @@ local function magenta()
 end
 
 local n, phase, phase_at, since_start = 0, "boot", 0, 0
-local src, words, behind_n, front_n
+local src, words, behind_n, front_n, found_at
 local function snap(s) return { vram[SCB3 + s], vram[SCB4 + s], vram[SCB2 + s], vram[SCB1 + s * 64 + 1] } end
 local function same(a, b) for i = 1, 4 do if a[i] ~= b[i] then return false end end return true end
 
@@ -99,22 +99,31 @@ emu.register_frame_done(function()
   end
   if phase == "start" then start:set_value(0); phase = "play" end
   since_start = since_start + 1
-  if since_start == 60 then
+  if not src then
+    -- A pool head sprite fully inside the 320 px view (the arena is wider than the view and a sprite at the right edge is
+    -- not drawn); look each frame after PLAYING frame 60 until a platform or flier shows, for at most 600 frames.
+    if since_start < 60 then return end
     for s = POOL_FIRST, POOL_END - 1 do
       local v = vram[SCB3 + s] or 0
-      if (v & 0x3f) > 0 and (v & 0x40) == 0 then src = s; break end
+      local sx = ((vram[SCB4 + s] or 0) >> 7) & 0x1ff
+      local sy = (496 - (v >> 7)) & 0x1ff
+      if (v & 0x3f) > 0 and (v & 0x40) == 0 and sx < 288 and sy < 180 then src = s; break end
     end
-    if not src then finish(false, "no live pool head sprite at PLAYING frame 60"); return end
+    if not src then
+      if since_start > 600 then finish(false, "no live on-screen pool head sprite in 600 PLAYING frames") end
+      return
+    end
+    found_at = since_start
     words = snap(src)
     for i = 1, 15 do mem:write_u16(0x400000 + PAL * 32 + i * 2, 0x0f0f) end
     mem:write_u16(0x400000 + PAL * 32, 0)
     forge(BEHIND, src)
-  elseif since_start == 64 then
+  elseif since_start == found_at + 4 then
     behind_n = magenta()
     if not same(words, snap(src)) then finish(false, "pool sprite changed during the check"); return end
     vwrite(SCB3 + BEHIND, { 0 })
     forge(FRONT, src)
-  elseif since_start == 68 then
+  elseif since_start == found_at + 8 then
     front_n = magenta()
     local ok = behind_n == 0 and front_n > 0 and same(words, snap(src))
     finish(ok, string.format("pool sprite %d, magenta pixels: copy in slot %d (behind pool) %d, copy in slot %d (above hero) %d",

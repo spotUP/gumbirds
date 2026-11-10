@@ -11,6 +11,8 @@ return function(mem, flow_addr, lay, abtn, lbtn, rbtn)
     local fx = s32(mem:read_u32(flow_addr + O_X)) / 65536
     local vx = s32(mem:read_u32(flow_addr + O_VX)) / 65536
     local on_ground = mem:read_u8(flow_addr + O_GROUND)
+    -- A computer flier can bump the player back onto the island (body-contact reflect): walk off again.
+    if steering and on_ground == 1 then steering = false end
     if not steering and (on_ground == 1 or fx < 212) then
       rbtn:set_value(1); abtn:set_value(0); lbtn:set_value(0)
       return

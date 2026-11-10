@@ -1,36 +1,33 @@
-"""Visual proof by pixels for the city background (python3.14 -I, Pillow).
+"""Visual proof by pixels for the parallax background (python3.14 -I, Pillow).
 Usage: check_bg_pixels.py city_sprites.c obs_sprites.c pre_start.png bg_a.png bg_b.png result.txt.bg
-bg file (written by boot_check.lua at the two snapshot frames): "a far mid roof writes" / "b far mid roof writes"
-(scroll px of each layer as the game exported it, and the column strip write counter).
-Checks, each independent of the hero and obstacle checks (only colours unique to one layer are counted):
-  1. the sky backdrop fills the top band wherever the fix layer header text does not cover it, before start and
-     during play (the header text is not background: its length must not move this check)
-  2. each layer's own colours appear in its y band during play and not above it
-  3. the city is still: the exported scroll delta of each layer between the snapshots is 0 and the layer's pixels
-     match at shift 0 (arena slice: no scroll in play)
-  4. the column write sentinel did not grow
+bg file (written by boot_check.lua at the two snapshot frames): "a x0 x1 x2 x3 x4 writes" / "b ..." (screen x of each
+plane's first column as the game exported it, planes in draw order sky, far, mid A, mid B, near, and the plane write
+counter g_bg_x_writes).
+Checks, each independent of the hero and obstacle checks (only colours unique to one plane are counted; the colours of a
+plane are the palettes of the tiles it draws, read from the generated city_frames and city_tile_pal):
+  1. the sky plane fills the top band wherever the fix layer header text does not cover it, before start and during play
+     (sky colours plus the backdrop; the header text is not background: its length must not move this check)
+  2. each plane's tile colours (beyond the sky palette) appear in its y band during play
+  3. the pixels moved the way the game exported: between the snapshots the plane's pixels match at the shift its exported
+     x delta says (0 when the camera stood still)
+  4. the plane write sentinel grew only when a plane moved
 Exit 1 on failure."""
 import os
+import re
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import pixel_common as pc
 from PIL import Image
 
-LAYERS = ["far", "mid", "roof"]
-Y_BAND = {"far": (64, 176), "mid": (96, 176), "roof": (176, 224)}
-Y_MEASURE = {"far": (66, 108), "mid": (110, 174), "roof": (178, 190)}  # the hazard strip (src/hazard.c) animates over lines 192..223 in a match; measure the roof above it
+PLANES = ["sky", "far", "midA", "midB", "near"]
+# Screen y band of each plane (CITY_TABLE_PLANE_TOP and bottom in build/gen/city_tables.h), read at run time.
 HERO_MASK = (28, 112)
-SKY = (0x1a, 0x12, 0x38)
+BACKDROP = (0x1a, 0x12, 0x38)
 # Fix layer text palette PAL_TEXT as MAME draws it (src/main.c video_init: gfx_pal(1, 0x0fff), gfx_pal(2, 0x0555)).
 FIX_TEXT = [(247, 247, 247), (79, 79, 79)]
-# Colours the game writes into the far and mid palettes at run time (src/bg.c lamp_set): BG_LAMP_OFF,
-# NG_RGB5(7, 4, 8). Shared by both layers, so never layer-unique; the far lamps in their off phase sit above
-# the mid band and would otherwise count as mid pixels there.
-RUNTIME_SHARED = [(57, 33, 66)]
-MIN_BAND, MAX_ABOVE, MIN_SKY = 300, 5, 0.9
-SKY_OBJ_X = (200, 296)         # moon and clouds overlap the far band; skipped when measuring far
-MIN_STILL = 0.95
+MIN_BAND, MIN_SKY = 300, 0.9
+MIN_MATCH = 0.9
 FULL = (1 << 320) - 1
 
 
@@ -43,7 +40,29 @@ def load_bg(path):
     return out
 
 
-def rows_mask(im, cols, y0, y1, skip_x=None):
+def plane_colours(city_c, tables_h):
+    """Per plane: (set of RGB colours of the palettes its tiles use, top y, bottom y)."""
+    text = re.sub(r"/\*.*?\*/", "", open(city_c).read(), flags=re.S)
+    frames = re.search(r"city_frames\[[^\]]*\]\s*=\s*\{(.*?)\n\};", text, re.S).group(1)
+    rows = [[int(v) for v in r.split(",")] for r in re.findall(r"\{([\d, ]+)\}", frames)]
+    tile_pal = [int(v) for v in re.search(r"city_tile_pal\[[^\]]*\]\s*=\s*\{(.*?)\};", text, re.S).group(1).replace("\n", " ").split(",") if v.strip()]
+    tile_idx = [int(v, 16) if v.strip().startswith("0x") else int(v) for v in re.search(r"city_tile_index\[[^\]]*\]\s*=\s*\{(.*?)\};", text, re.S).group(1).replace("\n", " ").split(",") if v.strip()]
+    pal = pc.palettes_rgb(city_c, "city")
+    head = open(tables_h).read()
+    tops = [int(v) for v in re.search(r"CITY_TABLE_PLANE_TOP \{([^}]*)\}", head).group(1).split(",")]
+    bottoms = [int(re.search(r"CITY_%s_BOTTOM (\d+)" % n.upper(), head).group(1)) for n in PLANES]
+    out = []
+    for p, r in enumerate(rows):
+        off, w, h = r[0], r[1], r[2]
+        used = {tile_pal[i] for i in range(off, off + w * h) if tile_idx[i]}
+        cols = set()
+        for u in used:
+            cols |= set(pal[u])
+        out.append((cols, tops[p], bottoms[p]))
+    return out
+
+
+def rows_mask(im, cols, y0, y1):
     w, h = im.size
     px = im.load()
     rows = []
@@ -51,7 +70,7 @@ def rows_mask(im, cols, y0, y1, skip_x=None):
         m = 0
         sy = min(h - 1, int(y * h / 224.0))
         for x in range(320):
-            if HERO_MASK[0] <= x < HERO_MASK[1] or (skip_x and skip_x[0] <= x < skip_x[1]):
+            if HERO_MASK[0] <= x < HERO_MASK[1]:
                 continue
             p = px[min(w - 1, int(x * w / 320.0)), sy]
             if any(pc.near(p, c) for c in cols):
@@ -65,96 +84,78 @@ def rot_left(m, d):
     return ((m >> d) | (m << (320 - d))) & FULL if d else m
 
 
-def shift_scores(a_rows, b_rows):
-    """Scene moves left by d: A[x] == B[x - d], so B rotated left... score = |A & rot_right(B)| ; computed as
-    |rot_left(A, d) & B| since A[x + d] == B[x]."""
-    out = []
-    for d in range(320):
-        out.append(sum((rot_left(a, d) & b).bit_count() for a, b in zip(a_rows, b_rows)))
-    return out
-
-
-def pixel_scores(ima, imb, y0, y1):
-    """Per shift d: count of pixels where A[x + d] == B[x] (hero columns skipped), and the compared total."""
-    w, h = ima.size
-    sz = (320, 224)
-    a, b = ima.resize(sz, Image.NEAREST).load(), imb.resize(sz, Image.NEAREST).load()
-    xs = [x for x in range(320) if not HERO_MASK[0] <= x < HERO_MASK[1]]
-    out = []
-    for d in range(320):
-        n = 0
-        for y in range(y0, y1):
-            for x in xs:
-                if a[(x + d) % 320, y] == b[x, y]:
-                    n += 1
-        out.append(n)
-    return out, len(xs) * (y1 - y0)
-
-
 def main():
     city_c, obs_c, pre, a_png, b_png, bg_txt = sys.argv[1:7]
+    tables_h = os.path.join(os.path.dirname(city_c), "city_tables.h")
     bg = load_bg(bg_txt)
-    others = set(pc.colours(obs_c, "obs")) | set(RUNTIME_SHARED)
-    pal = pc.palettes_rgb(city_c, "city")
-    layer_cols = {n: set(pal[i]) for i, n in enumerate(LAYERS + ["sky"])}
+    others = set(pc.colours(obs_c, "obs"))
+    planes = plane_colours(city_c, tables_h)
     ok = True
 
-    def uniq(name, drop_sky=False):
+    def uniq(i):
         rest = set(others)
-        for n, c in layer_cols.items():
-            if n != name and not (drop_sky and n == "sky"):
+        for j, (c, _, _) in enumerate(planes):
+            if j != i:
                 rest |= c
-        return pc.exclusive(sorted(layer_cols[name]), sorted(rest))
+        return pc.exclusive(sorted(planes[i][0]), sorted(rest))
 
+    sky_cols = sorted(planes[0][0] | {BACKDROP})
     for tag, png in (("pre_start", pre), ("playing", b_png)):
-        n, size = pc.count(png, [SKY], (0, 0, 320, 28))
+        n, size = pc.count(png, sky_cols, (0, 0, 320, 28))
         text, _ = pc.count(png, FIX_TEXT, (0, 0, 320, 28))
         total = 320 * 28 * (size[0] / 320.0) * (size[1] / 224.0) - text
         frac = n / total
         good = frac >= MIN_SKY
         ok = ok and good
-        print("%s backdrop #1a1238 share of top band outside header text (%s): %.2f (min %.2f)" % ("[OK]" if good else "[FAIL]", tag, frac, MIN_SKY))
+        print("%s sky plane colours share of top band outside header text (%s): %.2f (min %.2f)" % ("[OK]" if good else "[FAIL]", tag, frac, MIN_SKY))
 
-    for name in LAYERS:
-        cols = uniq(name)
-        y0, y1 = Y_BAND[name]
-        nin, _ = pc.count(b_png, cols, (0, y0, 320, y1))
-        nab, _ = pc.count(b_png, cols, (0, 0, 320, max(0, y0 - 2)))
-        good = len(cols) >= 1 and nin >= MIN_BAND and nab <= MAX_ABOVE
+    for i in range(1, 5):
+        # Planes share palettes with each other and with the sky, so the band check counts every colour the plane's
+        # tiles use (minus the obstacle colours); a plane that failed to draw leaves its band at sky colour only.
+        cols = sorted(planes[i][0] - others - set(sky_cols))
+        _, top, bottom = planes[i]
+        if not cols:
+            print("[OK] %s uses only sky palette colours: its columns are proved by make test-camera, not by colour" % PLANES[i])
+            continue
+        nin, _ = pc.count(b_png, cols, (0, top, 320, min(bottom, 190)))
+        good = len(cols) >= 1 and nin >= MIN_BAND
         ok = ok and good
-        print("%s %s colours (%d layer-only): band y %d..%d %d (min %d), above %d (max %d)"
-              % ("[OK]" if good else "[FAIL]", name, len(cols), y0, y1, nin, MIN_BAND, nab, MAX_ABOVE))
+        print("%s %s colours (%d beyond the sky palette): %d pixels in band y %d..%d (min %d)"
+              % ("[OK]" if good else "[FAIL]", PLANES[i], len(cols), nin, top, min(bottom, 190), MIN_BAND))
 
     a, b = bg["a"], bg["b"]
-    delta = {n: b[i] - a[i] for i, n in enumerate(LAYERS)}
-    imb = Image.open(b_png).convert("RGB")
     ima = Image.open(a_png).convert("RGB")
-    for name in LAYERS:
-        cols = uniq(name, drop_sky=(name == "far"))
-        y0, y1 = Y_MEASURE[name]
-        skip = SKY_OBJ_X if name == "far" else None
-        if len(cols) >= 4:  # drop the most common colour (flat deck/wall fill): it correlates at every shift
-            cnt = sorted(cols, key=lambda c: -pc.count(a_png, [c], (0, y0, 320, y1))[0])
-            cols = cnt[1:]
-        if name == "roof":  # flat deck dominates colour masks: compare whole pixels instead
-            sc, total = pixel_scores(ima, imb, y0, y1)
-        else:
-            ra, rb = rows_mask(ima, cols, y0, y1, skip), rows_mask(imb, cols, y0, y1, skip)
-            sc = shift_scores(ra, rb)
-            total = sum(m.bit_count() for m in ra)
-        # still city: the exported scroll never changes and the layer's pixels match at shift 0 (the flier moving over
-        # the city is the only difference allowed, hence the share below 1.0)
-        share = sc[0] / float(total) if total else 0.0
-        good = delta[name] == 0 and share >= MIN_STILL
+    imb = Image.open(b_png).convert("RGB")
+    moved = 0
+    for i in range(1, 5):
+        cols = uniq(i)
+        _, top, bottom = planes[i]
+        if not cols:
+            print("[OK] %s shares every colour with another plane: its motion is proved by make test-camera" % PLANES[i])
+            moved += 1 if a[i] != b[i] else 0
+            continue
+        # the hazard strip (src/hazard.c) animates over lines 192..223 in a match
+        ra, rb = rows_mask(ima, cols, top + 2, min(bottom, 190)), rows_mask(imb, cols, top + 2, min(bottom, 190))
+        total = sum(m.bit_count() for m in ra)
+        delta = a[i] - b[i]  # the scene moves left by this many pixels when the exported x falls
+        if delta:
+            moved += 1
+        hit = sum((rot_left(x, delta % 320) & y).bit_count() for x, y in zip(ra, rb))
+        share = hit / float(total) if total else 0.0
+        good = total > 0 and share >= MIN_MATCH
         ok = ok and good
-        print("%s %s still: exported delta %d (want 0), unshifted pixel match %.3f of %d (min %.2f)"
-              % ("[OK]" if good else "[FAIL]", name, delta[name], share, total, MIN_STILL))
+        print("%s %s moved as exported: x delta %d, pixel match at that shift %.3f of %d (min %.2f)"
+              % ("[OK]" if good else "[FAIL]", PLANES[i], -delta, share, total, MIN_MATCH))
 
-    cross = sum((b[i] // 16) - (a[i] // 16) for i in range(3))
-    wr = b[3] - a[3]
-    good = wr == 0 and cross == 0
+    sky_still = a[0] == b[0] == 0
+    ok = ok and sky_still
+    print("%s sky plane x %d -> %d (want 0, the sky never scrolls)" % ("[OK]" if sky_still else "[FAIL]", a[0], b[0]))
+
+    wr = b[5] - a[5]
+    good = (wr == 0) == (moved == 0) and wr >= moved
     ok = ok and good
-    print("%s column strip writes between snapshots: %d (want 0), column boundaries crossed: %d (want 0)" % ("[OK]" if good else "[FAIL]", wr, cross))
+    print("%s plane write runs between snapshots: %d for %d moved planes (none when nothing moved, at least one per moved plane)"
+          % ("[OK]" if good else "[FAIL]", wr, moved))
     sys.exit(0 if ok else 1)
 
 

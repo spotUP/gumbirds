@@ -13,8 +13,8 @@ local flow_addr  = tonumber(os.getenv("BRAWL_FLOW_ADDR"), 16)
 local hs_addr    = tonumber(os.getenv("BRAWL_HISCORE_ADDR"), 16)
 local hs_size    = tonumber(os.getenv("BRAWL_HISCORE_SIZE"), 16)
 local result     = os.getenv("BRAWL_RESULT")
-local bg_scroll_addr = tonumber(os.getenv("BRAWL_BG_SCROLL_ADDR"), 16)  -- g_bg_scroll_px[3]
-local bg_writes_addr = tonumber(os.getenv("BRAWL_BG_WRITES_ADDR"), 16)  -- g_bg_column_writes
+local bg_x_addr = tonumber(os.getenv("BRAWL_BG_X_ADDR"), 16)            -- g_bg_plane_x[5] (s16 each)
+local bg_writes_addr = tonumber(os.getenv("BRAWL_BG_WRITES_ADDR"), 16)  -- g_bg_x_writes
 local mem  = manager.machine.devices[":maincpu"].spaces["program"]
 local ports = manager.machine.ioport.ports
 
@@ -47,12 +47,13 @@ local reset_msg = nil
 local img_before, img_after = nil, nil
 
 -- Background proof for tests/mame/check_bg_pixels.py: two snapshots BG_GAP frames apart during play plus
--- the scroll values and the column write counter the game exported at the same frame.
+-- the five plane x values (g_bg_plane_x) and the plane write counter (g_bg_x_writes) the game exported at the same frame.
 local BG_A, BG_B = 420, 450
 local bg_lines = {}
 local function bg_record(tag)
-  bg_lines[#bg_lines + 1] = string.format("%s %d %d %d %d", tag, mem:read_u32(bg_scroll_addr),
-    mem:read_u32(bg_scroll_addr + 4), mem:read_u32(bg_scroll_addr + 8), mem:read_u32(bg_writes_addr))
+  local xs = {}
+  for p = 0, 4 do xs[#xs + 1] = mem:read_i16(bg_x_addr + 2 * p) end
+  bg_lines[#bg_lines + 1] = string.format("%s %s %d", tag, table.concat(xs, " "), mem:read_u32(bg_writes_addr))
 end
 
 local function finish(ok, msg)

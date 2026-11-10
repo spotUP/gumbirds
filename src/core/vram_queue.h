@@ -26,7 +26,7 @@ typedef uint16_t u16;
 #define VQ_SCB_WORDS 0x600u
 #define VQ_SPRITES 381
 
-typedef enum { VQ_WORD, VQ_STRIP, VQ_PAL, VQ_RUN } VqKind;
+typedef enum { VQ_WORD, VQ_STRIP, VQ_PAL, VQ_RUN, VQ_STRIP_ATTR } VqKind;
 
 /* VQ_RUN: `rows` words at VRAM a, a + b, a + 2b, ... (REG_VRAMMOD = b), read at flush time from the SCB shadow
  * (tiles = &scb_hw[a - VQ_SCB_BASE], same stride). One op for a strided run of SCB words, e.g. the x of every pool
@@ -34,9 +34,9 @@ typedef enum { VQ_WORD, VQ_STRIP, VQ_PAL, VQ_RUN } VqKind;
  * hardware holds once the queue is flushed, so a word changed again before the flush is written with its final
  * value (and again by its own later op). */
 typedef struct {
-    const u16 *tiles;   /* VQ_STRIP: `rows` tile numbers, table value + base; VQ_RUN: first source word */
-    u16 a;              /* WORD/RUN: VRAM address; STRIP: sprite; PAL: palette RAM index */
-    u16 b;              /* WORD/PAL: value; STRIP: tile base; RUN: address stride (REG_VRAMMOD) */
+    const u16 *tiles;   /* VQ_STRIP: `rows` tile numbers, table value + base; VQ_STRIP_ATTR: `rows` pairs {tile, attribute}; VQ_RUN: first source word */
+    u16 a;              /* WORD/RUN: VRAM address; STRIP/STRIP_ATTR: sprite; PAL: palette RAM index */
+    u16 b;              /* WORD/PAL: value; STRIP/STRIP_ATTR: tile base; RUN: address stride (REG_VRAMMOD) */
     u16 c;              /* STRIP: attribute word */
     u8 kind;
     u8 rows;            /* STRIP: tile rows; RUN: words */
@@ -81,6 +81,9 @@ static inline int vq_scb_word(VramQueue *q, u16 addr, u16 val) {
 int vq_scb_run(VramQueue *q, u16 addr, u16 mod, const u16 *vals, u8 n);
 int vq_vram_word(VramQueue *q, u16 addr, u16 val);  /* unshadowed single word (e.g. a star tile) */
 int vq_strip(VramQueue *q, u16 sprite, const u16 *tiles, u16 base, u8 rows, u16 attr);
+/* One column whose tiles carry their own attribute (palette): `pairs` holds `rows` {tile, attribute} pairs. For art
+ * that uses several palettes in one column, written once at init, so there is no dedupe key. */
+int vq_strip_attr(VramQueue *q, u16 sprite, const u16 *pairs, u16 base, u8 rows);
 /* vq_strip for `cols` adjacent sprites from `first`, column c taking tiles[c * rows ..]: one call per sprite block
  * (the pool view redraws up to POOL_MAX blocks in one frame when their animations flip together). Returns the
  * columns done; fewer than `cols` when the queue filled (call again from there after a drain). */

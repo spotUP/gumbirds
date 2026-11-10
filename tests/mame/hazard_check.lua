@@ -126,7 +126,12 @@ emu.register_frame_done(function()
       if n > math.max(300, n_wait + 30) and phase == "boot" then phase = "coin"; phase_at = n; coin:set_value(1) end
       if phase == "coin" and n == phase_at + 15 then coin:set_value(0) end
       if phase == "coin" and n >= phase_at + 40 then phase = "start"; phase_at = n; start:set_value(1) end
-      if phase == "start" and n == phase_at + 15 then start:set_value(0) end
+      -- A ranked score of the previous match opens the name entry and the BIOS-less attract loop takes a while to come back:
+      -- pulse start every 60 frames until the match begins (the press that ends name entry is not the one that starts a match).
+      if phase == "start" then
+        local k = (n - phase_at) % 60
+        if k == 15 then start:set_value(0) elseif k == 0 then start:set_value(1) end
+      end
     end
     return
   end

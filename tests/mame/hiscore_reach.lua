@@ -162,6 +162,8 @@ emu.register_frame_done(function()
         local fx = s32(g32(O_FX)) / 65536
         local vx = s32(g32(O_FVX)) / 65536
         local ground = mem:read_u8(flow_addr + O_FGROUND)
+        -- A computer flier can bump the player back onto the island (body-contact reflect): walk off again.
+        if steering and ground == 1 then steering = false end
         if not steering and (ground == 1 or fx < 212) then
           rbtn:set_value(1)
         else

@@ -120,7 +120,36 @@ def main(name, sheet, meta):
                 p = px[x, y]
                 if p[3] and p[:3] not in key_order:
                     key_order[p[:3]] = len(key_order)
-    for anim in meta["animations"]:
+    # meta "tile_palettes": true = every 16x16 tile picks its own palette (the hardware stores the palette per tile in
+    # SCB1): tiles are packed greedily into 15 colour palettes, the frame table has no single palette, and the
+    # generated <n>_tile_pal[] holds one palette index per tile_index entry. For wide planes drawn with several palettes.
+    tile_mode = bool(meta.get("tile_palettes"))
+    tile_sets = {}  # (frame id, tx, ty) -> colour set
+    if tile_mode:
+        if meta.get("groups"):
+            die("tile_palettes does not support auto-animation groups")
+        for fi, f in enumerate(frames):
+            r = f["r"]
+            for ty in range(f["th"]):
+                for tx in range(f["tw"]):
+                    cs = set()
+                    for y in range(max(0, ty * TILE - f["pad_top"]), min(r["h"], (ty + 1) * TILE - f["pad_top"])):
+                        for x in range(max(0, tx * TILE - f["pad_left"]), min(r["w"], (tx + 1) * TILE - f["pad_left"])):
+                            p = px[r["x"] + x, r["y"] + y]
+                            if p[3]:
+                                cs.add(p[:3])
+                    tile_sets[(fi, tx, ty)] = cs
+        for cs in sorted(set(map(frozenset, tile_sets.values())), key=lambda c: (-len(c), sorted(c))):
+            if not cs:
+                continue
+            for p in pals:
+                if len(p | cs) <= MAX_COLOURS:
+                    p |= cs
+                    break
+            else:
+                pals.append(set(cs))
+        pals = [sorted(p, key=lambda c: key_order[c]) for p in pals]
+    for anim in ([] if tile_mode else meta["animations"]):
         need = set().union(*[f["cols"] for f in frames if f["anim"] == anim])
         if len(need) > MAX_COLOURS:
             die("animation %s needs %d colours, limit %d" % (anim, len(need), MAX_COLOURS))
@@ -152,25 +181,33 @@ def main(name, sheet, meta):
     tile_ix = {blank: 0}
     groups = meta.get("groups", {})  # anim name -> frames per group (4 or 8): hardware auto-animation
 
+    def tile_palette(fi, tx, ty):
+        """Palette index of one tile in tile_palettes mode (first palette holding all its colours)."""
+        cs = tile_sets[(fi, tx, ty)]
+        return next((n for n, p in enumerate(pals) if cs <= set(p)), 0)
+
     def cut_frame(f):
-        """Tiles of frame f, column-major (top tile first), as palette-index bytes."""
-        pal = pals[anim_pal[f["anim"]]]
-        cmap = {c: n + 1 for n, c in enumerate(pal)}
+        """Tiles of frame f, column-major (top tile first), as palette-index bytes; f["tpal"] gets the palette per tile."""
+        fi = frames.index(f)
+        f["tpal"] = []
         w, h = f["tw"] * TILE, f["th"] * TILE
-        buf = [[0] * w for _ in range(h)]
+        buf = [[None] * w for _ in range(h)]
         r = f["r"]
         for y in range(r["h"]):
             for x in range(r["w"]):
                 p = px[r["x"] + x, r["y"] + y]
                 if p[3]:
-                    buf[f["pad_top"] + y][f["pad_left"] + x] = cmap[p[:3]]
+                    buf[f["pad_top"] + y][f["pad_left"] + x] = p[:3]
         out = []
         for tx in range(f["tw"]):
             for ty in range(f["th"]):
                 t = bytearray(256)
+                tp = tile_palette(fi, tx, ty) if tile_mode else anim_pal[f["anim"]]
+                cmap = {c: n + 1 for n, c in enumerate(pals[tp])}
+                f["tpal"].append(tp)
                 for y in range(TILE):
                     for x in range(TILE):
-                        t[y * TILE + x] = buf[ty * TILE + y][tx * TILE + x]
+                        t[y * TILE + x] = cmap.get(buf[ty * TILE + y][tx * TILE + x], 0)
                 used = set(t) - {0}
                 if len(used) > MAX_COLOURS:
                     die("%s[%d] tile (%d,%d) uses %d colours" % (f["anim"], f["idx"], tx, ty, len(used)))
@@ -178,7 +215,7 @@ def main(name, sheet, meta):
         return out
 
     for f in frames:
-        f["pal"] = anim_pal[f["anim"]]
+        f["pal"] = 0 if tile_mode else anim_pal[f["anim"]]
         if f["anim"] in groups:
             continue
         order = []
@@ -228,10 +265,11 @@ def main(name, sheet, meta):
             die("%s size %d != %d" % (p, os.path.getsize(p), 64 * len(tiles)))
 
     # ---- generated C
-    flat = []
+    flat, flat_pal = [], []
     for f in frames:
         f["off"] = len(flat)
         flat += f["tiles"]
+        flat_pal += f["tpal"]
     hp = os.path.join(a.out, name + "_sprites.h")
     cp = os.path.join(a.out, name + "_sprites.c")
     anim_names = list(meta["animations"])
@@ -268,7 +306,11 @@ def main(name, sheet, meta):
         h.write("extern const u16 @n@_palettes[@N@_PALETTE_COUNT][16];\n"
                 "extern const u16 @n@_tile_index[%d];\n"
                 "extern const @C@Frame @n@_frames[@N@_FRAME_COUNT];\n"
-                "extern const @C@Anim @n@_anims[@N@_ANIM_COUNT];\n\n#endif\n" % len(flat))
+                "extern const @C@Anim @n@_anims[@N@_ANIM_COUNT];\n" % len(flat))
+        if tile_mode:
+            h.write("/* tile_palettes sheet: palette index of each tile_index entry (the frame palette field is 0). */\n"
+                    "extern const u8 @n@_tile_pal[%d];\n" % len(flat))
+        h.write("\n#endif\n")
     with Namer(open(cp, "w"), name, a.sheet) as c:
         c.write("/* GENERATED by tools/sprite_pipeline.py; do not edit. */\n#include \"@n@_sprites.h\"\n\n")
         c.write("/* Entry 0 is the transparent colour; words are DRGB with dark bit 0. */\n")
@@ -280,6 +322,10 @@ def main(name, sheet, meta):
         c.write("};\n\nconst u16 @n@_tile_index[%d] = {\n" % len(flat))
         for f in frames:
             c.write("    /* %s %d */ " % (f["anim"], f["idx"]) + ", ".join(str(t) for t in f["tiles"]) + ",\n")
+        if tile_mode:
+            c.write("};\n\nconst u8 @n@_tile_pal[%d] = {\n" % len(flat))
+            for f in frames:
+                c.write("    /* %s %d */ " % (f["anim"], f["idx"]) + ", ".join(str(t) for t in f["tpal"]) + ",\n")
         c.write("};\n\nconst @C@Frame @n@_frames[@N@_FRAME_COUNT] = {\n")
         for f in frames:
             c.write("    { %d, %d, %d, %d, %d, %d, %d, %d }, /* %s %d */\n" % (
@@ -321,6 +367,9 @@ def verify(a, frames, tiles, sheet, name):
     pals = [[int(w, 16) for w in row.split(", ")] for row in pal_rows]
     idx_block = src.split(name + "_tile_index")[1].split("};")[0]
     idx = [int(v) for v in re.findall(r"(?<![/\w*])\d+(?=,)", re.sub(r"/\*.*?\*/", "", idx_block))]
+    tp_block = src.split(name + "_tile_pal")[1].split("};")[0] if name + "_tile_pal[" in src else None
+    tile_pal_idx = ([int(v) for v in re.findall(r"(?<![/\w*])\d+(?=,)", re.sub(r"/\*.*?\*/", "", tp_block))]
+                    if tp_block else None)
     ftab = src.split("%s_frames[%s_FRAME_COUNT] = {" % (name, name.upper()))[1].split("};")[0]
     rows = [[int(v) for v in m.split(",")] for m in re.findall(r"\{ ([\d, ]+) \}", ftab)]
     if len(rows) != len(frames):
@@ -329,10 +378,11 @@ def verify(a, frames, tiles, sheet, name):
     checked = bad = 0
     for f, row in zip(frames, rows):
         off, tw, th, pal, sw, sh, pl, pt = row
-        rgb_pal = [None] + [ng_to_rgb(w) for w in pals[pal][1:]]
         for y in range(th * TILE):
             for x in range(tw * TILE):
-                t = idx[off + (x // TILE) * th + (y // TILE)]
+                ref = off + (x // TILE) * th + (y // TILE)
+                t = idx[ref]
+                rgb_pal = [None] + [ng_to_rgb(w) for w in pals[tile_pal_idx[ref] if tile_pal_idx else pal][1:]]
                 ci = atlas_px[t * TILE + x % TILE, y % TILE]
                 got = None if ci == 0 else rgb_pal[ci]
                 sx, sy = x - pl, y - pt

@@ -110,8 +110,8 @@ $(BUILDDIR)/gen/obs.c1 $(BUILDDIR)/gen/obs.c2 $(BUILDDIR)/gen/obs_sprites.c $(BU
 $(BUILDDIR)/gen/obs_sprites.o: $(BUILDDIR)/gen/obs_sprites.c
 	$(M68KGCC) $(NGCFLAGS) $(CFLAGS) -c $< -o $@
 # City background sprite pipeline (tools/build_city_sprites.py over tools/sprite_pipeline.py).
-# The sheet is drawn by assets/city/draw_city.py and committed under assets/city/.
-$(BUILDDIR)/gen/city.c1 $(BUILDDIR)/gen/city.c2 $(BUILDDIR)/gen/city_sprites.c $(BUILDDIR)/gen/city_sprites.h: assets/city/city_sheet.png assets/city/city_sheet.json tools/build_city_sprites.py tools/sprite_pipeline.py
+# The sheet is stacked from the draft planes by tools/import_bg_sheet.py and committed under assets/city/.
+$(BUILDDIR)/gen/city.c1 $(BUILDDIR)/gen/city.c2 $(BUILDDIR)/gen/city_sprites.c $(BUILDDIR)/gen/city_sprites.h $(BUILDDIR)/gen/city_tables.h: assets/city/city_sheet.png assets/city/city_sheet.json tools/build_city_sprites.py tools/sprite_pipeline.py
 	$(PYTHON) -I tools/build_city_sprites.py --out $(BUILDDIR)/gen
 $(BUILDDIR)/gen/city_sprites.o: $(BUILDDIR)/gen/city_sprites.c
 	$(M68KGCC) $(NGCFLAGS) $(CFLAGS) -c $< -o $@
@@ -123,7 +123,7 @@ $(BUILDDIR)/gen/hazard.c1 $(BUILDDIR)/gen/hazard.c2 $(BUILDDIR)/gen/hazard_sprit
 $(BUILDDIR)/gen/hazard_sprites.o: $(BUILDDIR)/gen/hazard_sprites.c
 	$(M68KGCC) $(NGCFLAGS) $(CFLAGS) -c $< -o $@
 
-$(BUILDDIR)/src/main.o $(BUILDDIR)/src/bg.o $(BUILDDIR)/src/gfx.o $(BUILDDIR)/src/hazard.o: $(BUILDDIR)/gen/hazard_sprites.h $(BUILDDIR)/gen/obs_sprites.h $(BUILDDIR)/gen/city_sprites.h $(BUILDDIR)/gen/sootling_sprites.h src/core/flier_view.h src/vram_layout.h src/sprite_slots.h src/bg.h src/gfx.h src/hazard.h src/core/vram_queue.h
+$(BUILDDIR)/src/main.o $(BUILDDIR)/src/bg.o $(BUILDDIR)/src/gfx.o $(BUILDDIR)/src/hazard.o $(BUILDDIR)/src/core/sprite_budget.o: $(BUILDDIR)/gen/city_tables.h $(BUILDDIR)/gen/hazard_sprites.h $(BUILDDIR)/gen/obs_sprites.h $(BUILDDIR)/gen/city_sprites.h $(BUILDDIR)/gen/sootling_sprites.h src/core/flier_view.h src/vram_layout.h src/sprite_slots.h src/bg.h src/gfx.h src/hazard.h src/core/vram_queue.h
 
 
 
@@ -252,7 +252,6 @@ test: cart
 	@$(MAKE) --no-print-directory test-vblank
 	@$(MAKE) --no-print-directory test-scroll
 	@$(MAKE) --no-print-directory test-slots
-	@$(MAKE) --no-print-directory test-autoanim
 	@$(MAKE) --no-print-directory test-hazard
 	@$(MAKE) --no-print-directory test-sound
 	@set -e; T=$$(mktemp -d $(BUILDDIR)/test-run.XXXXXX); \
@@ -260,8 +259,8 @@ test: cart
 	BRAWL_FLOW_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flow"{print $$1}') \
 	BRAWL_HISCORE_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_hiscore_image"{print $$1}') \
 	BRAWL_HISCORE_SIZE=$$($(NM) -S $(ELF) | awk '$$4=="g_hiscore_image"{print $$2}') \
-	BRAWL_BG_SCROLL_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_bg_scroll_px"{print $$1}') \
-	BRAWL_BG_WRITES_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_bg_column_writes"{print $$1}') \
+	BRAWL_BG_X_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_bg_plane_x"{print $$1}') \
+	BRAWL_BG_WRITES_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_bg_x_writes"{print $$1}') \
 	BRAWL_RESULT=$$T/result.txt \
 	SDL_VIDEODRIVER=dummy nice -n 19 $(MAME) -window -nomaximize -video none -sound none -nothrottle -seconds_to_run $(TEST_SECONDS) -noautosave -skip_gameinfo -hash $(ROM) -rp $(ROM) -nvram_directory $$T -snapshot_directory $$T/snap -autoboot_script tests/mame/boot_check.lua neogeo -cart1 $(GAMEROM) > $$T/mame.log 2>&1 || true; \
 	if [ ! -f $$T/result.txt ]; then tail -n 15 $$T/mame.log; echo "[FAIL] no result from Lua script"; exit 1; fi; \
@@ -327,14 +326,15 @@ test-vblank: cart
 	if ! grep -q 'FAIL' $$T/result.txt; then rm -rf $$T; echo "[OK] make test-vblank passed"; else echo "[FAIL] make test-vblank, log kept in $$T"; exit 1; fi
 
 # Background scroll reachability (tests/mame/scroll_check.lua): coin, start, play with jumps and fire, restart after
-# game over; a Lua VRAM shadow asserts every PLAYING frame each city ring shows the g_bg_scroll_px the game committed
-# for it (no late or skipped scroll writes), sentinel g_bg_scroll_flushes. Run by make test; `make test-scroll`
+# game over; a Lua VRAM shadow asserts every PLAYING frame each of the five background planes shows the g_cam_px the
+# game committed for it (no late or skipped scroll writes), sentinel: camera changes counted. Run by make test; `make test-scroll`
 # alone re-runs only this check. SCROLL_LOG=<file> keeps the per-frame log.
 test-scroll: cart
 	@set -e; T=$$(mktemp -d $(BUILDDIR)/test-run.XXXXXX); \
 	BRAWL_FLOW_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flow"{print $$1}') \
 	BRAWL_HIT_LAYOUT="$$($(M68KGCC) -std=c99 -S -o - tests/mame/hit_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
 	BRAWL_FLIER_LAYOUT="$$($(M68KGCC) -std=c99 -S -o - tests/mame/flier_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
+	BRAWL_CAMERA_LAYOUT="$$($(M68KGCC) $(NGCFLAGS) -Ibuild -std=c99 -S -o - tests/mame/camera_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
 	BRAWL_RESULT=$$T/result.txt BRAWL_SCROLL_LOG=$(SCROLL_LOG) \
 	SDL_VIDEODRIVER=dummy nice -n 19 $(MAME) -window -nomaximize -video none -sound none -nothrottle -seconds_to_run 90 -noautosave -skip_gameinfo -hash $(ROM) -rp $(ROM) -nvram_directory $$T -autoboot_script tests/mame/scroll_check.lua neogeo -cart1 $(GAMEROM) > $$T/mame.log 2>&1 || true; \
 	if [ ! -f $$T/result.txt ]; then tail -n 15 $$T/mame.log; echo "[FAIL] no result from scroll Lua script"; exit 1; fi; \
@@ -354,20 +354,6 @@ test-slots: cart
 	if [ ! -f $$T/result.txt ]; then tail -n 15 $$T/mame.log; echo "[FAIL] no result from slot order Lua script"; exit 1; fi; \
 	cat $$T/result.txt; \
 	if grep -q '^PASS' $$T/result.txt; then rm -rf $$T; echo "[OK] make test-slots passed"; else echo "[FAIL] make test-slots, log kept in $$T"; exit 1; fi
-
-# Hardware auto-animation proof (tests/mame/autoanim_check.lua): the stars twinkle with zero CPU writes to their SCB1
-# words, the LSPC counter runs through all 8 values and the pixels change. `make test-autoanim` alone re-runs it.
-test-autoanim: cart
-	@set -e; T=$$(mktemp -d $(BUILDDIR)/test-run.XXXXXX); \
-	BRAWL_SPEED_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_autoanim_frames"{print $$1}') \
-	BRAWL_FLOW_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flow"{print $$1}') \
-	BRAWL_HIT_LAYOUT="$$($(M68KGCC) -std=c99 -S -o - tests/mame/hit_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
-	BRAWL_AUTOANIM_LAYOUT="$$($(M68KGCC) -std=c99 -S -o - tests/mame/autoanim_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
-	BRAWL_RESULT=$$T/result.txt \
-	SDL_VIDEODRIVER=dummy nice -n 19 $(MAME) -window -nomaximize -video none -sound none -nothrottle -seconds_to_run 30 -noautosave -skip_gameinfo -hash $(ROM) -rp $(ROM) -nvram_directory $$T -autoboot_script tests/mame/autoanim_check.lua neogeo -cart1 $(GAMEROM) > $$T/mame.log 2>&1 || true; \
-	if [ ! -f $$T/result.txt ]; then tail -n 15 $$T/mame.log; echo "[FAIL] no result from auto-animation Lua script"; exit 1; fi; \
-	cat $$T/result.txt; \
-	if grep -q '^PASS' $$T/result.txt; then rm -rf $$T; echo "[OK] make test-autoanim passed"; else echo "[FAIL] make test-autoanim, log kept in $$T"; exit 1; fi
 
 # Hazard strip (tests/mame/hazard_check.lua, build plan G3): the strip is on lines 192..223, shows 16 distinct frames over
 # its two banks at the active hazard's speed, the CPU writes no SCB1 word while it runs (only the bank swap writes
@@ -399,6 +385,7 @@ test-camera: cart
 	@set -e; T=$$(mktemp -d $(BUILDDIR)/test-run.XXXXXX); \
 	BRAWL_FLOW_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flow"{print $$1}') \
 	BRAWL_CAM_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_cam_px"{print $$1}') \
+	BRAWL_BGX_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_bg_x_writes"{print $$1}') \
 	BRAWL_FLIER_LAYOUT="$$($(M68KGCC) -std=c99 -S -o - tests/mame/flier_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
 	BRAWL_CAMERA_LAYOUT="$$($(M68KGCC) $(NGCFLAGS) -Ibuild -std=c99 -S -o - tests/mame/camera_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
 	BRAWL_RESULT=$$T/result.txt \
@@ -445,6 +432,7 @@ test-unibios: cart bios
 	@set -e; T=$$(mktemp -d $(BUILDDIR)/test-run.XXXXXX); \
 	BRAWL_FRAME_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_frame_counter"{print $$1}') \
 	BRAWL_BG_PAL_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_bg_pal_first_entry"{print $$1}') \
+	BRAWL_BG_PAL_BYTES=$$($(NM) -S $(ELF) | awk '$$4=="city_palettes"{print $$2}') \
 	BRAWL_SOOT_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_soot_range"{print $$1}') \
 	BRAWL_FLOW_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flow"{print $$1}') \
 	BRAWL_REACH_LAYOUT="$$($(M68KGCC) -std=c99 -S -o - tests/mame/reach_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
@@ -454,7 +442,7 @@ test-unibios: cart bios
 	cat $$T/result.txt; \
 	if grep -q '^PASS' $$T/result.txt; then rm -rf $$T; echo "[OK] make test-unibios passed"; else echo "[FAIL] make test-unibios, log kept in $$T"; exit 1; fi
 
-.PHONY: run test test-camera test-sprite-peak test-flier test-reach test-vblank test-scroll test-slots test-autoanim test-hazard test-sound test-unibios
+.PHONY: run test test-camera test-sprite-peak test-flier test-reach test-vblank test-scroll test-slots test-hazard test-sound test-unibios
 
 # Header dependencies from -MMD (build/**/*.d): a changed header rebuilds every object that includes it.
 -include $(shell find $(BUILDDIR) -name '*.d' 2>/dev/null)

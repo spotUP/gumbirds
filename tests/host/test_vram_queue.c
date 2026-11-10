@@ -60,6 +60,15 @@ int main(void)
         CHECK(vq_strips(&s, 20, 3, 2, blk, 256, 0x300) == 3 && vq_pending(&s) == 2);
         CHECK(vq_strip(&s, 21, blk + 2, 256, 2, 0x300) && vq_pending(&s) == 2);
     }
+    {   /* vq_strip_attr: one op per column, always queued, carries the {tile, attribute} pairs and the cost of a plain strip */
+        static const u16 pairs[4] = { 1, 0x300, 2, 0x500 };
+        VramQueue a;
+        vq_init(&a);
+        CHECK(vq_strip_attr(&a, 5, pairs, 256, 2) && vq_pending(&a) == 1);
+        CHECK(vq_peek(&a)->kind == VQ_STRIP_ATTR && vq_peek(&a)->tiles == pairs && vq_peek(&a)->a == 5 && vq_peek(&a)->rows == 2);
+        CHECK(vq_cost(vq_peek(&a)) == VQ_US_STRIP + 2 * VQ_US_ROW);
+        CHECK(vq_strip(&a, 5, tiles_a, 256, 2, 0x300) && vq_pending(&a) == 2); /* a plain strip after it is not deduped away */
+    }
     CHECK(vq_strip(&q, 11, tiles_b, 256, 3, 0x400) && vq_pending(&q) == 5);
     CHECK(vq_cost(vq_peek(&q)) == VQ_US_STRIP + 2 * VQ_US_ROW);
     (void)total_cost();

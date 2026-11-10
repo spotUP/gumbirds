@@ -115,6 +115,12 @@ int vq_strip(VramQueue *q, u16 sprite, const u16 *tiles, u16 base, u8 rows, u16 
     return vq_strips(q, sprite, 1, rows, tiles, base, attr) == 1;
 }
 
+int vq_strip_attr(VramQueue *q, u16 sprite, const u16 *pairs, u16 base, u8 rows) {
+    VqOp op = { pairs, sprite, base, 0, VQ_STRIP_ATTR, rows, (u16)(VQ_US_STRIP + VQ_US_ROW * rows) };
+    q->strip[sprite].tiles = 0; /* the plain strip dedupe must not believe the column still holds its old tiles */
+    return push(q, &op);
+}
+
 int vq_pal(VramQueue *q, u16 idx, u16 val) {
     VqOp op = { 0, idx, val, 0, VQ_PAL, 0, VQ_US_PAL };
     return push(q, &op);

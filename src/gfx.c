@@ -15,7 +15,7 @@ void gfx_init(void) { vq_init(&g_gfx_q); }
  * vblank_check.lua counts register writes outside it). Timer interrupt off. */
 static volatile u16 g_lspc_mode;
 static volatile u8 g_lspc_mode_dirty;
-volatile u8 g_autoanim_frames = 1;
+volatile u8 g_autoanim_frames = GFX_AUTOANIM_DEFAULT_FRAMES;
 void gfx_autoanim_speed(u8 frames_per_step) {
     g_autoanim_frames = frames_per_step;
     g_lspc_mode = (u16)((frames_per_step - 1) << 8);
@@ -70,6 +70,7 @@ void gfx_drain(void) {
 void gfx_word_push(u16 addr, u16 val) { RETRY(vq_scb_word_push(&g_gfx_q, addr, val)); }
 void gfx_strip(u16 sprite, const u16 *tiles, u16 base, u8 rows, u16 attr) { RETRY(vq_strip(&g_gfx_q, sprite, tiles, base, rows, attr)); }
 void gfx_scb_run(u16 addr, u16 mod, const u16 *vals, u8 n) { RETRY(vq_scb_run(&g_gfx_q, addr, mod, vals, n)); }
+void gfx_strip_attr(u16 sprite, const u16 *pairs, u16 base, u8 rows) { RETRY(vq_strip_attr(&g_gfx_q, sprite, pairs, base, rows)); }
 void gfx_pal(u16 idx, u16 val) { RETRY(vq_pal(&g_gfx_q, idx, val)); }
 
 void gfx_text(u8 x, u8 y, u8 pal, const char *s) {
@@ -168,6 +169,12 @@ void gfx_flush(void) {
             u8 r = op->rows;
             *vaddr = (u16)(ADDR_SCB1 + op->a * 64);
             do { *vrw = (u16)(base + *t++); *vrw = attr; } while (--r);
+        } else if (kind == VQ_STRIP_ATTR) {
+            const u16 *t = op->tiles;
+            u16 base = op->b;
+            u8 r = op->rows;
+            *vaddr = (u16)(ADDR_SCB1 + op->a * 64);
+            do { *vrw = (u16)(base + t[0]); *vrw = t[1]; t += 2; } while (--r);
         } else {
             MMAP_PALBANK1[op->a] = op->b;
             pal_words++;

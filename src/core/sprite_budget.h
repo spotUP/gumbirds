@@ -13,18 +13,24 @@
 #define SB_LINES 224
 #define SB_LIMIT 90
 #define SB_GAMEPLAY_PER_LINE 24 /* measured peak 12, 20 with two-column fliers, 4 spare (thoughts/spot/2026-11-10-budget-c11.md) */
-enum { SB_ALWAYS = 0, SB_NOT_RAIN = 1, SB_RAIN_ONLY = 2 };
+/* SB_COLUMNS: a parallax plane. Every column is its own sprite with its own top and height (generated table
+ * CITY_TABLE_COL_ROW0 / COL_ROWS, indexed by sprite slot), so a column counts only on the lines it spans. */
+enum { SB_ALWAYS = 0, SB_NOT_RAIN = 1, SB_RAIN_ONLY = 2, SB_COLUMNS = 3 };
 
 typedef struct {
     const char *name;
     uint16_t first, count;   /* sprite slots */
     uint16_t y0, y1;         /* screen lines y0..y1-1 */
-    uint8_t per_line;        /* sprites of this range on one line inside y0..y1-1 */
+    uint8_t per_line;        /* sprites of this range on one line inside y0..y1-1 (SB_COLUMNS: the most one line can have) */
     uint8_t mood;
 } SpriteBudgetEntry;
 
 extern const SpriteBudgetEntry SPRITE_BUDGET[];
 extern const int SPRITE_BUDGET_COUNT;
+/* Moods: the game ships one at a time. A mood that is not built yet has no art to count, so tests must not pass it. */
+typedef struct { const char *name; uint8_t built, rain; } SpriteBudgetMood;
+extern const SpriteBudgetMood SPRITE_BUDGET_MOODS[];
+extern const int SPRITE_BUDGET_MOOD_COUNT;
 /* Sprites on screen line y in the rain mood (rain != 0) or the other moods; includes the gameplay reserve. */
 int sprite_budget_line(int y, int rain);
 #endif

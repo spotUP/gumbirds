@@ -1,19 +1,15 @@
--- Headless background scroll check (make test-scroll). Arena: the city is a still backdrop in play. Runs the real
--- game (attract, coin, start, flaps, walk off the island into the water, game over, coin and start again) and keeps a Lua shadow of LSPC VRAM from the writes to
--- REG_VRAMADDR / REG_VRAMRW / REG_VRAMMOD. At every frame end (MAME frame_done is at vblank start, and make
--- test-vblank asserts every VRAM write lands in vblank) the shadow is what the frame just shown displayed. For each
--- of the three city rings (src/bg.c update_ring) it asserts the on-screen chain matches the scroll the game
--- committed for that frame: the g_bg_scroll_px value at the previous vblank start, when the main loop parked and
--- the vblank flush took that step's queue. Checked words per ring: head SCB3 (not sticky) and SCB4 x of the first
--- visible world column, SCB4 x of slot 0 (always a chain head), sticky SCB3 of every other slot.
--- Fails on a late scroll write (step committed, but the screen shows an older scroll: the flush ran out of budget
--- before the ring words) and on a skipped step (main loop not parked at vblank start while PLAYING, so the flush
--- was skipped and the screen holds the old scroll for a frame). Still city: g_bg_scroll_px must be identical on every
--- PLAYING frame of every run (no scroll in the arena), and the shadow must show exactly that scroll (a ring redrawn
--- or moved in play fails the ring check). The old g_bg_rebases sentinel is dropped: bg_update gets distance 0 forever,
--- so it can never count.
+-- Headless background scroll check (make test-scroll). Runs the real game (attract, coin, start, flaps, walk off the island
+-- into the water, game over, coin and start again) and keeps a Lua shadow of LSPC VRAM from the writes to REG_VRAMADDR /
+-- REG_VRAMRW / REG_VRAMMOD. At every frame end (MAME frame_done is at vblank start, and make test-vblank asserts every VRAM
+-- write lands in vblank) the shadow is what the frame just shown displayed. For each of the five background planes
+-- (src/bg.c: one sprite per 16 px column, plane x = -((camera * k) >> 4) + 16 * column) it asserts every column shows the
+-- x of the camera the game committed for that frame: g_cam_px at the previous vblank start, when the main loop parked
+-- and the vblank flush took that step's queue. Slots, factors and column counts come from tests/mame/camera_probe.c.
+-- Fails on a late scroll write (step committed, but the screen shows an older camera: the flush ran out of budget before
+-- the plane words) and on a skipped step (main loop not parked at vblank start while PLAYING, so the flush was skipped).
+-- Camera changes are counted so the report says whether the run exercised scrolling.
 -- Env: BRAWL_FLOW_ADDR (hex), BRAWL_HIT_LAYOUT (hit_probe.c output, first value = flow state offset),
--- BRAWL_RESULT (file), BRAWL_SCROLL_LOG (optional per-frame log file).
+-- BRAWL_CAMERA_LAYOUT (camera_probe.c output), BRAWL_FLIER_LAYOUT, BRAWL_RESULT (file), BRAWL_SCROLL_LOG (optional per-frame log).
 local flow_addr = tonumber(os.getenv("BRAWL_FLOW_ADDR"), 16)
 local result    = os.getenv("BRAWL_RESULT")
 local log_path  = os.getenv("BRAWL_SCROLL_LOG")
@@ -35,15 +31,17 @@ local function sym_addrs()
   return t
 end
 local syms = sym_addrs()
-local A_SCROLL, A_PARKED, A_FC = syms.g_bg_scroll_px, syms.g_parked, syms.g_frame_counter
+local A_CAM, A_PARKED, A_FC = syms.g_cam_px, syms.g_parked, syms.g_frame_counter
 
 local STATE_PLAYING = 3
 local END_FRAME = 3600
 local MIN_CHECKED = 1500       -- PLAYING frames whose screen was checked
-local SETTLE = 2               -- PLAYING frames after start not checked (first ring write is a full redraw)
-local RING_FIRST = { 36, 66, 96 }  -- src/sprite_slots.h BG_FAR_SPRITE, BG_MID_SPRITE, BG_ROOF_SPRITE
-local RING, COL = 21, 16
-local SCB3, SCB4 = 0x8200, 0x8400
+local SETTLE = 5               -- PLAYING frames after start not checked (the full plane redraw at start spreads over about 3 frames of flush budget)
+local clay = {}
+for v in (os.getenv("BRAWL_CAMERA_LAYOUT") or ""):gmatch("%d+") do clay[#clay + 1] = tonumber(v) end
+local PLANES = {}  -- first sprite slot, parallax factor in sixteenths, column count, in draw order (camera_probe.c)
+for p = 1, 5 do PLANES[p] = { slot = clay[9 + p], k = clay[14 + p], cols = clay[19 + p] } end
+local SCB4 = 0x8400
 
 local mem    = manager.machine.devices[":maincpu"].spaces["program"]
 local ports  = manager.machine.ioport.ports
@@ -57,7 +55,6 @@ local start = field(":edge:joy:START", "1 Player Start")
 local rbtn  = field(":edge:joy:JOY1", "P1 Right")
 local lbtn  = field(":edge:joy:JOY1", "P1 Left")
 local abtn  = field(":edge:joy:JOY1", "P1 A")
-
 local flay = {}
 for v in (os.getenv("BRAWL_FLIER_LAYOUT") or ""):gmatch("%d+") do flay[#flay + 1] = tonumber(v) end
 local drive = dofile("tests/mame/flier_drive.lua")(mem, flow_addr, flay, abtn, lbtn, rbtn)
@@ -85,51 +82,28 @@ tap_vram = mem:install_write_tap(0x3c0000, 0x3c0007, "scrollvram", function(offs
   elseif r == 4 then vmod = data end
 end)
 
-local function sx(v) return v >= 0x8000 and v - 0x10000 or v end
--- 0 when the shadow shows ring l at scroll s, else a short reason
-local function ring_bad(l, s)
-  local base = RING_FIRST[l]
-  local first = s // COL
-  local fs = first % RING
-  local want4 = ((COL * first - s) & 0x1ff) << 7
-  if (vram[SCB4 + base + fs] or -1) ~= want4 then return "head x" end
-  if ((vram[SCB3 + base + fs] or 0x40) & 0x40) ~= 0 then return "head sticky" end
-  if fs ~= 0 then
-    local w0 = first + RING - fs
-    if (vram[SCB4 + base] or -1) ~= ((COL * w0 - s) & 0x1ff) << 7 then return "slot0 x" end
-  end
-  for k = 1, RING - 1 do
-    if k ~= fs and ((vram[SCB3 + base + k] or 0) & 0x40) == 0 then return "extra head " .. k end
-  end
-  return nil
-end
--- scroll actually shown by ring l: head slot and its x give the scroll modulo the ring period
-local function shown(l)
-  local base = RING_FIRST[l]
-  for k = 1, RING - 1 do
-    if ((vram[SCB3 + base + k] or 0x40) & 0x40) == 0 then
-      local x = (vram[SCB4 + base + k] or 0) >> 7
-      if x >= 256 then x = x - 512 end
-      return k, x
+-- nil when the shadow shows every plane column at camera cam, else a short reason
+local function planes_bad(cam)
+  for p, pl in ipairs(PLANES) do
+    for c = 0, pl.cols - 1 do
+      local want = ((-((cam * pl.k) >> 4) + 16 * c) & 0x1ff) << 7
+      local got = vram[SCB4 + pl.slot + c] or -1
+      if got ~= want then return string.format("plane %d column %d x word %d, want %d", p, c, got, want) end
     end
   end
-  return 0, ((vram[SCB4 + base] or 0) >> 7)
+  return nil
 end
 
 local n = 0
 local phase, phase_at = "boot", 0
-local pend = nil              -- scroll triple the flush of the current vblank takes (nil: none committed)
+local pend = nil              -- camera the flush of the current vblank takes (nil: none committed)
 local pend_fc = nil
 local prev_fc = nil
 local checked, late, skipped, playing = 0, 0, 0, 0
 local first_fail = nil
-local still0, moved, runs = nil, 0, 0
+local cam_prev, cam_moves, runs = nil, 0, 0
 local prev_state = nil
 local since_start = 0
-
-local function scroll3()
-  return { mem:read_u32(A_SCROLL), mem:read_u32(A_SCROLL + 4), mem:read_u32(A_SCROLL + 8) }
-end
 
 emu.register_frame_done(function()
   n = n + 1
@@ -158,26 +132,19 @@ emu.register_frame_done(function()
   -- check the frame just shown against the step its vblank flush took
   if state == STATE_PLAYING and since_start > SETTLE and pend then
     checked = checked + 1
-    for l = 1, 3 do
-      local why = ring_bad(l, pend[l])
-      if why then
-        late = late + 1
-        local hk, hx = shown(l)
-        local msg = string.format("frame %d fc %d ring %d want scroll %d, shows head slot %d x %d (%s)", n, pend_fc or -1, l - 1, pend[l], hk, hx, why)
-        if not first_fail then first_fail = msg end
-        if logf then logf:write("LATE " .. msg .. "\n") end
-        break
-      end
+    local why = planes_bad(pend)
+    if why then
+      late = late + 1
+      local msg = string.format("frame %d fc %d camera %d: %s", n, pend_fc or -1, pend, why)
+      if not first_fail then first_fail = msg end
+      if logf then logf:write("LATE " .. msg .. "\n") end
     end
   end
   if state == STATE_PLAYING then
     playing = playing + 1
-    local s3 = scroll3()
-    still0 = still0 or s3
-    if s3[1] ~= still0[1] or s3[2] ~= still0[2] or s3[3] ~= still0[3] then
-      moved = moved + 1
-      if not first_fail then first_fail = string.format("frame %d city scroll moved in play: %d %d %d -> %d %d %d", n, still0[1], still0[2], still0[3], s3[1], s3[2], s3[3]) end
-    end
+    local cam = mem:read_u8(A_CAM)
+    if cam_prev and cam ~= cam_prev then cam_moves = cam_moves + 1 end
+    cam_prev = cam
     if since_start > SETTLE and not parked then
       skipped = skipped + 1
       local msg = string.format("frame %d fc %d main loop not parked at vblank start (flush skipped)", n, fc)
@@ -186,16 +153,15 @@ emu.register_frame_done(function()
     end
   end
   if logf and state == STATE_PLAYING then
-    local s = scroll3()
-    logf:write(string.format("F %d fc %d dfc %d parked %d words %d scroll %d %d %d\n", n, fc, prev_fc and (fc - prev_fc) or -1, parked and 1 or 0, words_frame, s[1], s[2], s[3]))
+    logf:write(string.format("F %d fc %d dfc %d parked %d words %d camera %d\n", n, fc, prev_fc and (fc - prev_fc) or -1, parked and 1 or 0, words_frame, mem:read_u8(A_CAM)))
   end
   prev_fc = fc
   words_frame = 0
   -- the step this vblank's flush takes
-  if parked then pend = scroll3(); pend_fc = fc end
+  if parked then pend = mem:read_u8(A_CAM); pend_fc = fc end
   if n >= END_FRAME then
-    local msg = string.format("PLAYING frames %d in %d runs, checked %d, late scroll frames %d, skipped steps %d, scroll moved in %d frames%s",
-      playing, runs, checked, late, skipped, moved, first_fail and (", first: " .. first_fail) or "")
-    finish(checked >= MIN_CHECKED and late == 0 and skipped == 0 and moved == 0 and runs >= 2, msg)
+    local msg = string.format("PLAYING frames %d in %d runs, checked %d, late scroll frames %d, skipped steps %d, camera changed on %d frames%s",
+      playing, runs, checked, late, skipped, cam_moves, first_fail and (", first: " .. first_fail) or "")
+    finish(checked >= MIN_CHECKED and late == 0 and skipped == 0 and cam_moves > 0 and runs >= 2, msg)
   end
 end)

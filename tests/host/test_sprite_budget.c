@@ -22,19 +22,27 @@ static void test_slots(void) {
     CHECK(POOL_SPRITE_BASE + POOL_SPRITE_COUNT <= HERO_SPRITE);
     CHECK(HERO_SPRITE + HERO_SPRITE_COUNT <= HAZARD_SPRITE);
     CHECK(HAZARD_SPRITE + HAZARD_COUNT <= FG_RAIN_SPRITE);
-    CHECK(FG_EDGE_SPRITE + FG_EDGE_COUNT == SPRITE_SLOT_END);
+    CHECK(FG_SPRAY_SPRITE + FG_SPRAY_COUNT == SPRITE_SLOT_END);
 }
 
+/* Every built mood is checked against the limit, with rain columns only in a mood that has rain. A mood that is not
+ * built has no art to count: it is listed as pending, never passed. */
 static void test_lines(void) {
-    int worst = 0;
-    for (int rain = 0; rain < 2; rain++)
+    for (int m = 0; m < SPRITE_BUDGET_MOOD_COUNT; m++) {
+        const SpriteBudgetMood *mood = &SPRITE_BUDGET_MOODS[m];
+        if (!mood->built) {
+            printf("PENDING mood %s: not built, sprite budget not checked\n", mood->name);
+            continue;
+        }
+        int worst = 0, line0 = 0;
         for (int y = 0; y < SB_LINES; y++) {
-            int n = sprite_budget_line(y, rain);
-            if (n > worst) worst = n;
+            int n = sprite_budget_line(y, mood->rain);
+            if (n > worst) { worst = n; line0 = y; }
             CHECK(n <= SB_LIMIT);
         }
-    printf("worst sprites per line: %d (limit %d)\n", worst, SB_LIMIT);
-    CHECK(worst >= 1);
+        printf("mood %s: worst sprites per line %d at line %d (limit %d)\n", mood->name, worst, line0, SB_LIMIT);
+        CHECK(worst >= 1);
+    }
 }
 
 int main(void) {

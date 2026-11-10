@@ -128,7 +128,6 @@ static void hero_show(const Game *g) {
  * hardware sprites from POOL_SPRITE_BASE, sprite_slots.h); the animation index of an object is its type. Live users:
  * the arena platforms (pool_sync_stage) and the pool stress test hook.
  */
-_Static_assert(BG_SPRITE_END <= POOL_SPRITE_BASE, "background sprites overlap the object pool");
 _Static_assert(POOL_SPRITE_COUNT == POOL_SPRITES, "pool sprite range size");
 _Static_assert(POOL_SPRITE_BASE + POOL_SPRITE_COUNT <= HERO_SPRITE, "object pool sprites overlap hero");
 _Static_assert(HERO_SPRITE + HERO_SPRITE_COUNT <= HAZARD_SPRITE, "hero overlaps hazard sprites");
@@ -665,7 +664,7 @@ static void game_loop(void) {
         draw(&view);
         hero_and_mode(&view);
         hazard_step(view.state == FLOW_PLAYING || view.state == FLOW_GAME_OVER, g_cam_px);
-        bg_update(0, g_frame_counter); /* arena slice: the city is a still backdrop */
+        bg_update(g_cam_px); /* parallax planes follow the camera */
         gfx_commit();
         g_frame_counter++;
         gfx_wait_vblank(); /* the vblank callback flushes the queue: the only VRAM and palette writes of the frame */

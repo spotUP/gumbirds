@@ -5,7 +5,7 @@
 -- palettes; before that fix the screen went black after the coin while the game ran on.
 -- Asserts: palette words read before the coin (fix text palette 0 colour 1, hero palette
 -- slot 2 colour 1) are back 60 frames after the coin, and g_frame_counter never goes back.
--- City palettes (4 slots x 16 words from g_bg_pal_first_entry) and the backdrop (last palette RAM entry)
+-- City palettes (CITY_PALETTE_COUNT slots x 16 words from g_bg_pal_first_entry) and the backdrop (last palette RAM entry)
 -- are checked the same way: a checksum of all of them must be unchanged and nonzero.
 -- Second phase (game over with a credit left): a second coin gives two credits, start, idle until
 -- the hero dies with a non-ranking score. With a credit left the BIOS must keep calling the
@@ -13,10 +13,11 @@
 -- 60-frame stall, flow reaches an attract state, and a start press then begins a second game
 -- (FLOW_PLAYING, credit used) whose counter still advances. Regression for BIOS_USER_MODE 1
 -- being set on entering GAME_OVER: UniBIOS stopped the callback and game_loop spun forever.
--- Env: BRAWL_FRAME_ADDR, BRAWL_BG_PAL_ADDR, BRAWL_FLOW_ADDR (hex, nm on the ELF),
+-- Env: BRAWL_FRAME_ADDR, BRAWL_BG_PAL_ADDR, BRAWL_BG_PAL_BYTES (hex, nm -S size of city_palettes), BRAWL_FLOW_ADDR (hex, nm on the ELF),
 -- BRAWL_REACH_LAYOUT (flow state offset first), BRAWL_RESULT (file).
 local frame_addr = tonumber(os.getenv("BRAWL_FRAME_ADDR"), 16)
 local bgpal_addr = tonumber(os.getenv("BRAWL_BG_PAL_ADDR"), 16)
+local bgpal_words = tonumber(os.getenv("BRAWL_BG_PAL_BYTES"), 16) // 2  -- size of city_palettes (CITY_PALETTE_COUNT x 16 words)
 local flow_addr  = tonumber(os.getenv("BRAWL_FLOW_ADDR"), 16)
 local lay = {}
 for v in os.getenv("BRAWL_REACH_LAYOUT"):gmatch("%d+") do lay[#lay + 1] = tonumber(v) end
@@ -33,11 +34,11 @@ local PAL_HERO_C1 = 0x400000 + mem:read_u16(soot_addr + 4) * 32 + 2   -- Sootlin
 local COIN_FRAME, CHECK_FRAME = 900, 960
 local PAL_BACKDROP = 0x400000 + 4095 * 2
 
--- Position-weighted sum of the 64 city palette words, and the backdrop word.
+-- Position-weighted sum of the city palette words, and the backdrop word.
 local function city_sum()
   local first = mem:read_u16(bgpal_addr)
   local s = 0
-  for i = 0, 63 do s = s + mem:read_u16(0x400000 + (first + i) * 2) * (i + 1) end
+  for i = 0, bgpal_words - 1 do s = s + mem:read_u16(0x400000 + (first + i) * 2) * (i + 1) end
   return s, mem:read_u16(PAL_BACKDROP)
 end
 

@@ -2,7 +2,6 @@
 #include "gfx.h"
 #include "sprite_slots.h"
 #include "vram_layout.h"
-#include "bg_stars.h"
 #include "core/camera.h"
 
 _Static_assert(HAZARD_COUNT == 2 * HAZARD_STRIP_COLS, "hazard slots: two banks of one strip");
@@ -76,7 +75,7 @@ void hazard_step(u8 match_running, int cam_px) {
     else if (match_running) place(cam_px);
     else if (!match_running && g_running) {
         hide_banks();
-        gfx_autoanim_speed(BG_STAR_STEP_FRAMES); /* the stars have the counter to themselves again */
+        gfx_autoanim_speed(GFX_AUTOANIM_DEFAULT_FRAMES); /* nothing else animates, the counter returns to its default */
         g_hazard_kind = 0xFF;
     }
     g_running = match_running;

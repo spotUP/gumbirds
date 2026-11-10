@@ -12,6 +12,7 @@
  * (thoughts/shared/research/2026-11-09_vblank-writes.md). */
 #define GFX_FLUSH_BUDGET_US 2000u
 
+#define GFX_AUTOANIM_DEFAULT_FRAMES 1 /* counter speed at boot and when no auto-animated strip is shown */
 void gfx_autoanim_speed(u8 frames_per_step); /* LSPC auto-animation: counter steps every N video frames (REG_LSPCMODE bits 15..8 = N-1) */
 extern volatile u8 g_autoanim_frames; /* frames per step last set (test sentinel) */
 extern volatile u16 g_swap_count;     /* bank swaps done by gfx_flush since boot (test sentinel) */
@@ -31,6 +32,8 @@ void gfx_strip(u16 sprite, const u16 *tiles, u16 base, u8 rows, u16 attr);
 /* Strided SCB2..SCB4 run (vq_scb_run): vals[k] goes to addr + k * mod, one queue op for all changed words. For
  * per-frame words of many sprites at a fixed stride, e.g. the head SCB3/SCB4 of every pool object. */
 void gfx_scb_run(u16 addr, u16 mod, const u16 *vals, u8 n);
+/* One column with a per-tile attribute: `pairs` = rows x {tile, attribute}; for init-time art that mixes palettes in a column. */
+void gfx_strip_attr(u16 sprite, const u16 *pairs, u16 base, u8 rows);
 void gfx_pal(u16 idx, u16 val);
 void gfx_text(u8 x, u8 y, u8 pal, const char *s);
 void gfx_center_text(u8 y, u8 pal, const char *s);

@@ -5,37 +5,38 @@
  * Hardware sprite slot map (381 sprites). Single place that says who owns which range.
  * A lower index draws behind a higher one. Overlap is rejected by the static asserts in main.c, bg.c and the
  * host test tests/host/test_sprite_budget.c (which also checks the sprites per scanline from src/core/sprite_budget.c).
- * Plan: thoughts/shared/plans/2026-11-10-neo-geo-graphics-max.md, G1. Background planes 0..6 sit below the pool, the
+ * Plan: thoughts/shared/plans/2026-11-10-neo-geo-graphics-max.md, G1. The background sits below the pool, the
  * hazard strip and the foreground above the hero.
- *   0..15    plane 1 background stars (BG_STAR_COUNT)
- *   16..25   plane 1 sky objects: moon with clouds (5 columns), left clouds (5 columns)
- *   26..35   plane 2 cloud bank (reserved, unbuilt)
- *   36..56   plane 3 far skyline ring (21)
- *   57..65   plane 4 airship (reserved, unbuilt)
- *   66..86   plane 5 mid skyline ring (21)
- *   87..95   plane 5 smoke and flags (reserved, unbuilt)
- *   96..116  plane 6 near rooftop ring, the roof (21)
+ *   0..109   parallax background planes, one sprite per 16 px column, back to front (BG_*_SPRITE, widths from
+ *            CITY_TABLE_PLANE_COLS): sky 20, far 21, mid A 22, mid B 23, near 24 sprites
+ *   110..119 free (clouds and airship drift, BG-2)
  *   120..215 object pool (POOL_SPRITE_COUNT = POOL_MAX x POOL_COLS, src/core/obj_pool.h): object i owns
  *            POOL_SPRITE_BASE + i * POOL_COLS; platforms and computer fliers draw through it
  *   216..218 hero (HERO_SPRITE_COUNT)
  *   220..267 plane 7 hazard strip: two banks of 24 sprites (bank 0 at 220, bank 1 at 244), one visible at a time
- *   268..277 plane 8 rain columns (reserved), 278..281 spray, 282..283 edge cable
+ *   268..277 plane 8 rain columns (reserved), 278..281 spray
  */
-#define BG_STAR_SPRITE 0
-#define BG_STAR_COUNT 16
-#define BG_SKY_SPRITE 16
-#define BG_SKY_COUNT 10
-#define BG_CLOUDBANK_SPRITE 26
-#define BG_CLOUDBANK_COUNT 10
-#define BG_FAR_SPRITE 36
-#define BG_AIRSHIP_SPRITE 57
-#define BG_AIRSHIP_COUNT 9
-#define BG_MID_SPRITE 66
-#define BG_SMOKE_SPRITE 87
-#define BG_SMOKE_COUNT 9
-#define BG_ROOF_SPRITE 96
-#define BG_RING_COUNT 21
-#define BG_SPRITE_END 117
+#define BG_SKY_SPRITE 0
+#define BG_SKY_COUNT 20
+#define BG_SKY_Y0 0
+#define BG_SKY_Y1 112
+#define BG_FAR_SPRITE 20
+#define BG_FAR_COUNT 21
+#define BG_FAR_Y0 48
+#define BG_FAR_Y1 128
+#define BG_MIDA_SPRITE 41
+#define BG_MIDA_COUNT 22
+#define BG_MIDA_Y0 80
+#define BG_MIDA_Y1 144
+#define BG_MIDB_SPRITE 63
+#define BG_MIDB_COUNT 23
+#define BG_MIDB_Y0 112
+#define BG_MIDB_Y1 176
+#define BG_NEAR_SPRITE 86
+#define BG_NEAR_COUNT 24
+#define BG_NEAR_Y0 128
+#define BG_NEAR_Y1 224
+#define BG_SPRITE_END 110
 #define POOL_SPRITE_BASE 120
 #define POOL_SPRITE_COUNT 96
 #define HERO_SPRITE 216
@@ -46,7 +47,5 @@
 #define FG_RAIN_COUNT 10
 #define FG_SPRAY_SPRITE 278
 #define FG_SPRAY_COUNT 4
-#define FG_EDGE_SPRITE 282
-#define FG_EDGE_COUNT 2
-#define SPRITE_SLOT_END 284
+#define SPRITE_SLOT_END 282
 #endif
