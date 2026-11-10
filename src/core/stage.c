@@ -2,21 +2,23 @@
 #include "flier.h"
 #include "arena.h"
 
-/* Layout (x, y top, w, h). Two shore islands at the water, a middle island, two side ledges, a top centre and two top corners. */
+/* Layout (x, y top, w, h): the accepted floating-island layout (art: thoughts/shared/drafts/2026-11-10-islands-final/numbers.txt).
+ * Two shore islands (the pair meets the seam at different heights), a middle island, two side ledges, a top centre and two top
+ * corners. The island sprites (src/island.c) draw from this same table, so the drawn line is the floor. Widths are 4..7 columns of 16. */
 const StagePlatform stage_platforms[STAGE_PLATFORM_COUNT] = {
-    {   0, 164,  80, STAGE_PLATFORM_H },
+    {   0, 148,  80, STAGE_PLATFORM_H },
     { 304, 164,  80, STAGE_PLATFORM_H },
-    { 136, 140, 112, STAGE_PLATFORM_H },
-    {  32, 104,  80, STAGE_PLATFORM_H },
-    { 280, 104,  80, STAGE_PLATFORM_H },
-    { 144,  72,  96, STAGE_PLATFORM_H },
-    {   0,  40,  56, STAGE_PLATFORM_H },
-    { 328,  40,  56, STAGE_PLATFORM_H },
+    { 136, 128, 112, STAGE_PLATFORM_H },
+    {  32,  92,  80, STAGE_PLATFORM_H },
+    { 280, 108,  80, STAGE_PLATFORM_H },
+    { 144,  68,  96, STAGE_PLATFORM_H },
+    {   0,  36,  64, STAGE_PLATFORM_H },
+    { 320,  52,  64, STAGE_PLATFORM_H },
 };
 
 /* Centre y = platform top - 6 (box half height 5.5): the flier starts resting on the platform. */
 const StageSpawn stage_spawns[STAGE_SPAWN_COUNT] = {
-    {  67,  98 }, { 317,  98 }, { 192,  66 }, {  29,  34 }, { 355,  34 }, {  38, 158 },
+    {  67,  86 }, { 317, 102 }, { 192,  62 }, {  29,  30 }, { 355,  46 }, {  38, 142 },
 };
 
 int32_t stage_floor_y(int32_t x16, int32_t feet16) {

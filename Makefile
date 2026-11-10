@@ -60,8 +60,8 @@ include emu.mk
 # 
 # Note: build rules (%.c -> %.o -> %.elf) are defined in Makefile.build
 ELF=$(BUILDDIR)/rom.elf
-CORE_SRCS=rng game hiscore nameentry flow obstacle_view bg_scroll flier_view vram_queue obj_pool sound_queue sound_events flier stage ai camera
-$(ELF):	$(BUILDDIR)/src/main.o $(BUILDDIR)/gen/sootling_sprites.o $(BUILDDIR)/gen/hazard_sprites.o $(BUILDDIR)/gen/obs_sprites.o $(BUILDDIR)/gen/city_sprites.o $(BUILDDIR)/src/bg.o $(BUILDDIR)/src/gfx.o $(BUILDDIR)/src/hazard.o $(BUILDDIR)/src/sound.o $(CORE_SRCS:%=$(BUILDDIR)/src/core/%.o)
+CORE_SRCS=rng game hiscore nameentry flow obstacle_view bg_scroll flier_view vram_queue obj_pool sound_queue sound_events flier stage island_layout ai camera
+$(ELF):	$(BUILDDIR)/src/main.o $(BUILDDIR)/gen/sootling_sprites.o $(BUILDDIR)/gen/hazard_sprites.o $(BUILDDIR)/gen/island_sprites.o $(BUILDDIR)/gen/obs_sprites.o $(BUILDDIR)/gen/city_sprites.o $(BUILDDIR)/src/bg.o $(BUILDDIR)/src/gfx.o $(BUILDDIR)/src/hazard.o $(BUILDDIR)/src/island.o $(BUILDDIR)/src/sound.o $(CORE_SRCS:%=$(BUILDDIR)/src/core/%.o)
 $(PROM1): $(ELF)
 
 
@@ -87,7 +87,7 @@ $(SROM1): $(BUILDDIR)/assets/base-srom-text-shadow.fix
 # logo during the attract mode.
 # Note: build rules (%.gif -> %.c<1,2>) are defined in Makefile.build
 # Obstacle tiles come after the logo (256 tiles = OBS_TILE_BASE in src/vram_layout.h), city tiles after the obstacles (bases in src/vram_layout.h, from the generated headers); prerequisite order = cat order.
-CROM_SETS=assets/base-crom-logo gen/obs gen/city gen/sootling gen/hazard
+CROM_SETS=assets/base-crom-logo gen/obs gen/city gen/sootling gen/hazard gen/island
 CROM_LAYOUT=$(BUILDDIR)/gen/crom-layout.stamp
 $(CROM1): $(CROM_SETS:%=$(BUILDDIR)/%.c1) $(CROM_LAYOUT)
 $(CROM2): $(CROM_SETS:%=$(BUILDDIR)/%.c2) $(CROM_LAYOUT)
@@ -123,7 +123,14 @@ $(BUILDDIR)/gen/hazard.c1 $(BUILDDIR)/gen/hazard.c2 $(BUILDDIR)/gen/hazard_sprit
 $(BUILDDIR)/gen/hazard_sprites.o: $(BUILDDIR)/gen/hazard_sprites.c
 	$(M68KGCC) $(NGCFLAGS) $(CFLAGS) -c $< -o $@
 
-$(BUILDDIR)/src/main.o $(BUILDDIR)/src/bg.o $(BUILDDIR)/src/gfx.o $(BUILDDIR)/src/hazard.o $(BUILDDIR)/src/core/sprite_budget.o: $(BUILDDIR)/gen/city_tables.h $(BUILDDIR)/gen/hazard_sprites.h $(BUILDDIR)/gen/obs_sprites.h $(BUILDDIR)/gen/city_sprites.h $(BUILDDIR)/gen/sootling_sprites.h src/core/flier_view.h src/vram_layout.h src/sprite_slots.h src/bg.h src/gfx.h src/hazard.h src/core/vram_queue.h
+# Floating island sprite set (tools/build_island_sprites.py over tools/sprite_pipeline.py). The sheet is imported from the
+# island drawing by tools/import_islands_sheet.py and committed under assets/islands/. C-ROM position: after the hazard set.
+$(BUILDDIR)/gen/island.c1 $(BUILDDIR)/gen/island.c2 $(BUILDDIR)/gen/island_sprites.c $(BUILDDIR)/gen/island_sprites.h $(BUILDDIR)/gen/island_tables.h: assets/islands/island_sheet.png assets/islands/island_sheet.json tools/build_island_sprites.py tools/sprite_pipeline.py
+	$(PYTHON) -I tools/build_island_sprites.py --out $(BUILDDIR)/gen
+$(BUILDDIR)/gen/island_sprites.o: $(BUILDDIR)/gen/island_sprites.c
+	$(M68KGCC) $(NGCFLAGS) $(CFLAGS) -c $< -o $@
+
+$(BUILDDIR)/src/main.o $(BUILDDIR)/src/bg.o $(BUILDDIR)/src/gfx.o $(BUILDDIR)/src/hazard.o $(BUILDDIR)/src/island.o $(BUILDDIR)/src/core/sprite_budget.o $(BUILDDIR)/src/core/island_layout.o: $(BUILDDIR)/gen/island_tables.h $(BUILDDIR)/gen/city_tables.h $(BUILDDIR)/gen/island_sprites.h $(BUILDDIR)/gen/hazard_sprites.h $(BUILDDIR)/gen/obs_sprites.h $(BUILDDIR)/gen/city_sprites.h $(BUILDDIR)/gen/sootling_sprites.h src/core/flier_view.h src/vram_layout.h src/sprite_slots.h src/bg.h src/gfx.h src/hazard.h src/island.h src/core/island_layout.h src/core/vram_queue.h
 
 
 
@@ -348,7 +355,9 @@ test-slots: cart
 	@set -e; T=$$(mktemp -d $(BUILDDIR)/test-run.XXXXXX); \
 	BRAWL_FLOW_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flow"{print $$1}') \
 	BRAWL_HIT_LAYOUT="$$($(M68KGCC) -std=c99 -S -o - tests/mame/hit_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
-	BRAWL_SLOT_LAYOUT="$$($(M68KGCC) -std=c99 -S -o - tests/mame/slot_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
+	BRAWL_ISLAND_DRAWS_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_island_draws"{print $$1}') \
+	BRAWL_STAGE_PLATFORMS="$$(sed -n 's/^ *{ *\([0-9]*\), *\([0-9]*\), *\([0-9]*\), STAGE_PLATFORM_H.*/\1 \2 \3/p' src/core/stage.c | tr '\n' ' ')" \
+	BRAWL_SLOT_LAYOUT="$$($(M68KGCC) $(NGCFLAGS) -Ibuild -std=c99 -S -o - tests/mame/slot_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
 	BRAWL_RESULT=$$T/result.txt \
 	SDL_VIDEODRIVER=dummy nice -n 19 $(MAME) -window -nomaximize -video none -sound none -nothrottle -seconds_to_run 30 -noautosave -skip_gameinfo -hash $(ROM) -rp $(ROM) -nvram_directory $$T -autoboot_script tests/mame/slot_order_check.lua neogeo -cart1 $(GAMEROM) > $$T/mame.log 2>&1 || true; \
 	if [ ! -f $$T/result.txt ]; then tail -n 15 $$T/mame.log; echo "[FAIL] no result from slot order Lua script"; exit 1; fi; \
@@ -366,6 +375,7 @@ test-hazard: cart
 	BRAWL_SWAPS_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_swap_count"{print $$1}') \
 	BRAWL_MATCHES_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_hazard_matches"{print $$1}') \
 	BRAWL_PALMAX_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_pal_words_frame_max"{print $$1}') \
+	BRAWL_ISLAND_STEP="$$(sed -n 's/^.define ISLAND_STEP_FRAMES *\([0-9]*\).*/\1/p' $(BUILDDIR)/gen/island_tables.h)" \
 	BRAWL_HAZARD_STEPS="$$(sed -n 's/.*HAZARD_TABLE_STEP_FRAMES *{\(.*\)}.*/\1/p' $(BUILDDIR)/gen/hazard_tables.h)" \
 	BRAWL_HAZARD_VARIANTS="$$(sed -n 's/.*HAZARD_TABLE_VARIANTS *{\(.*\)}.*/\1/p' $(BUILDDIR)/gen/hazard_tables.h)" \
 	BRAWL_HIT_LAYOUT="$$($(M68KGCC) -std=c99 -S -o - tests/mame/hit_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \

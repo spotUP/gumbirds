@@ -7,10 +7,10 @@ ROOT=$(cd "$HERE/../.." && pwd)
 OUT=${BRAWL_TEST_OUT:-$ROOT/build/test-host}
 mkdir -p "$OUT"
 CC="nice -n 19 clang -I $ROOT/build -std=c99 -Wall -Wextra -Werror -pedantic"
-SRC="$ROOT/src/core/rng.c $ROOT/src/core/game.c $ROOT/src/core/hiscore.c $ROOT/src/core/nameentry.c $ROOT/src/core/flow.c $ROOT/src/core/obstacle_view.c $ROOT/src/core/bg_scroll.c $ROOT/src/core/vram_queue.c $ROOT/src/core/obj_pool.c $ROOT/src/core/sound_queue.c $ROOT/src/core/sound_events.c $ROOT/src/core/flier.c $ROOT/src/core/stage.c $ROOT/src/core/ai.c $ROOT/src/core/flier_view.c $ROOT/src/core/sprite_budget.c $ROOT/src/core/camera.c"
+SRC="$ROOT/src/core/rng.c $ROOT/src/core/game.c $ROOT/src/core/hiscore.c $ROOT/src/core/nameentry.c $ROOT/src/core/flow.c $ROOT/src/core/obstacle_view.c $ROOT/src/core/bg_scroll.c $ROOT/src/core/vram_queue.c $ROOT/src/core/obj_pool.c $ROOT/src/core/sound_queue.c $ROOT/src/core/sound_events.c $ROOT/src/core/flier.c $ROOT/src/core/stage.c $ROOT/src/core/island_layout.c $ROOT/src/core/ai.c $ROOT/src/core/flier_view.c $ROOT/src/core/sprite_budget.c $ROOT/src/core/camera.c"
 fail=0
 # test_flier_view reads the generated Sootling tables
-(cd "$ROOT" && gmake -s build/gen/sootling_tables.h build/gen/city_tables.h >"$OUT/gen.log" 2>&1) || { echo "[ERROR] gen sootling_tables.h failed"; tail -n 5 "$OUT/gen.log"; exit 1; }
+(cd "$ROOT" && gmake -s build/gen/sootling_tables.h build/gen/city_tables.h build/gen/island_tables.h >"$OUT/gen.log" 2>&1) || { echo "[ERROR] gen sootling_tables.h failed"; tail -n 5 "$OUT/gen.log"; exit 1; }
 
 $CC -o "$OUT/test_core" "$HERE/test_core.c" $SRC >"$OUT/build.log" 2>&1 || { echo "[ERROR] build failed"; tail -n 20 "$OUT/build.log"; exit 1; }
 nice -n 19 "$OUT/test_core" >"$OUT/test_core.log" 2>&1 || fail=1
@@ -60,6 +60,11 @@ tail -n 1 "$OUT/test_arena.log"; grep FAIL "$OUT/test_arena.log" | head -n 10
 $CC -o "$OUT/test_camera" "$HERE/test_camera.c" $SRC >"$OUT/build.log" 2>&1 || { echo "[ERROR] test_camera build failed"; tail -n 20 "$OUT/build.log"; exit 1; }
 nice -n 19 "$OUT/test_camera" >"$OUT/test_camera.log" 2>&1 || fail=1
 tail -n 1 "$OUT/test_camera.log"; grep FAIL "$OUT/test_camera.log" | head -n 10
+
+# Island sprite set: importer + pipeline per look, tile/palette/alignment/overlap checks (needs build/gen/*_sprites.h from gmake)
+PYTHON=${PYTHON:-/opt/homebrew/bin/python3.14}
+(cd "$ROOT" && nice -n 19 "$PYTHON" -I tests/host/test_islands.py >"$OUT/test_islands.log" 2>&1) || fail=1
+tail -n 1 "$OUT/test_islands.log"; grep -E 'FAIL|ERROR' "$OUT/test_islands.log" | head -n 10
 
 # Knob completeness: every #define in tuning.h (except documented exemptions) has an override.
 # Exemptions: STAGE_ / FLIER_START_ are layout and spawn constants (stage.c table, game_reset).

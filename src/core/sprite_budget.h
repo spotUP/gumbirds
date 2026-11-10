@@ -12,7 +12,7 @@
 
 #define SB_LINES 224
 #define SB_LIMIT 90
-#define SB_GAMEPLAY_PER_LINE 24 /* measured peak 12, 20 with two-column fliers, 4 spare (thoughts/spot/2026-11-10-budget-c11.md) */
+#define SB_GAMEPLAY_PER_LINE 18 /* fliers only (platforms left the pool for the island row): measured peak 10 with feet pinned, 8 spare; was 24 when platforms sat in the pool (thoughts/spot/2026-11-10-islands-build.md, part 3) */
 /* SB_COLUMNS: a parallax plane. Every column is its own sprite with its own top and height (generated table
  * CITY_TABLE_COL_ROW0 / COL_ROWS, indexed by sprite slot), so a column counts only on the lines it spans. */
 enum { SB_ALWAYS = 0, SB_NOT_RAIN = 1, SB_RAIN_ONLY = 2, SB_COLUMNS = 3 };

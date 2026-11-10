@@ -20,6 +20,9 @@ const SpriteBudgetEntry SPRITE_BUDGET[] = {
     { "gameplay",    POOL_SPRITE_BASE,    HERO_SPRITE + HERO_SPRITE_COUNT - POOL_SPRITE_BASE,
                                                                 0, 224, SB_GAMEPLAY_PER_LINE, SB_ALWAYS },
     /* 24 columns, not the 21 visible at a camera offset: the LSPC picks sprites per line by Y only, so columns with X off screen still count. */
+    /* island sprites sit 4 lines above the platform top and are 16 high (ISLAND_LINE_ROW): lines 36-4 .. 164+12. The bands of the 8 islands
+       are disjoint, so one line meets one island at most; the widest island (112 px) has 7 columns. */
+    { "islands",     ISLAND_SPRITE,       ISLAND_COUNT,        32, 176, 7, SB_ALWAYS },
     { "hazard",      HAZARD_SPRITE,       HAZARD_COUNT,       192, 224, 24, SB_ALWAYS },
     { "rain",        FG_RAIN_SPRITE,      FG_RAIN_COUNT,        0, 224, 10, SB_RAIN_ONLY },
     { "spray",       FG_SPRAY_SPRITE,     FG_SPRAY_COUNT,     176, 224,  4, SB_ALWAYS },

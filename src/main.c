@@ -18,6 +18,7 @@
 #include "vram_layout.h"
 #include "bg.h"
 #include "hazard.h"
+#include "island.h"
 #include "sound.h"
 
 /* Palette 0 = white text, palette 1 = yellow (highlight). Entry 0 of a palette is transparent; the backdrop is the last palette RAM entry (bg.c). */
@@ -126,9 +127,10 @@ static void hero_show(const Game *g) {
  * Obstacle-sheet sprites. Tiles follow the logo tiles in the C-ROM (Makefile cat order), palettes follow the fix-layer
  * palettes. They draw through the object pool (src/core/obj_pool.h): each pool object holds a sprite run (POOL_COLS
  * hardware sprites from POOL_SPRITE_BASE, sprite_slots.h); the animation index of an object is its type. Live users:
- * the arena platforms (pool_sync_stage) and the pool stress test hook.
+ * the computer fliers (pool_sync_cpus) and the pool stress test hook. The arena platforms are the island sprites (src/island.c).
  */
 _Static_assert(POOL_SPRITE_COUNT == POOL_SPRITES, "pool sprite range size");
+_Static_assert(ISLAND_SPRITE + ISLAND_COUNT <= POOL_SPRITE_BASE, "island sprites overlap the object pool");
 _Static_assert(POOL_SPRITE_BASE + POOL_SPRITE_COUNT <= HERO_SPRITE, "object pool sprites overlap hero");
 _Static_assert(HERO_SPRITE + HERO_SPRITE_COUNT <= HAZARD_SPRITE, "hero overlaps hazard sprites");
 _Static_assert(SPRITE_SLOT_END <= 381, "sprite slots exceed the 381 hardware sprites");
@@ -140,6 +142,12 @@ static void obs_load_palettes(void) {
     for (int p = 0; p < OBS_PALETTE_COUNT; p++)
         for (int i = 0; i < 16; i++)
             gfx_pal((OBS_PAL_SLOT + p) * 16 + i, obs_palettes[p][i]);
+}
+
+static void island_load_palettes(void) {
+    for (int p = 0; p < ISLAND_PALETTE_COUNT; p++)
+        for (int i = 0; i < 16; i++)
+            gfx_pal((ISLAND_PAL_SLOT + p) * 16 + i, island_palettes[p][i]);
 }
 
 /* Height 0 and not sticky hides a sprite on its own. */
@@ -182,35 +190,15 @@ static void pool_hide_all(void) {
 }
 
 static u8 g_cpu_obj[STAGE_SPAWN_COUNT]; /* pool index of computer flier i, POOL_NONE when not drawn */
-static u8 g_plat_obj[STAGE_PLATFORM_COUNT]; /* pool index of platform i (arena stage), POOL_NONE when it has none */
 
 static void pool_reset(void) {
-    for (int i = 0; i < STAGE_PLATFORM_COUNT; i++) g_plat_obj[i] = POOL_NONE;
     for (int i = 0; i < STAGE_SPAWN_COUNT; i++) g_cpu_obj[i] = POOL_NONE;
     obj_pool_init(&g_pool, POOL_SPRITE_BASE);
 }
 
 static void pool_free_all(void) {
-    for (int i = 0; i < STAGE_PLATFORM_COUNT; i++) g_plat_obj[i] = POOL_NONE;
     for (int i = 0; i < STAGE_SPAWN_COUNT; i++) g_cpu_obj[i] = POOL_NONE;
     for (u8 i = 0; i < POOL_MAX; i++) obj_pool_free(&g_pool, i);
-}
-
-/* Arena platforms: one pool object each, placeholder art (the floor vent frame), centred on the platform and sitting
- * on its top edge (anchor x = left, y = bottom). The platform table is static, so objects are allocated once. */
-static void pool_sync_stage(void) {
-    for (int i = 0; i < STAGE_PLATFORM_COUNT; i++) {
-        const StagePlatform *sp = &stage_platforms[i];
-        u8 k = g_plat_obj[i];
-        if (k == POOL_NONE) {
-            k = obj_pool_alloc(&g_pool, OB_VENT, 0, 0, 0, 0);
-            if (k == POOL_NONE) continue;
-            g_plat_obj[i] = k;
-        }
-        PoolObj *p = &g_pool.obj[k];
-        p->x = obj_pool_fp((int16_t)(sp->x + sp->w / 2 - 16));
-        p->y = obj_pool_fp((int16_t)(sp->y + sp->h));
-    }
 }
 
 /* Computer fliers: one pool object each while on screen (anchor: centre x, feet y). type = sheet frame of the clip (flier_anim_step), flags POOL_F_FLIP when facing left. */
@@ -394,7 +382,6 @@ static void hero_and_mode(const FlowView *v) {
         g_cam_px = (u8)game_camera_px(v->game);
         edge_marker(v->game);
         hero_show(v->game);
-        pool_sync_stage();
         pool_sync_cpus(v->game);
         if (g_pool_stress) pool_stress();
         pool_show();
@@ -590,6 +577,7 @@ static void video_init(void) {
     gfx_pal(16, 0x8000); gfx_pal(17, 0x0ff0); gfx_pal(18, 0x0550);
     soot_load_palettes();
     obs_load_palettes();
+    island_load_palettes();
     bg_load_palettes();
     bg_init();
     hazard_init();
@@ -664,6 +652,7 @@ static void game_loop(void) {
         draw(&view);
         hero_and_mode(&view);
         hazard_step(view.state == FLOW_PLAYING || view.state == FLOW_GAME_OVER, g_cam_px);
+        island_step(view.state == FLOW_PLAYING, g_cam_px);
         bg_update(g_cam_px); /* parallax planes follow the camera */
         gfx_commit();
         g_frame_counter++;

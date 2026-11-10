@@ -4,20 +4,23 @@
 -- the VRAM port, as slot_order_check.lua), resolves sticky chains (a sticky sprite takes y and height of its head, x =
 -- head x + 16 per column), and counts per screen line 0..223 the visible sprites covering it (height > 0, on screen in x).
 -- The match is forced to the maximum computer flier count (matches_won = 4 -> CPU_MAX 6 at match start, 7 fliers with
--- the player). On some frames every flier is pinned to one height (feet 160, lines 128..159) so they overlap the platform
--- sprites at lines 140..147. Records the maximum per line for natural play and for pinned frames, and the frame.
+-- the player). On some frames every flier is pinned to one height (feet 140, lines 108..139) so they overlap the widest
+-- island (112 px, 7 sprites, lines 124..139). The island range is counted the same way and added per line to the gameplay
+-- count: the sum is reported and must not exceed SB_GAMEPLAY_PER_LINE + the island row's per_line (the budget the host test sums).
+-- Records the maximum per line for natural play and for pinned frames, and the frame.
 -- Env: BRAWL_PEAK_LAYOUT (tests/mame/peak_probe.c output), BRAWL_FLOW_ADDR, BRAWL_RESULT, BRAWL_PEAK_FRAMES (playing frames).
 local flow_addr = tonumber(os.getenv("BRAWL_FLOW_ADDR"), 16)
 local result    = os.getenv("BRAWL_RESULT")
 local TOTAL     = tonumber(os.getenv("BRAWL_PEAK_FRAMES") or "6000")
-local LIMIT     = 24   -- SB_GAMEPLAY_PER_LINE (src/core/sprite_budget.h; duplicated, no shared generated value)
+local ISL_LINE  = 7    -- island row per_line (src/core/sprite_budget.c; duplicated like LIMIT)
+local LIMIT     = 18   -- SB_GAMEPLAY_PER_LINE (src/core/sprite_budget.h; duplicated, no shared generated value)
 local lay = {}
 for v in (os.getenv("BRAWL_PEAK_LAYOUT") or ""):gmatch("%d+") do lay[#lay + 1] = tonumber(v) end
-local S_FIRST, S_END, O_STATE, O_CPUN, O_WON, O_PX, O_PY, O_C0X, O_C0Y, FSIZE, O_ALIVE, O_PBAL, O_PSTATE, O_FRAME =
+local S_FIRST, S_END, O_STATE, O_CPUN, O_WON, O_PX, O_PY, O_C0X, O_C0Y, FSIZE, O_ALIVE, O_PBAL, O_PSTATE, O_FRAME, I_FIRST, I_END =
   table.unpack(lay)
 local STATE_PLAYING = 3
 local SCB3, SCB4 = 0x8200, 0x8400
-local PIN_FEET = 160
+local PIN_FEET = 140
 
 local mem   = manager.machine.devices[":maincpu"].spaces["program"]
 local ports = manager.machine.ioport.ports
@@ -46,11 +49,11 @@ local function finish(ok, msg)
 end
 
 -- sprites of the gameplay range covering each line this frame
-local function count_lines()
+local function count_lines(first, last)
   local cnt = {}
   for y = 0, 223 do cnt[y] = 0 end
   local head_top, head_h, head_x, col = nil, 0, 0, 0
-  for s = S_FIRST, S_END - 1 do
+  for s = first, last - 1 do
     local w3 = vram[SCB3 + s] or 0
     local w4 = vram[SCB4 + s] or 0
     if (w3 & 0x40) ~= 0 and head_top then
@@ -88,6 +91,7 @@ local peak = { nat = { v = 0, frame = 0 }, pin = { v = 0, frame = 0 } }
 local per_line = { nat = {}, pin = {} }
 for y = 0, 223 do per_line.nat[y] = 0; per_line.pin[y] = 0 end
 local cpu6_frames, pin_frames, resets = 0, 0, 0
+local both_max, isl_max = { v = 0, y = 0 }, 0 -- island + gameplay sprites on one line (max, its line), most island sprites on one line
 
 emu.register_frame_done(function() local ok_, err_ = pcall(function()
   local state = mem:read_u8(flow_addr + O_STATE)
@@ -122,10 +126,13 @@ emu.register_frame_done(function() local ok_, err_ = pcall(function()
     pin_frames = pin_frames + 1
   end
   if cpun == 6 then cpu6_frames = cpu6_frames + 1 end
-  local cnt = count_lines()
+  local cnt = count_lines(S_FIRST, S_END)
+  local icnt = count_lines(I_FIRST, I_END)
   local key = pinned and "pin" or "nat"
   local pk = peak[key]
   for y = 0, 223 do
+    if cnt[y] + icnt[y] > both_max.v then both_max.v = cnt[y] + icnt[y]; both_max.y = y end
+    if icnt[y] > isl_max then isl_max = icnt[y] end
     if cnt[y] > per_line[key][y] then per_line[key][y] = cnt[y] end
     if cnt[y] > pk.v then pk.v = cnt[y]; pk.frame = played; pk.cpun = cpun; pk.alive = mem:read_u8(flow_addr + O_ALIVE); pk.pstate = mem:read_u8(flow_addr + O_PSTATE) end
   end
@@ -142,9 +149,9 @@ emu.register_frame_done(function() local ok_, err_ = pcall(function()
     end
     print("BRAWL_PROFILE " .. table.concat(prof, " "))
     local msg = string.format(
-      "natural peak %d at playing frame %d (cpu %s, alive %s, player state %s) lines %s; pinned peak %d at playing frame %d lines %s; frames with 6 computer fliers %d of %d, pinned frames %d, game restarts %d",
+      "natural peak %d at playing frame %d (cpu %s, alive %s, player state %s) lines %s; pinned peak %d at playing frame %d lines %s; frames with 6 computer fliers %d of %d, pinned frames %d, game restarts %d; island max %d, island + gameplay max %d at line %d (limit %d)",
       peak.nat.v, peak.nat.frame, tostring(peak.nat.cpun), tostring(peak.nat.alive), tostring(peak.nat.pstate), ranges(per_line.nat, peak.nat.v),
-      peak.pin.v, peak.pin.frame, ranges(per_line.pin, peak.pin.v), cpu6_frames, played, pin_frames, resets)
-    finish(math.max(peak.nat.v, peak.pin.v) <= LIMIT, msg)
+      peak.pin.v, peak.pin.frame, ranges(per_line.pin, peak.pin.v), cpu6_frames, played, pin_frames, resets, isl_max, both_max.v, both_max.y, LIMIT + ISL_LINE)
+    finish(math.max(peak.nat.v, peak.pin.v) <= LIMIT and both_max.v <= LIMIT + ISL_LINE and isl_max <= ISL_LINE, msg)
   end
 end) if not ok_ then print("LUAERR " .. tostring(err_)); finish(false, "lua error: " .. tostring(err_)) end end)

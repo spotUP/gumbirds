@@ -10,7 +10,8 @@
 --      written only by the bank swap (2 words per swap, swaps counted by g_swap_count). No VRAM or palette register
 --      write at all lands outside vblank (all frames after the settle frame).
 --   5. Palette: the hazard palettes sit in palette RAM below slot 256 and g_pal_words_frame_max <= PAL_MAX.
--- Env: BRAWL_FLOW_ADDR, BRAWL_HIT_LAYOUT, BRAWL_HAZARD_LAYOUT (hazard_probe.c), BRAWL_FLIER_LAYOUT (flier_probe.c, to end a match), BRAWL_HAZARD_STEPS (frames per step of
+--   6. Idle speed: after each match (hazard kind back to 0xFF) g_autoanim_frames equals ISLAND_STEP_FRAMES (BRAWL_ISLAND_STEP), the island baseline.
+-- Env: BRAWL_ISLAND_STEP, BRAWL_FLOW_ADDR, BRAWL_HIT_LAYOUT, BRAWL_HAZARD_LAYOUT (hazard_probe.c), BRAWL_FLIER_LAYOUT (flier_probe.c, to end a match), BRAWL_HAZARD_STEPS (frames per step of
 -- each hazard), BRAWL_KIND_ADDR, BRAWL_SPEED_ADDR, BRAWL_SWAPS_ADDR, BRAWL_MATCHES_ADDR, BRAWL_PALMAX_ADDR, BRAWL_RESULT.
 local result = os.getenv("BRAWL_RESULT")
 local function nums(name) local t = {} for v in (os.getenv(name) or ""):gmatch("%d+") do t[#t + 1] = tonumber(v) end return t end
@@ -98,6 +99,8 @@ local function band()
   return t
 end
 
+local ISLAND_STEP = tonumber(os.getenv("BRAWL_ISLAND_STEP")) -- ISLAND_STEP_FRAMES: the counter speed whenever no hazard runs (plan I8)
+local idle_checks, idle_bad = 0, 0 -- samples of g_autoanim_frames while no hazard runs, and how many differ from ISLAND_STEP
 local KINDS = 4 -- spikes 0, fire 1, water 2, lava 3: match N shows hazard N % 4, so four matches in a row walk all of them
 local phase, phase_at, START_AT, WINDOW, SPEED, KIND = "boot", 0, nil, nil, nil, nil
 local hashes, prev_band, rows_changed, prev_c, ctr_steps, swaps0 = {}, nil, {}, nil, 0, 0
@@ -115,6 +118,8 @@ emu.register_frame_done(function()
   if not START_AT then
     if phase == "wait_end" then -- the previous match must be over (strip hidden) before the next coin and start
       if mem:read_u8(kind_addr) == 0xFF then
+        idle_checks = idle_checks + 1
+        if mem:read_u8(speed_addr) ~= ISLAND_STEP then idle_bad = idle_bad + 1 end
         phase = "boot"; n_wait = n
         abtn:set_value(0); rbtn:set_value(0); lbtn:set_value(0)
       elseif mem:read_u8(flow_addr + O_STATE) == STATE_PLAYING then drive() end
@@ -196,6 +201,10 @@ emu.register_frame_done(function()
     lines[#lines + 1] = (ok and "[kind " or "[kind ") .. want .. (ok and " PASS] " or " FAIL] ") .. line
     if not ok then failed = true end
     want = want + 1
+    if idle_bad > 0 or (want > 1 and idle_checks == 0) then
+      failed = true
+      lines[#lines + 1] = string.format("FAIL idle speed: %d of %d idle samples differ from ISLAND_STEP_FRAMES %d", idle_bad, idle_checks, ISLAND_STEP)
+    end
     if failed or want == KINDS then
       finish(not failed, string.format("%d of %d hazard kinds driven\n%s", want, KINDS, table.concat(lines, "\n")))
     else
