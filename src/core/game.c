@@ -1,6 +1,7 @@
 #include "game.h"
 #include "stage.h"
 #include "nameentry.h"
+#include "arena.h"
 
 /* Zero a struct without libc. Byte loop; the compiler may turn it into a memset call, which
  * the ngdevkit libc provides. */
@@ -23,6 +24,7 @@ void game_reset(Game *g, uint32_t seed)
 {
     zero(g, sizeof(*g));
     rng_seed(&g->rng, seed);
+    camera_init(&g->camera);
     player_spawn(g);
 }
 
@@ -52,11 +54,28 @@ static void match_start(Game *g)
     }
 }
 
+/* The camera follows the living human fliers. Only the player exists today; a second human adds an entry here. */
+static void camera_follow(Game *g)
+{
+    int32_t humans[1];
+    int n = 0;
+    if (g->flier.state < FLIER_DROWNED) {
+        humans[n++] = g->flier.x;
+    }
+    camera_step(&g->camera, humans, n);
+}
+
+int game_camera_px(const Game *g)
+{
+    return camera_px(&g->camera);
+}
+
 void game_step_arena(Game *g, uint8_t input)
 {
     FlierInput in;
     int i, j, n;
     if (g->over) {
+        camera_follow(g);
         return;
     }
     if (g->cpu_count == 0) {
@@ -98,8 +117,9 @@ void game_step_arena(Game *g, uint8_t input)
        further apart than 9 half pixels makes flier_stomp, flier_body_bounce and flier_body_kill return 0 without
        touching either flier, so skipping it changes nothing. None of the three passes moves a flier
        horizontally (they change velocities, state and at most y), so the near set computed here holds for all
-       three, and the passes keep their order and their (i, j) order. Positions stay on the stage, far inside the
-       int16 range that flier_feet_hit casts to. */
+       three, and the passes keep their order and their (i, j) order. Distances are measured across the arena seam
+       (arena_dx_half): fliers wrap at 384 px, so x 382 and x 2 are 4 px apart. Positions stay in 0..384 px, far
+       inside the int16 range that flier_feet_hit casts to. */
     n = g->cpu_count + 1;
     {
         Flier *f[CPU_MAX + 1];
@@ -112,7 +132,7 @@ void game_step_arena(Game *g, uint8_t input)
         }
         for (i = 0; i < n; i++) {
             for (j = i + 1; j < n; j++) {
-                int32_t d = hx[i] - hx[j];
+                int32_t d = arena_dx_half(hx[i], hx[j]);
                 if (d <= 9 && d >= -9) {
                     near[i] = (uint8_t)(near[i] | (1u << j));
                     near[j] = (uint8_t)(near[j] | (1u << i));
@@ -171,4 +191,5 @@ void game_step_arena(Game *g, uint8_t input)
             match_start(g);
         }
     }
+    camera_follow(g);
 }

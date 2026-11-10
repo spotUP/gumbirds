@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include "../../src/core/flier.h"
+#include "../../src/core/arena.h"
 
 static int checks, failures;
 #define CHECK(c) do { checks++; if (!(c)) { failures++; printf("FAIL %s:%d: %s\n", __FILE__, __LINE__, #c); } } while (0)
@@ -137,36 +138,46 @@ static void test_ground(void) {
 
 static void test_bounce(void) {
     Flier f;
-    /* left wall x = 0: body centre clamps at half width, velocity reflects (restitution 1) */
-    flier_init(&f, FL_PX(2) + 32768, FL_PX(90), 2, 0);
+    /* side edges wrap at ARENA_W: no wall, velocity untouched */
+    flier_init(&f, 32768, FL_PX(90), 2, 0);
     f.vx = -65536; f.vy = 20000;
     step(&f, 0, 0);
-    CHECK(f.x == FL_PX(FLIER_HALF_W));
-    CHECK(f.vx == 65536 && f.vy == 20000 + 728);
-    /* slow: speed below 0.41667 becomes minimum x normal */
-    flier_init(&f, FL_PX(2) + 1000, FL_PX(90), 2, 0);
-    f.vx = -10000; f.vy = 0;
+    CHECK(f.x == ARENA_W16 - 32768);                 /* 0.5 - 1 = 0.5 left of zero -> 383.5 */
+    CHECK(f.vx == -65536 && f.vy == 20000 + 728);
+    flier_init(&f, FL_PX(383) + 32768, FL_PX(90), 2, 0);
+    f.vx = 65536;
     step(&f, 0, 0);
-    CHECK(f.vx == 27307 && f.vy == 0);
-    /* right wall x = 320 */
-    flier_init(&f, FL_PX(318) - 32768, FL_PX(90), 2, 0);
-    f.vx = 65536; f.vy = -20000;
+    CHECK(f.x == 32768 && f.vx == 65536);            /* 384.5 -> 0.5 */
+    /* on the floor the edge does not stop the walk either */
+    flier_init(&f, FL_PX(383) + 40000, FL_PX(90), 2, 0);
+    f.vx = 50000; f.on_ground = 1;
     step(&f, 0, 0);
-    CHECK(f.x == FL_PX(320 - FLIER_HALF_W));
-    CHECK(f.vx == -65536 && f.vy == -20000 + 728);
-    flier_init(&f, FL_PX(318) - 1000, FL_PX(90), 2, 0);
-    f.vx = 10000; f.vy = 0;
-    step(&f, 0, 0);
-    CHECK(f.vx == -27307 && f.vy == 0);
-    /* no wrap: a long flight never leaves 0..320 */
+    CHECK(f.x < FL_PX(2) && f.vx != 0);
+    /* a long flight crosses 383 -> 0 and stays inside 0..ARENA_W; it wraps more than once */
     flier_init(&f, FL_PX(100), FL_PX(90), 2, 0);
     f.vx = 65536;
-    for (int i = 0; i < 2000; i++) {
-        step(&f, 0, 0);
-        if (f.state != FLIER_ALIVE) break;
-        CHECK(f.x >= FL_PX(FLIER_HALF_W) && f.x <= FL_PX(320 - FLIER_HALF_W));
-        f.y = FL_PX(90); f.vy = 0;
+    {
+        int wraps = 0;
+        int32_t prev = f.x;
+        for (int i = 0; i < 2000; i++) {
+            step(&f, 0, 0);
+            if (f.state != FLIER_ALIVE) break;
+            CHECK(f.x >= 0 && f.x < ARENA_W16);
+            if (f.x < prev) wraps++;
+            prev = f.x;
+            f.y = FL_PX(90); f.vy = 0;
+        }
+        CHECK(wraps == 5);   /* 2000 px of travel / 384 from x 100 */
     }
+    /* the FALLING path wraps too */
+    flier_init(&f, FL_PX(383) + 40000, FL_PX(90), 0, 0);
+    f.state = FLIER_FALLING; f.vx = 60000; f.vy = 0;
+    step(&f, 0, 0);
+    CHECK(f.x < FL_PX(2) && f.x >= 0);
+    flier_init(&f, FL_PX(0) + 100, FL_PX(90), 0, 0);
+    f.state = FLIER_FALLING; f.vx = -60000; f.vy = 0;
+    step(&f, 0, 0);
+    CHECK(f.x > FL_PX(383) && f.x < ARENA_W16);
     /* ceiling y = 0 */
     flier_init(&f, FL_PX(100), FLIER_HALF_H16_BALLOON + 32768, 2, 0);
     f.vy = -65536;
@@ -334,6 +345,36 @@ static void test_body_bounce(void) {
     CHECK(flier_body_bounce(&a, &b) == 0 && a.vx == 65536);
 }
 
+/* Collision across the seam: a at x 383, v at x 1 are 2 px apart, not 382. */
+static void test_seam(void) {
+    Flier a, v;
+    flier_init(&a, FL_PX(383), FL_PX(80), 2, 0);
+    flier_init(&v, FL_PX(1), FL_PX(90), 2, 0);
+    CHECK(flier_feet_hit(&a, &v));
+    CHECK(flier_stomp(&a, &v) == 1 && v.balloons == 1);
+    /* knockback direction: v is to the right of a across the seam, so it is pushed right (+vx) and a left */
+    flier_init(&a, FL_PX(383), FL_PX(80), 2, 0);
+    flier_init(&v, FL_PX(1) + 40000, FL_PX(90), 2, 0);
+    CHECK(flier_stomp(&a, &v) == 1 && v.vx > 0 && a.vx < 0);
+    /* and mirrored: attacker at 1, victim at 383 */
+    flier_init(&a, FL_PX(1) + 40000, FL_PX(80), 2, 0);
+    flier_init(&v, FL_PX(383), FL_PX(90), 2, 0);
+    CHECK(flier_stomp(&a, &v) == 1 && v.vx < 0 && a.vx > 0);
+    /* body contact: a left of the seam moving into b right of it */
+    flier_init(&a, FL_PX(382), FL_PX(90), 2, 0);
+    flier_init(&v, FL_PX(1), FL_PX(90), 2, 0);
+    a.vx = 65536;
+    CHECK(flier_body_bounce(&a, &v) == 1 && a.vx == -65536 * 0 + a.vx && a.vx < 0);
+    /* body kill of a balloon-less flier that touches another across the seam */
+    flier_init(&a, FL_PX(383), FL_PX(90), 0, 0);
+    flier_init(&v, FL_PX(2), FL_PX(90), 2, 0);
+    CHECK(flier_body_kill(&a, &v) == 1 && a.state == FLIER_FALLING);
+    /* far apart across the seam: no contact */
+    flier_init(&a, FL_PX(383), FL_PX(90), 2, 0);
+    flier_init(&v, FL_PX(100), FL_PX(90), 2, 0);
+    CHECK(!flier_feet_hit(&a, &v) && flier_body_bounce(&a, &v) == 0);
+}
+
 int main(void) {
     test_gravity();
     test_flap();
@@ -343,6 +384,7 @@ int main(void) {
     test_angle();
     test_stomp();
     test_body_bounce();
+    test_seam();
     printf("flier: %d checks, %d failures\n", checks, failures);
     return failures != 0;
 }

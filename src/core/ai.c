@@ -1,4 +1,5 @@
 #include "ai.h"
+#include "arena.h"
 
 /* int16 x int16 -> int32 as one muls.w; see flier.c. */
 __attribute__((noinline)) static int32_t m16(int16_t a, int16_t b) { return (int32_t)a * (int32_t)b; }
@@ -6,7 +7,7 @@ __attribute__((noinline)) static int32_t m16(int16_t a, int16_t b) { return (int
 static int16_t px(int32_t v) { return (int16_t)(v >> 16); }
 
 static int32_t dist2(const Flier *a, const Flier *b) {
-    int16_t dx = (int16_t)(px(a->x) - px(b->x)), dy = (int16_t)(px(a->y) - px(b->y));
+    int16_t dx = (int16_t)arena_dx(px(a->x), px(b->x)), dy = (int16_t)(px(a->y) - px(b->y));
     return m16(dx, dx) + m16(dy, dy);
 }
 
@@ -58,7 +59,7 @@ void ai_step(Ai *a, Rng *r, const Flier *self, const Flier *target, FlierInput *
             AiState s = ai_decide(self, target);
             a->state = (uint8_t)s;
             if (s != AI_FILL) {
-                uint8_t ang = flier_angle((int32_t)(px(target->x) - px(self->x)), (int32_t)(px(target->y) - px(self->y)));
+                uint8_t ang = flier_angle((int32_t)arena_dx(px(target->x), px(self->x)), (int32_t)(px(target->y) - px(self->y)));
                 int16_t cx = flier_cos(ang), cy = flier_sin(ang);
                 if (s == AI_FLEE) { cx = (int16_t)-cx; cy = (int16_t)-cy; }
                 if (cx > AI_STEER_MIN) a->dir = 1;

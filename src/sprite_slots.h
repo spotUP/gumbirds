@@ -18,8 +18,8 @@
  *   120..215 object pool (POOL_SPRITE_COUNT = POOL_MAX x POOL_COLS, src/core/obj_pool.h): object i owns
  *            POOL_SPRITE_BASE + i * POOL_COLS; platforms and computer fliers draw through it
  *   216..218 hero (HERO_SPRITE_COUNT)
- *   220..259 plane 7 hazard strip: two banks of 20 sprites (bank 0 at 220, bank 1 at 240), one visible at a time
- *   260..269 plane 8 rain columns (reserved), 270..273 spray, 274..275 edge cable
+ *   220..267 plane 7 hazard strip: two banks of 24 sprites (bank 0 at 220, bank 1 at 244), one visible at a time
+ *   268..277 plane 8 rain columns (reserved), 278..281 spray, 282..283 edge cable
  */
 #define BG_STAR_SPRITE 0
 #define BG_STAR_COUNT 16
@@ -41,12 +41,12 @@
 #define HERO_SPRITE 216
 #define HERO_SPRITE_COUNT 3
 #define HAZARD_SPRITE 220
-#define HAZARD_COUNT 40
-#define FG_RAIN_SPRITE 260
+#define HAZARD_COUNT 48
+#define FG_RAIN_SPRITE 268
 #define FG_RAIN_COUNT 10
-#define FG_SPRAY_SPRITE 270
+#define FG_SPRAY_SPRITE 278
 #define FG_SPRAY_COUNT 4
-#define FG_EDGE_SPRITE 274
+#define FG_EDGE_SPRITE 282
 #define FG_EDGE_COUNT 2
-#define SPRITE_SLOT_END 276
+#define SPRITE_SLOT_END 284
 #endif

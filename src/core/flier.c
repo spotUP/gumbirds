@@ -1,5 +1,6 @@
 /* flier.c - see flier.h. Spec: thoughts/shared/research/2026-11-09_flier-reference-spec.md. */
 #include "flier.h"
+#include "arena.h"
 
 /* 256-entry sine table, Q15 (amplitude 32767), one full turn. */
 static const int16_t sin_tab[256] = {
@@ -85,7 +86,7 @@ int flier_lose_balloon(Flier *f) {
 /* Body boxes overlap (whole pixels, inclusive edges): fills the centre offset a - b and the penetration on each axis. */
 static int body_overlap(const Flier *a, const Flier *b, int *dx, int *dy, int *pen_x, int *pen_y) {
     int ah = (int)(flier_half_h(a) >> 16) + 1, bh = (int)(flier_half_h(b) >> 16) + 1;
-    *dx = (int)(a->x >> 16) - (int)(b->x >> 16);
+    *dx = arena_dx((int)(a->x >> 16), (int)(b->x >> 16));
     *dy = (int)(a->y >> 16) - (int)(b->y >> 16);
     if (*dx > 2 * FLIER_HALF_W || *dx < -2 * FLIER_HALF_W) return 0;
     if (*dy > ah + bh || *dy < -(ah + bh)) return 0;
@@ -155,7 +156,7 @@ void flier_step(Flier *f, const FlierInput *in, int32_t floor_y) {
 
     if (f->state == FLIER_FALLING) {
         f->vy += FLIER_GRAVITY_NO_BALLOON;
-        f->x += f->vx;
+        f->x = arena_wrap_x(f->x + f->vx);
         f->y += f->vy;
         if (f->y > FL_PX(FLIER_REMOVE_Y)) f->state = FLIER_GONE;
         return;
@@ -218,17 +219,8 @@ void flier_step(Flier *f, const FlierInput *in, int32_t floor_y) {
         return;
     }
 
-    /* walls and ceiling: elastic bounce with minimum speed; on the floor the wall only stops (3.6) */
-    int32_t hw = FL_PX(FLIER_HALF_W);
-    if (f->x < hw) {
-        f->x = hw;
-        if (f->on_ground) f->vx = 0;
-        else { if (f->vx < 0) f->vx = -f->vx; bounce_min(f, 1, 0); }
-    } else if (f->x > FL_PX(FLIER_WORLD_W) - hw) {
-        f->x = FL_PX(FLIER_WORLD_W) - hw;
-        if (f->on_ground) f->vx = 0;
-        else { if (f->vx > 0) f->vx = -f->vx; bounce_min(f, -1, 0); }
-    }
+    /* side edges wrap (arena.h); the ceiling is an elastic bounce with minimum speed (3.6) */
+    f->x = arena_wrap_x(f->x);
     if (f->y < hh) {
         f->y = hh;
         if (f->vy < 0) f->vy = -f->vy;
@@ -240,7 +232,7 @@ void flier_step(Flier *f, const FlierInput *in, int32_t floor_y) {
  * Compared in 1/2 pixel units (value >> 15) so the half-pixel offset is exact. */
 int flier_feet_hit(const Flier *a, const Flier *v) {
     int16_t ax = (int16_t)(a->x >> 15), ay = (int16_t)(a->y >> 15);
-    int16_t vx = (int16_t)(v->x >> 15), vy = (int16_t)(v->y >> 15);
+    int16_t vx = (int16_t)(arena_near_x(a->x, v->x) >> 15), vy = (int16_t)(v->y >> 15);
     int16_t fl = (int16_t)(ax - 3), fr = (int16_t)(ax + 3);          /* half width 1.5 px */
     int16_t ft = (int16_t)(ay + 10 - 5), fb = (int16_t)(ay + 10 + 5);/* centre +5 px, half height 2.5 px */
     int16_t bl = (int16_t)(vx + 1 - 6), br = (int16_t)(vx + 1 + 6);  /* centre +0.5 px, half width 3 px */
@@ -269,7 +261,7 @@ int flier_stomp(Flier *a, Flier *v) {
     if (a->state > FLIER_PARACHUTE) return 0;         /* a falling attacker pops nothing */
     if (v->invincible || v->balloons == 0 || v->state > FLIER_PARACHUTE) return 0;
     if (!flier_feet_hit(a, v)) return 0;
-    uint8_t ang = flier_angle((v->x - a->x) >> 8, (v->y - a->y) >> 8);
+    uint8_t ang = flier_angle((arena_near_x(a->x, v->x) - a->x) >> 8, (v->y - a->y) >> 8);
     int16_t c = flier_cos(ang), s = flier_sin(ang);
     /* victim away at 40 px/s, attacker away at 75 px/s (75 raw 40960 = c * 20480 >> 14) */
     v->vx = m16(c, (int16_t)FLIER_KNOCKBACK_VICTIM) >> 15;

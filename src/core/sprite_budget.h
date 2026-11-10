@@ -12,7 +12,7 @@
 
 #define SB_LINES 224
 #define SB_LIMIT 90
-#define SB_GAMEPLAY_PER_LINE 30
+#define SB_GAMEPLAY_PER_LINE 24 /* measured peak 12, 20 with two-column fliers, 4 spare (thoughts/spot/2026-11-10-budget-c11.md) */
 enum { SB_ALWAYS = 0, SB_NOT_RAIN = 1, SB_RAIN_ONLY = 2 };
 
 typedef struct {

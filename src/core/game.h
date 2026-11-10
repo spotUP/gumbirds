@@ -3,13 +3,14 @@
  * Portable C99. Fixed point only. No malloc, no globals. The flow calls game_reset(seed) at start
  * press and game_step_arena(&g, input) once per frame, then the main loop draws from the public state.
  *
- * Coordinates: screen origin top-left, 320x224 (flier world 320x180, src/core/stage.h).
+ * Coordinates: screen origin top-left, 320x224 (arena 384x180 wrapping, arena.h; the screen shows it through the camera, camera.h).
  */
 #ifndef BRAWL_GAME_H
 #define BRAWL_GAME_H
 
 #include <stdint.h>
 #include <stddef.h>
+#include "camera.h"
 #include "tuning.h"
 #include "rng.h"
 #include "flier.h"
@@ -52,11 +53,14 @@ typedef struct {
     uint32_t stomps;     /* balloons popped by stomps, any flier */
     uint32_t matches_won;
     uint32_t bounces;    /* body-contact reflects (test sentinel) */
+    Camera camera;       /* follows the living human fliers, stepped every game_step_arena; view reads game_camera_px */
 } Game;
 
 void game_reset(Game *g, uint32_t seed);
 /* Arena step (used by the flow in play and demo): A flaps, left/right steer (nameentry.h bits). The run ends when the
  * flier is DROWNED or GONE. Score is survival time (distance advances SPEED_BASE per frame while alive). */
 void game_step_arena(Game *g, uint8_t input);
+/* Camera x in whole screen pixels, 0..64: screen x = world x - this (wrapped, see arena.h). */
+int game_camera_px(const Game *g);
 
 #endif

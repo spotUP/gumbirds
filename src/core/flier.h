@@ -3,7 +3,7 @@
  * no libm). Numbers come from thoughts/shared/research/2026-11-09_flier-reference-spec.md (the "spec");
  * section numbers below point into it.
  *
- * - Position and velocity are int32_t 16.16 fixed point, pixels per frame at 60 Hz, 320x224 screen, reference
+ * - Position and velocity are int32_t 16.16 fixed point, pixels per frame at 60 Hz, 320x224 screen (arena 384 wide, wrapping: arena.h), reference
  *   scale 0.5 (spec 2.1, 2.2). (x, y) is the centre of the body box.
  * - Every lerp weight is shift-add; no `/` or `%` and no 32x32 multiply on any path (68000: no hardware
  *   divide, no 32-bit multiply). Multiplies are int16 x int16.
@@ -38,7 +38,6 @@
 #define FLIER_SWAY_PHASE_STEP      10430    /* one radian in 8.8 table indices: 256 / 2pi x 256 (3.5, sin(n)) */
 #define FLIER_MAX_BALLOONS         2        /* art has two pods (user decision 2026-11-10); NIR-5 default was 3 */
 
-#define FLIER_WORLD_W              320      /* 640 ref px x 0.5 (3.6) */
 #define FLIER_WORLD_H              180      /* 360 ref px x 0.5 (3.6) */
 #define FLIER_WATER_Y              180      /* water line, kills on contact (3.6, 4.3 item 6) */
 #define FLIER_REMOVE_Y             200      /* a falling fighter is gone below this (400 ref px, 3.5) */

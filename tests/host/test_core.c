@@ -128,6 +128,13 @@ static void test_arena_score(void)
     game_step_arena(&g, 0);
     CHECK(g.stomps == 1 && g.cpu[0].balloons == FLIER_START_BALLOONS - 1);
     CHECK(g.score - before == (uint32_t)SCORE_STOMP_POP);
+    /* broad phase across the seam: player at x 383, computer flier at x 1 (2 px apart) is a stomp pair */
+    arena_one_cpu(&g);
+    g.cpu[0].x = FL_PX(1); g.cpu[0].y = FL_PX(100); g.cpu[0].vx = 0; g.cpu[0].vy = 0;
+    g.flier.x = FL_PX(383); g.flier.y = FL_PX(100 - 14); g.flier.vx = 0; g.flier.vy = 0;
+    before = g.stomps;
+    game_step_arena(&g, 0);
+    CHECK(g.stomps == before + 1);
     /* the last balloon: pop + defeat; the dead flier then falls out through the bottom, which pays nothing
        (fall points are for a living computer flier only, user decision 2026-11-10); match win, no balloon lost */
     arena_one_cpu(&g);
@@ -137,7 +144,7 @@ static void test_arena_score(void)
     game_step_arena(&g, 0);
     CHECK(g.cpu[0].state == FLIER_FALLING);
     CHECK(g.score - before == (uint32_t)(SCORE_STOMP_POP + SCORE_CPU_DEFEAT));
-    g.cpu[0].x = FL_PX(100); g.cpu[0].y = FL_PX(100);   /* falling over the gap: into the water */
+    g.cpu[0].x = FL_PX(120); g.cpu[0].y = FL_PX(100);   /* falling over the gap: into the water */
     flier_init(&g.flier, FL_PX(FLIER_START_X), FL_PX(FLIER_START_Y), FLIER_START_BALLOONS, 0);
     arena_run(&g, 3000);
     CHECK(g.matches_won == 1);
@@ -145,7 +152,7 @@ static void test_arena_score(void)
     /* the same match with a player balloon lost: no clean bonus */
     arena_one_cpu(&g);
     g.cpu[0].balloons = 0;
-    g.cpu[0].x = FL_PX(100); g.cpu[0].y = FL_PX(100);   /* over the gap: falls into the water */
+    g.cpu[0].x = FL_PX(120); g.cpu[0].y = FL_PX(100);   /* over the gap: falls into the water */
     flier_lose_balloon(&g.flier);
     arena_run(&g, 3000);
     CHECK(g.matches_won == 1);
@@ -177,7 +184,7 @@ static void test_arena_rematch(void)
     static Game g;
     arena_one_cpu(&g);
     g.cpu[0].balloons = 0;
-    g.cpu[0].x = FL_PX(100); g.cpu[0].y = FL_PX(100);   /* over the gap: falls into the water */
+    g.cpu[0].x = FL_PX(120); g.cpu[0].y = FL_PX(100);   /* over the gap: falls into the water */
     g.flier.x = FL_PX(FLIER_START_X + 40);              /* away from the spawn point, moving, facing left, hurt */
     g.flier.vx = -FL_PX(1);
     g.flier.facing = -1;

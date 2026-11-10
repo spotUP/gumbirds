@@ -7,6 +7,7 @@
 #include <ngdevkit/ng-video.h>
 #include <ngdevkit/bios-ram.h>
 #include "core/stage.h"
+#include "core/camera.h"
 #include "core/flier.h"
 #include "core/flow.h"
 #include "core/obstacle_view.h"
@@ -65,6 +66,12 @@ static void soot_load_palettes(void) {
             gfx_pal((SOOT_PAL_SLOT + p) * 16 + i, sootling_palettes[p][i]);
 }
 
+/* Camera x of the frame the view is drawing (game_camera_px): the one value every world object is placed with. Test
+ * sentinel for tests/mame/camera_check.lua. 0 outside play. */
+volatile u8 g_cam_px;
+/* Fix layer cell of the off screen marker last drawn (col 0xFF: none). */
+static u8 g_edge_col = 0xFF, g_edge_row;
+
 static void hero_hide(void) {
     gfx_word(ADDR_SCB3 + HERO_SPRITE, 0); /* height 0 hides the sprite and the sticky ones after it */
     g_soot_player_tile = 0;
@@ -85,7 +92,9 @@ static void hero_show(const Game *g) {
     const u16 *tiles = &sootling_tile_index[f->tile_offset];
     g_soot_player_tile = (u16)(SOOT_TILE_BASE + tiles[0]);
     int top = feet - f->tiles_h * 16;
-    int left = (int)(fl->x >> 16) - FLIER_HALF_W - SOOT_BOX_DX;
+    int sx = camera_screen_x((int)(fl->x >> 16) - FLIER_HALF_W - SOOT_BOX_DX, g_cam_px, SOOT_COLUMNS * 16);
+    if (!camera_visible(sx, SOOT_COLUMNS * 16)) { hero_hide(); return; }
+    int left = sx;
     u16 attr = (u16)(((SOOT_PAL_SLOT + f->palette) << 8) | (flip ? SOOT_FLIP : 0));
     gfx_sprite_block(HERO_SPRITE, SOOT_COLUMNS, f->tiles_h, tiles, SOOT_TILE_BASE, attr, left, top);
 }
@@ -238,9 +247,9 @@ static void pool_show_hero(PoolObj *p, u8 i, u16 *scb3) {
     u8 fi = soot_frame(SOOTLING_ANIM_CPU, (FlierPose)p->type);
     const SootlingFrame *f = &sootling_frames[fi];
     int flip = (p->flags & POOL_F_FLIP) != 0;
-    int x = obj_pool_px(p->x);
+    int x = camera_screen_x(obj_pool_px(p->x) - FLIER_HALF_W - SOOT_BOX_DX, g_cam_px, SOOT_COLUMNS * 16);
     u16 slot = obj_pool_sprite(&g_pool, i);
-    if (x >= SCREEN_W) { pool_hide_run(i); return; }
+    if (!camera_visible(x, SOOT_COLUMNS * 16)) { pool_hide_run(i); return; }
     int top = obj_pool_px(p->y) - f->tiles_h * 16;
     const u16 *tiles = &sootling_tile_index[f->tile_offset];
     u8 key = (u8)(fi + 1 + (flip ? 64 : 0)); /* frame and mirror state the strips hold */
@@ -253,7 +262,7 @@ static void pool_show_hero(PoolObj *p, u8 i, u16 *scb3) {
     g_soot_cpu_tile = (u16)(SOOT_TILE_BASE + tiles[0]);
     g_soot_cpu_draws++;
     scb3[i] = gfx_scb3_word(f->tiles_h, top);
-    g_pool_scb4[i] = gfx_scb4_word(x - FLIER_HALF_W - SOOT_BOX_DX);
+    g_pool_scb4[i] = gfx_scb4_word(x);
 }
 
 static void pool_show(void) {
@@ -269,9 +278,12 @@ static void pool_show(void) {
         obj_pool_anim(p, obstacle_view_ticks(p->type), a->frame_count);
         u8 fi = (u8)(a->first_frame + p->anim);
         const ObsFrame *f = &obs_frames[fi];
-        int x = obj_pool_px(p->x);
+        /* world objects go through the camera; the stress hook's drifters live in screen space */
+        int w = f->tiles_w * 16;
+        int x = (p->flags & POOL_F_STRESS) ? obj_pool_px(p->x) - f->pad_left
+                                           : camera_screen_x(obj_pool_px(p->x) - f->pad_left, g_cam_px, w);
         u16 slot = obj_pool_sprite(&g_pool, i);
-        if (x >= SCREEN_W) { pool_hide_run(i); continue; }
+        if ((p->flags & POOL_F_STRESS) ? x + f->pad_left >= SCREEN_W : !camera_visible(x, w)) { pool_hide_run(i); continue; }
         int top = obj_pool_px(p->y) - f->tiles_h * 16; /* art bottom = anchor */
         u16 attr = (u16)((OBS_PAL_SLOT + f->palette) << 8);
         if (g_pool_drawn[i] != (u8)(fi + 1)) {
@@ -287,7 +299,7 @@ static void pool_show(void) {
             g_pool_drawn[i] = (u8)(fi + 1);
         }
         scb3[i] = gfx_scb3_word(f->tiles_h, top);
-        g_pool_scb4[i] = gfx_scb4_word(x - f->pad_left);
+        g_pool_scb4[i] = gfx_scb4_word(x);
     }
     gfx_scb_run(ADDR_SCB3 + POOL_SPRITE_BASE, POOL_COLS, scb3, POOL_MAX);
     gfx_scb_run(ADDR_SCB4 + POOL_SPRITE_BASE, POOL_COLS, g_pool_scb4, POOL_MAX);
@@ -328,9 +340,36 @@ void player_start(void) {
     g_start_pending = 1;
 }
 
+/* Off screen marker for the human flier (design D1): a '<' or '>' on the fix layer at the screen edge, at the flier's
+ * row. The fix layer is free at the edges (the HUD sits in columns 2..), costs no sprite slot and the fix shadow
+ * drops unchanged cells. One cell at a time; erased when the flier shows again or the match ends. */
+static void edge_marker(const Game *g) {
+    int dir = 0, row = 0;
+    if (g) {
+        const Flier *fl = &g->flier;
+        int w = SOOT_COLUMNS * 16;
+        int sx = camera_screen_x((int)(fl->x >> 16) - FLIER_HALF_W - SOOT_BOX_DX, g_cam_px, w);
+        if (fl->state != FLIER_GONE) dir = camera_edge_marker(sx, w);
+        row = (int)(fl->y >> 19);
+        if (row < 8) row = 8;
+        if (row > 24) row = 24;
+    }
+    u8 col = dir < 0 ? 0 : 39;
+    if (g_edge_col != 0xFF && (dir == 0 || col != g_edge_col || row != g_edge_row)) {
+        gfx_text(g_edge_col, g_edge_row, PAL_TEXT, " ");
+        g_edge_col = 0xFF;
+    }
+    if (dir != 0 && g_edge_col == 0xFF) {
+        gfx_text(col, (u8)row, PAL_HIGH, dir < 0 ? "<" : ">");
+        g_edge_col = col; g_edge_row = (u8)row;
+    }
+}
+
 static void hero_and_mode(const FlowView *v) {
     if (v->state == FLOW_PLAYING && v->game) {
         bios_user_mode = 2;
+        g_cam_px = (u8)game_camera_px(v->game);
+        edge_marker(v->game);
         hero_show(v->game);
         pool_sync_stage();
         pool_sync_cpus(v->game);
@@ -345,6 +384,8 @@ static void hero_and_mode(const FlowView *v) {
          * keeps mode 2 until flow_step sees it. Guarded by make test-unibios (two coins). */
         if (v->state > FLOW_ATTRACT_DEMO || g_start_pending) bios_user_mode = 2;
         else bios_user_mode = 1;
+        g_cam_px = 0;
+        g_edge_col = 0xFF; /* draw() clears the fix layer with the state change */
         hero_hide();
         if (g_pool.live) pool_free_all();
         pool_show(); /* hides the freed runs once */
@@ -420,7 +461,7 @@ static void draw(const FlowView *v) {
         gfx_cls();
         g_draw_state = (int)v->state;
         g_hud_game = 0;
-        text(2, 2, PAL_TEXT, "BUBBLEGUM BRAWL");
+        text(2, 2, PAL_TEXT, "GUMBIRDS");
         text(2, 3, PAL_TEXT, STATE_NAME[v->state]);
         /* pad so a shorter name overwrites a longer one */
         text(2 + (u8)0, 4, PAL_TEXT, "              ");
@@ -598,7 +639,7 @@ static void game_loop(void) {
         sound_tick();
         draw(&view);
         hero_and_mode(&view);
-        hazard_step(view.state == FLOW_PLAYING || view.state == FLOW_GAME_OVER);
+        hazard_step(view.state == FLOW_PLAYING || view.state == FLOW_GAME_OVER, g_cam_px);
         bg_update(0, g_frame_counter); /* arena slice: the city is a still backdrop */
         gfx_commit();
         g_frame_counter++;

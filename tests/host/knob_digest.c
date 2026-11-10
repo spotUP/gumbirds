@@ -70,7 +70,7 @@ static void flow_digest(void)
         }
         flow_step(&f, in, start, fr);
         if (f.dirty) { mix(0xD1u); f.dirty = 0; }
-        mix(f.state); mix(f.timer); mix(f.game.score); mix(f.game.flier_steps); mix(f.game.flaps); mix((uint32_t)f.game.flier.x); mix((uint32_t)f.game.flier.y); mix((uint32_t)f.highlight);
+        mix(f.state); mix(f.timer); mix(f.game.score); mix(f.game.flier_steps); mix(f.game.flaps); mix((uint32_t)f.game.flier.x); mix((uint32_t)f.game.flier.y); mix((uint32_t)game_camera_px(&f.game)); mix((uint32_t)f.highlight);
         mix(f.reset_hold);
         for (i = 0; i < NAME_LEN; i++) mix((uint32_t)f.entry.name[i]);
         mix(f.entry.pos); mix(f.entry.sym[0]);
@@ -109,7 +109,7 @@ static void arena_digest(void)
         game_step_arena(&g, in);
         mix(g.stomps); mix(g.score); mix(g.distance); mix(g.matches_won); mix(g.cpu_count); mix(g.cpu_alive);
         for (i = 0; i < g.cpu_count; i++) { mix((uint32_t)g.cpu[i].x); mix((uint32_t)g.cpu[i].y); mix(g.cpu[i].state); mix(g.cpu[i].balloons); mix(g.ai[i].thinks); mix(g.ai[i].state); }
-        mix((uint32_t)g.flier.x); mix(g.flier.balloons);
+        mix((uint32_t)g.flier.x); mix(g.flier.balloons); mix((uint32_t)game_camera_px(&g));
     }
 }
 

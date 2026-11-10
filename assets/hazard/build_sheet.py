@@ -2,11 +2,11 @@
 """Hazard sheet for the sprite pipeline: assets/hazard/frames_<name>_1x.png -> hazard_sheet.png + hazard_sheet.json.
 Run: /opt/homebrew/bin/python3.14 -I assets/hazard/build_sheet.py   (the sheet and json are committed, like assets/city)
 
-Each frames_ PNG holds 16 frames of 64 x 32 px per row; one row per tile variant (spikes, water: 1 variant; fire, lava:
-2 variants A B, laid out A B A B A across the 320 px strip). The hardware auto-animation covers 8 frames, so every
+Each frames_ PNG holds 16 frames of 64 x 32 px per row; one row per tile variant (spikes, water: 1 variant;
+fire: 3 variants A B C, lava: 2 variants A B; groups of 4 sprite columns cycle the variants: fire A B C A B (192 px period), lava A B A B A). The hardware auto-animation covers 8 frames, so every
 variant row becomes two 8-frame groups, bank 0 (frames 0..7) and bank 1 (frames 8..15), one sheet row each
 (tools/sprite_pipeline.py "groups"). Data the game reads (variant count, speed, first animation index per hazard)
-comes out as "tables" in hazard_sprites.h, so a third variant is a change of the frames PNG only.
+comes out as "tables" in hazard_sprites.h, so a variant is a change of the frames PNG only.
 """
 import json, os
 from PIL import Image

@@ -97,6 +97,20 @@ int main(void) {
         cpus[1].state = FLIER_FALLING;
         CHECK(ai_nearest(&cpus[0], &player, cpus, 3) == &cpus[2]);
         cpus[1].state = FLIER_ALIVE;
+        /* across the seam: a rival at x 380 is 4 px from a flier at x 0, nearer than one at x 100 */
+        {
+            Flier me = mk(0, 100, 2), rival[2], other;
+            rival[0] = mk(100, 100, 2); rival[1] = mk(380, 100, 2);
+            other = mk(200, 100, 2);
+            CHECK(ai_nearest(&me, &other, rival, 2) == &rival[1]);
+            CHECK(ai_decide(&me, &rival[1]) == AI_FLEE);   /* 4 px away: flee, not the 380 px a linear distance gives */
+            {
+                static Rng r; Ai a; FlierInput in;
+                rng_seed(&r, 1); ai_init(&a, &r); a.timer = 1;
+                ai_step(&a, &r, &me, &rival[1], &in);
+                CHECK(in.dir == 1);   /* flee from a rival to the left across the seam: run right */
+            }
+        }
         CHECK(ai_nearest(&cpus[1], &player, cpus, 3) == &cpus[2]); /* self is excluded */
         cpus[2].state = FLIER_FALLING;
         CHECK(ai_nearest(&cpus[1], &player, cpus, 3) == &player);

@@ -14,7 +14,8 @@ const SpriteBudgetEntry SPRITE_BUDGET[] = {
     { "roof ring",   BG_ROOF_SPRITE,      BG_RING_COUNT,      176, 224, BG_RING_COUNT, SB_ALWAYS },
     { "gameplay",    POOL_SPRITE_BASE,    HERO_SPRITE + HERO_SPRITE_COUNT - POOL_SPRITE_BASE,
                                                                 0, 224, SB_GAMEPLAY_PER_LINE, SB_ALWAYS },
-    { "hazard",      HAZARD_SPRITE,       HAZARD_COUNT,       192, 224, 20, SB_ALWAYS },
+    /* 24 columns, not the 21 visible at a camera offset: the LSPC picks sprites per line by Y only, so columns with X off screen still count. */
+    { "hazard",      HAZARD_SPRITE,       HAZARD_COUNT,       192, 224, 24, SB_ALWAYS },
     { "rain",        FG_RAIN_SPRITE,      FG_RAIN_COUNT,        0, 224, 10, SB_RAIN_ONLY },
     { "spray",       FG_SPRAY_SPRITE,     FG_SPRAY_COUNT,     176, 224,  4, SB_ALWAYS },
     { "edge cable",  FG_EDGE_SPRITE,      FG_EDGE_COUNT,        0, 224,  2, SB_ALWAYS },

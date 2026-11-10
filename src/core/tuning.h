@@ -75,8 +75,8 @@
 #define RESET_HOLD_FRAMES 180
 #endif
 
-/* Arena slice (src/core/stage.c, game_step_arena). The stage is static: 8 platform rectangles in the 320x180 world
- * (world x = screen x, world y = screen y; water at FLIER_WATER_Y kills). Platforms are solid from above only.
+/* Arena slice (src/core/stage.c, game_step_arena). The stage is static: 8 platform rectangles in the 384x180 world
+ * (world 384x180, ARENA_W in arena.h; world y = screen y; water at FLIER_WATER_Y kills). Platforms are solid from above only.
  * STAGE_* and FLIER_START_* are layout/spawn constants checked by tests/host/test_stage.c, not gameplay knobs. */
 #ifndef STAGE_PLATFORM_COUNT
 #define STAGE_PLATFORM_COUNT 8
@@ -88,7 +88,7 @@
 #define STAGE_SPAWN_COUNT 6 /* computer flier spawn points in stage.c; also the computer flier array size */
 #endif
 #ifndef FLIER_START_X
-#define FLIER_START_X 160
+#define FLIER_START_X 192
 #endif
 #ifndef FLIER_START_Y
 #define FLIER_START_Y 120
@@ -125,6 +125,17 @@
 #endif
 #ifndef AI_FLAP_MAX
 #define AI_FLAP_MAX 16384 /* dir.y below 0.5 flaps */
+#endif
+
+/* Follow camera over the 384 px arena (src/core/camera.c, design 2026-11-10-wide-arena-camera.md section 2). */
+#ifndef CAM_DEAD_ZONE_PX
+#define CAM_DEAD_ZONE_PX 4 /* a resting camera ignores a target closer than this */
+#endif
+#ifndef CAM_EASE_SHIFT
+#define CAM_EASE_SHIFT 3 /* each frame covers 1 / 2^3 of the gap */
+#endif
+#ifndef CAM_MAX_STEP_PX
+#define CAM_MAX_STEP_PX 2 /* at most this many pixels per frame (twice the human top speed) */
 #endif
 
 /* Arena scoring (design 3.3, NOT IN REFERENCE, placeholders for the user to tune). */

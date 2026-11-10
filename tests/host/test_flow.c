@@ -221,7 +221,7 @@ static void scenario_full(const HiscoreTable *pre, const char *want_name)
     CHECK(r.f.state == FLOW_PLAYING && !r.f.demo);
     /* Arena slice: put the flier over the gap between islands (x 100 has no platform below) so it drowns. */
     earn_score(&r, 1500);                       /* stomps give the points; the table minimum is 1000 */
-    r.f.game.flier.x = FL_PX(100);
+    r.f.game.flier.x = FL_PX(120);
     r.f.game.flier.y = FL_PX(100);
     rig_until(&r, FLOW_GAME_OVER, IN_A, 60000);
     CHECK(r.f.state == FLOW_GAME_OVER);
@@ -305,7 +305,7 @@ static void test_full_flow(void)
         r.frame = 424242 - 1;
         rig_tick(&r, 0, 1);
         earn_score(&r, 1500);
-        r.f.game.flier.x = FL_PX(100);
+        r.f.game.flier.x = FL_PX(120);
         r.f.game.flier.y = FL_PX(100);
         rig_until(&r, FLOW_GAME_OVER, IN_A, 60000);
         rig_ticks(&r, 0, GAMEOVER_FRAMES);
