@@ -31,6 +31,8 @@ volatile u32 g_frame_counter;
 
 /* RAM sentinel for the headless reachability test (make test-reach): counts backup RAM image writes. */
 volatile u32 g_hiscore_saves;
+/* RAM sentinel for make test-reach: the seconds value the name entry countdown drew last (0xff = never drawn). */
+volatile u8 g_name_seconds_shown = 0xff;
 
 static Flow g_flow;
 
@@ -501,6 +503,10 @@ static void draw(const FlowView *v) {
             text(16, 13, PAL_HIGH, name);
             buf[0] = '^'; buf[1] = 0;
             text((u8)(16 + v->entry->pos), 14, PAL_TEXT, buf);
+            /* idle countdown: the entry saves itself at 0 (NAME_TIMEOUT_FRAMES) */
+            text(28, 5, PAL_TEXT, "TIME");
+            g_name_seconds_shown = nameentry_seconds_left(v->entry);
+            draw_number(33, 5, PAL_TEXT, g_name_seconds_shown, 2);
         }
         break;
     case FLOW_SAVE_REMINDER:

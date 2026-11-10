@@ -109,3 +109,18 @@ void nameentry_step(NameEntry *e, uint8_t input)
         e->name[e->pos] = ' ';
     }
 }
+
+uint8_t nameentry_seconds_left(const NameEntry *e)
+{
+    uint16_t left;
+    uint8_t s = 0;
+    if (e->done || e->idle >= NAME_TIMEOUT_FRAMES) {
+        return 0;
+    }
+    left = (uint16_t)(NAME_TIMEOUT_FRAMES - e->idle);
+    while (left > 60u) {
+        left = (uint16_t)(left - 60u);
+        s++;
+    }
+    return (uint8_t)(s + 1u);
+}

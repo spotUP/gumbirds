@@ -120,6 +120,18 @@ static void test_nameentry(void)
     nameentry_init(&e);
     for (i = 0; i < NAME_TIMEOUT_FRAMES; i++) nameentry_step(&e, 0);
     CHECK(e.done && memcmp(e.name, NAME_ENTRY_DEFAULT, 8) == 0);
+    CHECK(nameentry_seconds_left(&e) == 0);
+    /* seconds left counts down with idle frames, rounded up, and restarts on a press */
+    nameentry_init(&e);
+    for (i = 0; i < NAME_TIMEOUT_FRAMES; i++) {
+        unsigned want = (unsigned)(NAME_TIMEOUT_FRAMES - i + 59) / 60u;
+        if (nameentry_seconds_left(&e) != want) { CHECK(nameentry_seconds_left(&e) == want); break; }
+        nameentry_step(&e, 0);
+    }
+    nameentry_init(&e);
+    for (i = 0; i < 120; i++) nameentry_step(&e, 0);
+    ne_press(&e, IN_UP);
+    CHECK(nameentry_seconds_left(&e) == (NAME_TIMEOUT_FRAMES + 59) / 60);
 }
 
 /* ---- flow ---- */

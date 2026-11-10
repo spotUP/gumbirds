@@ -45,4 +45,8 @@ void nameentry_step(NameEntry *e, uint8_t input);
 /* The character a symbol index draws as. END returns 0: the renderer draws the END glyph. */
 char nameentry_symbol_char(uint8_t sym);
 
+/* Whole seconds (60 frames each, rounded up) until the timeout finishes the entry; 0 once done.
+ * Uses no divide (m68k has no 32-bit divide; called every frame by the name entry screen). */
+uint8_t nameentry_seconds_left(const NameEntry *e);
+
 #endif

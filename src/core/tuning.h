@@ -329,9 +329,10 @@
 #define NAME_REPEAT_RATE 5
 #endif
 
-/* Name entry: frames without any input before the name typed so far is accepted (30 s). */
+/* Name entry: frames without any input before the name typed so far is accepted
+ * (60 s, user decision 2026-11-10; was 30 s). The screen shows the seconds left. */
 #ifndef NAME_TIMEOUT_FRAMES
-#define NAME_TIMEOUT_FRAMES 1800
+#define NAME_TIMEOUT_FRAMES 3600
 #endif
 
 /* Attract loop: how long each screen shows before the next one (title, table, demo). */
