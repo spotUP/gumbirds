@@ -170,6 +170,27 @@ static void test_arena_score(void)
     CHECK(g.stomps >= 1 && g.score == 0);
 }
 
+/* Rematch (design N1a): a match win starts a fresh match, so the player is back on the spawn point with the
+ * start values; nothing of the last match carries over (regression: only the balloons were topped up). */
+static void test_arena_rematch(void)
+{
+    static Game g;
+    arena_one_cpu(&g);
+    g.cpu[0].balloons = 0;
+    g.cpu[0].x = FL_PX(100); g.cpu[0].y = FL_PX(100);   /* over the gap: falls into the water */
+    g.flier.x = FL_PX(FLIER_START_X + 40);              /* away from the spawn point, moving, facing left, hurt */
+    g.flier.vx = -FL_PX(1);
+    g.flier.facing = -1;
+    flier_lose_balloon(&g.flier);
+    arena_run(&g, 3000);
+    CHECK(g.matches_won == 1 && !g.over);
+    CHECK(g.flier.x == FL_PX(FLIER_START_X) && g.flier.y == FL_PX(FLIER_START_Y));
+    CHECK(g.flier.vx == 0 && g.flier.vy == 0);
+    CHECK(g.flier.state == FLIER_ALIVE && g.flier.balloons == FLIER_START_BALLOONS);
+    CHECK(g.flier.invincible == 0 && g.flier.facing == 1);
+    CHECK(g.cpu_count == CPU_START_COUNT + 1 && g.cpu[0].balloons == FLIER_START_BALLOONS);
+}
+
 int main(int argc, char **argv)
 {
     (void)argv;
@@ -180,6 +201,7 @@ int main(int argc, char **argv)
     test_hiscore();
     test_obstacle_view();
     test_arena_score();
+    test_arena_rematch();
     printf("test_core: %d checks, %d failures\n", checks, failures);
     return failures ? 1 : 0;
 }

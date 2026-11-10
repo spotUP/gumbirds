@@ -12,11 +12,18 @@ static void zero(void *p, size_t n)
     }
 }
 
+/* The player at the spawn point with the start values. Used for a new game and for every rematch, so
+ * nothing of the last match (position, speed, facing, invincibility, lost balloons) carries over. */
+static void player_spawn(Game *g)
+{
+    flier_init(&g->flier, FL_PX(FLIER_START_X), FL_PX(FLIER_START_Y), FLIER_START_BALLOONS, 0);
+}
+
 void game_reset(Game *g, uint32_t seed)
 {
     zero(g, sizeof(*g));
     rng_seed(&g->rng, seed);
-    flier_init(&g->flier, FL_PX(FLIER_START_X), FL_PX(FLIER_START_Y), FLIER_START_BALLOONS, 0);
+    player_spawn(g);
 }
 
 /* Fighter i: 0 is the player, 1..cpu_count the computer fliers. */
@@ -42,8 +49,6 @@ static void match_start(Game *g)
             flier_init(&g->cpu[i], 0, 0, 0, 0);
             g->cpu[i].state = FLIER_GONE;
         }
-    }
-    while (g->flier.balloons < FLIER_START_BALLOONS && flier_add_balloon(&g->flier)) {
     }
 }
 
@@ -134,6 +139,7 @@ void game_step_arena(Game *g, uint8_t input)
             if (g->flier.balloons >= FLIER_START_BALLOONS) {
                 g->score += SCORE_MATCH_CLEAN; /* no balloon lost in the match: the player cannot gain any in play */
             }
+            player_spawn(g); /* rematch = fresh match (design N1a): every flier starts on its spawn point */
             match_start(g);
         }
     }
