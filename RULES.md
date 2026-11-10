@@ -1,4 +1,4 @@
-# Bubblegum Brawl - project rules
+# Gumbirds - project rules
 
 Original Neo Geo MVS homebrew (ngdevkit, C, SDCC Z80 + m68k gcc). Target: MiSTer Neo Geo core on a cabinet.
 Plan: ~/.claude/plans/buzzing-kindling-heron.md. Toolchain notes: thoughts/shared/research/2026-11-09_p0-toolchain.md.
