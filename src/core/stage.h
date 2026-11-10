@@ -14,6 +14,10 @@ typedef struct {
 
 extern const StagePlatform stage_platforms[STAGE_PLATFORM_COUNT];
 
+/* Computer flier spawn points (world pixels, flier centre), each just above a platform top. */
+typedef struct { int16_t x, y; } StageSpawn;
+extern const StageSpawn stage_spawns[STAGE_SPAWN_COUNT];
+
 /*
  * Floor for flier_step: the top (16.16) of the highest platform that lies at or below the flier feet (feet16, 16.16)
  * and overlaps the flier box (centre x16, half width FLIER_HALF_W). FLIER_NO_FLOOR when none.

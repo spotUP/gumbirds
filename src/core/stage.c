@@ -13,6 +13,11 @@ const StagePlatform stage_platforms[STAGE_PLATFORM_COUNT] = {
     { 272,  40,  48, STAGE_PLATFORM_H },
 };
 
+/* Centre y = platform top - 6 (box half height 5.5): the flier starts resting on the platform. */
+const StageSpawn stage_spawns[STAGE_SPAWN_COUNT] = {
+    {  56,  98 }, { 264,  98 }, { 160,  66 }, {  24,  34 }, { 296,  34 }, {  32, 158 },
+};
+
 int32_t stage_floor_y(int32_t x16, int32_t feet16) {
     int32_t best = FLIER_NO_FLOOR;
     int32_t hw = FL_PX(FLIER_HALF_W);

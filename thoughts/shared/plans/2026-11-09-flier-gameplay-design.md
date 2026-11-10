@@ -136,6 +136,8 @@ score table, theme, a second endless mode.
 
 ### 1.1 Scale: 1 reference px = 1 screen px (k = 1.0, user pick D1)
 
+> Superseded 2026-11-10 (user decision): the game uses scale 0.5 throughout; see D1 and src/core/flier.h.
+
 - The reference unit is an NES sprite pixel; its fliers are 16 px wide and the constants were tuned against that. Our screen is
   close to an NES screen, so at k = 1 speed, jump height and stomp timing in body lengths are the reference's. Only the room is smaller.
 - Top air speed 1.667 px/frame stays above one pixel per frame (no uneven stepping).
@@ -412,7 +414,7 @@ Per-frame worst case about 230 box tests (about 2 ms on the 68000) plus the seam
 
 Settled (user pick, or reference rule):
 
-1. **D1 scale** k = 1.0 (user pick, kept).
+1. **D1 scale** k = 1.0 (user pick 2026-11-09), REPLACED 2026-11-10 by user decision: uniform 0.5 for the whole game (room, distances, speeds, body), as in the reference spec 2.1 and src/core/flier.h. Section 1.1 numbers are k = 1.0 and superseded by flier.h.
 2. **D2 sprite** 16x32 (user pick, kept).
 3. **D3 theme** glowing gas pods (user pick, kept).
 4. **D4 1-pod gravity** reference: same as other pod counts, 80 px/s^2 (`character.gd` 37, 86-87). User pick "heavier" overridden.

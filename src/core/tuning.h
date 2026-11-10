@@ -84,6 +84,9 @@
 #define GAP_END 170
 #endif
 
+#ifndef STAGE_SPAWN_COUNT
+#define STAGE_SPAWN_COUNT 6 /* computer flier spawn points in stage.c; also the computer flier array size */
+#endif
 /* Distance in pixels needed to shrink the spacing by 1 px. */
 #ifndef GAP_RAMP_PX
 #define GAP_RAMP_PX 100
@@ -92,6 +95,53 @@
 /* Random extra spacing in pixels, 0 to this minus 1. */
 #ifndef GAP_JITTER
 #define GAP_JITTER 80
+#endif
+
+/* Computer fliers (src/core/ai.c, design doc 3.1 and 5.1). Distances are screen pixels: the reference values (50, 75,
+ * 32) halved for the 0.5 reference scale. Angles are Q15 components of the unit direction to the target. */
+#ifndef CPU_START_COUNT
+#define CPU_START_COUNT 2 /* computer fliers in match 1; +1 per match won */
+#endif
+#ifndef CPU_MAX
+#define CPU_MAX 6 /* cap (design doc 5.1); arrays are sized STAGE_SPAWN_COUNT, so never raise it above that */
+#endif
+#ifndef AI_THINK_FRAMES
+#define AI_THINK_FRAMES 30 /* 500 ms */
+#endif
+#ifndef AI_THINK_JITTER
+#define AI_THINK_JITTER 8 /* +- 125 ms */
+#endif
+#ifndef AI_FILL_DIST
+#define AI_FILL_DIST 25 /* balloon-less and farther than this: refill state (idle) */
+#endif
+#ifndef AI_FLEE_DIST
+#define AI_FLEE_DIST 37 /* closer than this and not clearly above: flee */
+#endif
+#ifndef AI_ABOVE_MARGIN
+#define AI_ABOVE_MARGIN 16 /* "above the target by" this many pixels keeps the flier chasing */
+#endif
+#ifndef AI_STEER_MIN
+#define AI_STEER_MIN 8192 /* |dir.x| above 0.25 steers */
+#endif
+#ifndef AI_FLAP_MAX
+#define AI_FLAP_MAX 16384 /* dir.y below 0.5 flaps */
+#endif
+
+/* Arena scoring (design 3.3, NOT IN REFERENCE, placeholders for the user to tune). */
+#ifndef SCORE_STOMP_POP
+#define SCORE_STOMP_POP 500 /* player stomp pops a computer balloon */
+#endif
+#ifndef SCORE_CPU_DEFEAT
+#define SCORE_CPU_DEFEAT 1000 /* player defeats a computer flier (last balloon popped or body kill) */
+#endif
+#ifndef SCORE_CPU_DROWN
+#define SCORE_CPU_DROWN 250 /* a living computer flier falls into the water (not a defeated one) */
+#endif
+#ifndef SCORE_MATCH_WIN
+#define SCORE_MATCH_WIN 1000 /* match won */
+#endif
+#ifndef SCORE_MATCH_CLEAN
+#define SCORE_MATCH_CLEAN 2000 /* extra when no player balloon was lost in the match */
 #endif
 
 /* Spawn weight of floor vents (jump only). */
