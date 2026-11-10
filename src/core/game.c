@@ -90,37 +90,65 @@ void game_step_arena(Game *g, uint8_t input)
             g->score += SCORE_CPU_DROWN;
         }
     }
-    /* Every flier can stomp and touch every other. */
+    /* Every flier can stomp and touch every other. The three pair passes below are O(n^2) and were a large part
+       of the frame with seven fliers, so a horizontal broad phase skips pairs that cannot touch. It is exact, not
+       an approximation: a stomp needs the attacker's feet box to overlap the victim's body box, which in half
+       pixels (x >> 15, the units of flier_feet_hit) means -8 < ax - vx < 10; body contact needs whole-pixel
+       centres at most 2 * FLIER_HALF_W = 4 px apart (body_overlap), which implies at most 9 half pixels. A pair
+       further apart than 9 half pixels makes flier_stomp, flier_body_bounce and flier_body_kill return 0 without
+       touching either flier, so skipping it changes nothing. None of the three passes moves a flier
+       horizontally (they change velocities, state and at most y), so the near set computed here holds for all
+       three, and the passes keep their order and their (i, j) order. Positions stay on the stage, far inside the
+       int16 range that flier_feet_hit casts to. */
     n = g->cpu_count + 1;
-    for (i = 0; i < n; i++) {
-        for (j = 0; j < n; j++) {
-            if (i != j) {
-                Flier *v = fighter(g, j);
-                uint8_t was_up = v->state <= FLIER_PARACHUTE;
-                int popped = flier_stomp(fighter(g, i), v);
-                g->stomps += (uint32_t)popped;
-                if (i == 0 && j > 0) {
-                    /* Points only for the player's own stomps on a computer flier (design 3.3). */
-                    g->score += popped ? SCORE_STOMP_POP : 0;
-                    g->score += (was_up && v->state > FLIER_PARACHUTE) ? SCORE_CPU_DEFEAT : 0;
+    {
+        Flier *f[CPU_MAX + 1];
+        int32_t hx[CPU_MAX + 1];
+        uint8_t near[CPU_MAX + 1];
+        for (i = 0; i < n; i++) {
+            f[i] = fighter(g, i);
+            hx[i] = f[i]->x >> 15;
+            near[i] = 0;
+        }
+        for (i = 0; i < n; i++) {
+            for (j = i + 1; j < n; j++) {
+                int32_t d = hx[i] - hx[j];
+                if (d <= 9 && d >= -9) {
+                    near[i] = (uint8_t)(near[i] | (1u << j));
+                    near[j] = (uint8_t)(near[j] | (1u << i));
                 }
             }
         }
-    }
-    /* Body contact reflects first (a balloon-less flier about to die gets none), then kills. */
-    for (i = 0; i < n; i++) {
-        for (j = 0; j < n; j++) {
-            if (i != j) {
-                g->bounces += (uint32_t)flier_body_bounce(fighter(g, i), fighter(g, j));
+        for (i = 0; i < n; i++) {
+            for (j = 0; j < n; j++) {
+                if (near[i] & (1u << j)) {
+                    Flier *v = f[j];
+                    uint8_t was_up = v->state <= FLIER_PARACHUTE;
+                    int popped = flier_stomp(f[i], v);
+                    g->stomps += (uint32_t)popped;
+                    if (i == 0 && j > 0) {
+                        /* Points only for the player's own stomps on a computer flier (design 3.3). */
+                        g->score += popped ? SCORE_STOMP_POP : 0;
+                        g->score += (was_up && v->state > FLIER_PARACHUTE) ? SCORE_CPU_DEFEAT : 0;
+                    }
+                }
             }
         }
-    }
-    for (i = 0; i < n; i++) {
-        for (j = 0; j < n; j++) {
-            if (i != j) {
-                int killed = flier_body_kill(fighter(g, i), fighter(g, j));
-                if (killed && j == 0 && i > 0) {
-                    g->score += SCORE_CPU_DEFEAT; /* the player's body touched a balloon-less computer flier */
+        /* Body contact reflects first (a balloon-less flier about to die gets none), then kills. */
+        for (i = 0; i < n; i++) {
+            for (j = 0; j < n; j++) {
+                if (near[i] & (1u << j)) {
+                    g->bounces += (uint32_t)flier_body_bounce(f[i], f[j]);
+                }
+            }
+        }
+        for (i = 0; i < n; i++) {
+            for (j = 0; j < n; j++) {
+                if (near[i] & (1u << j)) {
+                    int killed = flier_body_kill(f[i], f[j]);
+                    if (killed && j == 0 && i > 0) {
+                        g->score += SCORE_CPU_DEFEAT; /* the player's body touched a balloon-less computer flier */
+                    }
                 }
             }
         }
