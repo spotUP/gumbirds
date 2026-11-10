@@ -11,7 +11,8 @@ unsigned int probe[] = {
     offsetof(Flow, table) + offsetof(HiscoreTable, name), offsetof(Flow, table) + offsetof(HiscoreTable, score),
     offsetof(Flow, entry) + offsetof(NameEntry, name), offsetof(Flow, entry) + offsetof(NameEntry, sym),
     offsetof(Flow, entry) + offsetof(NameEntry, pos), offsetof(Flow, entry) + offsetof(NameEntry, done),
-    G(obs), sizeof(Obstacle), MAX_OBSTACLES,
-    offsetof(Obstacle, x), offsetof(Obstacle, w), offsetof(Obstacle, type), offsetof(Obstacle, active),
-    G(hero_h), G(hero_vy), G(lockout), G(score), G(speed),
+    offsetof(Flow, game) + offsetof(Game, flier) + offsetof(Flier, x),
+    offsetof(Flow, game) + offsetof(Game, flier) + offsetof(Flier, vx),
+    offsetof(Flow, game) + offsetof(Game, flier) + offsetof(Flier, on_ground),
+    G(score),
 };

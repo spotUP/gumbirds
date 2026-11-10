@@ -1,4 +1,4 @@
--- Sound driver reachability (make test-sound). Real boot path: coin, start, jump, fire, idle until game over.
+-- Sound driver reachability (make test-sound). Real boot path: coin, start, flap (A press edge), walk off the island and drown until game over.
 -- Proves three links of the chain for each game sound event:
 --   1. 68k:  g_sound_sent / g_sound_last (src/sound.c) move and the command byte is the expected SND_* id.
 --   2. Z80:  audiocpu io taps (port 0x00 read for commands 1-3, port 0x0C ack for queued commands, see the taps)
@@ -29,8 +29,9 @@ local function read_ids()
   return ids
 end
 local ids = read_ids()
-local ID_MUSIC, ID_JUMP, ID_HIT, ID_LASER, ID_OVER, ID_COIN =
-  ids.SND_MUSIC_INGAME, ids.SND_SFX_JUMP, ids.SND_SFX_HIT, ids.SND_SFX_LASER, ids.SND_SFX_GAME_OVER, ids.SND_SFX_COIN
+-- A flap plays the jump sample (SE_FLAP in src/core/sound_events.c); hit and laser sounds have no game event in the arena.
+local ID_MUSIC, ID_JUMP, ID_OVER, ID_COIN =
+  ids.SND_MUSIC_INGAME, ids.SND_SFX_JUMP, ids.SND_SFX_GAME_OVER, ids.SND_SFX_COIN
 -- ADPCM-A key-on bit per SFX, read from the driver's own generated table (build/snd_commands.inc, line
 -- ".db 0xNN ; channel (bit)" after "sfx_<name>_data:"). soundtool's yaml channel is 1-based (bit = 1 << (channel-1)).
 local function read_masks()
@@ -47,7 +48,7 @@ local function read_masks()
   return m
 end
 local MASK = read_masks()
-local NAME = { [ID_MUSIC] = "music", [ID_JUMP] = "jump", [ID_HIT] = "hit", [ID_LASER] = "laser", [ID_OVER] = "game_over", [ID_COIN] = "coin", [2] = "stop", [3] = "reset" }
+local NAME = { [ID_MUSIC] = "music", [ID_JUMP] = "flap", [ID_OVER] = "game_over", [ID_COIN] = "coin", [2] = "stop", [3] = "reset" }
 
 local function sym_addrs()
   local gcc
@@ -75,8 +76,13 @@ local function field(tag, name)
 end
 local coin  = field(":AUDIO_COIN", "Coin 1")
 local start = field(":edge:joy:START", "1 Player Start")
-local bbtn  = field(":edge:joy:JOY1", "P1 B")
+local rbtn  = field(":edge:joy:JOY1", "P1 Right")
+local lbtn  = field(":edge:joy:JOY1", "P1 Left")
 local abtn  = field(":edge:joy:JOY1", "P1 A")
+
+local flay = {}
+for v in (os.getenv("ROOFLINE_FLIER_LAYOUT") or ""):gmatch("%d+") do flay[#flay + 1] = tonumber(v) end
+local drive = dofile("tests/mame/flier_drive.lua")(mem, flow_addr, flay, abtn, lbtn, rbtn)
 
 local done = false
 local n = 0
@@ -139,7 +145,7 @@ local function evaluate()
   if #sent_log == 0 then finish(false, "68k sentinel g_sound_sent never moved (sound_play_sfx not reached)") return end
   local seen = {}
   for _, e in ipairs(sent_log) do seen[e[2]] = (seen[e[2]] or 0) + 1 end
-  for _, id in ipairs({ ID_COIN, ID_MUSIC, ID_JUMP, ID_LASER, ID_HIT, ID_OVER }) do
+  for _, id in ipairs({ ID_COIN, ID_MUSIC, ID_JUMP, ID_OVER }) do
     if not seen[id] then finish(false, "68k never sent " .. NAME[id] .. " (id " .. id .. ")") return end
   end
   if not seen[2] then finish(false, "68k never sent stop_music at game over") return end
@@ -185,8 +191,8 @@ emu.register_frame_done(function()
   if done then return end
   n = n + 1
   if n > WATCHDOG then finish(false, "watchdog in phase " .. phase) return end
-  if not (coin and start and bbtn and abtn) then finish(false, "missing input field") return end
-  if not (A_SENT and A_LAST and A_FRAME and O_STATE and ID_COIN and MASK[ID_JUMP] and MASK[ID_HIT] and MASK[ID_LASER] and MASK[ID_OVER] and MASK[ID_COIN]) then finish(false, "missing symbol, layout or ids") return end
+  if not (coin and start and rbtn and abtn) then finish(false, "missing input field") return end
+  if not (A_SENT and A_LAST and A_FRAME and O_STATE and ID_COIN and MASK[ID_JUMP] and MASK[ID_OVER] and MASK[ID_COIN]) then finish(false, "missing symbol, layout or ids") return end
   local sent = mem:read_u16(A_SENT)
   if prev_sent == nil then prev_sent = sent end
   -- the sentinel moves at most once per frame (sound_tick); log each step with the byte written
@@ -206,13 +212,12 @@ emu.register_frame_done(function()
   elseif phase == "start" then
     if state == FLOW_PLAYING then start:set_value(0); phase = "settle"; phase_at = n end
   elseif phase == "settle" then
-    if n >= phase_at + 60 then phase = "jump"; phase_at = n; bbtn:set_value(1) end
-  elseif phase == "jump" then
-    if n == phase_at + 2 then bbtn:set_value(0) end
-    if n >= phase_at + 60 then phase = "fire"; phase_at = n; abtn:set_value(1) end
-  elseif phase == "fire" then
-    if n >= phase_at + 15 then abtn:set_value(0); phase = "idle"; phase_at = n end
+    if n >= phase_at + 60 then phase = "flap"; phase_at = n; abtn:set_value(1) end
+  elseif phase == "flap" then
+    if n == phase_at + 3 then abtn:set_value(0) end
+    if n >= phase_at + 60 then phase = "idle"; phase_at = n end
   elseif phase == "idle" then
+    drive()   -- walk off the island and drown (tests/mame/flier_drive.lua)
     if state == FLOW_GAME_OVER then phase = "over"; phase_at = n end
   elseif phase == "over" then
     if n >= phase_at + 150 then evaluate() end

@@ -6,6 +6,8 @@
 #include <ngdevkit/ng-fix.h>
 #include <ngdevkit/ng-video.h>
 #include <ngdevkit/bios-ram.h>
+#include "core/stage.h"
+#include "core/flier.h"
 #include "core/flow.h"
 #include "core/obstacle_view.h"
 #include "core/obj_pool.h"
@@ -59,32 +61,29 @@ static void hero_hide(void) {
     g_hero_shown_anim = 0xFFFF;
 }
 
-static u8 hero_pick_frame(const Game *g, HeroLook look) {
+/* Arena slice: the flier is drawn with the runner hero frames as a placeholder. Dead or falling: hit pose; on a platform:
+ * the run set (frame 0 while standing still, cycling while walking); in the air: the jump set. */
+static u8 hero_pick_frame(const Game *g) {
+    const Flier *f = &g->flier;
     u8 anim;
-    if (look == HV_LOOK_HIT) anim = HERO_ANIM_HIT;
-    else {
-        LaserPose pose = laser_view_pose(g);
-        int recoil = pose == LV_POSE_RECOIL, shoot = pose == LV_POSE_SHOOT;
-        if (g->hero_h > 0) anim = recoil ? HERO_ANIM_JUMP_RECOIL : HERO_ANIM_JUMP;
-        else if (g->ducking) anim = recoil ? HERO_ANIM_DUCK_RECOIL : HERO_ANIM_DUCK;
-        else anim = recoil ? HERO_ANIM_RUN_RECOIL : shoot ? HERO_ANIM_RUN_SHOOT : HERO_ANIM_RUN;
-    }
+    if (f->state >= FLIER_FALLING) anim = HERO_ANIM_HIT;
+    else if (!f->on_ground) anim = HERO_ANIM_JUMP;
+    else anim = HERO_ANIM_RUN;
     g_hero_shown_anim = anim;
     const HeroAnim *a = &hero_anims[anim];
+    if (anim == HERO_ANIM_RUN && f->vx == 0) return a->first_frame;
     return (u8)(a->first_frame + (g->frame / HERO_RUN_TICKS) % a->frame_count);
 }
 
 static void hero_show(const Game *g) {
-    int visible;
-    HeroLook look = hero_view_look(g, &visible);
-    if (!visible) { hero_hide(); return; }
-    u8 frame = hero_pick_frame(g, look);
+    const Flier *fl = &g->flier;
+    int feet = (int)((fl->y + flier_half_h(fl)) >> 16);
+    if (fl->state == FLIER_GONE || feet > SCREEN_H) { hero_hide(); return; }
+    u8 frame = hero_pick_frame(g);
     g_hero_shown_frame = frame;
     const HeroFrame *f = &hero_frames[frame];
-    int hx, hy, hw, hh;
-    game_hero_box(g, &hx, &hy, &hw, &hh);
-    int top = hy + hh - f->tiles_h * 16; /* feet = bottom of the hit box */
-    int left = hx - HERO_BOX_DX;
+    int top = feet - f->tiles_h * 16;
+    int left = (int)(fl->x >> 16) - HERO_W / 2 - HERO_BOX_DX;
     u16 attr = (u16)((HERO_PAL_SLOT + f->palette) << 8);
     gfx_sprite_block(HERO_SPRITE, HERO_COLUMNS, f->tiles_h, &hero_tile_index[f->tile_offset], HERO_TILE_BASE, attr, left, top);
 }
@@ -148,12 +147,16 @@ static void pool_hide_all(void) {
     for (u8 i = 0; i < POOL_MAX; i++) { g_pool_drawn[i] = 0; g_pool_cols[i] = 0; }
 }
 
+static u8 g_plat_obj[STAGE_PLATFORM_COUNT]; /* pool index of platform i (arena stage), POOL_NONE when it has none */
+
 static void pool_reset(void) {
+    for (int i = 0; i < STAGE_PLATFORM_COUNT; i++) g_plat_obj[i] = POOL_NONE;
     obj_pool_init(&g_pool, POOL_SPRITE_BASE);
     for (int i = 0; i < MAX_OBSTACLES; i++) g_obs_obj[i] = POOL_NONE;
 }
 
 static void pool_free_all(void) {
+    for (int i = 0; i < STAGE_PLATFORM_COUNT; i++) g_plat_obj[i] = POOL_NONE;
     for (u8 i = 0; i < POOL_MAX; i++) obj_pool_free(&g_pool, i);
     for (int i = 0; i < MAX_OBSTACLES; i++) g_obs_obj[i] = POOL_NONE;
 }
@@ -175,6 +178,23 @@ static void pool_sync_obstacles(const Game *g) {
         if (p->type != o->type) { p->type = o->type; p->anim = 0; p->anim_tick = 0; }
         p->x = o->x * 256;                     /* 8.8 -> 16.16 */
         p->y = obj_pool_fp((int16_t)(o->y + o->h));
+    }
+}
+
+/* Arena platforms: one pool object each, placeholder art (the floor vent frame), centred on the platform and sitting
+ * on its top edge (anchor x = left, y = bottom). The platform table is static, so objects are allocated once. */
+static void pool_sync_stage(void) {
+    for (int i = 0; i < STAGE_PLATFORM_COUNT; i++) {
+        const StagePlatform *sp = &stage_platforms[i];
+        u8 k = g_plat_obj[i];
+        if (k == POOL_NONE) {
+            k = obj_pool_alloc(&g_pool, OB_VENT, 0, 0, 0, 0);
+            if (k == POOL_NONE) continue;
+            g_plat_obj[i] = k;
+        }
+        PoolObj *p = &g_pool.obj[k];
+        p->x = obj_pool_fp((int16_t)(sp->x + sp->w / 2 - 16));
+        p->y = obj_pool_fp((int16_t)(sp->y + sp->h));
     }
 }
 
@@ -352,9 +372,10 @@ static void hero_and_mode(const FlowView *v) {
         bios_user_mode = 2;
         hero_show(v->game);
         pool_sync_obstacles(v->game);
+        pool_sync_stage();
         if (g_pool_stress) pool_stress();
         pool_show();
-        laser_show(v->game);
+        laser_hide_all();
     } else {
         /* BIOS_USER_MODE 2 = game in progress: play, game over, name entry and the save
          * reminder all belong to the game; 1 only once attract begins. Bug fixed here: mode 1
@@ -456,15 +477,14 @@ static void draw(const FlowView *v) {
     case FLOW_PLAYING:
     case FLOW_GAME_OVER:
         /* Per-frame HUD: resend only when score or lives moved (or first frame of the state with a game). */
-        if (v->game && (!g_hud_game || v->game->score != g_hud_score || v->game->lives != g_hud_lives)) {
+        if (v->game && (!g_hud_game || v->game->score != g_hud_score || v->game->flier.balloons != g_hud_lives)) {
             g_hud_game = 1;
             g_hud_score = v->game->score;
-            g_hud_lives = v->game->lives;
+            g_hud_lives = v->game->flier.balloons;
             text(2, 5, PAL_TEXT, "SCORE");
             draw_number(8, 5, PAL_TEXT, v->game->score, 8);
-            text(2, 6, PAL_TEXT, "LIVES");
-            draw_number(8, 6, PAL_TEXT, v->game->lives, 2);
-            text(2, 7, PAL_TEXT, "HEAT");
+            text(2, 6, PAL_TEXT, "Balloons");
+            draw_number(11, 6, PAL_TEXT, v->game->flier.balloons, 1);
         }
         break;
     case FLOW_NAME_ENTRY:
@@ -616,7 +636,7 @@ static void game_loop(void) {
         sound_tick();
         draw(&view);
         hero_and_mode(&view);
-        bg_update(view.game ? view.game->distance : 0, g_frame_counter);
+        bg_update(0, g_frame_counter); /* arena slice: the city is a still backdrop */
         gfx_commit();
         g_frame_counter++;
         gfx_wait_vblank(); /* the vblank callback flushes the queue: the only VRAM and palette writes of the frame */

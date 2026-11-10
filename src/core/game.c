@@ -1,4 +1,6 @@
 #include "game.h"
+#include "stage.h"
+#include "nameentry.h"
 
 /* Zero a struct without libc. Byte loop; the compiler may turn it into a memset call, which
  * the ngdevkit libc provides. */
@@ -43,6 +45,29 @@ void game_reset(Game *g, uint32_t seed)
     g->lives = LIVES_START;
     g->speed = speed_for(0);
     g->next_gap = gap_for(g);
+    flier_init(&g->flier, FL_PX(FLIER_START_X), FL_PX(FLIER_START_Y), FLIER_START_BALLOONS, 0);
+}
+
+void game_step_arena(Game *g, uint8_t input)
+{
+    FlierInput in;
+    if (g->over) {
+        return;
+    }
+    g->frame++;
+    in.flap = (input & IN_A) ? 1 : 0;
+    in.dir = (int8_t)(((input & IN_RIGHT) ? 1 : 0) - ((input & IN_LEFT) ? 1 : 0));
+    if (in.flap && !g->flier.flap_prev && g->flier.state < FLIER_DROWNED) {
+        g->flaps++;
+    }
+    flier_step(&g->flier, &in, stage_floor_y(g->flier.x, g->flier.y + flier_half_h(&g->flier)));
+    g->flier_steps++;
+    if (g->flier.state >= FLIER_DROWNED) {
+        g->over = 1;
+    } else {
+        g->distance += SPEED_BASE;
+    }
+    g->score = (g->distance >> (8 + DIST_SHIFT)) + g->bonus;
 }
 
 void game_hero_box(const Game *g, int *x, int *y, int *w, int *h)

@@ -7,7 +7,7 @@ ROOT=$(cd "$HERE/../.." && pwd)
 OUT=${ROOFLINE_TEST_OUT:-/private/tmp/claude-501/-Users-spot-Code-ArcadeGame/06a12133-dc4e-43e6-b08a-169b50911a0f/scratchpad/core}
 mkdir -p "$OUT"
 CC="nice -n 19 clang -std=c99 -Wall -Wextra -Werror -pedantic"
-SRC="$ROOT/src/core/rng.c $ROOT/src/core/game.c $ROOT/src/core/hiscore.c $ROOT/src/core/nameentry.c $ROOT/src/core/flow.c $ROOT/src/core/obstacle_view.c $ROOT/src/core/bg_scroll.c $ROOT/src/core/laser_view.c $ROOT/src/core/hero_view.c $ROOT/src/core/vram_queue.c $ROOT/src/core/obj_pool.c $ROOT/src/core/sound_queue.c $ROOT/src/core/sound_events.c $ROOT/src/core/flier.c"
+SRC="$ROOT/src/core/rng.c $ROOT/src/core/game.c $ROOT/src/core/hiscore.c $ROOT/src/core/nameentry.c $ROOT/src/core/flow.c $ROOT/src/core/obstacle_view.c $ROOT/src/core/bg_scroll.c $ROOT/src/core/laser_view.c $ROOT/src/core/hero_view.c $ROOT/src/core/vram_queue.c $ROOT/src/core/obj_pool.c $ROOT/src/core/sound_queue.c $ROOT/src/core/sound_events.c $ROOT/src/core/flier.c $ROOT/src/core/stage.c"
 fail=0
 
 $CC -o "$OUT/test_core" "$HERE/test_core.c" $SRC >"$OUT/build.log" 2>&1 || { echo "[ERROR] build failed"; tail -n 20 "$OUT/build.log"; exit 1; }
@@ -45,9 +45,13 @@ tail -n 1 "$OUT/test_obj_pool.log"; grep FAIL "$OUT/test_obj_pool.log" | head -n
 $CC -o "$OUT/test_flier" "$HERE/test_flier.c" $SRC -lm >"$OUT/build.log" 2>&1 || { echo "[ERROR] flier build failed"; tail -n 20 "$OUT/build.log"; exit 1; }
 nice -n 19 "$OUT/test_flier" >"$OUT/test_flier.log" 2>&1 || fail=1
 tail -n 1 "$OUT/test_flier.log"; grep FAIL "$OUT/test_flier.log" | head -n 10
+$CC -o "$OUT/test_stage" "$HERE/test_stage.c" $SRC -lm >"$OUT/build.log" 2>&1 || { echo "[ERROR] stage build failed"; tail -n 20 "$OUT/build.log"; exit 1; }
+nice -n 19 "$OUT/test_stage" >"$OUT/test_stage.log" 2>&1 || fail=1
+tail -n 1 "$OUT/test_stage.log"; grep FAIL "$OUT/test_stage.log" | head -n 10
 
 # Knob completeness: every #define in tuning.h (except documented exemptions) has an override.
-defs=$(grep '^#define [A-Z_]* ' "$ROOT/src/core/tuning.h" | awk '{print $2}' | grep -v -e '^SCREEN_W$' -e '^SCREEN_H$' -e '^MAX_OBSTACLES$' | sort)
+# Exemptions: STAGE_ / FLIER_START_ are layout and spawn constants (stage.c table, game_reset).
+defs=$(grep '^#define [A-Z_]* ' "$ROOT/src/core/tuning.h" | awk '{print $2}' | grep -v -e '^SCREEN_W$' -e '^SCREEN_H$' -e '^MAX_OBSTACLES$' -e '^STAGE_' -e '^FLIER_START_' | sort)
 listed=$(awk '{print $1}' "$HERE/knobs.txt" | sort)
 if [ "$defs" != "$listed" ]; then echo "[ERROR] knobs.txt does not match tuning.h"; fail=1; fi
 

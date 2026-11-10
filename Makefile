@@ -60,7 +60,7 @@ include emu.mk
 # 
 # Note: build rules (%.c -> %.o -> %.elf) are defined in Makefile.build
 ELF=$(BUILDDIR)/rom.elf
-CORE_SRCS=rng game hiscore nameentry flow obstacle_view bg_scroll laser_view hero_view vram_queue obj_pool sound_queue sound_events
+CORE_SRCS=rng game hiscore nameentry flow obstacle_view bg_scroll laser_view hero_view vram_queue obj_pool sound_queue sound_events flier stage
 $(ELF):	$(BUILDDIR)/src/main.o $(BUILDDIR)/gen/hero_sprites.o $(BUILDDIR)/gen/obs_sprites.o $(BUILDDIR)/gen/city_sprites.o $(BUILDDIR)/gen/heat_sprites.o $(BUILDDIR)/src/bg.o $(BUILDDIR)/src/gfx.o $(BUILDDIR)/src/sound.o $(CORE_SRCS:%=$(BUILDDIR)/src/core/%.o)
 $(PROM1): $(ELF)
 
@@ -232,9 +232,8 @@ TEST_SECONDS?=40
 NM=$(M68KGCC:%gcc=%nm)
 test: cart
 	nice -n 19 tests/host/run.sh
-	@$(MAKE) --no-print-directory test-laser
+	@$(MAKE) --no-print-directory test-flier
 	@$(MAKE) --no-print-directory test-reach
-	@$(MAKE) --no-print-directory test-hit
 	@$(MAKE) --no-print-directory test-vblank
 	@$(MAKE) --no-print-directory test-scroll
 	@$(MAKE) --no-print-directory test-sound
@@ -245,31 +244,26 @@ test: cart
 	ROOFLINE_HISCORE_SIZE=$$($(NM) -S $(ELF) | awk '$$4=="g_hiscore_image"{print $$2}') \
 	ROOFLINE_BG_SCROLL_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_bg_scroll_px"{print $$1}') \
 	ROOFLINE_BG_WRITES_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_bg_column_writes"{print $$1}') \
-	ROOFLINE_OBS_LAYOUT="$$($(M68KGCC) -std=c99 -S -o - tests/mame/layout_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
 	ROOFLINE_RESULT=$$T/result.txt \
 	SDL_VIDEODRIVER=dummy nice -n 19 $(MAME) -window -nomaximize -video none -sound none -nothrottle -seconds_to_run $(TEST_SECONDS) -noautosave -skip_gameinfo -hash $(ROM) -rp $(ROM) -nvram_directory $$T -snapshot_directory $$T/snap -autoboot_script tests/mame/boot_check.lua neogeo -cart1 $(GAMEROM) > $$T/mame.log 2>&1 || true; \
 	if [ ! -f $$T/result.txt ]; then tail -n 15 $$T/mame.log; echo "[FAIL] no result from Lua script"; exit 1; fi; \
 	cat $$T/result.txt; \
 	mkdir -p $(BUILDDIR)/test-snap; cp $$T/snap/*.png $(BUILDDIR)/test-snap/ 2>/dev/null || true; \
-	grep -q '^PASS' $$T/result.txt && $(PYTHON) -I tests/mame/check_hero_pixels.py build/gen/hero_sprites.c build/gen/obs_sprites.c build/gen/city_sprites.c $$T/snap/pre_start.png $$T/snap/playing.png && $(PYTHON) -I tests/mame/check_obstacle_pixels.py build/gen/hero_sprites.c build/gen/obs_sprites.c build/gen/city_sprites.c $$T/snap/pre_start.png $$T/snap/obstacles.png $$T/result.txt.obs && $(PYTHON) -I tests/mame/check_bg_pixels.py build/gen/city_sprites.c build/gen/hero_sprites.c build/gen/obs_sprites.c $$T/snap/pre_start.png $$T/snap/bg_a.png $$T/snap/playing.png $$T/result.txt.bg || echo "[FAIL] pixel check" >> $$T/result.txt; \
+	grep -q '^PASS' $$T/result.txt && $(PYTHON) -I tests/mame/check_hero_pixels.py build/gen/hero_sprites.c build/gen/obs_sprites.c build/gen/city_sprites.c $$T/snap/pre_start.png $$T/snap/playing.png && $(PYTHON) -I tests/mame/check_bg_pixels.py build/gen/city_sprites.c build/gen/hero_sprites.c build/gen/obs_sprites.c $$T/snap/pre_start.png $$T/snap/bg_a.png $$T/snap/playing.png $$T/result.txt.bg || echo "[FAIL] pixel check" >> $$T/result.txt; \
 	if ! grep -q 'FAIL' $$T/result.txt; then rm -rf $$T; echo "[OK] make test passed"; else echo "[FAIL] make test, log kept in $$T"; exit 1; fi
 
-# Laser reachability (tests/mame/laser_check.lua + check_laser_pixels.py): sentinel-driven timeline (coin
-# once the game loop runs, start until PLAYING, fire while a drone or bot is ahead, jump/duck the rest),
-# snapshots the beam, the heat bar and the hit flash, reads kill counter and bonus from RAM.
-# Run by make test; `make test-laser` alone re-runs only this check.
-test-laser: cart
+# Flier reachability (tests/mame/flier_check.lua): coin, start, flap with A, steer, drown, game over. Sentinel:
+# Game.flier_steps (src/core/game.c game_step_arena) must track the PLAYING frames.
+test-flier: cart
 	@set -e; T=$$(mktemp -d $(BUILDDIR)/test-run.XXXXXX); \
 	ROOFLINE_FLOW_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flow"{print $$1}') \
 	ROOFLINE_FRAME_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_frame_counter"{print $$1}') \
-	ROOFLINE_LASER_LAYOUT="$$($(M68KGCC) -std=c99 -S -o - tests/mame/laser_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
+	ROOFLINE_FLIER_LAYOUT="$$($(M68KGCC) -std=c99 -S -o - tests/mame/flier_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
 	ROOFLINE_RESULT=$$T/result.txt \
-	SDL_VIDEODRIVER=dummy nice -n 19 $(MAME) -window -nomaximize -video none -sound none -nothrottle -seconds_to_run $(TEST_SECONDS) -noautosave -skip_gameinfo -hash $(ROM) -rp $(ROM) -nvram_directory $$T -snapshot_directory $$T/snap -autoboot_script tests/mame/laser_check.lua neogeo -cart1 $(GAMEROM) > $$T/mame.log 2>&1 || true; \
-	if [ ! -f $$T/result.txt ]; then tail -n 15 $$T/mame.log; echo "[FAIL] no result from laser Lua script"; exit 1; fi; \
+	SDL_VIDEODRIVER=dummy nice -n 19 $(MAME) -window -nomaximize -video none -sound none -nothrottle -seconds_to_run $(TEST_SECONDS) -noautosave -skip_gameinfo -hash $(ROM) -rp $(ROM) -nvram_directory $$T -autoboot_script tests/mame/flier_check.lua neogeo -cart1 $(GAMEROM) > $$T/mame.log 2>&1 || true; \
+	if [ ! -f $$T/result.txt ]; then tail -n 15 $$T/mame.log; echo "[FAIL] no result from flier Lua script"; exit 1; fi; \
 	cat $$T/result.txt; \
-	mkdir -p $(BUILDDIR)/test-snap; for f in heat_zero beam kill; do cp $$T/snap/$$f.png $(BUILDDIR)/test-snap/laser_$$f.png 2>/dev/null || true; done; \
-	grep -q '^PASS' $$T/result.txt && $(PYTHON) -I tests/mame/check_laser_pixels.py build/gen/hero_sprites.c build/gen/obs_sprites.c build/gen/city_sprites.c build/gen/heat_sprites.c $$T/snap/heat_zero.png $$T/snap/beam.png $$T/snap/kill.png $$T/result.txt.laser || echo "[FAIL] laser check" >> $$T/result.txt; \
-	if ! grep -q 'FAIL' $$T/result.txt; then rm -rf $$T; echo "[OK] make test-laser passed"; else echo "[FAIL] make test-laser, log kept in $$T"; exit 1; fi
+	if grep -q '^PASS' $$T/result.txt; then rm -rf $$T; echo "[OK] make test-flier passed"; else echo "[FAIL] make test-flier, log kept in $$T"; exit 1; fi
 
 # High score reachability, plan P5.1 (tests/mame/hiscore_reach.lua): boot 1 plays to game over, types the name
 # REACHTST through the real name entry screen and checks the save sentinel g_hiscore_saves and backup RAM; boot 2
@@ -297,20 +291,6 @@ test-reach: cart bios
 	grep -q '^PASS' $$T/result$$PH.txt || { echo "[FAIL] make test-reach boot $$PH, log kept in $$T"; exit 1; }; \
 	done; rm -rf $$T; echo "[OK] make test-reach passed"
 
-# Hit look reachability (tests/mame/hit_check.lua): idle hero, first obstacle hit; reads the hero animation
-# sentinels the game wrote with the sprite registers. Run by make test; `make test-hit` alone re-runs only this.
-test-hit: cart
-	@set -e; T=$$(mktemp -d $(BUILDDIR)/test-run.XXXXXX); \
-	ROOFLINE_FLOW_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flow"{print $$1}') \
-	ROOFLINE_HERO_ANIM_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_hero_shown_anim"{print $$1}') \
-	ROOFLINE_HERO_FRAME_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_hero_shown_frame"{print $$1}') \
-	ROOFLINE_HIT_LAYOUT="$$($(M68KGCC) -std=c99 -S -o - tests/mame/hit_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
-	ROOFLINE_RESULT=$$T/result.txt \
-	SDL_VIDEODRIVER=dummy nice -n 19 $(MAME) -window -nomaximize -video none -sound none -nothrottle -seconds_to_run $(TEST_SECONDS) -noautosave -skip_gameinfo -hash $(ROM) -rp $(ROM) -nvram_directory $$T -autoboot_script tests/mame/hit_check.lua neogeo -cart1 $(GAMEROM) > $$T/mame.log 2>&1 || true; \
-	if [ ! -f $$T/result.txt ]; then tail -n 15 $$T/mame.log; echo "[FAIL] no result from hit Lua script"; exit 1; fi; \
-	cat $$T/result.txt; \
-	if ! grep -q 'FAIL' $$T/result.txt; then rm -rf $$T; echo "[OK] make test-hit passed"; else echo "[FAIL] make test-hit, log kept in $$T"; exit 1; fi
-
 # Vblank write reachability (tests/mame/vblank_check.lua): taps the LSPC VRAM registers and palette RAM during
 # a real run (attract, coin, start, scrolling) and asserts every write after boot lands in vblank.
 # Run by make test; `make test-vblank` alone re-runs only this check.
@@ -333,6 +313,7 @@ test-scroll: cart
 	@set -e; T=$$(mktemp -d $(BUILDDIR)/test-run.XXXXXX); \
 	ROOFLINE_FLOW_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flow"{print $$1}') \
 	ROOFLINE_HIT_LAYOUT="$$($(M68KGCC) -std=c99 -S -o - tests/mame/hit_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
+	ROOFLINE_FLIER_LAYOUT="$$($(M68KGCC) -std=c99 -S -o - tests/mame/flier_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
 	ROOFLINE_RESULT=$$T/result.txt ROOFLINE_SCROLL_LOG=$(SCROLL_LOG) \
 	SDL_VIDEODRIVER=dummy nice -n 19 $(MAME) -window -nomaximize -video none -sound none -nothrottle -seconds_to_run 90 -noautosave -skip_gameinfo -hash $(ROM) -rp $(ROM) -nvram_directory $$T -autoboot_script tests/mame/scroll_check.lua neogeo -cart1 $(GAMEROM) > $$T/mame.log 2>&1 || true; \
 	if [ ! -f $$T/result.txt ]; then tail -n 15 $$T/mame.log; echo "[FAIL] no result from scroll Lua script"; exit 1; fi; \
@@ -346,6 +327,7 @@ test-sound: cart
 	@set -e; T=$$(mktemp -d $(BUILDDIR)/test-run.XXXXXX); \
 	ROOFLINE_FLOW_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flow"{print $$1}') \
 	ROOFLINE_HIT_LAYOUT="$$($(M68KGCC) -std=c99 -S -o - tests/mame/hit_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
+	ROOFLINE_FLIER_LAYOUT="$$($(M68KGCC) -std=c99 -S -o - tests/mame/flier_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
 	ROOFLINE_RESULT=$$T/result.txt \
 	SDL_VIDEODRIVER=dummy nice -n 19 $(MAME) -window -nomaximize -video none -sound none -nothrottle -seconds_to_run $(TEST_SECONDS) -noautosave -skip_gameinfo -hash $(ROM) -rp $(ROM) -nvram_directory $$T -autoboot_script tests/mame/sound_check.lua neogeo -cart1 $(GAMEROM) > $$T/mame.log 2>&1 || true; \
 	if [ ! -f $$T/result.txt ]; then tail -n 15 $$T/mame.log; echo "[FAIL] no result from sound Lua script"; exit 1; fi; \
@@ -368,7 +350,7 @@ test-unibios: cart bios
 	cat $$T/result.txt; \
 	if grep -q '^PASS' $$T/result.txt; then rm -rf $$T; echo "[OK] make test-unibios passed"; else echo "[FAIL] make test-unibios, log kept in $$T"; exit 1; fi
 
-.PHONY: run test test-laser test-reach test-hit test-vblank test-scroll test-sound test-unibios
+.PHONY: run test test-flier test-reach test-vblank test-scroll test-sound test-unibios
 
 # Header dependencies from -MMD (build/**/*.d): a changed header rebuilds every object that includes it.
 -include $(shell find $(BUILDDIR) -name '*.d' 2>/dev/null)

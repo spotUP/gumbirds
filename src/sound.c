@@ -27,9 +27,7 @@ void sound_frame(const FlowView *v)
 {
     uint8_t ev = se_step(&g_events, v);
     if (ev & SE_START) { sound_play_sfx(SND_SFX_COIN); sound_music(SND_MUSIC_INGAME); }
-    if (ev & SE_JUMP) sound_play_sfx(SND_SFX_JUMP);
-    if (ev & SE_HIT) sound_play_sfx(SND_SFX_HIT);
-    if (ev & SE_LASER) sound_play_sfx(SND_SFX_LASER);
+    if (ev & SE_FLAP) sound_play_sfx(SND_SFX_JUMP);
     if (ev & SE_GAME_OVER) { sound_stop(); sound_play_sfx(SND_SFX_GAME_OVER); }
 }
 

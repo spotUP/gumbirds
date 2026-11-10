@@ -37,16 +37,16 @@ int main(void)
         v.game = &g;
         se_init(&e);
         v.state = FLOW_ATTRACT_DEMO;
-        g.hero_h = 100; g.shots = 3;
+        g.flaps = 3;
         CHECK(se_step(&e, &v) == 0);                       /* demo is silent */
-        v.state = FLOW_PLAYING; g.hero_h = 0; g.shots = 0; g.hits = 0;
+        v.state = FLOW_PLAYING; g.flaps = 0;
         CHECK(se_step(&e, &v) == SE_START);
         CHECK(se_step(&e, &v) == 0);
-        g.hero_h = 256;
-        CHECK(se_step(&e, &v) == SE_JUMP);
-        CHECK(se_step(&e, &v) == 0);                       /* still airborne */
-        g.hero_h = 0; g.shots = 1; g.hits = 1;
-        CHECK(se_step(&e, &v) == (SE_LASER | SE_HIT));
+        g.flaps = 1;
+        CHECK(se_step(&e, &v) == SE_FLAP);
+        CHECK(se_step(&e, &v) == 0);                       /* no new press edge */
+        g.flaps = 2;
+        CHECK(se_step(&e, &v) == SE_FLAP);
         v.state = FLOW_GAME_OVER;
         CHECK(se_step(&e, &v) == SE_GAME_OVER);
         CHECK(se_step(&e, &v) == 0);

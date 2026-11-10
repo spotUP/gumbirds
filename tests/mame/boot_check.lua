@@ -46,37 +46,6 @@ local c_first, c_last, prev = nil, nil, nil
 local reset_msg = nil
 local img_before, img_after = nil, nil
 
--- Active obstacles (type x y w h, pixels) from RAM, for check_obstacle_pixels.py. Offsets come from
--- tests/mame/layout_probe.c compiled for the 68000: first_offset size count x y w h type active.
-local lay = {}
-for v in (os.getenv("ROOFLINE_OBS_LAYOUT") or ""):gmatch("%d+") do lay[#lay + 1] = tonumber(v) end
-local function active_obstacles()
-  local t = {}
-  for i = 0, lay[3] - 1 do
-    local a = flow_addr + lay[1] + i * lay[2]
-    if mem:read_u8(a + lay[9]) ~= 0 then
-      local function s16(o) local v = mem:read_u16(a + o); return v >= 0x8000 and v - 0x10000 or v end
-      t[#t + 1] = {mem:read_u8(a + lay[8]), mem:read_u32(a + lay[4]) // 256, s16(lay[5]), s16(lay[6]), s16(lay[7])}
-    end
-  end
-  return t
-end
--- First frame (after play started, state PLAYING) with an obstacle fully on screen: snapshot it and
--- write the boxes. Checked every frame, because the first spawn time depends on the seed.
-local obs_done = false
-local function snapshot_obstacles()
-  if obs_done or n < 380 or mem:read_u8(flow_addr) ~= 3 then return end
-  local list = active_obstacles()
-  local ok = #list > 0
-  for _, o in ipairs(list) do if o[2] < 60 or o[2] + o[4] > 300 then ok = false end end
-  if not ok then return end
-  obs_done = true
-  screen:snapshot("obstacles.png")
-  local f = io.open(result .. ".obs", "w")
-  for _, o in ipairs(list) do f:write(string.format("%d %d %d %d %d\n", o[1], o[2], o[3], o[4], o[5])) end
-  f:close()
-end
-
 -- Background proof for tests/mame/check_bg_pixels.py: two snapshots BG_GAP frames apart during play plus
 -- the scroll values and the column write counter the game exported at the same frame.
 local BG_A, BG_B = 420, 450
@@ -96,7 +65,6 @@ end
 
 emu.register_frame_done(function()
   n = n + 1
-  snapshot_obstacles()
   if n >= 290 and n <= 700 then
     local c = mem:read_u32(frame_addr)
     if n == 290 then c_first = c end

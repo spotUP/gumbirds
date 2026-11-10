@@ -195,6 +195,10 @@ static void scenario_full(const HiscoreTable *pre, const char *want_name)
     r.frame = 424242 - 1;                       /* seed = frame counter at start press */
     rig_tick(&r, 0, 1);
     CHECK(r.f.state == FLOW_PLAYING && !r.f.demo);
+    /* Arena slice: put the flier over the gap between islands (x 100 has no platform below) so it drowns. */
+    r.f.game.flier.x = FL_PX(100);
+    r.f.game.flier.y = FL_PX(100);
+    r.f.game.bonus = 3000;                      /* survival alone stays below the table minimum */
     rig_until(&r, FLOW_GAME_OVER, IN_A, 60000);
     CHECK(r.f.state == FLOW_GAME_OVER);
     CHECK(r.f.game.over && r.f.last_score == r.f.game.score && r.f.last_score > 0);
@@ -276,6 +280,9 @@ static void test_full_flow(void)
         }
         r.frame = 424242 - 1;
         rig_tick(&r, 0, 1);
+        r.f.game.flier.x = FL_PX(100);
+        r.f.game.flier.y = FL_PX(100);
+        r.f.game.bonus = 3000;
         rig_until(&r, FLOW_GAME_OVER, IN_A, 60000);
         rig_ticks(&r, 0, GAMEOVER_FRAMES);
         CHECK(r.f.state == FLOW_ATTRACT_TITLE && r.saves == 0 && r.f.new_row == -1);
@@ -317,7 +324,7 @@ static void test_cycle_and_demo(void)
     rig_until(&r, FLOW_ATTRACT_DEMO, 0, 100000);
     rig_ticks(&r, 0, 300);
     CHECK(r.f.state == FLOW_ATTRACT_DEMO || r.f.state == FLOW_ATTRACT_TITLE);
-    if (r.f.state == FLOW_ATTRACT_DEMO) CHECK(r.f.game.frame >= 300 && r.f.game.shots > 0);
+    if (r.f.state == FLOW_ATTRACT_DEMO) CHECK(r.f.game.frame >= 300 && r.f.game.flier_steps > 0);
 
     /* start during the demo starts a real game */
     rig_until(&r, FLOW_ATTRACT_DEMO, 0, 100000);

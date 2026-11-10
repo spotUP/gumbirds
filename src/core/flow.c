@@ -14,7 +14,6 @@ static void start_game(Flow *f, uint32_t seed, int demo)
     f->demo = (uint8_t)demo;
     if (demo) {
         rng_seed(&f->demo_rng, seed ^ 0xD3A0u);
-        f->duck_left = 0;
     }
     f->highlight = -1;
     f->new_row = -1;
@@ -31,7 +30,6 @@ void flow_init(Flow *f, const uint8_t *image, size_t len)
     f->reset_flash = 0;
     f->reset_hold = 0;
     f->reset_fired = 0;
-    f->duck_left = 0;
     f->last_score = 0;
     if (image) {
         hiscore_load(&f->table, image, len);
@@ -52,20 +50,16 @@ static int ranks(const Flow *f, uint32_t score)
     return hiscore_insert(&t, "", score) >= 0;
 }
 
-/* Scripted demo input from the demo RNG: hold fire, jump now and then, duck in bursts. */
+/* Scripted demo input: hover. Flap (press edge: release the frame after a press) whenever the flier is
+ * below DEMO_HOVER_Y, sweep right and left, switching every DEMO_SWEEP_FRAMES frames of the demo. */
 static uint8_t demo_input(Flow *f)
 {
-    uint8_t in = IN_A;
-    if (rng_range(&f->demo_rng, DEMO_JUMP_ODDS) == 0) {
-        in |= IN_B;
+    const Flier *fl = &f->game.flier;
+    uint8_t in = 0;
+    if (!fl->flap_prev && fl->y > FL_PX(DEMO_HOVER_Y)) {
+        in |= IN_A;
     }
-    if (f->duck_left) {
-        f->duck_left--;
-        in |= IN_C;
-    } else if (rng_range(&f->demo_rng, DEMO_DUCK_ODDS) == 0) {
-        f->duck_left = DEMO_DUCK_FRAMES;
-        in |= IN_C;
-    }
+    in |= ((f->timer / DEMO_SWEEP_FRAMES) & 1u) ? IN_LEFT : IN_RIGHT;
     return in;
 }
 
@@ -114,7 +108,7 @@ void flow_step(Flow *f, uint8_t input, uint8_t start_pressed, uint32_t frame_cou
         if (start_pressed) {
             start_game(f, frame_counter, 0);
         } else {
-            game_step(&f->game, demo_input(f));
+            game_step_arena(&f->game, demo_input(f));
             /* The demo never scores into the table: it only ever returns to the title. */
             if (f->game.over || f->timer >= ATTRACT_DEMO_FRAMES) {
                 f->demo = 0;
@@ -123,7 +117,7 @@ void flow_step(Flow *f, uint8_t input, uint8_t start_pressed, uint32_t frame_cou
         }
         break;
     case FLOW_PLAYING:
-        game_step(&f->game, input);
+        game_step_arena(&f->game, input);
         if (f->game.over) {
             f->last_score = f->game.score;
             enter(f, FLOW_GAME_OVER);

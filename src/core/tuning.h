@@ -295,16 +295,13 @@
 #define ATTRACT_DEMO_FRAMES 900
 #endif
 
-/* Demo play input: on average one jump press per DEMO_JUMP_ODDS frames, one duck hold start
- * per DEMO_DUCK_ODDS frames (the duck is held for DEMO_DUCK_FRAMES). The laser is held. */
-#ifndef DEMO_JUMP_ODDS
-#define DEMO_JUMP_ODDS 40
+/* Demo play input: the flier hovers. It flaps while below DEMO_HOVER_Y (pixels, y grows downwards) and steers
+ * sweeps right and left, switching direction every DEMO_SWEEP_FRAMES frames. */
+#ifndef DEMO_HOVER_Y
+#define DEMO_HOVER_Y 90
 #endif
-#ifndef DEMO_DUCK_ODDS
-#define DEMO_DUCK_ODDS 90
-#endif
-#ifndef DEMO_DUCK_FRAMES
-#define DEMO_DUCK_FRAMES 20
+#ifndef DEMO_SWEEP_FRAMES
+#define DEMO_SWEEP_FRAMES 60
 #endif
 
 /* Game over screen length. */
@@ -320,6 +317,25 @@
 /* Operator reset: frames the A+B+C+D combo must be held on the title screen. */
 #ifndef RESET_HOLD_FRAMES
 #define RESET_HOLD_FRAMES 180
+#endif
+
+/* Arena slice (src/core/stage.c, game_step_arena). The stage is static: 8 platform rectangles in the 320x180 world
+ * (world x = screen x, world y = screen y; water at FLIER_WATER_Y kills). Platforms are solid from above only.
+ * STAGE_* and FLIER_START_* are layout/spawn constants checked by tests/host/test_stage.c, not gameplay knobs. */
+#ifndef STAGE_PLATFORM_COUNT
+#define STAGE_PLATFORM_COUNT 8
+#endif
+#ifndef STAGE_PLATFORM_H
+#define STAGE_PLATFORM_H 8
+#endif
+#ifndef FLIER_START_X
+#define FLIER_START_X 160
+#endif
+#ifndef FLIER_START_Y
+#define FLIER_START_Y 120
+#endif
+#ifndef FLIER_START_BALLOONS
+#define FLIER_START_BALLOONS 2
 #endif
 
 #endif /* ROOFLINE_TUNING_H */

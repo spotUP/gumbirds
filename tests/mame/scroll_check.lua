@@ -1,5 +1,5 @@
--- Headless background scroll check (make test-scroll). Runs the real game (attract, coin, start, play with
--- jumps and laser fire, game over, coin and start again) and keeps a Lua shadow of LSPC VRAM from the writes to
+-- Headless background scroll check (make test-scroll). Arena: the city is a still backdrop in play. Runs the real
+-- game (attract, coin, start, flaps, walk off the island into the water, game over, coin and start again) and keeps a Lua shadow of LSPC VRAM from the writes to
 -- REG_VRAMADDR / REG_VRAMRW / REG_VRAMMOD. At every frame end (MAME frame_done is at vblank start, and make
 -- test-vblank asserts every VRAM write lands in vblank) the shadow is what the frame just shown displayed. For each
 -- of the three city rings (src/bg.c update_ring) it asserts the on-screen chain matches the scroll the game
@@ -8,8 +8,10 @@
 -- visible world column, SCB4 x of slot 0 (always a chain head), sticky SCB3 of every other slot.
 -- Fails on a late scroll write (step committed, but the screen shows an older scroll: the flush ran out of budget
 -- before the ring words) and on a skipped step (main loop not parked at vblank start while PLAYING, so the flush
--- was skipped and the screen holds the old scroll for a frame). Sentinel: g_bg_rebases (src/bg.c), new runs the
--- scroll continued across instead of jumping back to 0, must count the run start after the first game over (>= 1).
+-- was skipped and the screen holds the old scroll for a frame). Still city: g_bg_scroll_px must be identical on every
+-- PLAYING frame of every run (no scroll in the arena), and the shadow must show exactly that scroll (a ring redrawn
+-- or moved in play fails the ring check). The old g_bg_rebases sentinel is dropped: bg_update gets distance 0 forever,
+-- so it can never count.
 -- Env: ROOFLINE_FLOW_ADDR (hex), ROOFLINE_HIT_LAYOUT (hit_probe.c output, first value = flow state offset),
 -- ROOFLINE_RESULT (file), ROOFLINE_SCROLL_LOG (optional per-frame log file).
 local flow_addr = tonumber(os.getenv("ROOFLINE_FLOW_ADDR"), 16)
@@ -34,7 +36,6 @@ local function sym_addrs()
 end
 local syms = sym_addrs()
 local A_SCROLL, A_PARKED, A_FC = syms.g_bg_scroll_px, syms.g_parked, syms.g_frame_counter
-local A_SENT = syms.g_bg_rebases
 
 local STATE_PLAYING = 3
 local END_FRAME = 3600
@@ -53,8 +54,13 @@ local function field(tag, name)
 end
 local coin  = field(":AUDIO_COIN", "Coin 1")
 local start = field(":edge:joy:START", "1 Player Start")
-local bbtn  = field(":edge:joy:JOY1", "P1 B")
+local rbtn  = field(":edge:joy:JOY1", "P1 Right")
+local lbtn  = field(":edge:joy:JOY1", "P1 Left")
 local abtn  = field(":edge:joy:JOY1", "P1 A")
+
+local flay = {}
+for v in (os.getenv("ROOFLINE_FLIER_LAYOUT") or ""):gmatch("%d+") do flay[#flay + 1] = tonumber(v) end
+local drive = dofile("tests/mame/flier_drive.lua")(mem, flow_addr, flay, abtn, lbtn, rbtn)
 
 local logf = log_path and io.open(log_path, "w") or nil
 local function finish(ok, msg)
@@ -117,6 +123,8 @@ local pend_fc = nil
 local prev_fc = nil
 local checked, late, skipped, playing = 0, 0, 0, 0
 local first_fail = nil
+local still0, moved, runs = nil, 0, 0
+local prev_state = nil
 local since_start = 0
 
 local function scroll3()
@@ -127,8 +135,10 @@ emu.register_frame_done(function()
   n = n + 1
   local state = mem:read_u8(flow_addr + O_STATE)
   local fc = mem:read_u32(A_FC)
+  if state == STATE_PLAYING and prev_state ~= STATE_PLAYING then runs = runs + 1 end
+  prev_state = state
   local parked = mem:read_u8(A_PARKED) ~= 0
-  -- inputs: coin + start from attract, jump every 40 frames, fire bursts, restart after game over
+  -- inputs: coin + start from attract, flaps, steer off the island, restart after game over
   if state ~= STATE_PLAYING then
     since_start = 0
     if n > 300 and phase ~= "coin" and phase ~= "start" then phase = "coin"; phase_at = n; coin:set_value(1) end
@@ -139,8 +149,11 @@ emu.register_frame_done(function()
   else
     if phase == "start" then start:set_value(0); phase = "play" end
     since_start = since_start + 1
-    if since_start % 40 == 0 then bbtn:set_value(1) elseif since_start % 40 == 3 then bbtn:set_value(0) end
-    if since_start % 90 == 10 then abtn:set_value(1) elseif since_start % 90 == 40 then abtn:set_value(0) end
+    -- flap every 20 frames (3 held), walk right from frame 200 so the flier leaves the island and drowns
+    if since_start < 200 then
+      if since_start % 20 == 0 then abtn:set_value(1) elseif since_start % 20 == 3 then abtn:set_value(0) end
+    end
+    if since_start >= 200 then drive() end   -- walk off the island and drown (tests/mame/flier_drive.lua)
   end
   -- check the frame just shown against the step its vblank flush took
   if state == STATE_PLAYING and since_start > SETTLE and pend then
@@ -159,6 +172,12 @@ emu.register_frame_done(function()
   end
   if state == STATE_PLAYING then
     playing = playing + 1
+    local s3 = scroll3()
+    still0 = still0 or s3
+    if s3[1] ~= still0[1] or s3[2] ~= still0[2] or s3[3] ~= still0[3] then
+      moved = moved + 1
+      if not first_fail then first_fail = string.format("frame %d city scroll moved in play: %d %d %d -> %d %d %d", n, still0[1], still0[2], still0[3], s3[1], s3[2], s3[3]) end
+    end
     if since_start > SETTLE and not parked then
       skipped = skipped + 1
       local msg = string.format("frame %d fc %d main loop not parked at vblank start (flush skipped)", n, fc)
@@ -175,9 +194,8 @@ emu.register_frame_done(function()
   -- the step this vblank's flush takes
   if parked then pend = scroll3(); pend_fc = fc end
   if n >= END_FRAME then
-    local sent = A_SENT and mem:read_u32(A_SENT) or -1
-    local msg = string.format("PLAYING frames %d, checked %d, late scroll frames %d, skipped steps %d, scroll rebases %d%s",
-      playing, checked, late, skipped, sent, first_fail and (", first: " .. first_fail) or "")
-    finish(A_SENT ~= nil and checked >= MIN_CHECKED and late == 0 and skipped == 0 and sent >= 1, msg)
+    local msg = string.format("PLAYING frames %d in %d runs, checked %d, late scroll frames %d, skipped steps %d, scroll moved in %d frames%s",
+      playing, runs, checked, late, skipped, moved, first_fail and (", first: " .. first_fail) or "")
+    finish(checked >= MIN_CHECKED and late == 0 and skipped == 0 and moved == 0 and runs >= 2, msg)
   end
 end)

@@ -53,7 +53,6 @@ typedef struct {
     uint8_t reset_flash;     /* 1 for the frames after an operator reset (draw a message) */
     uint16_t reset_hold;     /* frames the reset combo has been held */
     uint8_t reset_fired;     /* combo already fired, wait for release */
-    uint8_t duck_left;       /* demo: frames of duck left */
     uint32_t last_score;     /* score of the last real run */
     HiscoreTable table;
     Game game;

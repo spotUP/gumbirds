@@ -5,9 +5,9 @@ bg file (written by boot_check.lua at the two snapshot frames): "a far mid roof 
 Checks, each independent of the hero and obstacle checks (only colours unique to one layer are counted):
   1. the sky backdrop fills the top band, before start and during play
   2. each layer's own colours appear in its y band during play and not above it
-  3. the measured circular shift of each layer between the snapshots equals the exported scroll delta
-     (within TOL_PX), and the delta ratios far:roof and mid:roof match 1/4 and 9/16
-  4. the column write sentinel grew by exactly the number of 16 px column boundaries crossed
+  3. the city is still: the exported scroll delta of each layer between the snapshots is 0 and the layer's pixels
+     match at shift 0 (arena slice: no scroll in play)
+  4. the column write sentinel did not grow
 Exit 1 on failure."""
 import os
 import sys
@@ -25,12 +25,9 @@ SKY = (0x1a, 0x12, 0x38)
 # NG_RGB5(7, 4, 8). Shared by both layers, so never layer-unique; the far lamps in their off phase sit above
 # the mid band and would otherwise count as mid pixels there.
 RUNTIME_SHARED = [(57, 33, 66)]
-TOL_PX = 3
 MIN_BAND, MAX_ABOVE, MIN_SKY = 300, 5, 0.9
 SKY_OBJ_X = (200, 296)         # moon and clouds overlap the far band; skipped when measuring far
-RATIO = {"far": 0.25, "mid": 0.5625}
-RATIO_TOL = 0.06
-MIN_ROOF_DELTA = 60
+MIN_STILL = 0.95
 FULL = (1 << 320) - 1
 
 
@@ -141,30 +138,19 @@ def main():
             ra, rb = rows_mask(ima, cols, y0, y1, skip), rows_mask(imb, cols, y0, y1, skip)
             sc = shift_scores(ra, rb)
             total = sum(m.bit_count() for m in ra)
-        best = max(range(320), key=lambda d: sc[d])
-        want = delta[name] % 320
-        err = min((best - want) % 320, (want - best) % 320)
-        rest = [sc[d] for d in range(320) if min((d - best) % 320, (best - d) % 320) > 4]
-        runner = max(rest)
-        good = delta[name] >= 8 and err <= TOL_PX and sc[best] >= 0.5 * total and runner <= 0.9 * sc[best]
+        # still city: the exported scroll never changes and the layer's pixels match at shift 0 (the flier moving over
+        # the city is the only difference allowed, hence the share below 1.0)
+        share = sc[0] / float(total) if total else 0.0
+        good = delta[name] == 0 and share >= MIN_STILL
         ok = ok and good
-        print("%s %s scroll: exported delta %d (mod 320 = %d), measured shift %d, error %d (max %d), match %d of %d, runner-up %d"
-              % ("[OK]" if good else "[FAIL]", name, delta[name], want, best, err, TOL_PX, sc[best], total, runner))
-    if delta["roof"] >= MIN_ROOF_DELTA:
-        for name in ("far", "mid"):
-            r = delta[name] / float(delta["roof"])
-            good = abs(r - RATIO[name]) <= RATIO_TOL
-            ok = ok and good
-            print("%s %s:roof exported ratio %.3f (want %.4f +- %.2f)" % ("[OK]" if good else "[FAIL]", name, r, RATIO[name], RATIO_TOL))
-    else:
-        ok = False
-        print("[FAIL] roof moved only %d px between snapshots (min %d): ratios not measurable" % (delta["roof"], MIN_ROOF_DELTA))
+        print("%s %s still: exported delta %d (want 0), unshifted pixel match %.3f of %d (min %.2f)"
+              % ("[OK]" if good else "[FAIL]", name, delta[name], share, total, MIN_STILL))
 
     cross = sum((b[i] // 16) - (a[i] // 16) for i in range(3))
     wr = b[3] - a[3]
-    good = wr == cross and cross > 0
+    good = wr == 0 and cross == 0
     ok = ok and good
-    print("%s column strip writes between snapshots: %d, column boundaries crossed: %d" % ("[OK]" if good else "[FAIL]", wr, cross))
+    print("%s column strip writes between snapshots: %d (want 0), column boundaries crossed: %d (want 0)" % ("[OK]" if good else "[FAIL]", wr, cross))
     sys.exit(0 if ok else 1)
 
 

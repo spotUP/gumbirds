@@ -15,6 +15,7 @@
 #include <stddef.h>
 #include "tuning.h"
 #include "rng.h"
+#include "flier.h"
 
 /* Input bits, active when set. Buttons A..D map to the Neo Geo A, B, C, D buttons. */
 #define IN_A 0x01u /* fire laser (held) */
@@ -73,6 +74,11 @@ typedef struct {
     Bolt bolts[MAX_BOLTS];
 
     /* Counters for tests and the HUD. */
+    /* Arena slice: the flier replaces the runner hero in play. flier_steps counts flier_step calls (test sentinel). */
+    Flier flier;
+    uint32_t flier_steps;
+    uint32_t flaps;      /* flap press edges while the flier lives (sound event source) */
+
     uint32_t kills, shots, overheats, hits, near_misses, spawned;
 
     /* Last kill, for the hit flash (src/core/laser_view.c): centre of the enemy, game frame. */
@@ -82,6 +88,9 @@ typedef struct {
 
 void game_reset(Game *g, uint32_t seed);
 void game_step(Game *g, uint8_t input);
+/* Arena step (used by the flow in play and demo): A flaps, left/right steer (nameentry.h bits). The run ends when the
+ * flier is DROWNED or GONE. Score is survival time (distance advances SPEED_BASE per frame while alive). */
+void game_step_arena(Game *g, uint8_t input);
 
 /* Current hero hit box (x, y top, w, h) for drawing and tests. */
 void game_hero_box(const Game *g, int *x, int *y, int *w, int *h);

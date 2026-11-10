@@ -22,8 +22,7 @@ local NAME       = "REACHTST"
 local lay = {}
 for v in (os.getenv("ROOFLINE_REACH_LAYOUT") or ""):gmatch("%d+") do lay[#lay + 1] = tonumber(v) end
 local O_STATE, O_LAST, O_TNAME, O_TSCORE, O_ENAME, O_ESYM, O_EPOS, O_EDONE = table.unpack(lay, 1, 8)
-local O_OBS, OBS_SZ, N_OBS, E_X, E_W, E_TYPE, E_ACT = table.unpack(lay, 9, 15)
-local O_HERO_H, O_HERO_VY, O_LOCK, O_SCORE, O_SPEED = table.unpack(lay, 16, 20)
+local O_FX, O_FVX, O_FGROUND, O_SCORE = table.unpack(lay, 9, 12)   -- arena slice: flier x, vx (16.16), on_ground; game score
 local mem    = manager.machine.devices[":maincpu"].spaces["program"]
 local ports  = manager.machine.ioport.ports
 
@@ -45,6 +44,10 @@ local coin  = named(":AUDIO_COIN", "Coin 1")
 local start = named(":edge:joy:START", "1 Player Start")
 local abtn, bbtn, cbtn = named(":edge:joy:JOY1", "P1 A"), named(":edge:joy:JOY1", "P1 B"), named(":edge:joy:JOY1", "P1 C")
 local ubtn = named(":edge:joy:JOY1", "P1 Up")
+local rbtn = named(":edge:joy:JOY1", "P1 Right")
+local lbtn = named(":edge:joy:JOY1", "P1 Left")
+local steering, steer_tick = false, 0
+local function s32(v) return v >= 0x80000000 and v - 0x100000000 or v end
 
 local function s16(v) return v >= 0x8000 and v - 0x10000 or v end
 local function g32(o) return mem:read_u32(flow_addr + o) end
@@ -96,7 +99,7 @@ local function image_row(i)
 end
 
 local function release_all()
-  abtn:set_value(0); bbtn:set_value(0); cbtn:set_value(0); ubtn:set_value(0)
+  abtn:set_value(0); bbtn:set_value(0); cbtn:set_value(0); ubtn:set_value(0); rbtn:set_value(0); lbtn:set_value(0)
 end
 
 local n, phase, coin_at = 0, "boot", nil
@@ -163,15 +166,28 @@ emu.register_frame_done(function()
   if phase == "play" then
     if state == FLOW_PLAYING then
       if not idle_play and g32(O_SCORE) > TABLE_MIN + 200 then idle_play = true end
-      if idle_play then
+      -- Arena slice autoplay: stand on the middle island (no input; survival time is the score) until the score
+      -- passes the table minimum, then walk off the right edge, steer back over the gap with left + flap until the
+      -- horizontal speed is gone, and fall into the water (same manoeuvre as tests/mame/flier_check.lua).
+      if not idle_play then
         release_all()
       else
-        local fire, jump, duck = plan(obstacles(), mem:read_u16(flow_addr + O_LOCK) == 0, g32(O_SPEED) / 256)
-        abtn:set_value(fire and 1 or 0)
-        cbtn:set_value((duck and not jump) and 1 or 0)
-        local on_floor = g32(O_HERO_H) == 0 and g32(O_HERO_VY) == 0
-        if jump and on_floor and b_prev == 0 then b_prev = 1 else b_prev = 0 end
-        bbtn:set_value(b_prev)
+        local fx = s32(g32(O_FX)) / 65536
+        local vx = s32(g32(O_FVX)) / 65536
+        local ground = mem:read_u8(flow_addr + O_FGROUND)
+        if not steering and (ground == 1 or fx < 212) then
+          rbtn:set_value(1)
+        else
+          steering = true
+          rbtn:set_value(0)
+          if vx > 0 then
+            lbtn:set_value(1)
+            abtn:set_value((steer_tick % 6) < 2 and 1 or 0)
+            steer_tick = steer_tick + 1
+          else
+            lbtn:set_value(0); abtn:set_value(0)
+          end
+        end
       end
     elseif state == FLOW_GAME_OVER then
       release_all()

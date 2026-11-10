@@ -29,6 +29,11 @@ static void flow_digest(void)
         if (f.state != prev_state) {
             if (f.state == FLOW_ATTRACT_TITLE) title_visits++;
             if (f.state == FLOW_NAME_ENTRY) { entry_visits++; entry_frame = 0; }
+            if (f.state == FLOW_PLAYING && !f.demo) {
+                /* Arena: put the flier over the gap with a ranking bonus so the run ends in game over and name entry. */
+                f.game.flier.x = FL_PX(100); f.game.flier.y = FL_PX(100);
+                f.game.bonus = 2000u + ((in_state >> 20) & 1023u) * 50u;
+            }
             prev_state = f.state;
         }
         switch (f.state) {
@@ -40,9 +45,10 @@ static void flow_digest(void)
             if (f.timer == 30 && (in_state >> 28) < 3) start = 1;
             break;
         case FLOW_PLAYING:
-            in = IN_A;
-            if (((in_state >> 12) & 31u) == 0u) in |= IN_B;
-            if (((in_state >> 8) & 15u) < 3u) in |= IN_C;
+            /* Arena: random flaps (1 in 16 frames) and steering so the flier eventually leaves the islands and drowns. */
+            if (f.game.frame < 40u && ((in_state >> 8) & 15u) == 0u) in |= IN_A;   /* flaps only early, so the run ends */
+            if (((in_state >> 20) & 3u) == 0u) in |= IN_LEFT;
+            else if (((in_state >> 20) & 3u) == 1u) in |= IN_RIGHT;
             break;
         case FLOW_NAME_ENTRY:
             entry_frame++;
@@ -60,7 +66,7 @@ static void flow_digest(void)
         }
         flow_step(&f, in, start, fr);
         if (f.dirty) { mix(0xD1u); f.dirty = 0; }
-        mix(f.state); mix(f.timer); mix(f.game.score); mix(f.game.lives); mix((uint32_t)f.highlight);
+        mix(f.state); mix(f.timer); mix(f.game.score); mix(f.game.lives); mix(f.game.flier_steps); mix(f.game.flaps); mix((uint32_t)f.game.flier.x); mix((uint32_t)f.game.flier.y); mix((uint32_t)f.highlight);
         mix(f.reset_hold);
         for (i = 0; i < NAME_LEN; i++) mix((uint32_t)f.entry.name[i]);
         mix(f.entry.pos); mix(f.entry.sym[0]);
@@ -71,6 +77,9 @@ static void flow_digest(void)
         for (k = 0; k < HISCORE_NAME_LEN; k++) mix((uint32_t)f.table.name[i][k]);
     }
     mix(title_visits); mix(entry_visits);
+#ifdef KNOB_DEBUG
+    fprintf(stderr, "title %u entry %u last %u\n", (unsigned)title_visits, (unsigned)entry_visits, (unsigned)f.last_score);
+#endif
 }
 
 int main(void)

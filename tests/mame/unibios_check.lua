@@ -18,7 +18,10 @@
 local frame_addr = tonumber(os.getenv("ROOFLINE_FRAME_ADDR"), 16)
 local bgpal_addr = tonumber(os.getenv("ROOFLINE_BG_PAL_ADDR"), 16)
 local flow_addr  = tonumber(os.getenv("ROOFLINE_FLOW_ADDR"), 16)
-local O_STATE    = tonumber(os.getenv("ROOFLINE_REACH_LAYOUT"):match("%d+"))
+local lay = {}
+for v in os.getenv("ROOFLINE_REACH_LAYOUT"):gmatch("%d+") do lay[#lay + 1] = tonumber(v) end
+local O_STATE = lay[1]
+local O_FX, O_FVX, O_FGROUND = lay[9], lay[10], lay[11]   -- arena slice flier x, vx (16.16), on_ground (reach_probe.c)
 local result     = os.getenv("ROOFLINE_RESULT")
 local FLOW_ATTRACT_DEMO, FLOW_PLAYING, FLOW_GAME_OVER = 2, 3, 4
 local AFTER_DEATH, DEATH_TIMEOUT, STALL_LIMIT = 600, 2400, 60
@@ -37,6 +40,12 @@ local function city_sum()
 end
 
 local coin, start
+local rbtn, lbtn, abtn
+for name, f in pairs(manager.machine.ioport.ports[":edge:joy:JOY1"].fields) do
+  if name == "P1 Right" then rbtn = f elseif name == "P1 Left" then lbtn = f elseif name == "P1 A" then abtn = f end
+end
+local steering, steer_tick = false, 0
+local function s32(v) return v >= 0x80000000 and v - 0x100000000 or v end
 for name, f in pairs(manager.machine.ioport.ports[":AUDIO_COIN"].fields) do
   if name == "Coin 1" then coin = f end
 end
@@ -69,7 +78,25 @@ local function phase2()
     if st == FLOW_PLAYING then start:set_value(0); p2, p2_n = "play", 0
     elseif p2_n > 120 then finish(false, "start with two credits never reached FLOW_PLAYING") end
   elseif p2 == "play" then
-    if st == FLOW_GAME_OVER then p2, p2_n, last_c = "watch", 0, c
+    -- The flier stays alive on the island with no input: walk off the right edge, steer back over the gap with
+    -- left + flap until the horizontal speed is gone, then fall into the water (as tests/mame/flier_check.lua).
+    if st == FLOW_PLAYING then
+      local fx = s32(mem:read_u32(flow_addr + O_FX)) / 65536
+      local vx = s32(mem:read_u32(flow_addr + O_FVX)) / 65536
+      local ground = mem:read_u8(flow_addr + O_FGROUND)
+      if not steering and (ground == 1 or fx < 212) then
+        rbtn:set_value(1)
+      else
+        steering = true
+        rbtn:set_value(0)
+        if vx > 0 then
+          lbtn:set_value(1); abtn:set_value((steer_tick % 6) < 2 and 1 or 0); steer_tick = steer_tick + 1
+        else
+          lbtn:set_value(0); abtn:set_value(0)
+        end
+      end
+    end
+    if st == FLOW_GAME_OVER then rbtn:set_value(0); lbtn:set_value(0); abtn:set_value(0); p2, p2_n, last_c = "watch", 0, c
     elseif p2_n > DEATH_TIMEOUT then finish(false, "hero never died (flow state " .. st .. ")") end
   elseif p2 == "watch" then
     if c ~= last_c then move, run = move + 1, 0 else run = run + 1; if run > stall then stall = run end end
