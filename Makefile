@@ -60,8 +60,8 @@ include emu.mk
 # 
 # Note: build rules (%.c -> %.o -> %.elf) are defined in Makefile.build
 ELF=$(BUILDDIR)/rom.elf
-CORE_SRCS=rng game hiscore nameentry flow obstacle_view bg_scroll laser_view hero_view vram_queue obj_pool sound_queue sound_events flier stage
-$(ELF):	$(BUILDDIR)/src/main.o $(BUILDDIR)/gen/hero_sprites.o $(BUILDDIR)/gen/obs_sprites.o $(BUILDDIR)/gen/city_sprites.o $(BUILDDIR)/gen/heat_sprites.o $(BUILDDIR)/src/bg.o $(BUILDDIR)/src/gfx.o $(BUILDDIR)/src/sound.o $(CORE_SRCS:%=$(BUILDDIR)/src/core/%.o)
+CORE_SRCS=rng game hiscore nameentry flow obstacle_view bg_scroll flier_view vram_queue obj_pool sound_queue sound_events flier stage ai
+$(ELF):	$(BUILDDIR)/src/main.o $(BUILDDIR)/gen/hero_sprites.o $(BUILDDIR)/gen/sootling_sprites.o $(BUILDDIR)/gen/obs_sprites.o $(BUILDDIR)/gen/city_sprites.o $(BUILDDIR)/src/bg.o $(BUILDDIR)/src/gfx.o $(BUILDDIR)/src/sound.o $(CORE_SRCS:%=$(BUILDDIR)/src/core/%.o)
 $(PROM1): $(ELF)
 
 
@@ -88,13 +88,19 @@ $(SROM1): $(BUILDDIR)/assets/base-srom-text-shadow.fix
 # Note: build rules (%.gif -> %.c<1,2>) are defined in Makefile.build
 # Hero tiles come after the logo (256 tiles = HERO_TILE_BASE in src/main.c), obstacle tiles after the
 # hero tiles, city tiles after the obstacles (bases in src/vram_layout.h, from the generated headers); prerequisite order = cat order.
-$(CROM1): $(BUILDDIR)/assets/base-crom-logo.c1 $(BUILDDIR)/gen/hero.c1 $(BUILDDIR)/gen/obs.c1 $(BUILDDIR)/gen/city.c1 $(BUILDDIR)/gen/heat.c1
-$(CROM2): $(BUILDDIR)/assets/base-crom-logo.c2 $(BUILDDIR)/gen/hero.c2 $(BUILDDIR)/gen/obs.c2 $(BUILDDIR)/gen/city.c2 $(BUILDDIR)/gen/heat.c2
+$(CROM1): $(BUILDDIR)/assets/base-crom-logo.c1 $(BUILDDIR)/gen/hero.c1 $(BUILDDIR)/gen/obs.c1 $(BUILDDIR)/gen/city.c1 $(BUILDDIR)/gen/sootling.c1
+$(CROM2): $(BUILDDIR)/assets/base-crom-logo.c2 $(BUILDDIR)/gen/hero.c2 $(BUILDDIR)/gen/obs.c2 $(BUILDDIR)/gen/city.c2 $(BUILDDIR)/gen/sootling.c2
 
 # Hero sprite pipeline (tools/build_hero_sprites.py); one run makes all four files.
 $(BUILDDIR)/gen/hero.c1 $(BUILDDIR)/gen/hero.c2 $(BUILDDIR)/gen/hero_sprites.c $(BUILDDIR)/gen/hero_sprites.h: assets/hero/guard_sheet.png assets/hero/guard_sheet.json tools/build_hero_sprites.py tools/sprite_pipeline.py
 	$(PYTHON) -I tools/build_hero_sprites.py --out $(BUILDDIR)/gen
 $(BUILDDIR)/gen/hero_sprites.o: $(BUILDDIR)/gen/hero_sprites.c
+	$(M68KGCC) $(NGCFLAGS) $(CFLAGS) -c $< -o $@
+# Flier (Sootling) sprite pipeline (tools/build_flier_sprites.py). The sheet is imported from a draft PNG by
+# tools/import_flier_sheet.py and committed under assets/flier/; re-importing a new draft is the whole art swap.
+$(BUILDDIR)/gen/sootling.c1 $(BUILDDIR)/gen/sootling.c2 $(BUILDDIR)/gen/sootling_sprites.c $(BUILDDIR)/gen/sootling_sprites.h: assets/flier/sootling_sheet.png assets/flier/sootling_sheet.json tools/build_flier_sprites.py tools/sprite_pipeline.py
+	$(PYTHON) -I tools/build_flier_sprites.py --out $(BUILDDIR)/gen
+$(BUILDDIR)/gen/sootling_sprites.o: $(BUILDDIR)/gen/sootling_sprites.c
 	$(M68KGCC) $(NGCFLAGS) $(CFLAGS) -c $< -o $@
 # Obstacle sprite pipeline (tools/build_obstacle_sprites.py, shared module tools/sprite_pipeline.py).
 # The sheet itself is drawn by tools/draw_obstacle_sheet.py and committed under assets/obstacles/.
@@ -109,13 +115,7 @@ $(BUILDDIR)/gen/city.c1 $(BUILDDIR)/gen/city.c2 $(BUILDDIR)/gen/city_sprites.c $
 $(BUILDDIR)/gen/city_sprites.o: $(BUILDDIR)/gen/city_sprites.c
 	$(M68KGCC) $(NGCFLAGS) $(CFLAGS) -c $< -o $@
 
-# Heat bar sprite pipeline (tools/build_laser_sprites.py). The sheet is drawn by tools/draw_heat_sheet.py
-# and committed under assets/laser/. The beam and the kill flash are frames of the hero set.
-$(BUILDDIR)/gen/heat.c1 $(BUILDDIR)/gen/heat.c2 $(BUILDDIR)/gen/heat_sprites.c $(BUILDDIR)/gen/heat_sprites.h: assets/laser/heat_sheet.png assets/laser/heat_sheet.json tools/build_laser_sprites.py tools/sprite_pipeline.py
-	$(PYTHON) -I tools/build_laser_sprites.py --out $(BUILDDIR)/gen
-$(BUILDDIR)/gen/heat_sprites.o: $(BUILDDIR)/gen/heat_sprites.c
-	$(M68KGCC) $(NGCFLAGS) $(CFLAGS) -c $< -o $@
-$(BUILDDIR)/src/main.o $(BUILDDIR)/src/bg.o $(BUILDDIR)/src/gfx.o: $(BUILDDIR)/gen/hero_sprites.h $(BUILDDIR)/gen/obs_sprites.h $(BUILDDIR)/gen/city_sprites.h $(BUILDDIR)/gen/heat_sprites.h src/core/laser_view.h src/core/hero_view.h src/vram_layout.h src/sprite_slots.h src/bg.h src/gfx.h src/core/vram_queue.h
+$(BUILDDIR)/src/main.o $(BUILDDIR)/src/bg.o $(BUILDDIR)/src/gfx.o: $(BUILDDIR)/gen/hero_sprites.h $(BUILDDIR)/gen/obs_sprites.h $(BUILDDIR)/gen/city_sprites.h $(BUILDDIR)/gen/sootling_sprites.h src/core/flier_view.h src/vram_layout.h src/sprite_slots.h src/bg.h src/gfx.h src/core/vram_queue.h
 
 
 
@@ -249,13 +249,14 @@ test: cart
 	if [ ! -f $$T/result.txt ]; then tail -n 15 $$T/mame.log; echo "[FAIL] no result from Lua script"; exit 1; fi; \
 	cat $$T/result.txt; \
 	mkdir -p $(BUILDDIR)/test-snap; cp $$T/snap/*.png $(BUILDDIR)/test-snap/ 2>/dev/null || true; \
-	grep -q '^PASS' $$T/result.txt && $(PYTHON) -I tests/mame/check_hero_pixels.py build/gen/hero_sprites.c build/gen/obs_sprites.c build/gen/city_sprites.c $$T/snap/pre_start.png $$T/snap/playing.png && $(PYTHON) -I tests/mame/check_bg_pixels.py build/gen/city_sprites.c build/gen/hero_sprites.c build/gen/obs_sprites.c $$T/snap/pre_start.png $$T/snap/bg_a.png $$T/snap/playing.png $$T/result.txt.bg || echo "[FAIL] pixel check" >> $$T/result.txt; \
+	grep -q '^PASS' $$T/result.txt && $(PYTHON) -I tests/mame/check_hero_pixels.py build/gen/sootling_sprites.c build/gen/obs_sprites.c build/gen/city_sprites.c $$T/snap/pre_start.png $$T/snap/playing.png && $(PYTHON) -I tests/mame/check_bg_pixels.py build/gen/city_sprites.c build/gen/hero_sprites.c build/gen/obs_sprites.c $$T/snap/pre_start.png $$T/snap/bg_a.png $$T/snap/playing.png $$T/result.txt.bg || echo "[FAIL] pixel check" >> $$T/result.txt; \
 	if ! grep -q 'FAIL' $$T/result.txt; then rm -rf $$T; echo "[OK] make test passed"; else echo "[FAIL] make test, log kept in $$T"; exit 1; fi
 
 # Flier reachability (tests/mame/flier_check.lua): coin, start, flap with A, steer, drown, game over. Sentinel:
 # Game.flier_steps (src/core/game.c game_step_arena) must track the PLAYING frames.
 test-flier: cart
 	@set -e; T=$$(mktemp -d $(BUILDDIR)/test-run.XXXXXX); \
+	ROOFLINE_SOOT_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_soot_range"{print $$1}') \
 	ROOFLINE_FLOW_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flow"{print $$1}') \
 	ROOFLINE_FRAME_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_frame_counter"{print $$1}') \
 	ROOFLINE_FLIER_LAYOUT="$$($(M68KGCC) -std=c99 -S -o - tests/mame/flier_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
@@ -283,6 +284,7 @@ test-reach: cart bios
 	ROOFLINE_FRAME_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_frame_counter"{print $$1}') \
 	ROOFLINE_HISCORE_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_hiscore_image"{print $$1}') \
 	ROOFLINE_SAVES_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_hiscore_saves"{print $$1}') \
+	ROOFLINE_NAMESEC_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_name_seconds_shown"{print $$1}') \
 	ROOFLINE_REACH_LAYOUT="$$($(M68KGCC) -std=c99 -S -o - tests/mame/reach_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
 	ROOFLINE_RESULT=$$T/result$$PH.txt ROOFLINE_EXPECT=$$T/expect.txt \
 	SDL_VIDEODRIVER=dummy nice -n 19 $(MAME) -window -nomaximize -video none -sound none -nothrottle -seconds_to_run $(REACH_SECONDS) -noautosave -skip_gameinfo -hash $(ROM) $(REACH_BIOS_FLAGS) -nvram_directory $$T/nvram -autoboot_script tests/mame/hiscore_reach.lua neogeo -cart1 $(GAMEROM) > $$T/mame$$PH.log 2>&1 || true; \
@@ -342,6 +344,7 @@ test-unibios: cart bios
 	@set -e; T=$$(mktemp -d $(BUILDDIR)/test-run.XXXXXX); \
 	ROOFLINE_FRAME_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_frame_counter"{print $$1}') \
 	ROOFLINE_BG_PAL_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_bg_pal_first_entry"{print $$1}') \
+	ROOFLINE_SOOT_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_soot_range"{print $$1}') \
 	ROOFLINE_FLOW_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flow"{print $$1}') \
 	ROOFLINE_REACH_LAYOUT="$$($(M68KGCC) -std=c99 -S -o - tests/mame/reach_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
 	ROOFLINE_RESULT=$$T/result.txt \

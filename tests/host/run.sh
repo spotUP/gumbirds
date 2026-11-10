@@ -7,7 +7,7 @@ ROOT=$(cd "$HERE/../.." && pwd)
 OUT=${ROOFLINE_TEST_OUT:-/private/tmp/claude-501/-Users-spot-Code-ArcadeGame/06a12133-dc4e-43e6-b08a-169b50911a0f/scratchpad/core}
 mkdir -p "$OUT"
 CC="nice -n 19 clang -std=c99 -Wall -Wextra -Werror -pedantic"
-SRC="$ROOT/src/core/rng.c $ROOT/src/core/game.c $ROOT/src/core/hiscore.c $ROOT/src/core/nameentry.c $ROOT/src/core/flow.c $ROOT/src/core/obstacle_view.c $ROOT/src/core/bg_scroll.c $ROOT/src/core/laser_view.c $ROOT/src/core/hero_view.c $ROOT/src/core/vram_queue.c $ROOT/src/core/obj_pool.c $ROOT/src/core/sound_queue.c $ROOT/src/core/sound_events.c $ROOT/src/core/flier.c $ROOT/src/core/stage.c"
+SRC="$ROOT/src/core/rng.c $ROOT/src/core/game.c $ROOT/src/core/hiscore.c $ROOT/src/core/nameentry.c $ROOT/src/core/flow.c $ROOT/src/core/obstacle_view.c $ROOT/src/core/bg_scroll.c $ROOT/src/core/vram_queue.c $ROOT/src/core/obj_pool.c $ROOT/src/core/sound_queue.c $ROOT/src/core/sound_events.c $ROOT/src/core/flier.c $ROOT/src/core/stage.c $ROOT/src/core/ai.c $ROOT/src/core/flier_view.c"
 fail=0
 
 $CC -o "$OUT/test_core" "$HERE/test_core.c" $SRC >"$OUT/build.log" 2>&1 || { echo "[ERROR] build failed"; tail -n 20 "$OUT/build.log"; exit 1; }
@@ -22,10 +22,6 @@ $CC -o "$OUT/test_bg" "$HERE/test_bg.c" $SRC >"$OUT/build.log" 2>&1 || { echo "[
 nice -n 19 "$OUT/test_bg" >"$OUT/test_bg.log" 2>&1 || fail=1
 tail -n 1 "$OUT/test_bg.log"; grep FAIL "$OUT/test_bg.log" | head -n 10
 
-$CC -o "$OUT/test_laser_view" "$HERE/test_laser_view.c" $SRC >"$OUT/build.log" 2>&1 || { echo "[ERROR] laser_view build failed"; tail -n 20 "$OUT/build.log"; exit 1; }
-nice -n 19 "$OUT/test_laser_view" >"$OUT/test_laser_view.log" 2>&1 || fail=1
-tail -n 1 "$OUT/test_laser_view.log"; grep FAIL "$OUT/test_laser_view.log" | head -n 10
-
 $CC -o "$OUT/test_sound_queue" "$HERE/test_sound_queue.c" $SRC >"$OUT/build.log" 2>&1 || { echo "[ERROR] sound_queue build failed"; tail -n 20 "$OUT/build.log"; exit 1; }
 nice -n 19 "$OUT/test_sound_queue" >"$OUT/test_sound_queue.log" 2>&1 || fail=1
 tail -n 1 "$OUT/test_sound_queue.log"; grep FAIL "$OUT/test_sound_queue.log" | head -n 10
@@ -34,9 +30,9 @@ $CC -o "$OUT/test_vram_queue" "$HERE/test_vram_queue.c" $SRC >"$OUT/build.log" 2
 nice -n 19 "$OUT/test_vram_queue" >"$OUT/test_vram_queue.log" 2>&1 || fail=1
 tail -n 1 "$OUT/test_vram_queue.log"; grep FAIL "$OUT/test_vram_queue.log" | head -n 10
 
-$CC -o "$OUT/test_hero_view" "$HERE/test_hero_view.c" $SRC >"$OUT/build.log" 2>&1 || { echo "[ERROR] hero_view build failed"; tail -n 20 "$OUT/build.log"; exit 1; }
-nice -n 19 "$OUT/test_hero_view" >"$OUT/test_hero_view.log" 2>&1 || fail=1
-tail -n 1 "$OUT/test_hero_view.log"; grep FAIL "$OUT/test_hero_view.log" | head -n 10
+$CC -o "$OUT/test_flier_view" "$HERE/test_flier_view.c" $SRC >"$OUT/build.log" 2>&1 || { echo "[ERROR] flier_view build failed"; tail -n 20 "$OUT/build.log"; exit 1; }
+nice -n 19 "$OUT/test_flier_view" >"$OUT/test_flier_view.log" 2>&1 || fail=1
+tail -n 1 "$OUT/test_flier_view.log"; grep FAIL "$OUT/test_flier_view.log" | head -n 10
 
 $CC -o "$OUT/test_obj_pool" "$HERE/test_obj_pool.c" $SRC >"$OUT/build.log" 2>&1 || { echo "[ERROR] obj_pool build failed"; tail -n 20 "$OUT/build.log"; exit 1; }
 nice -n 19 "$OUT/test_obj_pool" >"$OUT/test_obj_pool.log" 2>&1 || fail=1
@@ -48,10 +44,13 @@ tail -n 1 "$OUT/test_flier.log"; grep FAIL "$OUT/test_flier.log" | head -n 10
 $CC -o "$OUT/test_stage" "$HERE/test_stage.c" $SRC -lm >"$OUT/build.log" 2>&1 || { echo "[ERROR] stage build failed"; tail -n 20 "$OUT/build.log"; exit 1; }
 nice -n 19 "$OUT/test_stage" >"$OUT/test_stage.log" 2>&1 || fail=1
 tail -n 1 "$OUT/test_stage.log"; grep FAIL "$OUT/test_stage.log" | head -n 10
+$CC -o "$OUT/test_ai" "$HERE/test_ai.c" $SRC -lm >"$OUT/build.log" 2>&1 || { echo "[ERROR] ai build failed"; tail -n 20 "$OUT/build.log"; exit 1; }
+nice -n 19 "$OUT/test_ai" >"$OUT/test_ai.log" 2>&1 || fail=1
+tail -n 1 "$OUT/test_ai.log"; grep FAIL "$OUT/test_ai.log" | head -n 10
 
 # Knob completeness: every #define in tuning.h (except documented exemptions) has an override.
 # Exemptions: STAGE_ / FLIER_START_ are layout and spawn constants (stage.c table, game_reset).
-defs=$(grep '^#define [A-Z_]* ' "$ROOT/src/core/tuning.h" | awk '{print $2}' | grep -v -e '^SCREEN_W$' -e '^SCREEN_H$' -e '^MAX_OBSTACLES$' -e '^STAGE_' -e '^FLIER_START_' | sort)
+defs=$(grep '^#define [A-Z_]* ' "$ROOT/src/core/tuning.h" | awk '{print $2}' | grep -v -e '^SCREEN_W$' -e '^SCREEN_H$' -e '^STAGE_' -e '^FLIER_START_' | sort)
 listed=$(awk '{print $1}' "$HERE/knobs.txt" | sort)
 if [ "$defs" != "$listed" ]; then echo "[ERROR] knobs.txt does not match tuning.h"; fail=1; fi
 

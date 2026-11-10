@@ -22,7 +22,7 @@ local result    = os.getenv("ROOFLINE_RESULT")
 local lay = {}
 for v in (os.getenv("ROOFLINE_HIT_LAYOUT") or ""):gmatch("%d+") do lay[#lay + 1] = tonumber(v) end
 local O_STATE = lay[1]
-local POOL_MAX = lay[9]
+local POOL_MAX = lay[2]
 
 local function sym_addrs()
   local gcc

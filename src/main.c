@@ -11,8 +11,7 @@
 #include "core/flow.h"
 #include "core/obstacle_view.h"
 #include "core/obj_pool.h"
-#include "core/laser_view.h"
-#include "core/hero_view.h"
+#include "core/flier_view.h"
 #include "gfx.h"
 #include "sprite_slots.h"
 #include "vram_layout.h"
@@ -31,25 +30,33 @@ volatile u32 g_frame_counter;
 
 /* RAM sentinel for the headless reachability test (make test-reach): counts backup RAM image writes. */
 volatile u32 g_hiscore_saves;
+
 /* RAM sentinel for make test-reach: the seconds value the name entry countdown drew last (0xff = never drawn). */
 volatile u8 g_name_seconds_shown = 0xff;
 
 static Flow g_flow;
 
 /*
- * Hero sprite. Tile bases and palette slots come from vram_layout.h, sprite slots from
- * sprite_slots.h (the hero draws in front of the city background and the obstacles). A hero frame is 3 tile columns = 3 hardware sprites: the first has
- * position and height, the other two are sticky (SCB3 bit 6) and follow it 16 px apart.
+ * Hero set sprites (assets/hero/guard_sheet.json) are still in the C-ROM but nothing draws them. The fliers are the
+ * Sootling set (assets/flier/sootling_sheet.png), drawn below. Tile bases and palette slots come from vram_layout.h,
+ * sprite slots from sprite_slots.h. A multi-column frame is several hardware sprites: the first has position and
+ * height, the others are sticky (SCB3 bit 6) and follow it 16 px apart.
  * Register sequence copied from ngdevkit-examples 03-sprite-animation/main.c:54-84.
  * Y register = 496 - screen top (wraps at 512), X register = screen x.
  */
-#define HERO_COLUMNS 3
-#define HERO_BOX_DX 11 /* box left = HERO_X - (hit box inset 4 + art pad_left 7) */
-#define HERO_RUN_TICKS 4 /* game frames per run frame */
+#define SOOT_COLUMNS 1  /* a Sootling frame is one 16x32 tile column */
+#define SOOT_BOX_DX 6   /* sprite left = flier centre x - FLIER_HALF_W - 6: the 4 px hit box is art columns 6..9 */
+#define SOOT_FLIP 1     /* SCB1 attribute bit 0: horizontal flip (columns need no reorder with one column) */
+_Static_assert(SOOTLING_FRAME_COUNT == 2 * FV_POSE_COUNT, "sheet: one row of FV_POSE_COUNT frames per palette (player, computer)");
+_Static_assert(SOOT_COLUMNS == SOOTLING_MAX_COLUMNS, "Sootling frames are one column wide");
 
-/* Test sentinels (tests/mame/hit_check.lua): hero animation and frame index last written to the sprite registers, 0xFFFF while hidden. */
-volatile u16 g_hero_shown_frame;
-volatile u16 g_hero_shown_anim;
+/* Test sentinels (tests/mame/flier_check.lua): first tile number last written to the sprite registers for the player
+ * and for a computer flier (0 until drawn, player 0 again while hidden), and computer draws so far. g_soot_range holds
+ * {first Sootling tile, tile count, palette slot of the player palette, then those three sentinels in that order}. */
+volatile u16 g_soot_range[6] = { SOOT_TILE_BASE, SOOTLING_TILE_COUNT, SOOT_PAL_SLOT, 0, 0, 0 };
+#define g_soot_player_tile g_soot_range[3]
+#define g_soot_cpu_tile g_soot_range[4]
+#define g_soot_cpu_draws g_soot_range[5]
 
 static void hero_load_palettes(void) {
     for (int p = 0; p < HERO_PALETTE_COUNT; p++)
@@ -57,52 +64,47 @@ static void hero_load_palettes(void) {
             gfx_pal((HERO_PAL_SLOT + p) * 16 + i, hero_palettes[p][i]);
 }
 
-static void hero_hide(void) {
-    gfx_word(ADDR_SCB3 + HERO_SPRITE, 0); /* height 0 hides the sprite and the sticky ones after it */
-    g_hero_shown_frame = 0xFFFF;
-    g_hero_shown_anim = 0xFFFF;
+static void soot_load_palettes(void) {
+    for (int p = 0; p < SOOTLING_PALETTE_COUNT; p++)
+        for (int i = 0; i < 16; i++)
+            gfx_pal((SOOT_PAL_SLOT + p) * 16 + i, sootling_palettes[p][i]);
 }
 
-/* Arena slice: the flier is drawn with the runner hero frames as a placeholder. Dead or falling: hit pose; on a platform:
- * the run set (frame 0 while standing still, cycling while walking); in the air: the jump set. */
-static u8 hero_pick_frame(const Game *g) {
-    const Flier *f = &g->flier;
-    u8 anim;
-    if (f->state >= FLIER_FALLING) anim = HERO_ANIM_HIT;
-    else if (!f->on_ground) anim = HERO_ANIM_JUMP;
-    else anim = HERO_ANIM_RUN;
-    g_hero_shown_anim = anim;
-    const HeroAnim *a = &hero_anims[anim];
-    if (anim == HERO_ANIM_RUN && f->vx == 0) return a->first_frame;
-    return (u8)(a->first_frame + (g->frame / HERO_RUN_TICKS) % a->frame_count);
+static void hero_hide(void) {
+    gfx_word(ADDR_SCB3 + HERO_SPRITE, 0); /* height 0 hides the sprite and the sticky ones after it */
+    g_soot_player_tile = 0;
+}
+
+/* Sheet frame of a pose: anim 0 is the player row, anim 1 the computer row (SOOTLING_ANIM_*). */
+static u8 soot_frame(u8 anim, FlierPose pose) {
+    return (u8)(sootling_anims[anim].first_frame + pose);
 }
 
 static void hero_show(const Game *g) {
     const Flier *fl = &g->flier;
     int feet = (int)((fl->y + flier_half_h(fl)) >> 16);
     if (fl->state == FLIER_GONE || feet > SCREEN_H) { hero_hide(); return; }
-    u8 frame = hero_pick_frame(g);
-    g_hero_shown_frame = frame;
-    const HeroFrame *f = &hero_frames[frame];
+    int flip;
+    FlierPose pose = flier_view_pose(fl, &flip);
+    const SootlingFrame *f = &sootling_frames[soot_frame(SOOTLING_ANIM_PLAYER, pose)];
+    const u16 *tiles = &sootling_tile_index[f->tile_offset];
+    g_soot_player_tile = (u16)(SOOT_TILE_BASE + tiles[0]);
     int top = feet - f->tiles_h * 16;
-    int left = (int)(fl->x >> 16) - HERO_W / 2 - HERO_BOX_DX;
-    u16 attr = (u16)((HERO_PAL_SLOT + f->palette) << 8);
-    gfx_sprite_block(HERO_SPRITE, HERO_COLUMNS, f->tiles_h, &hero_tile_index[f->tile_offset], HERO_TILE_BASE, attr, left, top);
+    int left = (int)(fl->x >> 16) - FLIER_HALF_W - SOOT_BOX_DX;
+    u16 attr = (u16)(((SOOT_PAL_SLOT + f->palette) << 8) | (flip ? SOOT_FLIP : 0));
+    gfx_sprite_block(HERO_SPRITE, SOOT_COLUMNS, f->tiles_h, tiles, SOOT_TILE_BASE, attr, left, top);
 }
 
 /*
- * Obstacle sprites. Tiles follow the hero tiles in the C-ROM (Makefile cat order), palettes
- * follow the hero palettes. Obstacles draw through the object pool (src/core/obj_pool.h): each active
- * on-screen obstacle holds one pool object, whose sprite run (POOL_COLS hardware sprites from POOL_SPRITE_BASE,
- * sprite_slots.h) it keeps until it leaves. The game logic (src/core/game.c) still owns the obstacle
- * positions in 8.8; pool_sync_obstacles copies them each frame (pool anchor for an obstacle: x = hit box
- * left, y = hit box bottom). Same register sequence as the hero; the animation index of an object is its type.
+ * Obstacle-sheet sprites. Tiles follow the hero tiles in the C-ROM (Makefile cat order), palettes follow the hero
+ * palettes. They draw through the object pool (src/core/obj_pool.h): each pool object holds a sprite run (POOL_COLS
+ * hardware sprites from POOL_SPRITE_BASE, sprite_slots.h); the animation index of an object is its type. Live users:
+ * the arena platforms (pool_sync_stage) and the pool stress test hook.
  */
 _Static_assert(BG_SPRITE_END <= POOL_SPRITE_BASE, "background sprites overlap the object pool");
 _Static_assert(POOL_SPRITE_COUNT == POOL_SPRITES, "pool sprite range size");
 _Static_assert(POOL_SPRITE_BASE + POOL_SPRITE_COUNT <= HERO_SPRITE, "object pool sprites overlap hero");
 _Static_assert(OBS_MAX_COLUMNS <= POOL_COLS, "obstacle frame wider than a pool sprite run");
-_Static_assert(MAX_OBSTACLES <= POOL_MAX, "obstacles do not fit the pool");
 _Static_assert(OBS_ANIM_VENT == OB_VENT && OBS_ANIM_CABLE == OB_CABLE &&
                OBS_ANIM_DRONE == OB_DRONE && OBS_ANIM_BOT == OB_BOT, "obstacle sheet order");
 
@@ -118,7 +120,6 @@ static void obs_hide_slot(int slot) {
 }
 
 static ObjPool g_pool;
-static u8 g_obs_obj[MAX_OBSTACLES]; /* pool index of obstacle i, POOL_NONE when it has none */
 /* Test hook: tests/mame/vblank_check.lua sets it to fill the pool with drifting objects while PLAYING (max object
  * count frame-time check). Nothing in the game sets it. */
 volatile u8 g_pool_stress;
@@ -127,11 +128,14 @@ volatile u8 g_pool_stress;
 volatile u16 g_pool_frames;
 volatile u8 g_pool_live;
 #define POOL_F_STRESS 0x02
+#define POOL_F_HERO 0x04 /* computer flier: type is a FlierPose, drawn from the Sootling computer row */
+#define POOL_F_FLIP 0x08 /* computer flier faces left: mirrored */
+_Static_assert(SOOT_COLUMNS <= POOL_COLS, "Sootling frames must fit a pool run");
 
 /* Animation frame whose SCB1 tile strips object i's run holds, + 1 (0: unknown). Strips are not deduped by the
  * queue and cost most of the vblank budget (vq_cost), so a moving object only requeues them on a frame change. */
 static u8 g_pool_drawn[POOL_MAX];
-_Static_assert(OBS_FRAME_COUNT < 255, "pool frame cache holds frame index + 1 in a byte");
+_Static_assert(OBS_FRAME_COUNT < 255 && SOOTLING_FRAME_COUNT < 64, "pool frame cache holds frame index + 1 (+ 64 mirrored) in a byte");
 
 /* Columns object i's sticky chain (SCB2 + column SCB3) and hidden spare columns were sent for (0: unknown). A hide
  * zeroes every column's SCB3, so it clears this too; an animation frame of the same width keeps the chain. */
@@ -149,38 +153,19 @@ static void pool_hide_all(void) {
     for (u8 i = 0; i < POOL_MAX; i++) { g_pool_drawn[i] = 0; g_pool_cols[i] = 0; }
 }
 
+static u8 g_cpu_obj[STAGE_SPAWN_COUNT]; /* pool index of computer flier i, POOL_NONE when not drawn */
 static u8 g_plat_obj[STAGE_PLATFORM_COUNT]; /* pool index of platform i (arena stage), POOL_NONE when it has none */
 
 static void pool_reset(void) {
     for (int i = 0; i < STAGE_PLATFORM_COUNT; i++) g_plat_obj[i] = POOL_NONE;
+    for (int i = 0; i < STAGE_SPAWN_COUNT; i++) g_cpu_obj[i] = POOL_NONE;
     obj_pool_init(&g_pool, POOL_SPRITE_BASE);
-    for (int i = 0; i < MAX_OBSTACLES; i++) g_obs_obj[i] = POOL_NONE;
 }
 
 static void pool_free_all(void) {
     for (int i = 0; i < STAGE_PLATFORM_COUNT; i++) g_plat_obj[i] = POOL_NONE;
+    for (int i = 0; i < STAGE_SPAWN_COUNT; i++) g_cpu_obj[i] = POOL_NONE;
     for (u8 i = 0; i < POOL_MAX; i++) obj_pool_free(&g_pool, i);
-    for (int i = 0; i < MAX_OBSTACLES; i++) g_obs_obj[i] = POOL_NONE;
-}
-
-static void pool_sync_obstacles(const Game *g) {
-    for (int i = 0; i < MAX_OBSTACLES; i++) {
-        const Obstacle *o = &g->obs[i];
-        u8 k = g_obs_obj[i];
-        if (!o->active || (o->x >> 8) >= SCREEN_W || o->type > OB_BOT) {
-            if (k != POOL_NONE) { obj_pool_free(&g_pool, k); g_obs_obj[i] = POOL_NONE; }
-            continue;
-        }
-        if (k == POOL_NONE) {
-            k = obj_pool_alloc(&g_pool, o->type, 0, 0, 0, 0);
-            if (k == POOL_NONE) continue; /* pool full: not drawn this frame */
-            g_obs_obj[i] = k;
-        }
-        PoolObj *p = &g_pool.obj[k];
-        if (p->type != o->type) { p->type = o->type; p->anim = 0; p->anim_tick = 0; }
-        p->x = o->x * 256;                     /* 8.8 -> 16.16 */
-        p->y = obj_pool_fp((int16_t)(o->y + o->h));
-    }
 }
 
 /* Arena platforms: one pool object each, placeholder art (the floor vent frame), centred on the platform and sitting
@@ -197,6 +182,31 @@ static void pool_sync_stage(void) {
         PoolObj *p = &g_pool.obj[k];
         p->x = obj_pool_fp((int16_t)(sp->x + sp->w / 2 - 16));
         p->y = obj_pool_fp((int16_t)(sp->y + sp->h));
+    }
+}
+
+/* Computer fliers: one pool object each while on screen (anchor: centre x, feet y). type = FlierPose (flier_view_pose), flags POOL_F_FLIP when facing left. */
+static void pool_sync_cpus(const Game *g) {
+    for (int i = 0; i < STAGE_SPAWN_COUNT; i++) {
+        const Flier *c = &g->cpu[i];
+        u8 k = g_cpu_obj[i];
+        int feet = (int)((c->y + flier_half_h(c)) >> 16);
+        if (i >= g->cpu_count || c->state >= FLIER_DROWNED || feet > SCREEN_H) {
+            if (k != POOL_NONE) { obj_pool_free(&g_pool, k); g_cpu_obj[i] = POOL_NONE; }
+            continue;
+        }
+        if (k == POOL_NONE) {
+            k = obj_pool_alloc(&g_pool, FV_GLIDE2, 0, 0, 0, 0);
+            if (k == POOL_NONE) continue;
+            g_pool.obj[k].flags |= POOL_F_HERO;
+            g_cpu_obj[i] = k;
+        }
+        PoolObj *p = &g_pool.obj[k];
+        int flip;
+        p->type = (u8)flier_view_pose(c, &flip);
+        if (flip) p->flags |= POOL_F_FLIP; else p->flags &= (u8)~POOL_F_FLIP;
+        p->x = c->x;
+        p->y = (int32_t)(c->y + flier_half_h(c));
     }
 }
 
@@ -226,6 +236,29 @@ static void pool_stress(void) {
  * pool_hide_run and pool_hide_all write it); its x stays the last one sent. */
 static u16 g_pool_scb4[POOL_MAX];
 
+/* Same run layout as an obstacle, with the Sootling frame table, tile base and the computer palette. */
+static void pool_show_hero(PoolObj *p, u8 i, u16 *scb3) {
+    u8 fi = soot_frame(SOOTLING_ANIM_CPU, (FlierPose)p->type);
+    const SootlingFrame *f = &sootling_frames[fi];
+    int flip = (p->flags & POOL_F_FLIP) != 0;
+    int x = obj_pool_px(p->x);
+    u16 slot = obj_pool_sprite(&g_pool, i);
+    if (x >= SCREEN_W) { pool_hide_run(i); return; }
+    int top = obj_pool_px(p->y) - f->tiles_h * 16;
+    const u16 *tiles = &sootling_tile_index[f->tile_offset];
+    u8 key = (u8)(fi + 1 + (flip ? 64 : 0)); /* frame and mirror state the strips hold */
+    if (g_pool_drawn[i] != key) {
+        gfx_sprite_strips(slot, SOOT_COLUMNS, f->tiles_h, tiles, SOOT_TILE_BASE,
+                          (u16)(((SOOT_PAL_SLOT + f->palette) << 8) | (flip ? SOOT_FLIP : 0)));
+        if (g_pool_cols[i] != SOOT_COLUMNS) { gfx_sprite_chain(slot, SOOT_COLUMNS); g_pool_cols[i] = SOOT_COLUMNS; }
+        g_pool_drawn[i] = key;
+    }
+    g_soot_cpu_tile = (u16)(SOOT_TILE_BASE + tiles[0]);
+    g_soot_cpu_draws++;
+    scb3[i] = gfx_scb3_word(f->tiles_h, top);
+    g_pool_scb4[i] = gfx_scb4_word(x - FLIER_HALF_W - SOOT_BOX_DX);
+}
+
 static void pool_show(void) {
     u16 scb3[POOL_MAX];
     u32 m = obj_pool_take_hidden(&g_pool);
@@ -234,6 +267,7 @@ static void pool_show(void) {
     for (u8 i = 0; i < POOL_MAX; i++, p++) {
         scb3[i] = 0;
         if (!(p->flags & POOL_F_LIVE)) continue;
+        if (p->flags & POOL_F_HERO) { pool_show_hero(p, i, scb3); continue; }
         const ObsAnim *a = &obs_anims[p->type];
         obj_pool_anim(p, obstacle_view_ticks(p->type), a->frame_count);
         u8 fi = (u8)(a->first_frame + p->anim);
@@ -262,78 +296,6 @@ static void pool_show(void) {
     gfx_scb_run(ADDR_SCB4 + POOL_SPRITE_BASE, POOL_COLS, g_pool_scb4, POOL_MAX);
     g_pool_live = g_pool.live;
     if (g_pool.live) g_pool_frames++;
-}
-
-/*
- * Laser sprites (slots in sprite_slots.h, in front of the hero): one beam per live bolt, the kill
- * flash, and the heat bar. Beam and flash art are frames of the hero set (palette HERO_PAL_SLOT +
- * frame palette); the bar is the "heat" set. Positions and frames come from core/laser_view.c.
- * The heat bar is sprites because the fix layer font is fixed (no partial or coloured cells);
- * only the label HEAT is on the fix layer (draw()).
- */
-#define LASER_BEAM_COLUMNS 2
-#define HEAT_BAR_X 64
-#define HEAT_BAR_Y 40
-_Static_assert(LASER_BEAM_SPRITE >= HERO_SPRITE + HERO_SPRITE_COUNT, "laser sprites overlap hero");
-_Static_assert(LASER_SPRITE_END <= 381, "laser sprite range");
-_Static_assert(MAX_BOLTS * LASER_BEAM_COLUMNS <= LASER_BEAM_SLOTS, "beam sprite slots");
-_Static_assert(LV_BAR_PAIRS <= LASER_BAR_SLOTS, "heat bar sprite slots");
-_Static_assert(HEAT_FRAME_COUNT >= LV_BAR_CELLS, "heat bar frames");
-
-static void heat_load_palettes(void) {
-    for (int p = 0; p < HEAT_PALETTE_COUNT; p++)
-        for (int i = 0; i < 16; i++)
-            gfx_pal((HEAT_PAL_SLOT + p) * 16 + i, heat_palettes[p][i]);
-}
-
-/* Heat bar state last sent by laser_show: (filled cells << 1) | 1 when shown, 0 when hidden; BAR_UNKNOWN after
- * laser_hide_all (hidden sprites, so any state redraws). */
-#define BAR_UNKNOWN 0xFF
-static u8 g_bar_drawn = BAR_UNKNOWN;
-
-static void laser_hide_all(void) {
-    g_bar_drawn = BAR_UNKNOWN;
-    for (int i = 0; i < LASER_SPRITE_END - LASER_BEAM_SPRITE; i++) obs_hide_slot(LASER_BEAM_SPRITE + i);
-}
-
-/* One frame of `cols` columns at `slot`: first column has position and height, the rest are sticky. */
-static void laser_put(int slot, int cols, int rows, int left, int top, u16 attr, const u16 *tiles, int tile_base) {
-    gfx_sprite_block((u16)slot, (u8)cols, (u8)rows, tiles, (u16)tile_base, attr, left, top);
-}
-
-static void laser_show(const Game *g) {
-    for (int i = 0; i < MAX_BOLTS; i++) {
-        int slot = LASER_BEAM_SPRITE + i * LASER_BEAM_COLUMNS, x, y;
-        const HeroFrame *f = &hero_frames[hero_anims[HERO_ANIM_LASER].first_frame];
-        if (laser_view_beam(g, i, &x, &y)) {
-            laser_put(slot, f->tiles_w, f->tiles_h, x - f->pad_left, y - f->pad_top,
-                      (u16)((HERO_PAL_SLOT + f->palette) << 8), &hero_tile_index[f->tile_offset], HERO_TILE_BASE);
-            for (int c = f->tiles_w; c < LASER_BEAM_COLUMNS; c++) obs_hide_slot(slot + c);
-        } else {
-            for (int c = 0; c < LASER_BEAM_COLUMNS; c++) obs_hide_slot(slot + c);
-        }
-    }
-    int cx, cy, fr;
-    if (laser_view_flash(g, &cx, &cy, &fr)) {
-        const HeroFrame *f = &hero_frames[hero_anims[HERO_ANIM_HIT_FLASH].first_frame + fr];
-        laser_put(LASER_FLASH_SPRITE, f->tiles_w, f->tiles_h, cx - f->src_w / 2 - f->pad_left,
-                  cy - f->src_h / 2 - f->pad_top, (u16)((HERO_PAL_SLOT + f->palette) << 8),
-                  &hero_tile_index[f->tile_offset], HERO_TILE_BASE);
-    } else {
-        obs_hide_slot(LASER_FLASH_SPRITE);
-        obs_hide_slot(LASER_FLASH_SPRITE + 1);
-    }
-    /* The bar only changes with its filled cell count or the blink phase: redraw its LV_BAR_PAIRS sprites only then. */
-    u8 bar = laser_view_bar_visible(g) ? (u8)((laser_view_cells(g->heat) << 1) | 1) : 0;
-    if (bar == g_bar_drawn) return;
-    g_bar_drawn = bar;
-    for (int p = 0; p < LV_BAR_PAIRS; p++) {
-        int slot = LASER_BAR_SPRITE + p;
-        if (!bar) { obs_hide_slot(slot); continue; }
-        const HeatFrame *f = &heat_frames[heat_anims[HEAT_ANIM_BAR].first_frame + laser_view_bar_frame(g, p)];
-        laser_put(slot, 1, f->tiles_h, HEAT_BAR_X + p * 16 - f->pad_left, HEAT_BAR_Y - f->pad_top,
-                  (u16)((HEAT_PAL_SLOT + f->palette) << 8), &heat_tile_index[f->tile_offset], HEAT_TILE_BASE);
-    }
 }
 
 /* BIOS_USER_MODE: 1 attract, 2 game in progress (coins then only add credits). */
@@ -373,11 +335,10 @@ static void hero_and_mode(const FlowView *v) {
     if (v->state == FLOW_PLAYING && v->game) {
         bios_user_mode = 2;
         hero_show(v->game);
-        pool_sync_obstacles(v->game);
         pool_sync_stage();
+        pool_sync_cpus(v->game);
         if (g_pool_stress) pool_stress();
         pool_show();
-        laser_hide_all();
     } else {
         /* BIOS_USER_MODE 2 = game in progress: play, game over, name entry and the save
          * reminder all belong to the game; 1 only once attract begins. Bug fixed here: mode 1
@@ -390,7 +351,6 @@ static void hero_and_mode(const FlowView *v) {
         hero_hide();
         if (g_pool.live) pool_free_all();
         pool_show(); /* hides the freed runs once */
-        laser_hide_all();
     }
 }
 
@@ -567,13 +527,12 @@ static void video_init(void) {
     gfx_pal(0, 0x8000); gfx_pal(1, 0x0fff); gfx_pal(2, 0x0555);
     gfx_pal(16, 0x8000); gfx_pal(17, 0x0ff0); gfx_pal(18, 0x0550);
     hero_load_palettes();
+    soot_load_palettes();
     obs_load_palettes();
-    heat_load_palettes();
     bg_load_palettes();
     bg_init();
     hero_hide();
     pool_hide_all(); /* the hardware state is unknown; live objects redraw next frame */
-    laser_hide_all();
     g_draw_state = -1;
     gfx_commit();
     gfx_drain(); /* init is outside the per-frame budget: it blocks, one flush per vblank, until everything is written */

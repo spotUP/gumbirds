@@ -1,6 +1,6 @@
 -- High score reachability (make test-reach, plan P5.1). Two MAME boots share one nvram dir; the Makefile
 -- passes ROOFLINE_PHASE=1 or 2. Sentinel-driven, no fixed frame numbers (the cap is only a hang guard).
---   Phase 1: coin, start, autoplay (as laser_check.lua) until the score passes the table minimum, then idle
+--   Phase 1: coin, start, autoplay (as flier_check.lua) until the score passes the table minimum, then idle
 --            until the hero dies; GAME_OVER -> NAME_ENTRY; type ROOFLINE_NAME with the joystick (up cycles,
 --            A confirms) by reading the cursor position and symbol from RAM; wait for the table screen.
 --            Asserts: score > 0 and ranks, g_hiscore_saves went 0 -> 1, backup RAM image holds name and
@@ -16,21 +16,22 @@ local flow_addr  = tonumber(os.getenv("ROOFLINE_FLOW_ADDR") or "", 16)
 local frame_addr = tonumber(os.getenv("ROOFLINE_FRAME_ADDR") or "", 16)
 local hs_addr    = tonumber(os.getenv("ROOFLINE_HISCORE_ADDR") or "", 16)
 local saves_addr = tonumber(os.getenv("ROOFLINE_SAVES_ADDR") or "", 16)
+local namesec_addr = tonumber(os.getenv("ROOFLINE_NAMESEC_ADDR") or "", 16)   -- g_name_seconds_shown (countdown sentinel)
 local result     = os.getenv("ROOFLINE_RESULT")
 local expect     = os.getenv("ROOFLINE_EXPECT")
 local NAME       = "REACHTST"
 local lay = {}
 for v in (os.getenv("ROOFLINE_REACH_LAYOUT") or ""):gmatch("%d+") do lay[#lay + 1] = tonumber(v) end
 local O_STATE, O_LAST, O_TNAME, O_TSCORE, O_ENAME, O_ESYM, O_EPOS, O_EDONE = table.unpack(lay, 1, 8)
-local O_FX, O_FVX, O_FGROUND, O_SCORE = table.unpack(lay, 9, 12)   -- arena slice: flier x, vx (16.16), on_ground; game score
+local O_FX, O_FVX, O_FGROUND, O_SCORE = table.unpack(lay, 9, 12)
+local O_FY, O_FVY, O_CX, O_CY, O_CSTATE, O_CBALL = table.unpack(lay, 13, 18)
+local O_EIDLE, NAME_TIMEOUT = table.unpack(lay, 19, 20)   -- entry.idle offset; NAME_TIMEOUT_FRAMES value
+local cd_frames, cd_bad, cd_max, cd_note = 0, 0, 0, ""      -- name entry countdown: frames checked, mismatches, max shown   -- stomp teleport: flier y, vy; cpu[0] x, y, state, balloons   -- arena slice: flier x, vx (16.16), on_ground; game score
 local mem    = manager.machine.devices[":maincpu"].spaces["program"]
 local ports  = manager.machine.ioport.ports
 
 local FLOW_ATTRACT_TABLE, FLOW_PLAYING, FLOW_GAME_OVER, FLOW_NAME_ENTRY, FLOW_SAVE_REMINDER = 1, 3, 4, 5, 6
-local OB_VENT, OB_CABLE, OB_DRONE, OB_BOT = 0, 1, 2, 3
-local HERO_RIGHT, FIRE_MIN, FIRE_MAX = 48 + 26, 80, 300
 local TABLE_MIN = 1000             -- factory table last place; a score must beat it (ties rank below)
-local JUMP_LEAD = tonumber(os.getenv("ROOFLINE_JL") or "4")
 local HOLD, GAP = 3, 4
 local WATCHDOG = 40000             -- MAME frames; hang guard only
 
@@ -66,30 +67,6 @@ local function finish(ok, msg)
   f:close()
   print("ROOFLINE_TEST " .. (ok and "PASS " or "FAIL ") .. msg)
   manager.machine:exit()
-end
-
-local function obstacles()
-  local list = {}
-  for i = 0, N_OBS - 1 do
-    local a = flow_addr + O_OBS + i * OBS_SZ
-    if mem:read_u8(a + E_ACT) ~= 0 then
-      list[#list + 1] = { t = mem:read_u8(a + E_TYPE), x = s16(mem:read_u32(a + E_X) // 256 & 0xFFFF),
-                          w = s16(mem:read_u16(a + E_W)) }
-    end
-  end
-  return list
-end
-local function plan(list, can_fire, speed)   -- speed in px per frame; jump lead = 10 frames of travel
-  local fire, jump, duck = false, false, false
-  for _, o in ipairs(list) do
-    local ahead = o.x - HERO_RIGHT
-    if not (o.x + o.w < 48) then
-      if (o.t == OB_DRONE or o.t == OB_BOT) and o.x > FIRE_MIN and o.x < FIRE_MAX and can_fire then fire = true end
-      if (o.t == OB_VENT or o.t == OB_BOT) and ahead < speed * JUMP_LEAD then jump = true end
-      if o.t == OB_CABLE and ahead < speed * 8 then duck = true end
-    end
-  end
-  return fire, jump, duck
 end
 
 -- Backup RAM image: 6 header bytes, then 10 x (8 name bytes + u32 score), big endian.
@@ -160,17 +137,27 @@ emu.register_frame_done(function()
     if n >= coin_at + 30 then phase = "start"; start:set_value(1) end
     return
   elseif phase == "start" then
-    if state == FLOW_PLAYING then start:set_value(0); phase = "play" else return end
+    if state == FLOW_PLAYING then
+      start:set_value(0); phase = "play"
+    else return end
   end
 
   if phase == "play" then
     if state == FLOW_PLAYING then
       if not idle_play and g32(O_SCORE) > TABLE_MIN + 200 then idle_play = true end
-      -- Arena slice autoplay: stand on the middle island (no input; survival time is the score) until the score
+      -- Arena slice autoplay: stomp a computer balloon, then stand on the island (no input after the stomp teleport) until the score
       -- passes the table minimum, then walk off the right edge, steer back over the gap with left + flap until the
       -- horizontal speed is gone, and fall into the water (same manoeuvre as tests/mame/flier_check.lua).
       if not idle_play then
         release_all()
+        -- Test input instead of a rule change: put the player's feet on the first computer balloon (same
+        -- placement as tests/host/stomp_assist.h) so the game's own stomp code scores; state <= 1 is alive/parachute.
+        if mem:read_u8(flow_addr + O_CSTATE) <= 1 and mem:read_u8(flow_addr + O_CBALL) > 0 then
+          mem:write_u32(flow_addr + O_FX, g32(O_CX))
+          mem:write_u32(flow_addr + O_FY, g32(O_CY) - 14 * 65536)
+          mem:write_u32(flow_addr + O_FVX, 0)
+          mem:write_u32(flow_addr + O_FVY, 0)
+        end
       else
         local fx = s32(g32(O_FX)) / 65536
         local vx = s32(g32(O_FVX)) / 65536
@@ -217,6 +204,18 @@ emu.register_frame_done(function()
 
   if phase == "name" then
     if state == FLOW_NAME_ENTRY then
+      -- Countdown reachability: the drawn seconds must follow entry.idle (rounded up; one frame of draw/step skew).
+      local shown = mem:read_u8(namesec_addr)
+      local idle = mem:read_u16(flow_addr + O_EIDLE)
+      local want = (NAME_TIMEOUT - idle + 59) // 60
+      if shown ~= 0xff then
+        cd_frames = cd_frames + 1
+        if shown > cd_max then cd_max = shown end
+        if math.abs(shown - want) > 1 then
+          cd_bad = cd_bad + 1
+          cd_note = string.format("shown %d, idle %d wants %d", shown, idle, want)
+        end
+      end
       -- One action = hold the button HOLD frames, release, wait GAP frames for the game to step, decide again.
       if entry_gap > 0 then
         entry_gap = entry_gap - 1
@@ -231,7 +230,13 @@ emu.register_frame_done(function()
       entry_gap = HOLD + GAP
       return
     end
-    if state == FLOW_SAVE_REMINDER or state == FLOW_ATTRACT_TABLE then phase = "saved"
+    if state == FLOW_SAVE_REMINDER or state == FLOW_ATTRACT_TABLE then
+      if cd_frames == 0 or cd_bad > 0 or cd_max ~= NAME_TIMEOUT // 60 then
+        finish(false, string.format("name countdown: %d frames drawn, %d wrong (%s), max %d, want %d",
+          cd_frames, cd_bad, cd_note, cd_max, NAME_TIMEOUT // 60))
+        return
+      end
+      phase = "saved"
     else finish(false, string.format("name entry left to state %d", state)) return end
   end
 

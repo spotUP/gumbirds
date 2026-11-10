@@ -27,7 +27,9 @@ local FLOW_ATTRACT_DEMO, FLOW_PLAYING, FLOW_GAME_OVER = 2, 3, 4
 local AFTER_DEATH, DEATH_TIMEOUT, STALL_LIMIT = 600, 2400, 60
 local mem = manager.machine.devices[":maincpu"].spaces["program"]
 local USER_REQUEST = 0x10fdae
-local PAL_TEXT_C1, PAL_HERO_C1 = 0x400002, 0x400042
+local soot_addr = tonumber(os.getenv("ROOFLINE_SOOT_ADDR"), 16)  -- g_soot_range: {first tile, tile count, palette slot, ...}
+local PAL_TEXT_C1 = 0x400002
+local PAL_HERO_C1 = 0x400000 + mem:read_u16(soot_addr + 4) * 32 + 2   -- Sootling player palette, colour 1
 local COIN_FRAME, CHECK_FRAME = 900, 960
 local PAL_BACKDROP = 0x400000 + 4095 * 2
 
@@ -84,6 +86,8 @@ local function phase2()
       local fx = s32(mem:read_u32(flow_addr + O_FX)) / 65536
       local vx = s32(mem:read_u32(flow_addr + O_FVX)) / 65536
       local ground = mem:read_u8(flow_addr + O_FGROUND)
+      -- A computer flier can bump the player back onto the island (body-contact reflect): walk off again.
+      if steering and ground == 1 then steering = false end
       if not steering and (ground == 1 or fx < 212) then
         rbtn:set_value(1)
       else

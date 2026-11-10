@@ -4,6 +4,7 @@
 #include "../../src/core/game.h"
 #include "../../src/core/hiscore.h"
 #include "../../src/core/obstacle_view.h"
+#include "stomp_assist.h"
 
 static int failures;
 static int checks;
@@ -77,91 +78,6 @@ static void test_hiscore(void)
     CHECK(memcmp(t.name[0], "TOOLONGN", 8) == 0);
 }
 
-static void test_scripted_run(void)
-{
-    Game g;
-    uint32_t f, prev_shots, prev_lives;
-    uint16_t hit_frame_gap_min = 0xFFFF;
-    uint32_t last_hit_frame = 0, lock_frames = 0, shots_in_lock = 0;
-    game_reset(&g, 424242);
-    CHECK(g.lives == LIVES_START);
-    prev_lives = g.lives;
-    for (f = 0; f < 60000 && !g.over; f++) {
-        int locked = g.lockout > 1; /* at 1 the lockout ends inside this step */
-        prev_shots = g.shots;
-        game_step(&g, IN_A); /* hold fire, never dodge */
-        if (locked) {
-            lock_frames++;
-            if (g.shots != prev_shots) shots_in_lock++;
-        }
-        CHECK(g.heat <= HEAT_MAX);
-        if (g.lives != prev_lives) {
-            CHECK(g.lives + 1 == prev_lives);
-            if (last_hit_frame) {
-                uint32_t gap = g.frame - last_hit_frame;
-                if (gap < hit_frame_gap_min) hit_frame_gap_min = (uint16_t)gap;
-            }
-            last_hit_frame = g.frame;
-            prev_lives = g.lives;
-        }
-    }
-    CHECK(g.over);
-    CHECK(g.lives == 0);
-    CHECK(g.hits == LIVES_START);
-    CHECK(g.kills > 0);
-    CHECK(g.shots >= g.kills);
-    CHECK(g.overheats > 0);
-    CHECK(lock_frames > 0);
-    CHECK(shots_in_lock == 0);
-    CHECK(hit_frame_gap_min > INVULN_FRAMES);
-    CHECK(g.score >= (uint32_t)KILL_SCORE * g.kills);
-    CHECK(g.score == (g.distance >> (8 + DIST_SHIFT)) + g.bonus);
-    {
-        uint32_t s = g.score, fr = g.frame;
-        game_step(&g, IN_A);
-        CHECK(g.score == s && g.frame == fr); /* frozen after game over */
-    }
-    printf("run: frames=%u score=%u kills=%u shots=%u overheats=%u hits=%u spawned=%u\n",
-           (unsigned)g.frame, (unsigned)g.score, (unsigned)g.kills, (unsigned)g.shots,
-           (unsigned)g.overheats, (unsigned)g.hits, (unsigned)g.spawned);
-}
-
-static void test_mechanics(void)
-{
-    Game g;
-    int x, y, w, h, i;
-    /* jump, duck, hit boxes */
-    game_reset(&g, 1);
-    game_hero_box(&g, &x, &y, &w, &h);
-    CHECK(y + h == GROUND_Y && h == HERO_H);
-    game_step(&g, IN_C);
-    game_hero_box(&g, &x, &y, &w, &h);
-    CHECK(h == HERO_DUCK_H && y + h == GROUND_Y);
-    game_step(&g, 0);
-    game_step(&g, IN_B);
-    CHECK(g.hero_h > 0);
-    for (i = 0; i < 200 && g.hero_h > 0; i++) game_step(&g, 0);
-    CHECK(g.hero_h == 0);
-    /* a bolt kills a drone but passes through a vent */
-    game_reset(&g, 1);
-    g.obs[0] = (Obstacle){ (int32_t)(200 << 8), GROUND_Y - 46, 28, 20, OB_DRONE, 1, 0, 0 };
-    g.obs[1] = (Obstacle){ (int32_t)(150 << 8), GROUND_Y - VENT_H, VENT_W, VENT_H, OB_VENT, 1, 0, 0 };
-    g.spawn_acc = 0; g.next_gap = 60000;
-    for (i = 0; i < 40; i++) game_step(&g, IN_A);
-    CHECK(g.kills >= 1 && !g.obs[0].active);
-    /* chain multiplier: second kill inside window scores 400 */
-    game_reset(&g, 1);
-    g.next_gap = 60000;
-    g.bonus = 0;
-    for (i = 0; i < 2; i++) {
-        int k = g.kills;
-        g.obs[i] = (Obstacle){ (int32_t)((130 + 60 * i) << 8), GROUND_Y - BOT_H, BOT_W, BOT_H, OB_BOT, 1, 0, 0 };
-        (void)k;
-    }
-    for (i = 0; i < 40 && g.kills < 2; i++) game_step(&g, IN_A);
-    CHECK(g.kills == 2 && g.bonus == (uint32_t)KILL_SCORE + (uint32_t)KILL_SCORE * (CHAIN_MAX >= 2 ? 2 : 1));
-}
-
 static void test_obstacle_view(void)
 {
     int type;
@@ -184,6 +100,76 @@ static void test_obstacle_view(void)
     CHECK(obstacle_view_ticks(99) == 0 && obstacle_view_frame(99, 5, 4) == 0);
 }
 
+/* Arena scoring (design 3.3): one computer flier, the others inert, events through game_step_arena. */
+static void arena_one_cpu(Game *g)
+{
+    game_reset(g, 77);
+    game_step_arena(g, 0);              /* starts the match: cpu_count slots filled */
+    g->cpu_count = 1;
+    g->cpu_alive = 1;
+}
+
+static void arena_run(Game *g, int steps)
+{
+    int i;
+    for (i = 0; i < steps && !g->over && g->matches_won == 0; i++) {
+        game_step_arena(g, 0);
+    }
+}
+
+static void test_arena_score(void)
+{
+    static Game g;
+    uint32_t before;
+    /* a player stomp pops a computer balloon: pop points only */
+    arena_one_cpu(&g);
+    before = g.score;
+    CHECK(stomp_assist(&g));
+    game_step_arena(&g, 0);
+    CHECK(g.stomps == 1 && g.cpu[0].balloons == FLIER_START_BALLOONS - 1);
+    CHECK(g.score - before == (uint32_t)SCORE_STOMP_POP);
+    /* the last balloon: pop + defeat; the dead flier then falls out through the bottom, which pays nothing
+       (fall points are for a living computer flier only, user decision 2026-11-10); match win, no balloon lost */
+    arena_one_cpu(&g);
+    g.cpu[0].balloons = 1;
+    before = g.score;
+    CHECK(stomp_assist(&g));
+    game_step_arena(&g, 0);
+    CHECK(g.cpu[0].state == FLIER_FALLING);
+    CHECK(g.score - before == (uint32_t)(SCORE_STOMP_POP + SCORE_CPU_DEFEAT));
+    g.cpu[0].x = FL_PX(100); g.cpu[0].y = FL_PX(100);   /* falling over the gap: into the water */
+    flier_init(&g.flier, FL_PX(FLIER_START_X), FL_PX(FLIER_START_Y), FLIER_START_BALLOONS, 0);
+    arena_run(&g, 3000);
+    CHECK(g.matches_won == 1);
+    CHECK(g.score - before == (uint32_t)(SCORE_STOMP_POP + SCORE_CPU_DEFEAT + SCORE_MATCH_WIN + SCORE_MATCH_CLEAN));
+    /* the same match with a player balloon lost: no clean bonus */
+    arena_one_cpu(&g);
+    g.cpu[0].balloons = 0;
+    g.cpu[0].x = FL_PX(100); g.cpu[0].y = FL_PX(100);   /* over the gap: falls into the water */
+    flier_lose_balloon(&g.flier);
+    arena_run(&g, 3000);
+    CHECK(g.matches_won == 1);
+    CHECK(g.score == (uint32_t)(SCORE_CPU_DROWN + SCORE_MATCH_WIN));
+    /* body kill of a balloon-less standing computer flier by the player: defeat points */
+    arena_one_cpu(&g);
+    g.cpu[0].balloons = 0;
+    g.flier.x = g.cpu[0].x; g.flier.y = g.cpu[0].y;
+    g.flier.vx = 0; g.flier.vy = 0;
+    before = g.score;
+    game_step_arena(&g, 0);
+    CHECK(g.cpu[0].state == FLIER_FALLING && g.bounces > 0);
+    CHECK(g.score - before == (uint32_t)SCORE_CPU_DEFEAT);
+    /* a computer flier stomping another computer flier scores nothing */
+    game_reset(&g, 77);
+    game_step_arena(&g, 0);
+    g.cpu_count = 2;
+    g.cpu[1].x = g.cpu[0].x; g.cpu[1].y = g.cpu[0].y - FL_PX(14);
+    g.cpu[1].vx = 0; g.cpu[1].vy = 0;
+    g.flier.x = FL_PX(100); g.flier.y = FL_PX(100);    /* player away over the gap */
+    game_step_arena(&g, 0);
+    CHECK(g.stomps >= 1 && g.score == 0);
+}
+
 int main(int argc, char **argv)
 {
     (void)argv;
@@ -192,9 +178,8 @@ int main(int argc, char **argv)
     }
     test_rng();
     test_hiscore();
-    test_mechanics();
-    test_scripted_run();
     test_obstacle_view();
+    test_arena_score();
     printf("test_core: %d checks, %d failures\n", checks, failures);
     return failures ? 1 : 0;
 }

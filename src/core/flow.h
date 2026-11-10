@@ -56,7 +56,6 @@ typedef struct {
     uint32_t last_score;     /* score of the last real run */
     HiscoreTable table;
     Game game;
-    Rng demo_rng;
     NameEntry entry;
 } Flow;
 

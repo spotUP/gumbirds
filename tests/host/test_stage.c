@@ -34,7 +34,7 @@ int main(void) {
     for (i = 0; i < 120; i++) game_step_arena(&g, 0);
     CHECK(g.flier_steps == 120);
     CHECK(g.flier.on_ground && g.flier.state == FLIER_ALIVE && !g.over);
-    CHECK(g.score > 0);
+    CHECK(g.matches_won == 0); /* survival time no longer scores (design 3.3) */
     /* Over the gap between islands (x 100 has no platform below): the flier falls into the water and the run ends. */
     g.flier.x = FL_PX(100);
     g.flier.y = FL_PX(100);

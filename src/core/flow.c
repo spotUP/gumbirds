@@ -12,9 +12,6 @@ static void start_game(Flow *f, uint32_t seed, int demo)
 {
     game_reset(&f->game, seed);
     f->demo = (uint8_t)demo;
-    if (demo) {
-        rng_seed(&f->demo_rng, seed ^ 0xD3A0u);
-    }
     f->highlight = -1;
     f->new_row = -1;
     f->reset_flash = 0;
@@ -37,7 +34,6 @@ void flow_init(Flow *f, const uint8_t *image, size_t len)
         hiscore_defaults(&f->table);
     }
     game_reset(&f->game, 1);
-    rng_seed(&f->demo_rng, 1);
     nameentry_init(&f->entry);
     enter(f, FLOW_ATTRACT_TITLE);
 }

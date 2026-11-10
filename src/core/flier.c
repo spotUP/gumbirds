@@ -82,6 +82,26 @@ int flier_lose_balloon(Flier *f) {
     return 1;
 }
 
+/* Body boxes overlap (whole pixels, inclusive edges): fills the centre offset a - b and the penetration on each axis. */
+static int body_overlap(const Flier *a, const Flier *b, int *dx, int *dy, int *pen_x, int *pen_y) {
+    int ah = (int)(flier_half_h(a) >> 16) + 1, bh = (int)(flier_half_h(b) >> 16) + 1;
+    *dx = (int)(a->x >> 16) - (int)(b->x >> 16);
+    *dy = (int)(a->y >> 16) - (int)(b->y >> 16);
+    if (*dx > 2 * FLIER_HALF_W || *dx < -2 * FLIER_HALF_W) return 0;
+    if (*dy > ah + bh || *dy < -(ah + bh)) return 0;
+    *pen_x = 2 * FLIER_HALF_W - (*dx < 0 ? -*dx : *dx);
+    *pen_y = ah + bh - (*dy < 0 ? -*dy : *dy);
+    return 1;
+}
+
+int flier_body_kill(Flier *victim, const Flier *other) {
+    int dx, dy, px, py;
+    if (victim->balloons != 0 || victim->state != FLIER_ALIVE || other->state > FLIER_PARACHUTE) return 0;
+    if (!body_overlap(victim, other, &dx, &dy, &px, &py)) return 0;
+    start_falling(victim);
+    return 1;
+}
+
 int flier_add_balloon(Flier *f) {
     if (f->balloons >= FLIER_MAX_BALLOONS || f->state > FLIER_PARACHUTE) return 0;
     if (f->balloons == 0 && f->on_ground) f->y -= FL_PX(2);
@@ -108,9 +128,28 @@ static void bounce_min(Flier *f, int8_t nx, int8_t ny) {
     }
 }
 
+int flier_body_bounce(Flier *a, const Flier *b) {
+    int dx, dy, px, py;
+    int8_t nx = 0, ny = 0;
+    if (a->balloons == 0 || a->state > FLIER_PARACHUTE || b->state > FLIER_PARACHUTE) return 0;
+    if (!body_overlap(a, b, &dx, &dy, &px, &py)) return 0;
+    /* Contact normal: the axis of least penetration, pointing from b to a (ties go to the horizontal axis). */
+    if (px <= py) nx = dx >= 0 ? 1 : -1;
+    else ny = dy >= 0 ? 1 : -1;
+    /* Reflect the component into b (restitution 1, tangential speed kept), then the minimum bounce (spec 3.6). */
+    if (nx > 0 && a->vx < 0) a->vx = -a->vx;
+    if (nx < 0 && a->vx > 0) a->vx = -a->vx;
+    if (ny > 0 && a->vy < 0) a->vy = -a->vy;
+    if (ny < 0 && a->vy > 0) a->vy = -a->vy;
+    bounce_min(a, nx, ny);
+    if (a->vy < 0) a->on_ground = 0;
+    return 1;
+}
+
 void flier_step(Flier *f, const FlierInput *in, int32_t floor_y) {
     uint8_t edge = (uint8_t)(in->flap && !f->flap_prev);
     f->flap_prev = in->flap ? 1 : 0;
+    if (in->dir) f->facing = in->dir > 0;
     if (f->state >= FLIER_DROWNED) return;
     if (f->invincible) f->invincible--;
 
@@ -149,7 +188,6 @@ void flier_step(Flier *f, const FlierInput *in, int32_t floor_y) {
             if (in->dir) {
                 int32_t t = in->dir > 0 ? FLIER_TOP_AIR_SPEED : -FLIER_TOP_AIR_SPEED;
                 f->vx += mul_0_2(t - f->vx);
-    if (in->dir) f->facing = in->dir > 0;
             }
         }
     }

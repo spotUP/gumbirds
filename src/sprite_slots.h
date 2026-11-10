@@ -10,9 +10,8 @@
  *   47..67   mid skyline ring (21)
  *   68..88   roof ring (21)
  *   96..191  object pool (POOL_SPRITE_COUNT = POOL_MAX x POOL_COLS, src/core/obj_pool.h): object i owns
- *            POOL_SPRITE_BASE + i * POOL_COLS; the obstacles draw through it
+ *            POOL_SPRITE_BASE + i * POOL_COLS; platforms and computer fliers draw through it
  *   192..194 hero (HERO_SPRITE_COUNT)
- *   200..216 laser: 4 beams x 2 columns, kill flash, heat bar (8 pairs); in front of the hero
  */
 #define BG_STAR_SPRITE 0
 #define BG_STAR_COUNT 16
@@ -27,11 +26,4 @@
 #define POOL_SPRITE_COUNT 96
 #define HERO_SPRITE 192
 #define HERO_SPRITE_COUNT 3
-#define LASER_BEAM_SPRITE 200
-#define LASER_BEAM_SLOTS 8
-#define LASER_FLASH_SPRITE (LASER_BEAM_SPRITE + LASER_BEAM_SLOTS)
-#define LASER_BAR_SPRITE (LASER_FLASH_SPRITE + 1)
-#define LASER_BAR_SLOTS 8
-#define LASER_SPRITE_END (LASER_BAR_SPRITE + LASER_BAR_SLOTS)
-
 #endif

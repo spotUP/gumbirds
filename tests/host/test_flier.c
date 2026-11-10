@@ -191,19 +191,18 @@ static void test_water_and_balloons(void) {
     CHECK(f.y == y);                                      /* frozen */
 
     /* pop invincibility counts down 60 frames */
-    Flier p = air(3);
-    CHECK(flier_lose_balloon(&p) == 1 && p.balloons == 2 && p.invincible == 60);
-    CHECK(flier_lose_balloon(&p) == 0 && p.balloons == 2);
+    Flier p = air(FLIER_MAX_BALLOONS);
+    CHECK(flier_lose_balloon(&p) == 1 && p.balloons == FLIER_MAX_BALLOONS - 1 && p.invincible == 60);
+    CHECK(flier_lose_balloon(&p) == 0 && p.balloons == FLIER_MAX_BALLOONS - 1);
     for (int i = 0; i < 59; i++) { step(&p, 0, 0); p.y = FL_PX(90); p.vy = 0; }
     CHECK(p.invincible == 1);
     CHECK(flier_lose_balloon(&p) == 0);
     step(&p, 0, 0);
     CHECK(p.invincible == 0);
-    CHECK(flier_lose_balloon(&p) == 1 && p.balloons == 1);
+    while (p.balloons > 1) { CHECK(flier_lose_balloon(&p) == 1); p.invincible = 0; }
 
     /* last balloon in the air, no parachute: falls, input ignored, no clamp */
-    CHECK(flier_lose_balloon(&p) == 0);   /* invincible again */
-    p.invincible = 0;
+    CHECK(p.balloons == 1 && p.state == FLIER_ALIVE);
     CHECK(flier_lose_balloon(&p) == 1);
     CHECK(p.state == FLIER_FALLING && p.vx == 0 && p.vy == -27307);
     step(&p, 1, 1);
@@ -239,7 +238,8 @@ static void test_water_and_balloons(void) {
     CHECK(flier_add_balloon(&g) == 1 && g.balloons == 1);
     gstep(&g, 0, 0);
     CHECK(g.y + flier_half_h(&g) == FL_PX(120));
-    CHECK(flier_add_balloon(&g) && flier_add_balloon(&g) && !flier_add_balloon(&g) && g.balloons == FLIER_MAX_BALLOONS);
+    while (g.balloons < FLIER_MAX_BALLOONS) CHECK(flier_add_balloon(&g) == 1);
+    CHECK(!flier_add_balloon(&g) && g.balloons == FLIER_MAX_BALLOONS);
 }
 
 static void test_angle(void) {
@@ -257,15 +257,15 @@ static void test_angle(void) {
 static void test_stomp(void) {
     Flier a, v;
     flier_init(&a, FL_PX(100), FL_PX(80), 2, 0);
-    flier_init(&v, FL_PX(100), FL_PX(90), 3, 0);
+    flier_init(&v, FL_PX(100), FL_PX(90), 2, 0);
     CHECK(flier_feet_hit(&a, &v));
     CHECK(flier_stomp(&a, &v) == 1);
-    CHECK(v.balloons == 2 && v.invincible == 60 && a.balloons == 2);   /* exactly one balloon, attacker unhurt */
+    CHECK(v.balloons == 1 && v.invincible == 60 && a.balloons == 2);   /* exactly one balloon, attacker unhurt */
     CHECK_NEAR(v.vx, 0, 2);
     CHECK_NEAR(v.vy, 21845, 3);          /* victim pushed away (down) at 40 px/s */
     CHECK_NEAR(a.vy, -40960, 3);         /* attacker pushed away (up) at 75 px/s */
     CHECK_NEAR(a.vx, 0, 3);
-    CHECK(flier_stomp(&a, &v) == 0 && v.balloons == 2);   /* invincible: no second pop */
+    CHECK(flier_stomp(&a, &v) == 0 && v.balloons == 1);   /* invincible: no second pop */
     /* diagonal knockback is along the line between the fighters */
     flier_init(&a, FL_PX(100), FL_PX(80), 2, 0);
     flier_init(&v, FL_PX(101), FL_PX(90), 2, 0);
@@ -278,17 +278,60 @@ static void test_stomp(void) {
     CHECK(flier_stomp(&a, &v) == 1);
     CHECK(v.state == FLIER_FALLING && v.vx == 0 && v.vy == -27307);
     /* no pop: apart, victim without balloons, falling attacker */
-    flier_init(&v, FL_PX(100), FL_PX(90), 3, 0);
+    flier_init(&v, FL_PX(100), FL_PX(90), 2, 0);
     flier_init(&a, FL_PX(140), FL_PX(80), 2, 0);
-    CHECK(!flier_feet_hit(&a, &v) && flier_stomp(&a, &v) == 0 && v.balloons == 3);
+    CHECK(!flier_feet_hit(&a, &v) && flier_stomp(&a, &v) == 0 && v.balloons == 2);
     flier_init(&a, FL_PX(100), FL_PX(100), 2, 0);   /* attacker below the victim */
     CHECK(flier_stomp(&a, &v) == 0);
     flier_init(&a, FL_PX(100), FL_PX(80), 2, 0);
     a.state = FLIER_FALLING;
-    CHECK(flier_stomp(&a, &v) == 0 && v.balloons == 3);
+    CHECK(flier_stomp(&a, &v) == 0 && v.balloons == 2);
     a.state = FLIER_ALIVE;
     v.balloons = 0;
     CHECK(flier_stomp(&a, &v) == 0);
+}
+
+/* Body-contact reflect (spec 3.6 minimum bounce, design 1.6 rules 3-4). */
+static void test_body_bounce(void) {
+    Flier a, b;
+    int hh;
+    flier_init(&a, FL_PX(100), FL_PX(90), 2, 0);
+    flier_init(&b, FL_PX(100), FL_PX(90), 2, 0);
+    hh = (int)(flier_half_h(&a) >> 16) + 1;
+    /* side by side, a left of b, a moving into b: x reflects, y stays */
+    b.x = a.x + FL_PX(3);
+    a.vx = 65536; a.vy = 1000;
+    CHECK(flier_body_bounce(&a, &b) == 1);
+    CHECK(a.vx == -65536 && a.vy == 1000);
+    /* a right of b moving left */
+    b.x = a.x - FL_PX(3);
+    a.vx = -65536; a.vy = 0;
+    CHECK(flier_body_bounce(&a, &b) == 1 && a.vx == 65536);
+    /* separating and faster than the minimum: unchanged */
+    a.vx = 65536;
+    CHECK(flier_body_bounce(&a, &b) == 1 && a.vx == 65536);
+    /* slow: becomes minimum x normal (pointing away from b) */
+    b.x = a.x + FL_PX(3);
+    a.vx = -100; a.vy = 100;
+    CHECK(flier_body_bounce(&a, &b) == 1 && a.vx == -27307 && a.vy == 0);
+    /* a above b (stacked, small x offset): y reflects upward */
+    b.x = a.x; b.y = a.y + FL_PX(2 * hh - 2);
+    a.vx = 5000; a.vy = 40000;
+    CHECK(flier_body_bounce(&a, &b) == 1 && a.vy == -40000 && a.vx == 5000);
+    /* no overlap */
+    b.x = a.x + FL_PX(5); b.y = a.y;
+    a.vx = 65536;
+    CHECK(flier_body_bounce(&a, &b) == 0 && a.vx == 65536);
+    /* balloon-less a gets none (it dies in flier_body_kill); other without balloons does not stop a bouncing */
+    flier_init(&b, a.x + FL_PX(3), a.y, 0, 0);
+    a.vx = 65536;
+    CHECK(flier_body_bounce(&a, &b) == 1 && a.vx == -65536);
+    CHECK(flier_body_bounce(&b, &a) == 0);
+    /* a dead-fall body takes no part */
+    flier_init(&b, a.x + FL_PX(3), a.y, 2, 0);
+    b.state = FLIER_FALLING;
+    a.vx = 65536;
+    CHECK(flier_body_bounce(&a, &b) == 0 && a.vx == 65536);
 }
 
 int main(void) {
@@ -299,6 +342,7 @@ int main(void) {
     test_water_and_balloons();
     test_angle();
     test_stomp();
+    test_body_bounce();
     printf("flier: %d checks, %d failures\n", checks, failures);
     return failures != 0;
 }

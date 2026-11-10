@@ -36,7 +36,7 @@
 #define FLIER_INVINCIBLE_PARACHUTE 30       /* 500 ms when the last balloon goes and a parachute opens (4.2) */
 #define FLIER_SWAY_PERIOD          30       /* sway target changes every 500 ms = 30 frames (3.5) */
 #define FLIER_SWAY_PHASE_STEP      10430    /* one radian in 8.8 table indices: 256 / 2pi x 256 (3.5, sin(n)) */
-#define FLIER_MAX_BALLOONS         3        /* NIR-5 default */
+#define FLIER_MAX_BALLOONS         2        /* art has two pods (user decision 2026-11-10); NIR-5 default was 3 */
 
 #define FLIER_WORLD_W              320      /* 640 ref px x 0.5 (3.6) */
 #define FLIER_WORLD_H              180      /* 360 ref px x 0.5 (3.6) */
@@ -82,6 +82,14 @@ void flier_init(Flier *f, int32_t x, int32_t y, uint8_t balloons, uint8_t has_pa
 void flier_step(Flier *f, const FlierInput *in, int32_t floor_y);
 /* Loses one balloon unless invincible (spec 4.2). Returns 1 if a balloon popped. */
 int flier_lose_balloon(Flier *f);
+/* Body contact (spec 4.3 item 3, design 1.6 rules 2-3): a standing or flying flier with no balloons that another live
+ * body touches starts falling. Returns 1 if it did. */
+int flier_body_kill(Flier *victim, const Flier *other);
+/* Body-contact reflect (spec 4.3 item 3 bounce, spec 3.6, design 1.6 rules 3-4): a (alive, with balloons) touching a live
+ * body b reflects about the contact normal (axis of least penetration, from b to a) with the 50 px/s minimum. A
+ * balloon-less a gets no bounce (it dies by flier_body_kill); b having no balloons does not stop a bouncing. Evaluate
+ * both orders per pair, before flier_body_kill. Returns 1 if a bounced. */
+int flier_body_bounce(Flier *a, const Flier *b);
 /* Adds a balloon up to FLIER_MAX_BALLOONS (NIR-8 pickup). Returns 1 if added. */
 int flier_add_balloon(Flier *f);
 /* Half height of the body box, 16.16. */
