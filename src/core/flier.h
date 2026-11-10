@@ -18,12 +18,16 @@
 #define FL_PX(n) ((int32_t)(n) * 65536) /* whole pixels to 16.16 */
 
 /* ---- Constants. Each line: name, reference value, spec section. Raw = 16.16. ---- */
-#define FLIER_GRAVITY_NO_BALLOON   1820     /* 200 px/s^2 -> 0.027778 px/frame^2 (3.1) */
-#define FLIER_GRAVITY_BALLOON      728      /* 80 px/s^2 (200 x 0.4) -> 0.011111 (3.1) */
+/* Gravity, jump and flap speeds: user decision 2026-11-10 after playtest ("too floaty like i am on the moon"):
+ * gravity x1.5 (spec values 1820 / 728), every upward launch speed x sqrt(1.5) = 1.2247 so the height v^2 / (2g)
+ * stays: ground jump -27307 -> -33444, no balloon -54613 -> -66887, flap target -65536 -> -80268. */
+#define FLIER_GRAVITY_NO_BALLOON   2730     /* 300 px/s^2 -> 0.041667 px/frame^2 (spec 3.1: 200 px/s^2) */
+#define FLIER_GRAVITY_BALLOON      1092     /* 120 px/s^2 -> 0.016667 (spec 3.1: 80 px/s^2) */
 #define FLIER_TOP_AIR_SPEED        65536    /* 120 px/s red preset -> 1.0 px/frame (3.1) */
 #define FLIER_TOP_LAND_SPEED       54613    /* 100 px/s -> 0.83333 (3.1) */
-#define FLIER_GROUND_JUMP_VY       (-27307) /* 50 px/s up with balloons (3.1, 3.2) */
-#define FLIER_GROUND_JUMP_VY_NOBAL (-54613) /* 100 px/s up, 2 x jump height, no balloon (3.2) */
+#define FLIER_GROUND_JUMP_VY       (-33444) /* 61.2 px/s up with balloons (spec 3.1, 3.2: 50 px/s, scaled with gravity) */
+#define FLIER_GROUND_JUMP_VY_NOBAL (-66887) /* 122.5 px/s up, 2 x jump height, no balloon (spec 3.2: 100 px/s) */
+#define FLIER_FLAP_TARGET_VY       (-80268) /* air flap lerps vy toward this (spec 3.2: -TOP_AIR_SPEED, scaled with gravity) */
 #define FLIER_MIN_BOUNCE_SPEED     27307    /* 50 px/s wall/ceiling bounce minimum, ceiling too (3.6) */
 #define FLIER_FALL_START_VY        (-27307) /* 50 px/s up when a fall starts (3.5) */
 #define FLIER_PARACHUTE_GRAVITY    182      /* 20 px/s^2 (3.5) */
@@ -47,6 +51,23 @@
 #define FLIER_HALF_W               2        /* 4 px wide */
 #define FLIER_HALF_H16_BALLOON     360448   /* 11 px tall / 2, with balloons, 16.16 */
 #define FLIER_HALF_H16_NOBAL       229376   /* 7 px tall / 2, without balloons, 16.16 */
+
+/* Stomp boxes follow the drawn Sootling art (user decision 2026-11-10: "i cant pop gums but they can pop mine").
+ * Measured on assets/flier/sootling_sheet.png (32 x 48 frames; art column 16 is the flier x, art row 47 is the
+ * feet bottom = y + half height; see thoughts/spot/2026-11-10-playtest-fixes.md). All whole pixels; a box is
+ * centred on x and measured upward from the feet bottom of the flier that owns it. Player and computer share them.
+ *   feet: drawn feet are art columns 9..22 on rows 46..47; box 10 wide, 4 tall.
+ *   gum, two gums: drawn bubble columns 5..26 (-11..+11), rows 5..29 (-43..-18 from the feet bottom); inset 2.
+ *   gum, one gum:  drawn bubble columns 9..25 (-7..+9), same rows; inset 1..2, centred (the art sits 1.5 px right of x).
+ * Vertical gum range is the same for both: rows 7..27, i.e. 41 down to 20 px above the feet bottom. */
+#define FLIER_FEET_HALF_W          5        /* px */
+#define FLIER_FEET_H               4        /* px, ends at the feet bottom */
+#define FLIER_GUM_HALF_W2          9        /* px, victim with two balloons */
+#define FLIER_GUM_HALF_W1          6        /* px, victim with one balloon */
+#define FLIER_GUM_TOP              41       /* px above the victim's feet bottom */
+#define FLIER_GUM_BOTTOM           20       /* px above the victim's feet bottom */
+/* Widest horizontal reach of a stomp in half pixels (flier_feet_hit's unit), for the broad phase in game.c. */
+#define FLIER_STOMP_REACH_HALF     (2 * (FLIER_FEET_HALF_W + FLIER_GUM_HALF_W2))
 
 typedef enum {
     FLIER_ALIVE = 0,    /* flying or standing (see on_ground) */

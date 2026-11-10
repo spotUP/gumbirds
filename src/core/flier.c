@@ -185,7 +185,7 @@ void flier_step(Flier *f, const FlierInput *in, int32_t floor_y) {
             if (in->dir) f->vx = in->dir > 0 ? FLIER_TOP_LAND_SPEED : -FLIER_TOP_LAND_SPEED;
             else f->vx -= mul_0_2(f->vx);
         } else if (edge && f->balloons) {
-            f->vy += mul_0_2(-FLIER_TOP_AIR_SPEED - f->vy);
+            f->vy += mul_0_2(FLIER_FLAP_TARGET_VY - f->vy);
             if (in->dir) {
                 int32_t t = in->dir > 0 ? FLIER_TOP_AIR_SPEED : -FLIER_TOP_AIR_SPEED;
                 f->vx += mul_0_2(t - f->vx);
@@ -228,16 +228,24 @@ void flier_step(Flier *f, const FlierInput *in, int32_t floor_y) {
     }
 }
 
-/* Feet box 3x5 at (0,+5) from the attacker centre; balloon box 6x8 at (+0.5,-3) from the victim (4.4).
- * Compared in 1/2 pixel units (value >> 15) so the half-pixel offset is exact. */
+/* Attacker's feet box against the victim's gum box, both from the named constants in flier.h (art measured, same
+ * for player and computer). Compared in 1/2 pixel units (value >> 15) so the half pixel hh of a balloon body is
+ * exact; both boxes hang from the feet bottom (y + half height), where the art is anchored. */
 int flier_feet_hit(const Flier *a, const Flier *v) {
-    int16_t ax = (int16_t)(a->x >> 15), ay = (int16_t)(a->y >> 15);
-    int16_t vx = (int16_t)(arena_near_x(a->x, v->x) >> 15), vy = (int16_t)(v->y >> 15);
-    int16_t fl = (int16_t)(ax - 3), fr = (int16_t)(ax + 3);          /* half width 1.5 px */
-    int16_t ft = (int16_t)(ay + 10 - 5), fb = (int16_t)(ay + 10 + 5);/* centre +5 px, half height 2.5 px */
-    int16_t bl = (int16_t)(vx + 1 - 6), br = (int16_t)(vx + 1 + 6);  /* centre +0.5 px, half width 3 px */
-    int16_t bt = (int16_t)(vy - 6 - 8), bb = (int16_t)(vy - 6 + 8);  /* centre -3 px, half height 4 px */
-    return fl < br && fr > bl && ft < bb && fb > bt;
+    /* Vertical test first: it is plain integer arithmetic and rejects most pairs the broad phase in game.c lets through
+       (the feet must be 16 to 41 px above the victim's feet bottom), so the arena fold of the horizontal test runs
+       rarely. The result is the same box overlap in either order. */
+    int16_t afb = (int16_t)((a->y + flier_half_h(a)) >> 15); /* attacker feet bottom */
+    int16_t vfb = (int16_t)((v->y + flier_half_h(v)) >> 15); /* victim feet bottom */
+    int16_t ft = (int16_t)(afb - 2 * FLIER_FEET_H), fb = afb;
+    int16_t gt = (int16_t)(vfb - 2 * FLIER_GUM_TOP), gb = (int16_t)(vfb - 2 * FLIER_GUM_BOTTOM);
+    if (!(ft < gb && fb > gt)) return 0;
+    int16_t ax = (int16_t)(a->x >> 15);
+    int16_t vx = (int16_t)(arena_near_x(a->x, v->x) >> 15);
+    int16_t gw = (int16_t)(2 * (v->balloons >= 2 ? FLIER_GUM_HALF_W2 : FLIER_GUM_HALF_W1));
+    int16_t fl = (int16_t)(ax - 2 * FLIER_FEET_HALF_W), fr = (int16_t)(ax + 2 * FLIER_FEET_HALF_W);
+    int16_t gl = (int16_t)(vx - gw), gr = (int16_t)(vx + gw);
+    return fl < gr && fr > gl;
 }
 
 uint8_t flier_angle(int32_t dx, int32_t dy) {

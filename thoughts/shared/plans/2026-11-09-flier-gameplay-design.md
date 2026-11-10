@@ -289,6 +289,8 @@ The B auto-flap and the dive option are removed. Name entry for the score table 
 
 ### 3.1 What equals the reference
 
+User decision 2026-11-10 after playtest (gravity, "too floaty like i am on the moon"): gravity x1.5 (FLY 728 to 1092, FALL 1820 to 2730), launch speeds x sqrt(1.5) so peak height stays the same (ground jump -27307 to -33444, pod-less -54613 to -66887, air flap lerp target -65536 to -80268, new FLIER_FLAP_TARGET_VY). This supersedes the 80 / 200 px/s^2 values in section 1.3 for the arena.
+
 - A match has 2 or more fliers on one screen; humans and computer fliers mix freely; last flier alive wins (`level.gd` 14-25).
 - Every flier is equal: any flier can stomp any other (no teams, no friendly-fire rule). 2P on one cabinet = two humans who can stomp
   each other, plus computer fliers.
@@ -302,6 +304,8 @@ The B auto-flap and the dive option are removed. Name entry for the score table 
 - Pods: starting pods and stored pods are per match settings in the reference (N12 sets ours).
 
 ### 3.2 NOT IN REFERENCE (decide before implementation; recommended first)
+
+User decision 2026-11-10 after playtest (stomp, "i cant pop gums but they can pop mine"): stomp boxes follow the drawn art. Feet box 10 px wide (half 5) and 4 px high at the feet bottom; gum box 18 px wide with 2 or more balloons, 12 px with one, from 20 to 41 px above the owner's feet bottom. Same rule for player and computer. The old 3x5 feet and 6x8 gum boxes are gone. Body box (4 px wide) unchanged, open.
 
 N1. **1P structure.** The reference has no 1P mode and no waves. (a) 1P vs computer fliers as a match, rematch on a new stage after a win
     (matches the reference loop); (b) endless waves of computer fliers (needs N2 to N4); (c) fixed best-of rounds.
@@ -337,6 +341,10 @@ Points are ours (reference has none); keep the table minimal so it can change: s
 fall into the bottom 250, match win 1000, no pod lost in match +2000. Marked NOT IN REFERENCE, values for the user to tune.
 
 ## 4. Gum Trip mode (solo, endless; decisions of 2026-11-10, tuning numbers and hazards open)
+
+### 4.4 Playtest tuning shared with Gum Trip
+
+User decision 2026-11-10 after playtest: Gum Trip uses the same flier physics as the arena, so the gravity x1.5 and art-sized stomp boxes of sections 3.1 and 3.2 apply here too.
 
 Not part of the reference. Physics identical to 1. Renamed from "Gum Trip" on 2026-11-10 (user decision).
 

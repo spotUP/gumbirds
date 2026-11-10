@@ -154,7 +154,7 @@ emu.register_frame_done(function()
         -- placement as tests/host/stomp_assist.h) so the game's own stomp code scores; state <= 1 is alive/parachute.
         if mem:read_u8(flow_addr + O_CSTATE) <= 1 and mem:read_u8(flow_addr + O_CBALL) > 0 then
           mem:write_u32(flow_addr + O_FX, g32(O_CX))
-          mem:write_u32(flow_addr + O_FY, g32(O_CY) - 14 * 65536)
+          mem:write_u32(flow_addr + O_FY, g32(O_CY) - 29 * 65536)
           mem:write_u32(flow_addr + O_FVX, 0)
           mem:write_u32(flow_addr + O_FVY, 0)
         end

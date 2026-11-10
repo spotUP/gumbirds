@@ -12,6 +12,7 @@ static int checks, failures;
     printf("FAIL %s:%d: %s = %ld, want %ld +-%d\n", __FILE__, __LINE__, #a, _a, _b, (int)(tol)); } } while (0)
 
 static const FlierInput IDLE = {0, 0};
+#define FLAP_REST_VY (-16050) /* 0.2 x FLIER_FLAP_TARGET_VY (-80268) through the shift-add lerp (exact -16053.6 less rounding) */
 
 static Flier air(uint8_t balloons) {
     Flier f;
@@ -26,14 +27,14 @@ static void step(Flier *f, int8_t dir, uint8_t flap) {
 static void test_gravity(void) {
     Flier f = air(2);
     step(&f, 0, 0);
-    CHECK(f.vy == 728);
+    CHECK(f.vy == 1092);
     for (int i = 1; i < 100; i++) step(&f, 0, 0);
-    CHECK(f.vy == 728 * 100);   /* no terminal velocity, no drag */
+    CHECK(f.vy == 1092 * 100);   /* no terminal velocity, no drag */
     Flier g = air(0);
     step(&g, 0, 0);
-    CHECK(g.vy == 1820);
+    CHECK(g.vy == 2730);
     for (int i = 1; i < 40; i++) step(&g, 0, 0);
-    CHECK(g.vy == 1820 * 40 && g.state == FLIER_ALIVE);
+    CHECK(g.vy == 2730 * 40 && g.state == FLIER_ALIVE);
     Flier h = air(2);
     h.vx = 30000;
     for (int i = 0; i < 100; i++) step(&h, 0, 0);
@@ -42,20 +43,20 @@ static void test_gravity(void) {
 
 static void test_flap(void) {
     Flier f = air(2);
-    f.vy = -728;                /* gravity runs before the flap (3 "per-tick order"): vy is 0 at the flap */
+    f.vy = -1092;               /* gravity runs before the flap (3 "per-tick order"): vy is 0 at the flap */
     step(&f, 0, 1);
-    CHECK(f.vy == -13107);      /* one flap from rest: -0.2 px/frame, spec 3.2 */
+    CHECK(f.vy == FLAP_REST_VY);   /* one flap from rest: 0.2 x -80268 (spec 3.2 -0.2 px/frame x sqrt(1.5), decision 2026-11-10) */
     step(&f, 0, 1);             /* held: no second flap */
-    CHECK(f.vy == -13107 + 728);
+    CHECK(f.vy == FLAP_REST_VY + 1092);
     Flier q = air(2);           /* the same flap from true rest: gravity step first, then the lerp */
     step(&q, 0, 1);
-    CHECK_NEAR(q.vy, -12525, 4); /* 728 + 0.2 x (-65536 - 728) */
+    CHECK_NEAR(q.vy, -15180, 4); /* 1092 + 0.2 x (-80268 - 1092) */
     step(&f, 0, 0);
     step(&f, 0, 1);             /* new press */
-    CHECK(f.vy < -13107 + 2 * 728 - 5000);
+    CHECK(f.vy < FLAP_REST_VY + 2 * 1092 - 5000);
     Flier z = air(0);           /* no balloon: flap does nothing */
     step(&z, 0, 1);
-    CHECK(z.vy == 1820);
+    CHECK(z.vy == 2730);
     /* n flaps with direction held: vx = top * (1 - 0.8^n) */
     Flier g;
     flier_init(&g, FL_PX(10), FL_PX(100), 3, 0);
@@ -112,13 +113,13 @@ static void test_ground(void) {
     /* jump with balloons */
     Flier j = stand(2);
     gstep(&j, 0, 1);
-    CHECK(j.vy == -27307 && !j.on_ground);
+    CHECK(j.vy == -33444 && !j.on_ground);
     gstep(&j, 0, 1);
-    CHECK(j.vy == -27307 + 728);
+    CHECK(j.vy == -33444 + 1092);
     /* jump without balloons: twice the speed */
     Flier n = stand(0);
     gstep(&n, 0, 1);
-    CHECK(n.vy == -54613 && !n.on_ground);
+    CHECK(n.vy == -66887 && !n.on_ground);
     /* a jump lands again on the floor */
     for (int i = 0; i < 400 && !j.on_ground; i++) gstep(&j, 0, 0);
     CHECK(j.on_ground && j.vy == 0);
@@ -127,7 +128,7 @@ static void test_ground(void) {
     flier_step(&w, &IDLE, FLIER_NO_FLOOR);
     CHECK(!w.on_ground);
     flier_step(&w, &IDLE, FLIER_NO_FLOOR);
-    CHECK(w.vy == 728);
+    CHECK(w.vy == 1092);
     /* no air flap on a floor-less jump from below: a rising fighter passes a floor */
     Flier u;
     flier_init(&u, FL_PX(100), FL_PX(125), 2, 0);
@@ -143,7 +144,7 @@ static void test_bounce(void) {
     f.vx = -65536; f.vy = 20000;
     step(&f, 0, 0);
     CHECK(f.x == ARENA_W16 - 32768);                 /* 0.5 - 1 = 0.5 left of zero -> 383.5 */
-    CHECK(f.vx == -65536 && f.vy == 20000 + 728);
+    CHECK(f.vx == -65536 && f.vy == 20000 + 1092);
     flier_init(&f, FL_PX(383) + 32768, FL_PX(90), 2, 0);
     f.vx = 65536;
     step(&f, 0, 0);
@@ -183,7 +184,7 @@ static void test_bounce(void) {
     f.vy = -65536;
     step(&f, 0, 0);
     CHECK(f.y == FLIER_HALF_H16_BALLOON);
-    CHECK(f.vy == 65536 - 728);
+    CHECK(f.vy == 65536 - 1092);
     flier_init(&f, FL_PX(100), FLIER_HALF_H16_BALLOON + 100, 2, 0);
     f.vy = -5000; f.vx = 3000;
     step(&f, 0, 0);
@@ -217,7 +218,7 @@ static void test_water_and_balloons(void) {
     CHECK(flier_lose_balloon(&p) == 1);
     CHECK(p.state == FLIER_FALLING && p.vx == 0 && p.vy == -27307);
     step(&p, 1, 1);
-    CHECK(p.vy == -27307 + 1820 && p.vx == 0);
+    CHECK(p.vy == -27307 + 2730 && p.vx == 0);
     for (int i = 0; i < 400 && p.state == FLIER_FALLING; i++) step(&p, 1, 1);
     CHECK(p.state == FLIER_GONE && p.y > FL_PX(FLIER_REMOVE_Y));
 
@@ -268,7 +269,7 @@ static void test_angle(void) {
 static void test_stomp(void) {
     Flier a, v;
     flier_init(&a, FL_PX(100), FL_PX(80), 2, 0);
-    flier_init(&v, FL_PX(100), FL_PX(90), 2, 0);
+    flier_init(&v, FL_PX(100), FL_PX(105), 2, 0);
     CHECK(flier_feet_hit(&a, &v));
     CHECK(flier_stomp(&a, &v) == 1);
     CHECK(v.balloons == 1 && v.invincible == 60 && a.balloons == 2);   /* exactly one balloon, attacker unhurt */
@@ -279,17 +280,17 @@ static void test_stomp(void) {
     CHECK(flier_stomp(&a, &v) == 0 && v.balloons == 1);   /* invincible: no second pop */
     /* diagonal knockback is along the line between the fighters */
     flier_init(&a, FL_PX(100), FL_PX(80), 2, 0);
-    flier_init(&v, FL_PX(101), FL_PX(90), 2, 0);
+    flier_init(&v, FL_PX(101), FL_PX(105), 2, 0);
     CHECK(flier_stomp(&a, &v) == 1);
     CHECK(v.vx > 0 && v.vy > v.vx);
     CHECK(a.vx < 0 && a.vy < 0);
     /* last balloon: victim falls, knockback overwritten by the fall start */
     flier_init(&a, FL_PX(100), FL_PX(80), 2, 0);
-    flier_init(&v, FL_PX(100), FL_PX(90), 1, 0);
+    flier_init(&v, FL_PX(100), FL_PX(105), 1, 0);
     CHECK(flier_stomp(&a, &v) == 1);
     CHECK(v.state == FLIER_FALLING && v.vx == 0 && v.vy == -27307);
     /* no pop: apart, victim without balloons, falling attacker */
-    flier_init(&v, FL_PX(100), FL_PX(90), 2, 0);
+    flier_init(&v, FL_PX(100), FL_PX(105), 2, 0);
     flier_init(&a, FL_PX(140), FL_PX(80), 2, 0);
     CHECK(!flier_feet_hit(&a, &v) && flier_stomp(&a, &v) == 0 && v.balloons == 2);
     flier_init(&a, FL_PX(100), FL_PX(100), 2, 0);   /* attacker below the victim */
@@ -349,16 +350,16 @@ static void test_body_bounce(void) {
 static void test_seam(void) {
     Flier a, v;
     flier_init(&a, FL_PX(383), FL_PX(80), 2, 0);
-    flier_init(&v, FL_PX(1), FL_PX(90), 2, 0);
+    flier_init(&v, FL_PX(1), FL_PX(105), 2, 0);
     CHECK(flier_feet_hit(&a, &v));
     CHECK(flier_stomp(&a, &v) == 1 && v.balloons == 1);
     /* knockback direction: v is to the right of a across the seam, so it is pushed right (+vx) and a left */
     flier_init(&a, FL_PX(383), FL_PX(80), 2, 0);
-    flier_init(&v, FL_PX(1) + 40000, FL_PX(90), 2, 0);
+    flier_init(&v, FL_PX(1) + 40000, FL_PX(105), 2, 0);
     CHECK(flier_stomp(&a, &v) == 1 && v.vx > 0 && a.vx < 0);
     /* and mirrored: attacker at 1, victim at 383 */
     flier_init(&a, FL_PX(1) + 40000, FL_PX(80), 2, 0);
-    flier_init(&v, FL_PX(383), FL_PX(90), 2, 0);
+    flier_init(&v, FL_PX(383), FL_PX(105), 2, 0);
     CHECK(flier_stomp(&a, &v) == 1 && v.vx < 0 && a.vx > 0);
     /* body contact: a left of the seam moving into b right of it */
     flier_init(&a, FL_PX(382), FL_PX(90), 2, 0);
@@ -375,6 +376,81 @@ static void test_seam(void) {
     CHECK(!flier_feet_hit(&a, &v) && flier_body_bounce(&a, &v) == 0);
 }
 
+/* ---- user decision 2026-11-10 after playtest, A: gravity x1.5, launch speeds x sqrt(1.5), same height. ---- */
+/* Old model, from the documented spec constants (flier.h history): gravity 728 / 1820, ground jump -27307,
+ * air flap lerp 0.2 toward -65536. Peak height in 16.16 pixels climbed, same step order as flier_step. */
+static int32_t old_peak(int32_t g, int32_t v0, int lerp_flap) {
+    int32_t vy = v0, y = 0, top = 0;
+    if (lerp_flap) { vy = g; vy += (int32_t)(((int64_t)(-65536 - vy) * 13107) >> 16); }
+    for (int i = 0; i < 2000 && vy < 0; i++) { y += vy; if (y < top) top = y; vy += g; }
+    return -top;
+}
+static int32_t new_peak(Flier f) {
+    int32_t y0 = f.y, top = 0;
+    for (int i = 0; i < 2000; i++) {
+        step(&f, 0, i == 0);
+        if (f.y - y0 < top) top = f.y - y0;
+        if (f.vy > 0) break;
+    }
+    return -top;
+}
+static void test_playtest_gravity(void) {
+    Flier f = air(2);
+    int32_t flap_old = old_peak(728, 0, 1), flap_new = new_peak(f);
+    CHECK_NEAR(flap_new, flap_old, flap_old / 20);                 /* one flap from rest: height within 5% */
+    printf("flap peak old %ld new %ld (16.16)\n", (long)flap_old, (long)flap_new);
+    /* the ground jump goes through flier_step: start on the floor, press, track the peak */
+    for (int nb = 0; nb <= 2; nb += 2) {
+        Flier j = stand((uint8_t)nb);
+        int32_t y0 = j.y, top = 0;
+        for (int i = 0; i < 2000; i++) {
+            gstep(&j, 0, i == 0);
+            if (j.y - y0 < top) top = j.y - y0;
+            if (i > 0 && j.vy > 0) break;
+        }
+        int32_t want = nb ? old_peak(728, -27307, 0) : old_peak(1820, -54613, 0);
+        printf("jump nb=%d peak old %ld new %ld (16.16)\n", nb, (long)want, (long)-top);
+        CHECK_NEAR(-top, want, want / 20);
+    }
+    /* falling 60 px with balloons takes 1/sqrt(1.5) of the old time: frames counted, old model in integers */
+    int fo = 0, fn = 0;
+    { int32_t vy = 0, y = 0; while (y < FL_PX(60)) { vy += 728; y += vy; fo++; } }
+    { Flier d = air(2); int32_t y0 = d.y; while (d.y - y0 < FL_PX(60)) { step(&d, 0, 0); fn++; } }
+    printf("fall 60 px: old %d frames, new %d frames\n", fo, fn);
+    CHECK_NEAR(fo * 1000 / fn, 1225, 61);                       /* ratio old / new = sqrt(1.5) +- 5% */
+}
+
+/* ---- B: stomp boxes follow the drawn art (sootling_sheet.png: feet cols 9..22 rows 46..47, two gums cols 5..26
+ * rows 5..29, one gum cols 9..25 rows 6..28; art column 16 = x, art row 47 bottom = y + half height). ---- */
+static void test_stomp_art(void) {
+    Flier a, v;
+    /* victim at (100, 100) with two balloons: drawn gum spans x 89..111, y 62.5..87.5. The attacker's drawn feet
+     * (x +-7, rows 46..47) overlap the right end of that gum at ax 108: the old 6 px box (97.5..103.5) says miss. */
+    flier_init(&v, FL_PX(100), FL_PX(100), 2, 0);
+    flier_init(&a, FL_PX(108), FL_PX(80), 2, 0);
+    CHECK(flier_feet_hit(&a, &v) && flier_stomp(&a, &v) == 1 && v.balloons == 1);
+    /* the same on the left end, and high on the bubble (feet bottom 66 px above the victim's feet bottom less 3) */
+    flier_init(&v, FL_PX(100), FL_PX(100), 2, 0);
+    flier_init(&a, FL_PX(92), FL_PX(62), 2, 0);
+    CHECK(flier_stomp(&a, &v) == 1);
+    /* near misses outside the drawn gum: beside it, below it, above it */
+    flier_init(&v, FL_PX(100), FL_PX(100), 2, 0);
+    flier_init(&a, FL_PX(125), FL_PX(80), 2, 0);
+    CHECK(!flier_feet_hit(&a, &v) && flier_stomp(&a, &v) == 0 && v.balloons == 2);
+    flier_init(&a, FL_PX(100), FL_PX(100), 2, 0);          /* feet at the victim's own feet: on the body, not the gum */
+    CHECK(flier_stomp(&a, &v) == 0);
+    flier_init(&a, FL_PX(100), FL_PX(50), 2, 0);           /* feet 8 px above the top of the bubble */
+    CHECK(flier_stomp(&a, &v) == 0);
+    /* one gum is narrower: hit at 110 would hit two gums, misses one */
+    flier_init(&a, FL_PX(113), FL_PX(80), 2, 0);
+    CHECK(flier_stomp(&a, &v) == 1);
+    flier_init(&v, FL_PX(100), FL_PX(100), 1, 0);
+    flier_init(&a, FL_PX(114), FL_PX(80), 2, 0);
+    CHECK(flier_stomp(&a, &v) == 0);
+    flier_init(&a, FL_PX(110), FL_PX(80), 2, 0);
+    CHECK(flier_stomp(&a, &v) == 1);
+}
+
 int main(void) {
     test_gravity();
     test_flap();
@@ -385,6 +461,8 @@ int main(void) {
     test_stomp();
     test_body_bounce();
     test_seam();
+    test_playtest_gravity();
+    test_stomp_art();
     printf("flier: %d checks, %d failures\n", checks, failures);
     return failures != 0;
 }
