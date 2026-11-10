@@ -9,14 +9,13 @@
  * The animation speed is the hazard's frames per step; the star twinkle shares the one counter and follows it.
  */
 #include <ngdevkit/types.h>
+#include "core/hazard_kind.h" /* kinds, strip top line, kill lines (shared with the core) */
 
-#define HAZARD_KINDS 4
 #define HAZARD_STRIP_COLS 24 /* 384 px = the arena: 6 groups of 4 sprite columns, variants repeat A B C A B C (nv 1, 2, 3 all divide 6, so the wrap seam is a tile boundary) */
 #define HAZARD_STRIP_ROWS 2  /* 32 px, screen lines 192..223 */
-#define HAZARD_STRIP_Y 192
 
-/* Kind of match number n (0 for the first match). */
-static inline u8 hazard_kind_for_match(u16 n) { return (u8)(n % HAZARD_KINDS); }
+/* Kind the core must use now: the shown strip, or the one the next strip will show (demo, title, a play starting this frame). */
+u8 hazard_kind_now(void);
 
 void hazard_load_palettes(void);
 void hazard_init(void);               /* hide both banks; the hardware state is unknown (video_init) */

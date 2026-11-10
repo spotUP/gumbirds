@@ -5,6 +5,7 @@
 #include <math.h>
 #include "../../src/core/flier.h"
 #include "../../src/core/arena.h"
+#include "../../src/core/hazard_kind.h"
 
 static int checks, failures;
 #define CHECK(c) do { checks++; if (!(c)) { failures++; printf("FAIL %s:%d: %s\n", __FILE__, __LINE__, #c); } } while (0)
@@ -189,6 +190,29 @@ static void test_bounce(void) {
     f.vy = -5000; f.vx = 3000;
     step(&f, 0, 0);
     CHECK(f.vy == 27307 && f.vx == 0);       /* ceiling minimum is effectively 50 px/s, not 100 */
+}
+
+/* Every hazard kind kills at its own line (hazard_kind.h): feet 1 px above it live, feet on it drown. Spikes kill at the
+ * tip row (192); water, lava and fire at the drawn surface (204, 202, 210) plus 4. */
+static void test_hazard_kill_lines(void) {
+    static const struct { uint8_t kind; int line; } expect[HAZARD_KINDS] = {
+        { HZ_SPIKES, 192 }, { HZ_WATER, 208 }, { HZ_LAVA, 206 }, { HZ_FIRE, 214 },
+    };
+    for (int k = 0; k < HAZARD_KINDS; k++) {
+        int line = hazard_kill_px(expect[k].kind);
+        CHECK(line == expect[k].line);
+        Flier f;
+        flier_init(&f, FL_PX(100), 0, FLIER_MAX_BALLOONS, 0);
+        f.kill_y = FL_PX(line);
+        f.y = FL_PX(line) - flier_half_h(&f) - FL_PX(1);      /* feet 1 px above the line */
+        step(&f, 0, 0);
+        CHECK(f.state == FLIER_ALIVE && f.balloons == FLIER_MAX_BALLOONS);
+        flier_init(&f, FL_PX(100), 0, FLIER_MAX_BALLOONS, 0);
+        f.kill_y = FL_PX(line);
+        f.y = FL_PX(line) - flier_half_h(&f);                  /* feet on the line */
+        step(&f, 0, 0);
+        CHECK(f.state == FLIER_DROWNED && f.balloons == 0);
+    }
 }
 
 static void test_water_and_balloons(void) {
@@ -467,6 +491,7 @@ int main(void) {
     test_ground();
     test_bounce();
     test_water_and_balloons();
+    test_hazard_kill_lines();
     test_angle();
     test_stomp();
     test_body_bounce();

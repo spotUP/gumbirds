@@ -47,7 +47,7 @@ static void place(int cam_px) {
 }
 
 static void start(int cam_px) {
-    u8 kind = hazard_kind_for_match(g_hazard_matches);
+    u8 kind = hazard_kind_now(); /* the strip is hidden here, so this is the kind of the next match */
     u8 nv = k_variants[kind];
     u16 attr = 0;
     for (u8 b = 0; b < 2; b++) {
@@ -66,10 +66,12 @@ static void start(int cam_px) {
     g_hazard_x = 0x7FFF;
     place(cam_px);
     gfx_autoanim_speed(k_step_frames[kind]);
-    gfx_swap_arm(BANK_SPRITE(0), BANK_SPRITE(1), gfx_scb3_word(HAZARD_STRIP_ROWS, HAZARD_STRIP_Y));
+    gfx_swap_arm(BANK_SPRITE(0), BANK_SPRITE(1), gfx_scb3_word(HAZARD_STRIP_ROWS, HAZARD_STRIP_TOP_Y));
     g_hazard_kind = kind;
     g_hazard_matches++;
 }
+
+u8 hazard_kind_now(void) { return g_hazard_kind != 0xFF ? g_hazard_kind : hazard_kind_for_match(g_hazard_matches); }
 
 void hazard_step(u8 match_running, int cam_px) {
     if (match_running && !g_running) start(cam_px);

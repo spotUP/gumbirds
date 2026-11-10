@@ -19,7 +19,7 @@ local result     = os.getenv("BRAWL_RESULT")
 local function nums(name) local t = {} for v in (os.getenv(name) or ""):gmatch("%d+") do t[#t + 1] = tonumber(v) end return t end
 local flay, slay = nums("BRAWL_FLIER_LAYOUT"), nums("BRAWL_SOOT_LAYOUT")
 local O_STATE, O_X, O_Y, O_VX, O_GROUND = flay[1], flay[6], flay[7], flay[8], flay[12]
-local P_ART_W, P_ART_H, P_TILES, P_SPRITE_W, P_BOX_DX, HERO, HALF_W, HALF_H16, ARENA_W, SCREEN_W = table.unpack(slay)
+local P_ART_W, P_ART_H, P_TILES, P_SPRITE_W, P_BOX_DX, HERO, HALF_W, HALF_H16, ARENA_W, SCREEN_W, POOL_BASE, POOL_COUNT = table.unpack(slay)
 local SPEC = { art_w = 24, art_h = 32, tiles = 160, sprite_w = 32, box_dx = 14 }
 local FLOW_PLAYING = 3
 
@@ -72,7 +72,7 @@ emu.register_frame_done(function() local ok_, err_ = pcall(function()
   if done then return end
   n = n + 1
   if n > 4000 then finish(false, "watchdog in phase " .. phase) return end
-  if not (coin and start and abtn and frame_addr and soot_addr and cam_addr and #slay == 10 and O_GROUND) then
+  if not (coin and start and abtn and frame_addr and soot_addr and cam_addr and #slay == 12 and O_GROUND) then
     finish(false, "missing input field, address or probe layout") return
   end
   local state = mem:read_u8(flow_addr + O_STATE)
@@ -145,6 +145,21 @@ emu.register_frame_done(function() local ok_, err_ = pcall(function()
         if checked < 3 or kinds < 2 then
           finish(false, string.format("standing checks %d (want >= 3), distinct player tiles %d (want >= 2)", checked, kinds)) return
         end
+        local cpu_draws = mem:read_u16(soot_addr + 10)
+        local cpu_tile = mem:read_u16(soot_addr + 8)
+        if cpu_draws == 0 then finish(false, "no computer flier drawn (g_soot_cpu_draws 0)") return end
+        if cpu_tile < sbase or cpu_tile >= sbase + scount then
+          finish(false, string.format("computer sprite tile %d outside Sootling range %d+%d", cpu_tile, sbase, scount)) return
+        end
+        local seen = 0
+        for slot = POOL_BASE, POOL_BASE + POOL_COUNT - 1, 3 do
+          local hh = (vram[0x8200 + slot] or 0) & 0x3f
+          if hh ~= 0 then
+            if hh ~= SPEC.art_h // 16 then finish(false, string.format("computer sprite slot %d SCB3 height %d tiles, spec %d", slot, hh, SPEC.art_h // 16)) return end
+            seen = seen + 1
+          end
+        end
+        if seen == 0 then finish(false, "no pool slot has a Sootling sized SCB3") return end
         finish(true, string.format("small Sootling on screen: art %dx%d, %d tiles, hero SCB3 height %d tiles, %d distinct player tiles, %d standing frames matched top = feet - 32 and screen x",
           P_ART_W, P_ART_H, scount, SPEC.art_h // 16, kinds, checked))
         return

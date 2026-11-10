@@ -195,9 +195,9 @@ emu.register_frame_done(function()
       and bad_vram == 0 and total > 0 and var_ok
       and distinct == 16 and bad_runs == 0 and periodic
       and sy == STRIP_Y and sh == ROWS and rmin >= STRIP_Y and rmax <= STRIP_Y + 16 * ROWS - 1
-      and math.abs(ctr_steps - WINDOW // SPEED) <= 1 and pal_ok and palmax <= PAL_MAX
-    local line = string.format("kind %d speed %d (table %d), window %d frames, strip y %d height %d, changing lines %d..%d (want %d..%d), distinct frames %d (want 16), runs %d with %d off length (want 0) periodic %s, counter steps %d (want %d +-1), swaps %d, CPU writes: SCB1 %d SCB2/4 %d other SCB3 %d (want 0) head SCB3 %d (want %d), writes outside vblank %d of %d (want 0), palette ok %s, palette words per flush max %d (limit %d), tile variants in SCB1 %d (table %d)",
-      KIND, SPEED, expected_speed or -1, WINDOW, sy, sh, rmin, rmax, STRIP_Y, STRIP_Y + 16 * ROWS - 1, distinct, #runs, bad_runs, tostring(periodic), ctr_steps, WINDOW // SPEED, swaps, scb1_w, scb24_w, other_w, scb3_w, 2 * swaps, bad_vram, total, tostring(pal_ok), palmax, PAL_MAX, nsig, nv or -1)
+      and ctr_steps >= WINDOW // SPEED and ctr_steps <= (WINDOW + SPEED - 1) // SPEED and pal_ok and palmax <= PAL_MAX
+    local line = string.format("kind %d speed %d (table %d), window %d frames, strip y %d height %d, changing lines %d..%d (want %d..%d), distinct frames %d (want 16), runs %d with %d off length (want 0) periodic %s, counter steps %d (want %d..%d), swaps %d, CPU writes: SCB1 %d SCB2/4 %d other SCB3 %d (want 0) head SCB3 %d (want %d), writes outside vblank %d of %d (want 0), palette ok %s, palette words per flush max %d (limit %d), tile variants in SCB1 %d (table %d)",
+      KIND, SPEED, expected_speed or -1, WINDOW, sy, sh, rmin, rmax, STRIP_Y, STRIP_Y + 16 * ROWS - 1, distinct, #runs, bad_runs, tostring(periodic), ctr_steps, WINDOW // SPEED, (WINDOW + SPEED - 1) // SPEED, swaps, scb1_w, scb24_w, other_w, scb3_w, 2 * swaps, bad_vram, total, tostring(pal_ok), palmax, PAL_MAX, nsig, nv or -1)
     lines[#lines + 1] = (ok and "[kind " or "[kind ") .. want .. (ok and " PASS] " or " FAIL] ") .. line
     if not ok then failed = true end
     want = want + 1

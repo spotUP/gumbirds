@@ -5,4 +5,4 @@
 #include "../../src/hazard.h"
 #include "../../src/sprite_slots.h"
 #include "../../src/vram_layout.h"
-unsigned int probe[] = { HAZARD_SPRITE, HAZARD_STRIP_COLS, HAZARD_PAL_SLOT, HAZARD_PALETTE_COUNT, HAZARD_STRIP_ROWS, HAZARD_STRIP_Y };
+unsigned int probe[] = { HAZARD_SPRITE, HAZARD_STRIP_COLS, HAZARD_PAL_SLOT, HAZARD_PALETTE_COUNT, HAZARD_STRIP_ROWS, HAZARD_STRIP_TOP_Y };

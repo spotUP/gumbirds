@@ -12,7 +12,7 @@
 
 #define SB_LINES 224
 #define SB_LIMIT 90
-#define SB_GAMEPLAY_PER_LINE 18 /* fliers only (platforms left the pool for the island row): measured peak 14 with feet pinned and the 24 x 32 Sootlings (was 10 with 32 x 48), 4 spare; was 24 when platforms sat in the pool (thoughts/spot/2026-11-10-islands-build.md, part 3) */
+#define SB_GAMEPLAY_PER_LINE 18 /* fliers only (platforms left the pool for the island row): measured peak 14 (seven fliers x 2 strips, the same with 32 x 48 and 24 x 32 Sootlings; thoughts/spot/2026-11-10-sprite-peak-rise.md), 4 spare; was 24 when platforms sat in the pool (thoughts/spot/2026-11-10-islands-build.md, part 3) */
 /* SB_COLUMNS: a parallax plane. Every column is its own sprite with its own top and height (generated table
  * CITY_TABLE_COL_ROW0 / COL_ROWS, indexed by sprite slot), so a column counts only on the lines it spans. */
 enum { SB_ALWAYS = 0, SB_NOT_RAIN = 1, SB_RAIN_ONLY = 2, SB_COLUMNS = 3 };

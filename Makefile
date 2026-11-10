@@ -279,6 +279,7 @@ test: cart
 	@$(MAKE) --no-print-directory test-scroll
 	@$(MAKE) --no-print-directory test-slots
 	@$(MAKE) --no-print-directory test-hazard
+	@$(MAKE) --no-print-directory test-hazard-kill
 	@$(MAKE) --no-print-directory test-sound
 	@set -e; T=$$(mktemp -d $(BUILDDIR)/test-run.XXXXXX); \
 	BRAWL_FRAME_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_frame_counter"{print $$1}') \
@@ -424,6 +425,22 @@ test-hazard: cart
 	cat $$T/result.txt; \
 	if grep -q '^PASS' $$T/result.txt; then rm -rf $$T; echo "[OK] make test-hazard passed"; else echo "[FAIL] make test-hazard, log kept in $$T"; exit 1; fi
 
+# Hazard kill lines (tests/mame/hazard_kill_check.lua, build plan P6-4/P6-5): four plays in a row show spikes, fire, water
+# and lava; per kind Game.hazard_kind equals g_hazard_kind, the flier lives with its feet 1 px above the spec kill line and
+# drowns on it, and the hero slots sit below the hazard slots (hero drawn behind the strip). `make test-hazard-kill` alone.
+test-hazard-kill: cart
+	@set -e; T=$$(mktemp -d $(BUILDDIR)/test-run.XXXXXX); \
+	BRAWL_FLOW_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flow"{print $$1}') \
+	BRAWL_FRAME_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_frame_counter"{print $$1}') \
+	BRAWL_KIND_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_hazard_kind"{print $$1}') \
+	BRAWL_FLIER_LAYOUT="$$($(M68KGCC) -std=c99 -S -o - tests/mame/flier_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
+	BRAWL_KILL_LAYOUT="$$($(M68KGCC) $(NGCFLAGS) -Ibuild -std=c99 -S -o - tests/mame/hazard_kill_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
+	BRAWL_RESULT=$$T/result.txt \
+	SDL_VIDEODRIVER=dummy nice -n 19 $(MAME) -window -nomaximize -video none -sound none -nothrottle -seconds_to_run 150 -noautosave -skip_gameinfo -hash $(ROM) -rp $(ROM) -nvram_directory $$T -autoboot_script tests/mame/hazard_kill_check.lua neogeo -cart1 $(GAMEROM) > $$T/mame.log 2>&1 || true; \
+	if [ ! -f $$T/result.txt ]; then tail -n 15 $$T/mame.log; echo "[FAIL] no result from hazard kill Lua script"; exit 1; fi; \
+	cat $$T/result.txt; \
+	if grep -q '^PASS' $$T/result.txt; then rm -rf $$T; echo "[OK] make test-hazard-kill passed"; else echo "[FAIL] make test-hazard-kill, log kept in $$T"; exit 1; fi
+
 # Camera view (tests/mame/camera_check.lua): drives the human right until the camera pixel sentinel g_cam_px goes
 # 0 -> 64 and the human crosses the arena seam; asserts the hero sprite x against camera_screen_x, at most 2 px camera
 # movement per frame, the hazard strip x (-camera) written only when the camera moved, zero VRAM writes outside vblank.
@@ -490,7 +507,7 @@ test-unibios: cart bios
 	cat $$T/result.txt; \
 	if grep -q '^PASS' $$T/result.txt; then rm -rf $$T; echo "[OK] make test-unibios passed"; else echo "[FAIL] make test-unibios, log kept in $$T"; exit 1; fi
 
-.PHONY: run test test-crom test-srom test-debug-header test-camera test-sprite-peak test-flier test-small-sootling test-reach test-vblank test-scroll test-slots test-hazard test-sound test-unibios
+.PHONY: run test test-crom test-srom test-debug-header test-camera test-sprite-peak test-flier test-small-sootling test-reach test-vblank test-scroll test-slots test-hazard test-hazard-kill test-sound test-unibios
 
 # Header dependencies from -MMD (build/**/*.d): a changed header rebuilds every object that includes it.
 -include $(shell find $(BUILDDIR) -name '*.d' 2>/dev/null)

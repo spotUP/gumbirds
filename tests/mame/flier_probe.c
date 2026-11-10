@@ -1,7 +1,7 @@
 /* Compiled with the 68000 compiler (-S) by make test-flier; tests/mame/flier_check.lua reads the game state from RAM
  * with these offsets (target ABI, not the host one). Order is fixed:
  * flow_state, game frame, flier_steps, over, score, then Flier x, y, vx, vy, state, balloons, on_ground, then the
- * computer flier sentinels: cpu_count, cpu_alive, stomps, matches_won, cpu[0].x, cpu[0].y, ai[0].thinks, cpu[1].x, then SCORE_STOMP_POP and SCORE_CPU_DEFEAT (knob values), cpu[0].state, cpu[0].balloons, player vx offset is F(vx) above. */
+ * computer flier sentinels: cpu_count, cpu_alive, stomps, matches_won, cpu[0].x, cpu[0].y, ai[0].thinks, cpu[1].x, then SCORE_STOMP_POP and SCORE_CPU_DEFEAT (knob values), cpu[0].state, cpu[0].balloons, then the player's Flier kill_y offset (the hazard kill line, 16.16, set per play by game_set_hazard). */
 #include <stddef.h>
 #include "../../src/core/flow.h"
 #define G(m) (offsetof(Flow, game) + offsetof(Game, m))
@@ -14,4 +14,5 @@ unsigned int probe[] = {
     G(cpu) + sizeof(Flier) + offsetof(Flier, x),
     SCORE_STOMP_POP, SCORE_CPU_DEFEAT,
     G(cpu) + offsetof(Flier, state), G(cpu) + offsetof(Flier, balloons),
+    F(kill_y),
 };

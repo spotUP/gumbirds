@@ -45,7 +45,9 @@ int main(void)
     check(SOOTLING_FRAMES == 63, "frame count", SOOTLING_FRAMES, 63);
     check(SOOTLING_CLIP_COUNT == 7, "clip count", SOOTLING_CLIP_COUNT, 7);
     /* the pipeline pads art to whole 16 px tiles: 24 px art is still 2 strips (src/vram_layout.h SOOT_COLUMNS) */
-    check((SOOTLING_ART_W + 15) / 16 == 2, "columns per frame", (SOOTLING_ART_W + 15) / 16, 2);
+    check(SOOTLING_ART_W == 24 && SOOTLING_ART_H == 32, "art size", SOOTLING_ART_W, 24);
+    /* SOOTLING_MAX_COLUMNS lives in the ngdevkit-typed sprites header, not in the host-includable tables header: 17..32 px is exactly 2 strips */
+    check(SOOTLING_ART_W > 16 && SOOTLING_ART_W <= 32, "art width is 2 strips (17..32 px)", SOOTLING_ART_W, 24);
     check(SOOTLING_BOX_LAST_COL - SOOTLING_BOX_FIRST_COL + 1 == 2 * FLIER_HALF_W, "hit box width",
           SOOTLING_BOX_LAST_COL - SOOTLING_BOX_FIRST_COL + 1, 2 * FLIER_HALF_W);
     check(SOOTLING_FEET_ROW == SOOTLING_ART_H - 1, "feet on last row", SOOTLING_FEET_ROW, SOOTLING_ART_H - 1);

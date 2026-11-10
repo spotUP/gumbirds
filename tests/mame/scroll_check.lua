@@ -34,6 +34,7 @@ local syms = sym_addrs()
 local A_CAM, A_PARKED, A_FC = syms.g_cam_px, syms.g_parked, syms.g_frame_counter
 
 local STATE_PLAYING = 3
+local STATE_NAME_ENTRY = 5   -- a ranked score opens it; coin and start presses only keep it open (every new press resets its idle timeout), so it is ended with A
 local END_FRAME = 3600
 local MIN_CHECKED = 1500       -- PLAYING frames whose screen was checked
 local SETTLE = 5               -- PLAYING frames after start not checked (the full plane redraw at start spreads over about 3 frames of flush budget)
@@ -115,11 +116,16 @@ emu.register_frame_done(function()
   -- inputs: coin + start from attract, flaps, steer off the island, restart after game over
   if state ~= STATE_PLAYING then
     since_start = 0
+    if state == STATE_NAME_ENTRY then
+      -- A on the end symbol finishes the entry; a letter symbol advances the cursor, so at most 8 presses
+      if n % 10 == 0 then abtn:set_value(1) elseif n % 10 == 3 then abtn:set_value(0) end
+    else
     if n > 300 and phase ~= "coin" and phase ~= "start" then phase = "coin"; phase_at = n; coin:set_value(1) end
     if phase == "coin" and n == phase_at + 15 then coin:set_value(0) end
     if phase == "coin" and n >= phase_at + 40 then phase = "start"; phase_at = n; start:set_value(1) end
     if phase == "start" and n == phase_at + 15 then start:set_value(0) end
     if phase == "start" and n >= phase_at + 120 then phase = "idle" end
+    end
   else
     if phase == "start" then start:set_value(0); phase = "play" end
     since_start = since_start + 1

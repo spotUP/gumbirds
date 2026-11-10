@@ -56,6 +56,11 @@ _Static_assert(SOOT_COLUMNS == SOOTLING_MAX_COLUMNS && SOOT_SPRITE_W >= SOOTLING
 _Static_assert(SOOTLING_BOX_LAST_COL - SOOTLING_BOX_FIRST_COL + 1 == 2 * FLIER_HALF_W, "art hit box columns must equal the 4 px gameplay box");
 _Static_assert(SOOTLING_BOX_FIRST_COL + 2 * FLIER_HALF_W + SOOTLING_BOX_FIRST_COL == SOOTLING_ART_W, "art is centred on the hit box (a mirrored frame keeps the box)");
 _Static_assert(SOOTLING_ART_H == 32 && SOOTLING_FEET_ROW == SOOTLING_ART_H - 1, "frame is 32 px tall with the feet on its last row");
+_Static_assert(SOOTLING_ART_W == 24 && SOOTLING_ART_H == 32, "small Sootling sheet is 24 x 32 (stale sheet?)");
+_Static_assert(FLIER_GUM_BOTTOM < FLIER_GUM_TOP && FLIER_GUM_TOP < SOOTLING_ART_H, "gum box lies inside the art rows above the feet");
+_Static_assert(FLIER_FEET_H < FLIER_GUM_BOTTOM && 2 * FLIER_FEET_HALF_W <= SOOTLING_ART_W, "feet box fits in the art");
+_Static_assert(FLIER_GUM_HALF_W1 < FLIER_GUM_HALF_W2 && FLIER_GUM_HALF_W2 <= SOOTLING_ART_W / 2, "gum boxes fit the art width");
+_Static_assert((FLIER_HALF_H16_BALLOON >> 15) <= SOOTLING_ART_H, "body box (2 x half height) fits the frame");
 
 /* Clip table and per frame ticks come from frames.json through the build (sootling_tables.h). */
 static const u8 k_clip_first[SOOTLING_CLIP_COUNT] = SOOTLING_TABLE_CLIP_FIRST;
@@ -645,6 +650,7 @@ static void game_loop(void) {
         u8 start = g_start_pending; /* games start only through the BIOS PLAYER_START (credit taken) */
         g_start_pending = 0;
         flow_step(&g_flow, read_input(), start, g_frame_counter);
+        game_set_hazard(&g_flow.game, hazard_kind_now()); /* after flow_step: a new play resets the game; same kind the strip starts with this frame */
         if (g_flow.dirty) {
             hiscore_serialise(&g_flow.table, g_hiscore_image, HISCORE_IMAGE_SIZE);
             g_hiscore_saves++;

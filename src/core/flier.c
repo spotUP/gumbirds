@@ -54,6 +54,7 @@ void flier_init(Flier *f, int32_t x, int32_t y, uint8_t balloons, uint8_t has_pa
     f->balloons = balloons > FLIER_MAX_BALLOONS ? FLIER_MAX_BALLOONS : balloons;
     f->has_parachute = has_parachute;
     f->facing = 1;
+    f->kill_y = FL_PX(FLIER_WATER_Y);
 }
 
 static void start_falling(Flier *f) {
@@ -210,8 +211,8 @@ void flier_step(Flier *f, const FlierInput *in, int32_t floor_y) {
         if (f->state == FLIER_PARACHUTE) { f->state = FLIER_ALIVE; f->invincible = 0; }
     }
 
-    /* water kills regardless of balloons or invincibility (4.3 item 6) */
-    if (f->y + hh >= FL_PX(FLIER_WATER_Y)) {
+    /* the hazard kills regardless of balloons or invincibility (4.3 item 6), where the drawn surface is (kill_y) */
+    if (f->y + hh >= f->kill_y) {
         f->state = FLIER_DROWNED;
         f->vx = f->vy = 0;
         f->balloons = 0;

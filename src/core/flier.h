@@ -43,7 +43,7 @@
 #define FLIER_MAX_BALLOONS         2        /* art has two pods (user decision 2026-11-10); NIR-5 default was 3 */
 
 #define FLIER_WORLD_H              180      /* 360 ref px x 0.5 (3.6) */
-#define FLIER_WATER_Y              180      /* water line, kills on contact (3.6, 4.3 item 6) */
+#define FLIER_WATER_Y              180      /* layout bound and default kill line (3.6, 4.3 item 6); the real line is Flier.kill_y */
 #define FLIER_REMOVE_Y             200      /* a falling fighter is gone below this (400 ref px, 3.5) */
 #define FLIER_NO_FLOOR             0x7FFFFFFF /* floor_y value meaning "no floor under the fighter" */
 
@@ -58,7 +58,7 @@
  * All whole pixels; a box is centred on x and measured upward from the feet bottom of the flier that owns it. Player and
  * computer share them.
  *   feet: drawn feet are art columns 8..15 on rows 30..31 at rest (flight lifts them 1..2 rows); box 6 wide, 3 tall.
- *   gum, two gums: drawn bubble columns 3..19 (-9..+8), rows 0..9 (32..22 px above the feet bottom); inset 1..2.
+ *   gum, two gums: drawn bubble columns 3..19 (-9..+7), rows 0..9 (32..22 px above the feet bottom); box +-7 leaves 2 px on the left and 0..1 px on the right.
  *   gum, one gum:  drawn bubble columns 7..15 (-5..+3); inset 1, centred.
  * Vertical gum range is the same for both: 31 down to 23 px above the feet bottom. */
 #define FLIER_FEET_HALF_W          3        /* px */
@@ -91,6 +91,7 @@ typedef struct {
     uint8_t has_parachute;
     uint8_t sway_tick;
     uint8_t facing;      /* 1 = right, 0 = left: the last non-zero input dir (view only, never read by the physics) */
+    int32_t kill_y;      /* 16.16 world y of the hazard kill line: death when y + half height reaches it (set by the game from the hazard kind) */
 } Flier;
 
 typedef struct {

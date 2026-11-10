@@ -52,11 +52,15 @@ typedef struct {
     uint8_t cpu_alive;   /* of those, not yet drowned or gone */
     uint32_t stomps;     /* balloons popped by stomps, any flier */
     uint32_t matches_won;
+    uint8_t hazard_kind; /* hazard.h kind drawn in this play (game_set_hazard); selects every flier's kill line */
     uint32_t bounces;    /* body-contact reflects (test sentinel) */
     Camera camera;       /* follows the living human fliers, stepped every game_step_arena; view reads game_camera_px */
 } Game;
 
 void game_reset(Game *g, uint32_t seed);
+/* Sets the hazard kind and the kill line of the player and every computer flier. The one entry for the kind: call it after
+ * game_reset (which clears it to spikes) and whenever the drawn kind changes; rematches keep it. */
+void game_set_hazard(Game *g, uint8_t kind);
 /* Arena step (used by the flow in play and demo): A flaps, left/right steer (nameentry.h bits). The run ends when the
  * flier is DROWNED or GONE. Score is survival time (distance advances SPEED_BASE per frame while alive). */
 void game_step_arena(Game *g, uint8_t input);

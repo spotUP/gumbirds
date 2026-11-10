@@ -3,7 +3,7 @@
 --   2. settle: no input, the flier falls onto the middle island (on_ground);
 --   3. flap: press A eight times (edge each time); flier y must rise above the standing y;
 --   4. drown: walk right off the island, steer back over the gap between islands with left+flap until vx <= 0, then
---      no input: the flier falls to the water (y 180), state DROWNED, and the flow leaves PLAYING for GAME_OVER;
+--      no input: the flier falls to the hazard kill line of the strip shown (Flier.kill_y, read from the ROM: 192..214), state DROWNED, and the flow leaves PLAYING for GAME_OVER;
 --   5. sentinel: Game.flier_steps (counts flier_step calls) must track the game loop frames spent in PLAYING.
 -- The frame cap is only a hang watchdog. Env: BRAWL_FLOW_ADDR, BRAWL_FRAME_ADDR (hex), BRAWL_FLIER_LAYOUT
 -- (flier_probe.c output), BRAWL_RESULT (file).
@@ -17,13 +17,12 @@ local O_STATE, O_FRAME, O_STEPS, O_OVER, O_SCORE, O_X, O_Y, O_VX, O_VY, O_FSTATE
   lay[1], lay[2], lay[3], lay[4], lay[5], lay[6], lay[7], lay[8], lay[9], lay[10], lay[11], lay[12]
 local O_CPUN, O_CPUALIVE, O_STOMPS, O_WON, O_C0X, O_C0Y, O_THINKS, O_C1X =
   lay[13], lay[14], lay[15], lay[16], lay[17], lay[18], lay[19], lay[20]
-local K_POP, K_DEFEAT, O_C0STATE, O_C0BAL = lay[21], lay[22], lay[23], lay[24]   -- knob values and cpu[0] state, balloons
+local K_POP, K_DEFEAT, O_C0STATE, O_C0BAL, O_KILLY = lay[21], lay[22], lay[23], lay[24], lay[25]   -- knob values and cpu[0] state, balloons
 local mem    = manager.machine.devices[":maincpu"].spaces["program"]
 local ports  = manager.machine.ioport.ports
 
 local FLOW_PLAYING, FLOW_GAME_OVER = 3, 4
 local FL_DROWNED = 3
-local WATER_Y = 180
 local WATCHDOG = 6000
 
 local function field(tag, pred)
@@ -215,7 +214,8 @@ emu.register_frame_done(function() local ok_, err_ = pcall(function()
     local over = mem:read_u8(flow_addr + O_OVER)
     if state ~= FLOW_GAME_OVER then finish(false, "flow state after play is " .. state .. ", want GAME_OVER (4)") return end
     if fstate < FL_DROWNED then finish(false, "flier state " .. fstate .. ", want DROWNED (3) or GONE (4)") return end
-    if fstate == FL_DROWNED and fy + 6 < WATER_Y then finish(false, string.format("flier y %.1f is not at the water", fy)) return end
+    local kill_y = g32(O_KILLY) / 65536   -- the line the game set for the strip shown; values pinned by hazard_kill_check.lua
+    if fstate == FL_DROWNED and fy + 6 < kill_y then finish(false, string.format("flier y %.1f is not at the kill line %.1f", fy, kill_y)) return end
     if over ~= 1 then finish(false, "game.over not set") return end
     if steps < 100 or math.abs(frames - steps) > 3 then
       finish(false, string.format("sentinel: flier_steps %d vs game loop frames %d in PLAYING", steps, frames)) return

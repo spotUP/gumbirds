@@ -2,6 +2,7 @@
 #include "stage.h"
 #include "nameentry.h"
 #include "arena.h"
+#include "hazard_kind.h"
 
 /* Broad phase reach in half pixels: the larger of the stomp reach (feet + gum boxes, flier.h) and body contact
    (2 * FLIER_HALF_W whole pixels apart = 4 px; body_overlap rounds half pixel positions up to 9). */
@@ -23,6 +24,19 @@ static void zero(void *p, size_t n)
 static void player_spawn(Game *g)
 {
     flier_init(&g->flier, FL_PX(FLIER_START_X), FL_PX(FLIER_START_Y), FLIER_START_BALLOONS, 0);
+    g->flier.kill_y = FL_PX(hazard_kill_px(g->hazard_kind));
+}
+
+void game_set_hazard(Game *g, uint8_t kind)
+{
+    int i;
+    int32_t line;
+    g->hazard_kind = kind;
+    line = FL_PX(hazard_kill_px(kind));
+    g->flier.kill_y = line;
+    for (i = 0; i < STAGE_SPAWN_COUNT; i++) {
+        g->cpu[i].kill_y = line;
+    }
 }
 
 void game_reset(Game *g, uint32_t seed)
@@ -56,6 +70,7 @@ static void match_start(Game *g)
             flier_init(&g->cpu[i], 0, 0, 0, 0);
             g->cpu[i].state = FLIER_GONE;
         }
+        g->cpu[i].kill_y = FL_PX(hazard_kill_px(g->hazard_kind));
     }
 }
 

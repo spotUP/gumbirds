@@ -76,7 +76,7 @@
 #endif
 
 /* Arena slice (src/core/stage.c, game_step_arena). The stage is static: 8 platform rectangles in the 384x180 world
- * (world 384x180, ARENA_W in arena.h; world y = screen y; water at FLIER_WATER_Y kills). Platforms are solid from above only.
+ * (world 384x180, ARENA_W in arena.h; world y = screen y; each flier's kill_y, set per hazard kind, kills; FLIER_WATER_Y is only the default). Platforms are solid from above only.
  * STAGE_* and FLIER_START_* are layout/spawn constants checked by tests/host/test_stage.c, not gameplay knobs. */
 #ifndef STAGE_PLATFORM_COUNT
 #define STAGE_PLATFORM_COUNT 8

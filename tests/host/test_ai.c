@@ -1,6 +1,7 @@
 /* Host test for src/core/ai.[ch] and the match logic in game_step_arena. */
 #include <stdio.h>
 #include "../../src/core/game.h"
+#include "../../src/core/hazard_kind.h"
 #include "../../src/core/ai.h"
 #include "../../src/core/nameentry.h"
 
@@ -116,6 +117,46 @@ int main(void) {
         CHECK(ai_nearest(&cpus[1], &player, cpus, 3) == &player);
         cpus[0].state = cpus[1].state = FLIER_DROWNED; player.state = FLIER_DROWNED;
         CHECK(ai_nearest(&cpus[1], &player, cpus, 3) == 0);
+    }
+
+    /* Hazard kill line through the game entry: game_set_hazard(kind) puts the player and every rival on that kind's
+     * line (also after a rematch, tested below), and a flier with feet 1 px above the line lives while one on it drowns. */
+    {
+        static Game g;
+        int k;
+        uint32_t score0;
+        for (k = 0; k < HAZARD_KINDS; k++) {
+            int line = hazard_kill_px((uint8_t)k);
+            game_reset(&g, 4);
+            game_set_hazard(&g, (uint8_t)k);
+            game_step_arena(&g, 0); /* match_start runs here: rivals spawn with the game's kind */
+            CHECK(g.flier.kill_y == FL_PX(line) && g.cpu[0].kill_y == FL_PX(line) && g.cpu[CPU_MAX - 1].kill_y == FL_PX(line));
+            g.flier.on_ground = 0; g.flier.vx = 0; g.flier.vy = 0;
+            g.flier.x = FL_PX(100);
+            g.flier.y = FL_PX(line) - flier_half_h(&g.flier) - FL_PX(1);
+            g.cpu[0].on_ground = 0; g.cpu[0].vx = 0; g.cpu[0].vy = 0;
+            g.cpu[0].x = FL_PX(300);
+            g.cpu[0].y = FL_PX(line) - flier_half_h(&g.cpu[0]);
+            score0 = g.score;
+            game_step_arena(&g, 0);
+            CHECK(g.flier.state == FLIER_ALIVE);
+            CHECK(g.cpu[0].state == FLIER_DROWNED);
+            CHECK(g.score == score0 + SCORE_CPU_DROWN); /* one rival drowned on the line: scored once */
+            game_step_arena(&g, 0);
+            CHECK(g.score == score0 + SCORE_CPU_DROWN); /* and not again while it stays drowned */
+            g.flier.y = FL_PX(line) - flier_half_h(&g.flier);
+            game_step_arena(&g, 0);
+            CHECK(g.flier.state == FLIER_DROWNED && g.over);
+            /* Rematch: win match 1 under this kind; player_spawn and match_start must keep the kind's line. */
+            game_reset(&g, 4);
+            game_set_hazard(&g, (uint8_t)k);
+            game_step_arena(&g, 0);
+            for (i = 0; i < g.cpu_count; i++) g.cpu[i].state = FLIER_GONE;
+            game_step_arena(&g, 0);
+            CHECK(g.matches_won == 1 && g.cpu_alive == g.cpu_count);
+            CHECK(g.flier.kill_y == FL_PX(line));
+            for (i = 0; i < g.cpu_count; i++) CHECK(g.cpu[i].kill_y == FL_PX(line));
+        }
     }
 
     /* Match logic through the arena step: match 1 has CPU_START_COUNT fliers; removing them wins and starts
