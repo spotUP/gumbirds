@@ -3,7 +3,8 @@ Usage: check_bg_pixels.py city_sprites.c obs_sprites.c pre_start.png bg_a.png bg
 bg file (written by boot_check.lua at the two snapshot frames): "a far mid roof writes" / "b far mid roof writes"
 (scroll px of each layer as the game exported it, and the column strip write counter).
 Checks, each independent of the hero and obstacle checks (only colours unique to one layer are counted):
-  1. the sky backdrop fills the top band, before start and during play
+  1. the sky backdrop fills the top band wherever the fix layer header text does not cover it, before start and
+     during play (the header text is not background: its length must not move this check)
   2. each layer's own colours appear in its y band during play and not above it
   3. the city is still: the exported scroll delta of each layer between the snapshots is 0 and the layer's pixels
      match at shift 0 (arena slice: no scroll in play)
@@ -21,6 +22,8 @@ Y_BAND = {"far": (64, 176), "mid": (96, 176), "roof": (176, 224)}
 Y_MEASURE = {"far": (66, 108), "mid": (110, 174), "roof": (178, 222)}
 HERO_MASK = (28, 112)
 SKY = (0x1a, 0x12, 0x38)
+# Fix layer text palette PAL_TEXT as MAME draws it (src/main.c video_init: gfx_pal(1, 0x0fff), gfx_pal(2, 0x0555)).
+FIX_TEXT = [(247, 247, 247), (79, 79, 79)]
 # Colours the game writes into the far and mid palettes at run time (src/bg.c lamp_set): BG_LAMP_OFF,
 # NG_RGB5(7, 4, 8). Shared by both layers, so never layer-unique; the far lamps in their off phase sit above
 # the mid band and would otherwise count as mid pixels there.
@@ -105,11 +108,12 @@ def main():
 
     for tag, png in (("pre_start", pre), ("playing", b_png)):
         n, size = pc.count(png, [SKY], (0, 0, 320, 28))
-        total = 320 * 28 * (size[0] / 320.0) * (size[1] / 224.0)
+        text, _ = pc.count(png, FIX_TEXT, (0, 0, 320, 28))
+        total = 320 * 28 * (size[0] / 320.0) * (size[1] / 224.0) - text
         frac = n / total
         good = frac >= MIN_SKY
         ok = ok and good
-        print("%s backdrop #1a1238 share of top band (%s): %.2f (min %.2f)" % ("[OK]" if good else "[FAIL]", tag, frac, MIN_SKY))
+        print("%s backdrop #1a1238 share of top band outside header text (%s): %.2f (min %.2f)" % ("[OK]" if good else "[FAIL]", tag, frac, MIN_SKY))
 
     for name in LAYERS:
         cols = uniq(name)
