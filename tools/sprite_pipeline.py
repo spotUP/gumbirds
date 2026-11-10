@@ -141,7 +141,10 @@ def main(name, sheet, meta):
     blank = bytes(256)
     tiles = [blank]  # tile 0 = blank, shared
     tile_ix = {blank: 0}
-    for f in frames:
+    groups = meta.get("groups", {})  # anim name -> frames per group (4 or 8): hardware auto-animation
+
+    def cut_frame(f):
+        """Tiles of frame f, column-major (top tile first), as palette-index bytes."""
         pal = pals[anim_pal[f["anim"]]]
         cmap = {c: n + 1 for n, c in enumerate(pal)}
         w, h = f["tw"] * TILE, f["th"] * TILE
@@ -152,7 +155,7 @@ def main(name, sheet, meta):
                 p = px[r["x"] + x, r["y"] + y]
                 if p[3]:
                     buf[f["pad_top"] + y][f["pad_left"] + x] = cmap[p[:3]]
-        order = []  # column-major
+        out = []
         for tx in range(f["tw"]):
             for ty in range(f["th"]):
                 t = bytearray(256)
@@ -162,13 +165,42 @@ def main(name, sheet, meta):
                 used = set(t) - {0}
                 if len(used) > MAX_COLOURS:
                     die("%s[%d] tile (%d,%d) uses %d colours" % (f["anim"], f["idx"], tx, ty, len(used)))
-                t = bytes(t)
-                if t not in tile_ix:
-                    tile_ix[t] = len(tiles)
-                    tiles.append(t)
-                order.append(tile_ix[t])
-        f["tiles"] = order
+                out.append(bytes(t))
+        return out
+
+    for f in frames:
         f["pal"] = anim_pal[f["anim"]]
+        if f["anim"] in groups:
+            continue
+        order = []
+        for t in cut_frame(f):
+            if t not in tile_ix:
+                tile_ix[t] = len(tiles)
+                tiles.append(t)
+            order.append(tile_ix[t])
+        f["tiles"] = order
+
+    # ---- auto-animation groups: the LSPC replaces the low 2 (4 frames) or 3 (8 frames) bits of a tile number with a
+    # frame counter, so each cell (column, row) of the sprite owns G consecutive tiles starting at a multiple of G, frame
+    # k at +k. No dedup inside a group. The sprite strip holds the frame 0 tile number with the attribute bit set.
+    for gname, g in groups.items():
+        if g not in (4, 8):
+            die("group %s: size %d, only 4 or 8 frames" % (gname, g))
+        gf = [f for f in frames if f["anim"] == gname]
+        if len(gf) != g or len({(f["tw"], f["th"]) for f in gf}) != 1:
+            die("group %s: needs %d frames of one size" % (gname, g))
+        while len(tiles) % g:
+            tiles.append(blank)
+        base, cells = len(tiles), gf[0]["tw"] * gf[0]["th"]
+        tiles.extend([blank] * (cells * g))
+        for k, f in enumerate(gf):
+            ts = cut_frame(f)
+            for c in range(cells):
+                tiles[base + c * g + k] = ts[c]
+            f["tiles"] = [base + c * g + k for c in range(cells)]
+    # Pad the set to a multiple of 8 tiles so the next set (cat order, src/vram_layout.h) keeps the alignment.
+    while len(tiles) % 8:
+        tiles.append(blank)
 
     # ---- atlas (palette-indexed, one 16 px row) -> tiletool --sprite -c, as build.mk does
     atlas = Image.new("P", (TILE * len(tiles), TILE))
@@ -213,6 +245,10 @@ def main(name, sheet, meta):
         for n, an in enumerate(anim_names):
             h.write("#define @N@_ANIM_%s %d\n" % (an.upper(), n))
         h.write("#define @N@_ANIM_COUNT %d\n\n" % len(anim_names))
+        # meta key "tables": {name: [ints]} -> `#define @N@_TABLE_NAME { a, b }`, data the game reads next to the frames
+        for tn, tv in meta.get("tables", {}).items():
+            h.write("#define @N@_TABLE_%s { %s }\n" % (tn.upper(), ", ".join(str(v) for v in tv)))
+        h.write("\n")
         h.write("extern const u16 @n@_palettes[@N@_PALETTE_COUNT][16];\n"
                 "extern const u16 @n@_tile_index[%d];\n"
                 "extern const @C@Frame @n@_frames[@N@_FRAME_COUNT];\n"

@@ -1,9 +1,13 @@
 {
  "source": "original art, Python port of design/brawl-test-v5.html background drawing; assets/city/draw_city.py",
- "origin": "sheet rows: far y0..112 = screen y 64..176 (tile rows 4..10); mid y112..192 = screen y 96..176 (rows 6..10); roof y192..240 = screen y 176..224 (rows 11..13). All 320 px wide = 20 tile columns, torus period 320 px. sky frames: 0 moon+clouds (screen 208,32), 1 left clouds (screen 16,48), 2 star dot, 3 star plus (16x16, star pixel at 8,8).",
+ "origin": "sheet rows: far y0..112 = screen y 64..176 (tile rows 4..10); mid y112..192 = screen y 96..176 (rows 6..10); roof y192..240 = screen y 176..224 (rows 11..13). All 320 px wide = 20 tile columns, torus period 320 px. sky frames: 0 moon+clouds (screen 208,32), 1 left clouds (screen 16,48), 2 star dot, 3 star plus (16x16, star pixel at 8,8). twinkle / twinkle_b: 8 star frames each (y 288), hardware auto-animation groups, see sprite_pipeline.py.",
  "backdrop": "#1a1238",
  "lamp_on": "#ff394a",
  "palette_policy": "subset",
+ "groups": {
+  "twinkle": 8,
+  "twinkle_b": 8
+ },
  "animations": {
   "far": [
    {
@@ -51,6 +55,106 @@
    {
     "x": 208,
     "y": 240,
+    "w": 16,
+    "h": 16
+   }
+  ],
+  "twinkle": [
+   {
+    "x": 0,
+    "y": 288,
+    "w": 16,
+    "h": 16
+   },
+   {
+    "x": 16,
+    "y": 288,
+    "w": 16,
+    "h": 16
+   },
+   {
+    "x": 32,
+    "y": 288,
+    "w": 16,
+    "h": 16
+   },
+   {
+    "x": 48,
+    "y": 288,
+    "w": 16,
+    "h": 16
+   },
+   {
+    "x": 64,
+    "y": 288,
+    "w": 16,
+    "h": 16
+   },
+   {
+    "x": 80,
+    "y": 288,
+    "w": 16,
+    "h": 16
+   },
+   {
+    "x": 96,
+    "y": 288,
+    "w": 16,
+    "h": 16
+   },
+   {
+    "x": 112,
+    "y": 288,
+    "w": 16,
+    "h": 16
+   }
+  ],
+  "twinkle_b": [
+   {
+    "x": 64,
+    "y": 288,
+    "w": 16,
+    "h": 16
+   },
+   {
+    "x": 80,
+    "y": 288,
+    "w": 16,
+    "h": 16
+   },
+   {
+    "x": 96,
+    "y": 288,
+    "w": 16,
+    "h": 16
+   },
+   {
+    "x": 112,
+    "y": 288,
+    "w": 16,
+    "h": 16
+   },
+   {
+    "x": 0,
+    "y": 288,
+    "w": 16,
+    "h": 16
+   },
+   {
+    "x": 16,
+    "y": 288,
+    "w": 16,
+    "h": 16
+   },
+   {
+    "x": 32,
+    "y": 288,
+    "w": 16,
+    "h": 16
+   },
+   {
+    "x": 48,
+    "y": 288,
     "w": 16,
     "h": 16
    }

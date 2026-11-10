@@ -6,9 +6,38 @@
 VramQueue g_gfx_q; /* extern in gfx.h for the inline gfx_word dedupe test */
 static u16 g_last_us;
 volatile u16 g_gfx_flush_max;
+volatile u16 g_pal_words_frame_max; /* most palette words written in one flush (test sentinel) */
 volatile u16 g_gfx_backlog_max; /* most queue ops left over after a flush (test sentinel; init drains count too) */
 
 void gfx_init(void) { vq_init(&g_gfx_q); }
+
+/* The mode register is written by the next gfx_flush, so like every LSPC write it lands inside vblank (tests/mame/
+ * vblank_check.lua counts register writes outside it). Timer interrupt off. */
+static volatile u16 g_lspc_mode;
+static volatile u8 g_lspc_mode_dirty;
+volatile u8 g_autoanim_frames = 1;
+void gfx_autoanim_speed(u8 frames_per_step) {
+    g_autoanim_frames = frames_per_step;
+    g_lspc_mode = (u16)((frames_per_step - 1) << 8);
+    g_lspc_mode_dirty = 1;
+}
+
+/* Bank swap: two hidden-twin strips, one shown. A strip is shown by its head SCB3 word (height and y) and hidden by
+ * 0 there. When the 3 bit animation counter (REG_LSPCMODE bits 2..0, read) is about to wrap to 0 the flush shows the other
+ * strip: bank 0 holds the animation steps 0..7 of its 16 frames and bank 1 the steps 8..15. The words go straight to
+ * VRAM inside the flush (vblank), never through the queue. Armed once per match by the hazard module. */
+static volatile u16 g_swap_head[2], g_swap_show;
+static volatile u8 g_swap_on, g_swap_prev, g_swap_vis, g_swap_run;
+void gfx_swap_arm(u16 head0, u16 head1, u16 show_word) {
+    g_swap_on = 0;
+    g_swap_head[0] = head0; g_swap_head[1] = head1; g_swap_show = show_word;
+    g_swap_prev = 0xFF; /* only a run of reads of 7 that began after a read of 6 is trusted */
+    g_swap_run = 0;
+    g_swap_vis = 1;     /* the first swap shows bank 0 */
+    g_swap_on = 1;
+}
+void gfx_swap_disarm(void) { g_swap_on = 0; }
+volatile u16 g_swap_count;
 
 /* A full queue only happens while loading (video_init); wait for vblank, write, retry. */
 /* The BIOS vblank handler calls rom_callback_VBlank first and then its own SYSTEM_IO routine, which runs for
@@ -39,7 +68,6 @@ void gfx_drain(void) {
 #define RETRY(call) do { while (!(call)) gfx_drain(); } while (0)
 
 void gfx_word_push(u16 addr, u16 val) { RETRY(vq_scb_word_push(&g_gfx_q, addr, val)); }
-void gfx_scb1_word(u16 sprite, u16 val) { RETRY(vq_vram_word(&g_gfx_q, (u16)(ADDR_SCB1 + sprite * 64), val)); }
 void gfx_strip(u16 sprite, const u16 *tiles, u16 base, u8 rows, u16 attr) { RETRY(vq_strip(&g_gfx_q, sprite, tiles, base, rows, attr)); }
 void gfx_scb_run(u16 addr, u16 mod, const u16 *vals, u8 n) { RETRY(vq_scb_run(&g_gfx_q, addr, mod, vals, n)); }
 void gfx_pal(u16 idx, u16 val) { RETRY(vq_pal(&g_gfx_q, idx, val)); }
@@ -96,9 +124,28 @@ void gfx_sprite_place(u16 first, u8 cols, u8 rows, int left, int top) {
 void gfx_flush(void) {
     VramQueue *const q = &g_gfx_q;
     u16 count = q->count, head = q->head, left = GFX_FLUSH_BUDGET_US;
+    u16 pal_words = 0;
     const VqOp *op = &q->ops[head];
     volatile u16 *const vaddr = REG_VRAMADDR, *const vrw = REG_VRAMRW, *const vmod = REG_VRAMMOD;
     *vmod = 1;
+    if (g_lspc_mode_dirty) { *REG_LSPCMODE = g_lspc_mode; g_lspc_mode_dirty = 0; }
+    if (g_swap_on) {
+        u8 ctr = (u8)(*REG_LSPCMODE & 7);
+        /* The counter steps between the flush and the next frame, so a flush reads the value that was displayed in
+         * the frame before it. The frames per step th flush in a row that reads 7 is the one right before the first
+         * frame of step 0: swapping there shows the new bank from step 0 on, with no stray frame (measured in MAME:
+         * a swap on the first read of 0 shows the old bank's step 0 for one extra frame, one flush earlier shows the
+         * new bank's step 7 for one frame). */
+        if (ctr != 7) g_swap_run = 0;
+        else if (g_swap_run || g_swap_prev == 6) g_swap_run++;
+        if (ctr == 7 && g_swap_run == g_autoanim_frames) {
+            g_swap_vis ^= 1;
+            *vaddr = (u16)(ADDR_SCB3 + g_swap_head[g_swap_vis]); *vrw = g_swap_show;
+            *vaddr = (u16)(ADDR_SCB3 + g_swap_head[g_swap_vis ^ 1]); *vrw = 0;
+            g_swap_count++;
+        }
+        g_swap_prev = ctr;
+    }
     for (; count; count--) {
         u16 c = op->cost;
         if (c > left) break;
@@ -123,6 +170,7 @@ void gfx_flush(void) {
             do { *vrw = (u16)(base + *t++); *vrw = attr; } while (--r);
         } else {
             MMAP_PALBANK1[op->a] = op->b;
+            pal_words++;
         }
         op++;
         if (++head == VQ_CAP) { head = 0; op = q->ops; }
@@ -132,6 +180,7 @@ void gfx_flush(void) {
     u16 us = (u16)(GFX_FLUSH_BUDGET_US - left);
     g_last_us = us;
     if (us > g_gfx_flush_max) g_gfx_flush_max = us;
+    if (pal_words > g_pal_words_frame_max) g_pal_words_frame_max = pal_words;
     if (count > g_gfx_backlog_max) g_gfx_backlog_max = count;
 }
 

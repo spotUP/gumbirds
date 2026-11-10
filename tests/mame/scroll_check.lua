@@ -41,7 +41,7 @@ local STATE_PLAYING = 3
 local END_FRAME = 3600
 local MIN_CHECKED = 1500       -- PLAYING frames whose screen was checked
 local SETTLE = 2               -- PLAYING frames after start not checked (first ring write is a full redraw)
-local RING_FIRST = { 26, 47, 68 }  -- src/sprite_slots.h BG_FAR_SPRITE, BG_MID_SPRITE, BG_ROOF_SPRITE
+local RING_FIRST = { 36, 66, 96 }  -- src/sprite_slots.h BG_FAR_SPRITE, BG_MID_SPRITE, BG_ROOF_SPRITE
 local RING, COL = 21, 16
 local SCB3, SCB4 = 0x8200, 0x8400
 

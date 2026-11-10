@@ -19,7 +19,7 @@ from PIL import Image
 
 LAYERS = ["far", "mid", "roof"]
 Y_BAND = {"far": (64, 176), "mid": (96, 176), "roof": (176, 224)}
-Y_MEASURE = {"far": (66, 108), "mid": (110, 174), "roof": (178, 222)}
+Y_MEASURE = {"far": (66, 108), "mid": (110, 174), "roof": (178, 190)}  # the hazard strip (src/hazard.c) animates over lines 192..223 in a match; measure the roof above it
 HERO_MASK = (28, 112)
 SKY = (0x1a, 0x12, 0x38)
 # Fix layer text palette PAL_TEXT as MAME draws it (src/main.c video_init: gfx_pal(1, 0x0fff), gfx_pal(2, 0x0555)).

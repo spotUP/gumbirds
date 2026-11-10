@@ -16,6 +16,7 @@
 #include "sprite_slots.h"
 #include "vram_layout.h"
 #include "bg.h"
+#include "hazard.h"
 #include "sound.h"
 
 /* Palette 0 = white text, palette 1 = yellow (highlight). Entry 0 of a palette is transparent; the backdrop is the last palette RAM entry (bg.c). */
@@ -98,6 +99,8 @@ static void hero_show(const Game *g) {
 _Static_assert(BG_SPRITE_END <= POOL_SPRITE_BASE, "background sprites overlap the object pool");
 _Static_assert(POOL_SPRITE_COUNT == POOL_SPRITES, "pool sprite range size");
 _Static_assert(POOL_SPRITE_BASE + POOL_SPRITE_COUNT <= HERO_SPRITE, "object pool sprites overlap hero");
+_Static_assert(HERO_SPRITE + HERO_SPRITE_COUNT <= HAZARD_SPRITE, "hero overlaps hazard sprites");
+_Static_assert(SPRITE_SLOT_END <= 381, "sprite slots exceed the 381 hardware sprites");
 _Static_assert(OBS_MAX_COLUMNS <= POOL_COLS, "obstacle frame wider than a pool sprite run");
 _Static_assert(OBS_ANIM_VENT == OB_VENT && OBS_ANIM_CABLE == OB_CABLE &&
                OBS_ANIM_DRONE == OB_DRONE && OBS_ANIM_BOT == OB_BOT, "obstacle sheet order");
@@ -524,6 +527,7 @@ static void video_init(void) {
     obs_load_palettes();
     bg_load_palettes();
     bg_init();
+    hazard_init();
     hero_hide();
     pool_hide_all(); /* the hardware state is unknown; live objects redraw next frame */
     g_draw_state = -1;
@@ -594,6 +598,7 @@ static void game_loop(void) {
         sound_tick();
         draw(&view);
         hero_and_mode(&view);
+        hazard_step(view.state == FLOW_PLAYING || view.state == FLOW_GAME_OVER);
         bg_update(0, g_frame_counter); /* arena slice: the city is a still backdrop */
         gfx_commit();
         g_frame_counter++;

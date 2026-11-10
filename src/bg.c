@@ -13,6 +13,7 @@
 #include <ngdevkit/neogeo.h>
 #include <ngdevkit/ng-video.h>
 #include "bg.h"
+#include "bg_stars.h"
 #include "gfx.h"
 #include "core/bg_scroll.h"
 #include "sprite_slots.h"
@@ -32,18 +33,24 @@ const u16 g_bg_pal_first_entry = CITY_PAL_SLOT * 16;
 #define BG_LAMP_OFF NG_RGB5(7, 4, 8)       /* dark lamp */
 #define BG_LAMP_PERIOD 48                  /* frames per blink cycle */
 #define BG_LAMP_ON_FRAMES 30
-#define BG_STAR_PERIOD 16                  /* frames between star tile swaps */
 
-_Static_assert(BG_FAR_SPRITE + BG_RING_COUNT == BG_MID_SPRITE, "far/mid sprite ranges");
-_Static_assert(BG_MID_SPRITE + BG_RING_COUNT == BG_ROOF_SPRITE, "mid/roof sprite ranges");
+_Static_assert(BG_FAR_SPRITE + BG_RING_COUNT <= BG_AIRSHIP_SPRITE, "far/airship sprite ranges");
+_Static_assert(BG_AIRSHIP_SPRITE + BG_AIRSHIP_COUNT == BG_MID_SPRITE, "airship/mid sprite ranges");
+_Static_assert(BG_MID_SPRITE + BG_RING_COUNT <= BG_SMOKE_SPRITE, "mid/smoke sprite ranges");
+_Static_assert(BG_SMOKE_SPRITE + BG_SMOKE_COUNT == BG_ROOF_SPRITE, "smoke/roof sprite ranges");
 _Static_assert(BG_ROOF_SPRITE + BG_RING_COUNT == BG_SPRITE_END, "roof sprite range end");
 _Static_assert(BG_STAR_SPRITE + BG_STAR_COUNT == BG_SKY_SPRITE, "star/sky sprite ranges");
-_Static_assert(BG_SKY_SPRITE + BG_SKY_COUNT == BG_FAR_SPRITE, "sky/far sprite ranges");
+_Static_assert(BG_SKY_SPRITE + BG_SKY_COUNT == BG_CLOUDBANK_SPRITE, "sky/cloud bank sprite ranges");
+_Static_assert(BG_CLOUDBANK_SPRITE + BG_CLOUDBANK_COUNT == BG_FAR_SPRITE, "cloud bank/far sprite ranges");
 _Static_assert(BG_RING_COUNT == BG_RING, "ring size");
 _Static_assert(CITY_MAX_COLUMNS == BG_ART_COLS, "city art width");
 
 enum { FRAME_FAR = 0, FRAME_MID = 1, FRAME_ROOF = 2 };
-enum { SKY_MOON = 0, SKY_CLOUDS = 1, SKY_DOT = 2, SKY_PLUS = 3 };
+enum { SKY_MOON = 0, SKY_CLOUDS = 1 };
+/* Stars are hardware auto-animation groups (tile bit 3 of SCB1 attribute): even stars twinkle, odd stars twinkle_b
+ * four steps later. The LSPC swaps the low 3 tile bits itself, so the CPU never writes a star tile. */
+#define STAR_AUTOANIM_8 0x08
+_Static_assert(CITY_TILE_BASE % 8 == 0, "auto-animation groups need an 8-aligned absolute tile number");
 
 typedef struct { u8 frame; u8 first_sprite; u8 top; } Ring;
 static const Ring RINGS[BG_LAYER_COUNT] = {
@@ -54,10 +61,7 @@ static const Ring RINGS[BG_LAYER_COUNT] = {
 
 /* Star positions (star pixel); same list as STARS in assets/city/draw_city.py. */
 typedef struct { u16 x, y; } StarPos;
-static const StarPos STARS[BG_STAR_COUNT] = {
-    {12, 34}, {30, 70}, {52, 30}, {70, 84}, {96, 40}, {118, 66}, {134, 32}, {150, 56},
-    {172, 38}, {186, 74}, {200, 30}, {214, 58}, {292, 36}, {304, 80}, {8, 92}, {160, 86},
-};
+static const StarPos STARS[BG_STAR_COUNT] = { BG_STAR_POSITIONS };
 #define STAR_TILE_OFFSET 8 /* star pixel position inside its 16x16 tile */
 #define MOON_X 208
 #define MOON_Y 32
@@ -84,8 +88,8 @@ static void find_lamp(const CityFrame *f, u16 out[2]) {
     }
 }
 
-/* Lamp palette and star tiles change on a state flip only; -1 forces the first write (bg_load_palettes, bg_init). */
-static int g_lamp_state = -1, g_star_state = -1;
+/* Lamp palette changes on a state flip only; -1 forces the first write (bg_load_palettes, bg_init). */
+static int g_lamp_state = -1;
 
 void bg_load_palettes(void) {
     g_lamp_state = -1;
@@ -99,26 +103,23 @@ void bg_load_palettes(void) {
 }
 
 /* Place `cols` columns of frame f at sprite slot `first`, top left (x, y); first column carries position. */
-static void place_block(u8 first, const CityFrame *f, int x, int y) {
-    u16 attr = (u16)((CITY_PAL_SLOT + f->palette) << 8);
+static void place_block(u8 first, const CityFrame *f, u16 anim_bits, int x, int y) {
+    u16 attr = (u16)(((CITY_PAL_SLOT + f->palette) << 8) | anim_bits);
     gfx_sprite_block(first, (u8)f->tiles_w, (u8)f->tiles_h, &city_tile_index[f->tile_offset], CITY_TILE_BASE, attr, x, y);
-}
-
-static void star_tile(int i, int plus) {
-    const CityFrame *f = frame_of(plus ? SKY_PLUS : SKY_DOT, 1);
-    gfx_scb1_word((u16)(BG_STAR_SPRITE + i), (u16)(CITY_TILE_BASE + city_tile_index[f->tile_offset]));
 }
 
 void bg_init(void) {
     for (int i = 0; i < BG_STAR_COUNT; i++) {
-        place_block((u8)(BG_STAR_SPRITE + i), frame_of(SKY_DOT, 1), STARS[i].x - STAR_TILE_OFFSET, STARS[i].y - STAR_TILE_OFFSET);
+        const CityFrame *f = &city_frames[city_anims[(i & 1) ? CITY_ANIM_TWINKLE_B : CITY_ANIM_TWINKLE].first_frame];
+        place_block((u8)(BG_STAR_SPRITE + i), f, STAR_AUTOANIM_8, STARS[i].x - STAR_TILE_OFFSET, STARS[i].y - STAR_TILE_OFFSET);
     }
-    place_block(BG_SKY_SPRITE, frame_of(SKY_MOON, 1), MOON_X, MOON_Y);
-    place_block(BG_SKY_SPRITE + 5, frame_of(SKY_CLOUDS, 1), CLOUDS_X, CLOUDS_Y);
+    place_block(BG_SKY_SPRITE, frame_of(SKY_MOON, 1), 0, MOON_X, MOON_Y);
+    place_block(BG_SKY_SPRITE + 5, frame_of(SKY_CLOUDS, 1), 0, CLOUDS_X, CLOUDS_Y);
     for (int l = 0; l < BG_LAYER_COUNT; l++) /* SCB3 (heads, sticky) is written by update_ring */
         for (int s = 0; s < BG_RING; s++) gfx_word((u16)(ADDR_SCB2 + RINGS[l].first_sprite + s), 0xFFF);
+    gfx_autoanim_speed(BG_STAR_STEP_FRAMES);
     g_valid = 0;
-    g_lamp_state = g_star_state = -1;
+    g_lamp_state = -1;
 }
 
 static void write_column(int layer, u32 world_col) {
@@ -176,14 +177,11 @@ void bg_update(u32 distance, u32 frame) {
     g_valid = 1;
     /* frame % period without a 32-bit `%` (libgcc call) per frame: step the phases while frame advances by 1. */
     static u32 prev_frame;
-    static u8 lamp_t, star_t, star_ph;
+    static u8 lamp_t;
     if (frame == prev_frame + 1 && g_lamp_state >= 0) {
         if (++lamp_t == BG_LAMP_PERIOD) lamp_t = 0;
-        if (++star_t == BG_STAR_PERIOD) { star_t = 0; star_ph ^= 1; }
     } else {
         lamp_t = (u8)(frame % BG_LAMP_PERIOD);
-        star_t = (u8)(frame % BG_STAR_PERIOD);
-        star_ph = (u8)((frame / BG_STAR_PERIOD) & 1);
     }
     prev_frame = frame;
     int on = lamp_t < BG_LAMP_ON_FRAMES;
@@ -191,10 +189,5 @@ void bg_update(u32 distance, u32 frame) {
         lamp_set(g_lamp_far, on);
         lamp_set(g_lamp_mid, on);
         g_lamp_state = on;
-    }
-    int phase = star_ph;
-    if (phase != g_star_state) {
-        for (int i = 0; i < BG_STAR_COUNT; i++) star_tile(i, (phase + i) & 1);
-        g_star_state = phase;
     }
 }

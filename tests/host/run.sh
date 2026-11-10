@@ -7,7 +7,7 @@ ROOT=$(cd "$HERE/../.." && pwd)
 OUT=${BRAWL_TEST_OUT:-$ROOT/build/test-host}
 mkdir -p "$OUT"
 CC="nice -n 19 clang -std=c99 -Wall -Wextra -Werror -pedantic"
-SRC="$ROOT/src/core/rng.c $ROOT/src/core/game.c $ROOT/src/core/hiscore.c $ROOT/src/core/nameentry.c $ROOT/src/core/flow.c $ROOT/src/core/obstacle_view.c $ROOT/src/core/bg_scroll.c $ROOT/src/core/vram_queue.c $ROOT/src/core/obj_pool.c $ROOT/src/core/sound_queue.c $ROOT/src/core/sound_events.c $ROOT/src/core/flier.c $ROOT/src/core/stage.c $ROOT/src/core/ai.c $ROOT/src/core/flier_view.c"
+SRC="$ROOT/src/core/rng.c $ROOT/src/core/game.c $ROOT/src/core/hiscore.c $ROOT/src/core/nameentry.c $ROOT/src/core/flow.c $ROOT/src/core/obstacle_view.c $ROOT/src/core/bg_scroll.c $ROOT/src/core/vram_queue.c $ROOT/src/core/obj_pool.c $ROOT/src/core/sound_queue.c $ROOT/src/core/sound_events.c $ROOT/src/core/flier.c $ROOT/src/core/stage.c $ROOT/src/core/ai.c $ROOT/src/core/flier_view.c $ROOT/src/core/sprite_budget.c"
 fail=0
 
 $CC -o "$OUT/test_core" "$HERE/test_core.c" $SRC >"$OUT/build.log" 2>&1 || { echo "[ERROR] build failed"; tail -n 20 "$OUT/build.log"; exit 1; }
@@ -33,6 +33,10 @@ tail -n 1 "$OUT/test_vram_queue.log"; grep FAIL "$OUT/test_vram_queue.log" | hea
 $CC -o "$OUT/test_flier_view" "$HERE/test_flier_view.c" $SRC >"$OUT/build.log" 2>&1 || { echo "[ERROR] flier_view build failed"; tail -n 20 "$OUT/build.log"; exit 1; }
 nice -n 19 "$OUT/test_flier_view" >"$OUT/test_flier_view.log" 2>&1 || fail=1
 tail -n 1 "$OUT/test_flier_view.log"; grep FAIL "$OUT/test_flier_view.log" | head -n 10
+
+$CC -o "$OUT/test_sprite_budget" "$HERE/test_sprite_budget.c" $SRC >"$OUT/build.log" 2>&1 || { echo "[ERROR] sprite_budget build failed"; tail -n 20 "$OUT/build.log"; exit 1; }
+nice -n 19 "$OUT/test_sprite_budget" >"$OUT/test_sprite_budget.log" 2>&1 || fail=1
+tail -n 1 "$OUT/test_sprite_budget.log"; grep FAIL "$OUT/test_sprite_budget.log" | head -n 10
 
 $CC -o "$OUT/test_obj_pool" "$HERE/test_obj_pool.c" $SRC >"$OUT/build.log" 2>&1 || { echo "[ERROR] obj_pool build failed"; tail -n 20 "$OUT/build.log"; exit 1; }
 nice -n 19 "$OUT/test_obj_pool" >"$OUT/test_obj_pool.log" 2>&1 || fail=1

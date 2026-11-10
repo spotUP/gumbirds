@@ -250,6 +250,18 @@ def star_tiles():
     return d, p
 
 
+def twinkle_frames():
+    """8 star frames (16x16, star pixel at 8,8): dot, growing plus, dot (hardware auto-animation group)."""
+    out = []
+    for r in (0, 0, 1, 2, 2, 1, 0, 0):
+        b = Buf(16, 16)
+        b.set(8, 8, P["star"] if r == 0 else P["starW"])
+        if r:
+            b.rect(8 - r, 8, 2 * r + 1, 1, P["star"]); b.rect(8, 8 - r, 1, 2 * r + 1, P["star"]); b.set(8, 8, P["starW"])
+        out.append(b)
+    return out
+
+
 def main():
     far, mid, roof = draw_far(), draw_mid(), draw_roof()
     moon, cl = draw_moon_block(), draw_clouds_left()
@@ -264,8 +276,8 @@ def main():
         ("sky", cl, 16, 48, 80, 16, 96, 240),
         ("sky", dot, 0, 0, 16, 16, 192, 240),
         ("sky", plus, 0, 0, 16, 16, 208, 240),
-    ]
-    sheet = Image.new("RGBA", (320, 288), (0, 0, 0, 0))
+    ] + [("twinkle", b, 0, 0, 16, 16, 16 * k, 288) for k, b in enumerate(twinkle_frames())]
+    sheet = Image.new("RGBA", (320, 304), (0, 0, 0, 0))
     px = sheet.load()
     anims = {}
     for name, buf, cx, cy, w, h, sx, sy in parts:
@@ -275,6 +287,8 @@ def main():
                 if c is not None:
                     px[sx + x, sy + y] = c + (255,)
         anims.setdefault(name, []).append(dict(x=sx, y=sy, w=w, h=h))
+    # second group: the same eight frames started four frames later, so neighbouring stars twinkle out of step
+    anims["twinkle_b"] = anims["twinkle"][4:] + anims["twinkle"][:4]
     # per-layer palette report (pipeline enforces <= 15 colours per animation and per tile)
     for name in ("far", "mid", "roof", "sky"):
         cols = set()
@@ -290,8 +304,9 @@ def main():
         source="original art, Python port of design/brawl-test-v5.html background drawing; assets/city/draw_city.py",
         origin="sheet rows: far y0..112 = screen y 64..176 (tile rows 4..10); mid y112..192 = screen y 96..176 (rows 6..10); "
                "roof y192..240 = screen y 176..224 (rows 11..13). All 320 px wide = 20 tile columns, torus period 320 px. "
-               "sky frames: 0 moon+clouds (screen 208,32), 1 left clouds (screen 16,48), 2 star dot, 3 star plus (16x16, star pixel at 8,8).",
-        backdrop=SKY, lamp_on=P["lampOn"], palette_policy="subset", animations=anims)
+               "sky frames: 0 moon+clouds (screen 208,32), 1 left clouds (screen 16,48), 2 star dot, 3 star plus (16x16, star pixel at 8,8). twinkle / twinkle_b: 8 star frames each (y 288), hardware auto-animation groups, see sprite_pipeline.py.",
+        backdrop=SKY, lamp_on=P["lampOn"], palette_policy="subset",
+        groups=dict(twinkle=8, twinkle_b=8), animations=anims)
     meta["lamp_on"] = "#%02x%02x%02x" % P["lampOn"]
     json.dump(meta, open(os.path.join(HERE, "city_sheet.json"), "w"), indent=1)
 

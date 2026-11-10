@@ -19,6 +19,8 @@
 local flow_addr = tonumber(os.getenv("BRAWL_FLOW_ADDR"), 16)
 local frame_addr = tonumber(os.getenv("BRAWL_FRAME_ADDR"), 16)
 local result    = os.getenv("BRAWL_RESULT")
+local palmax_addr = tonumber(os.getenv("BRAWL_PALMAX_ADDR"), 16)
+local PAL_WORDS_MAX = 112 -- g_pal_words_frame_max: the most palette words one flush may write over a whole run (measured, see the notes)
 local lay = {}
 for v in (os.getenv("BRAWL_HIT_LAYOUT") or ""):gmatch("%d+") do lay[#lay + 1] = tonumber(v) end
 local O_STATE = lay[1]
@@ -183,6 +185,8 @@ emu.register_frame_done(function()
       total_vram, bad_vram, total_pal, bad_pal, VB_LEN_S / LINE_S, worst_late, max_words, max_span / LINE_S, playing_frames, missed, steps,
       screen.width, screen.height,
       first_bad and (", first bad: " .. first_bad) or "")
-    finish(bad_vram == 0 and bad_pal == 0 and total_vram > 0 and playing_frames >= MIN_PLAYING and missed <= MAX_MISSED and pool_ok, msg .. pmsg)
+    local palmax = mem:read_u16(palmax_addr)
+    msg = msg .. string.format(", palette words per flush max %d (limit %d)", palmax, PAL_WORDS_MAX)
+    finish(bad_vram == 0 and bad_pal == 0 and palmax <= PAL_WORDS_MAX and total_vram > 0 and playing_frames >= MIN_PLAYING and missed <= MAX_MISSED and pool_ok, msg .. pmsg)
   end
 end)
