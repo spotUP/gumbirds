@@ -27,8 +27,34 @@ static int commit_all(void)
     return n;
 }
 
+/* VQ_RAMP: generated words, two segments, no shadow change, bounds */
+static void ramp_tests(void)
+{
+    u16 out[24];
+    const VqOp *op;
+    vq_init(&q);
+    CHECK(vq_scb_ramp(&q, 0x8420, 5, 2, 0x1000, 0x0F80) && vq_pending(&q) == 1);
+    op = vq_peek(&q);
+    CHECK(op->kind == VQ_RAMP && op->a == 0x8420 && op->rows == 5 && vq_cost(op) == VQ_US_RAMP + 5 * VQ_US_RAMP_WORD);
+    vq_ramp_expand(op, out);
+    CHECK(out[0] == 0x1000 && out[1] == 0x1800 && out[2] == 0x0F80 && out[3] == 0x1780 && out[4] == 0x1F80);
+    CHECK(q.scb_valid[(0x420) >> 3] == 0);            /* no shadow written */
+    vq_pop(&q);
+    vq_ramp_expand(&(VqOp){ 0, 0, 0xF800, 0x0000, VQ_RAMP, 2, 0, 2 }, out);   /* u16 wrap: x 496 + 16 = 512 -> 0 */
+    CHECK(out[0] == 0xF800 && out[1] == 0x0000);
+    CHECK(!vq_scb_ramp(&q, 0x8420, 0, 0, 0, 0));      /* empty */
+    CHECK(!vq_scb_ramp(&q, 0x8420, 4, 5, 0, 0));      /* split beyond n */
+    CHECK(!vq_scb_ramp(&q, 0x7FFF, 4, 1, 0, 0));      /* below SCB2 */
+    CHECK(!vq_scb_ramp(&q, 0x8000 + VQ_SCB_WORDS - 3, 4, 1, 0, 0));   /* runs past SCB4 */
+    CHECK(vq_pending(&q) == 0);
+    { int i; for (i = 0; i < VQ_CAP; i++) CHECK(vq_scb_ramp(&q, 0x8420, 3, 1, 0, 0)); }
+    CHECK(!vq_scb_ramp(&q, 0x8420, 3, 1, 0, 0));      /* full */
+    vq_init(&q);
+}
+
 int main(void)
 {
+    ramp_tests();
     vq_init(&q);
     /* SCB words: first write queues, identical write queues nothing, changed write queues again */
     CHECK(vq_scb_word(&q, 0x8400, 7) && vq_pending(&q) == 1);
@@ -164,6 +190,48 @@ int main(void)
         CHECK(!vq_scb_run(&q, 0x8460, 3, v, 4));                         /* full: shadow unchanged */
         (void)total_cost();
         CHECK(vq_scb_word(&q, 0x8460, 10) && vq_pending(&q) == 0);
+    }
+
+    /* round restart hides the hazard strip with one run op, not a word op per column: the bank swap writes SCB3 behind the
+     * shadow, so the hide forgets the words and sends them as one run; a second hide in the same frame (start) adds nothing.
+     * 96 word ops here made the restart frame overrun vblank start (thoughts/spot/2026-11-12-test-scroll-diagnosis.md). */
+    vq_invalidate(&q);
+    {
+        static const u16 zero[50];
+        const VqOp *op;
+        CHECK(vq_scb_run(&q, 0x8304, 1, zero, 50) && vq_pending(&q) == 1);
+        (void)total_cost();                                              /* hidden, shadow valid (one word each side too) */
+        CHECK(vq_scb_run(&q, 0x8305, 1, zero, 48) && vq_pending(&q) == 0);   /* the swap wrote show words; shadow still says 0 */
+        vq_scb_forget(&q, 0x8305, 48);
+        CHECK(vq_scb_run(&q, 0x8305, 1, zero, 48) && vq_pending(&q) == 1);
+        op = vq_peek(&q);
+        CHECK(op && op->kind == VQ_RUN && op->a == 0x8305 && op->rows == 48);
+        CHECK(op && vq_cost(op) == VQ_US_RUN + 48 * VQ_US_RUN_WORD);
+        CHECK(vq_scb_run(&q, 0x8305, 1, zero, 24) && vq_scb_run(&q, 0x831D, 1, zero, 24) && vq_pending(&q) == 1);
+        CHECK(vq_scb_word(&q, 0x8304, 0) && vq_scb_word(&q, 0x8335, 0) && vq_pending(&q) == 1); /* forget stays inside its range */
+        (void)total_cost();
+        vq_scb_forget(&q, 0x85FF, 8);                                    /* clipped at the end of SCB4 */
+        vq_scb_forget(&q, 0x7000, 8);                                    /* below SCB2: ignored */
+        CHECK(vq_scb_run(&q, 0x8305, 1, zero, 48) && vq_pending(&q) == 0);
+    }
+
+    /* Resume prologue IRQACK lands inside vblank: the raster gate accepts exactly the vblank lines minus the last one,
+     * never a visible line (the bad write was at the first visible line, counter 0x110). Low bits (anim counter, PAL)
+     * do not matter. */
+    {
+        int in = 0, vis_ok = 1;
+        for (u16 line = 0xF8; line <= 0x1FF; line++) {
+            u16 reg = (u16)((line << 7) | 0x7F);
+            int gate = VQ_RASTER_IN_VBLANK(reg) ? 1 : 0;
+            CHECK(gate == (VQ_RASTER_IN_VBLANK((u16)(line << 7)) ? 1 : 0));
+            if (gate) in++;
+            if (line >= 0x110 && line < 0x1F0 && gate) vis_ok = 0;
+        }
+        CHECK(in == 39);                                   /* 40 vblank lines, the last one is the margin */
+        CHECK(vis_ok);
+        CHECK(!VQ_RASTER_IN_VBLANK(0x110u << 7));          /* first visible line: the failing write */
+        CHECK(!VQ_RASTER_IN_VBLANK(0x10Fu << 7));          /* last vblank line: no margin left */
+        CHECK(VQ_RASTER_IN_VBLANK(0x1F0u << 7) && VQ_RASTER_IN_VBLANK(0xF8u << 7));
     }
 
     printf("%d checks, %d failed\n", checks, failures);

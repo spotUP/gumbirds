@@ -1,11 +1,11 @@
 /*
  * ai.h - computer flier controller (design doc 3.1). Portable C99, fixed point, no divide, no globals.
- * Every AI_THINK_FRAMES (+- AI_THINK_JITTER) frames it picks a state from the nearest rival and flaps once:
+ * Every AI_THINK_FRAMES (+- AI_THINK_JITTER) frames it picks a state and steering from the nearest rival; the flap decision runs every frame:
  *   FILL   no balloons and the rival is farther than AI_FILL_DIST: does nothing (no stored pods exist, the settled
  *          option; the reference refill action source was not available).
  *   FLEE   no balloons, or the rival is within AI_FLEE_DIST and the flier is not above it by AI_ABOVE_MARGIN.
  *   CHASE  otherwise.
- * Chase and flee steer when |dir.x| > AI_STEER_MIN and flap when dir.y < AI_FLAP_MAX (Q15, y down). Flee negates dir.
+ * Chase and flee steer when |dir.x| > AI_STEER_MIN steer; they press flap each frame when dir.y < AI_FLAP_MAX (Q15, y down), the cooldown is over and the button was released. Flee negates dir.
  * Distances are screen pixels (reference values halved: the arena is 384x180 and wraps; distances are the shortest across the seam, reference scale 0.5).
  */
 #ifndef BRAWL_AI_H
@@ -31,7 +31,7 @@ void ai_init(Ai *a, Rng *r);
 const Flier *ai_nearest(const Flier *self, const Flier *player, const Flier *cpus, int cpu_count);
 /* The pure decision: state for a flier and its target (no side effects). */
 AiState ai_decide(const Flier *self, const Flier *target);
-/* One frame: counts the timer down; on zero thinks (state, dir, one flap pulse) and re-arms with jitter. target may be
+/* One frame: counts the timer down; on zero thinks (state, dir) and re-arms with jitter. target may be
  * NULL (idle). Fills *out for flier_step. */
 void ai_step(Ai *a, Rng *r, const Flier *self, const Flier *target, FlierInput *out);
 

@@ -26,21 +26,45 @@ typedef uint16_t u16;
 #define VQ_SCB_WORDS 0x600u
 #define VQ_SPRITES 381
 
-typedef enum { VQ_WORD, VQ_STRIP, VQ_PAL, VQ_RUN, VQ_STRIP_ATTR } VqKind;
+typedef enum { VQ_WORD, VQ_STRIP, VQ_PAL, VQ_RUN, VQ_STRIP_ATTR, VQ_RAMP } VqKind;
+
+/* SCB4 word of a sprite whose left edge is x: 9 bit x (wraps at 512) in bits 15..7. One definition for gfx_scb4_word, the
+ * background ramp (bg_ramp) and the VQ_RAMP flush. VQ_SCB4_COL is the word step of the next 16 px column (x + 16). */
+#define VQ_SCB4_X(x) ((u16)(((x) & 0x1FF) << 7))
+#define VQ_SCB4_COL 0x800u
+
+/* LSPC raster line counter (REG_LSPCMODE read, bits 15..7; 264 lines: 0xF8..0x1FF). Visible lines are 0x110..0x1EF,
+ * vblank is 0x1F0..0x1FF then 0xF8..0x10F. VQ_RASTER_IN_VBLANK is true on a vblank line other than the last one, so a
+ * register write issued right after the read still lands inside vblank (one line, about 760 CPU cycles, of margin).
+ * Used where an LSPC register must be written with interrupts masked, i.e. without the vblank callback: the BIOS
+ * resume prologue (src/main.c resume_game_loop) waits on it before its IRQACK write. Guarded by tests/mame/vblank_check.lua
+ * (every write to 0x3C0000..0x3C000F inside vblank) and tests/host/test_vram_queue.c. */
+#define VQ_RASTER_LINE(lspcmode) ((u16)((u16)(lspcmode) >> 7))
+static inline int vq_raster_in_vblank(u16 lspcmode) {  /* one read of the register per call: pass the value */
+    u16 line = VQ_RASTER_LINE(lspcmode);
+    return line >= 0x1F0u || (line >= 0xF8u && line < 0x10Fu);
+}
+#define VQ_RASTER_IN_VBLANK(lspcmode) vq_raster_in_vblank((u16)(lspcmode))
+
 
 /* VQ_RUN: `rows` words at VRAM a, a + b, a + 2b, ... (REG_VRAMMOD = b), read at flush time from the SCB shadow
  * (tiles = &scb_hw[a - VQ_SCB_BASE], same stride). One op for a strided run of SCB words, e.g. the x of every pool
  * object: the per-op flush overhead is paid once. Reading the shadow at flush time is safe: the shadow is what the
  * hardware holds once the queue is flushed, so a word changed again before the flush is written with its final
- * value (and again by its own later op). */
+ * value (and again by its own later op).
+ * VQ_RAMP: `rows` SCB words at VRAM a, a + 1, ... that the flush generates, no source array and no shadow: the first
+ * `split` words are b, b + VQ_SCB4_COL, ... (u16 add) and the other rows - split words are c, c + VQ_SCB4_COL, ... (the x of
+ * a looping plane of 16 px columns, bg_ramp). The producer does O(1) work whatever the column count; the shadow is not
+ * updated, so the range must have no other writer (the background planes' SCB4 words). */
 typedef struct {
     const u16 *tiles;   /* VQ_STRIP: `rows` tile numbers, table value + base; VQ_STRIP_ATTR: `rows` pairs {tile, attribute}; VQ_RUN: first source word */
-    u16 a;              /* WORD/RUN: VRAM address; STRIP/STRIP_ATTR: sprite; PAL: palette RAM index */
-    u16 b;              /* WORD/PAL: value; STRIP/STRIP_ATTR: tile base; RUN: address stride (REG_VRAMMOD) */
-    u16 c;              /* STRIP: attribute word */
+    u16 a;              /* WORD/RUN/RAMP: VRAM address; STRIP/STRIP_ATTR: sprite; PAL: palette RAM index */
+    u16 b;              /* WORD/PAL: value; STRIP/STRIP_ATTR: tile base; RUN: address stride (REG_VRAMMOD); RAMP: first value */
+    u16 c;              /* STRIP: attribute word; RAMP: value of word `split` */
     u8 kind;
-    u8 rows;            /* STRIP: tile rows; RUN: words */
+    u8 rows;            /* STRIP: tile rows; RUN/RAMP: words */
     u16 cost;           /* flush time in us (vq_cost), set on enqueue so the vblank loop does no arithmetic for it */
+    u8 split;           /* RAMP: words in the first segment (value b); the rest start at value c */
 } VqOp;
 
 typedef struct {
@@ -79,6 +103,16 @@ static inline int vq_scb_word(VramQueue *q, u16 addr, u16 val) {
  * the same value) go out as one VQ_RUN op. Returns 0 (nothing changed) when the queue is full or the run is out of
  * range. */
 int vq_scb_run(VramQueue *q, u16 addr, u16 mod, const u16 *vals, u8 n);
+/* Marks n consecutive SCB words from addr as unknown in the shadow, so the next vq_scb_word / vq_scb_run of any value sends
+ * them. For a writer that bypasses the queue (the flush's bank swap writes SCB3 show words directly): one forget and one run
+ * replace a word op per word sent without the dedupe test. Words outside SCB2..SCB4 are ignored; queues nothing. */
+void vq_scb_forget(VramQueue *q, u16 addr, u16 n);
+/* Generated SCB run (VQ_RAMP): n consecutive words from addr, words [0, split) = v1 + k * VQ_SCB4_COL, words [split, n) =
+ * v2 + (k - split) * VQ_SCB4_COL (all u16 arithmetic). Fills the tail op in place, touches no shadow. 0 when the queue is full,
+ * n is 0, split > n or the range is outside SCB2..SCB4. */
+int vq_scb_ramp(VramQueue *q, u16 addr, u8 n, u8 split, u16 v1, u16 v2);
+/* The words a VQ_RAMP op makes the flush write (out[op->rows]); the host tests compare them with the model. */
+void vq_ramp_expand(const VqOp *op, u16 *out);
 int vq_vram_word(VramQueue *q, u16 addr, u16 val);  /* unshadowed single word (e.g. a star tile) */
 int vq_strip(VramQueue *q, u16 sprite, const u16 *tiles, u16 base, u8 rows, u16 attr);
 /* One column whose tiles carry their own attribute (palette): `pairs` holds `rows` {tile, attribute} pairs. For art
@@ -115,6 +149,8 @@ static inline void vq_pop(VramQueue *q) {
 #define VQ_US_ROW 5u          /* strip row, two data writes: 56 cycles (4.7 us) */
 #define VQ_US_RUN 22u         /* run op overhead (address and stride set, stride restore): about 230 cycles (19 us) */
 #define VQ_US_RUN_WORD 4u     /* run word: 42 cycles (3.5 us) */
+#define VQ_US_RAMP 22u        /* ramp op overhead: same address set and stride restore as a run */
+#define VQ_US_RAMP_WORD 3u    /* ramp word: move.w + add.w + dbra, about 26-30 cycles (2.3 us) rounded up with margin; estimate, not measured */
 static inline u16 vq_cost(const VqOp *op) { return op->cost; }
 
 #endif

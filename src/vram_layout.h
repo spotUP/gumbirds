@@ -11,6 +11,9 @@
 #include "gen/sootling_sprites.h"
 #include "gen/hazard_sprites.h"
 #include "gen/island_sprites.h"
+#include "gen/tripstrip_sprites.h"
+#include "gen/trippickup_sprites.h"
+#include "gen/triphaz_sprites.h"
 
 #define LOGO_TILE_COUNT 256
 #define OBS_TILE_BASE LOGO_TILE_COUNT
@@ -30,6 +33,16 @@ _Static_assert((HAZARD_TILE_BASE & 7) == 0, "hazard tile base is not 8-aligned")
    8-aligned inside the set (asserted by tests/host/test_islands.py). */
 #define ISLAND_TILE_BASE (HAZARD_TILE_BASE + HAZARD_TILE_COUNT)
 _Static_assert((ISLAND_TILE_BASE & 7) == 0, "island tile base is not 8-aligned");
+/* Gum Trip kill strips: the rim uses 8 frame auto-animation, so the set base must be a multiple of 8 (the rim runs sit at
+   multiples of 8 inside the set, see tools/sprite_pipeline.py). */
+#define TRIPSTRIP_TILE_BASE (ISLAND_TILE_BASE + ISLAND_TILE_COUNT)
+_Static_assert((TRIPSTRIP_TILE_BASE & 7) == 0, "trip strip tile base is not 8-aligned");
+/* Gum Trip pickup (step V3), appended after the strip set so no earlier base moves. */
+#define TRIPPICKUP_TILE_BASE (TRIPSTRIP_TILE_BASE + TRIPSTRIP_TILE_COUNT)
+_Static_assert((TRIPPICKUP_TILE_BASE & 7) == 0, "trip pickup tile base is not 8-aligned");
+/* Gum Trip hazards (step V4), appended after the pickup set. */
+#define TRIPHAZ_TILE_BASE (TRIPPICKUP_TILE_BASE + TRIPPICKUP_TILE_COUNT)
+_Static_assert((TRIPHAZ_TILE_BASE & 7) == 0, "trip hazard tile base is not 8-aligned");
 
 #define FIX_PAL_COUNT FIXFONT_PAL_COUNT /* fix palettes 0..4: white, pink, lime, gold, dim (build/gen/fix_font.h) */
 #define OBS_PAL_SLOT FIX_PAL_COUNT
@@ -38,6 +51,9 @@ _Static_assert((ISLAND_TILE_BASE & 7) == 0, "island tile base is not 8-aligned")
 
 #define HAZARD_PAL_SLOT (SOOT_PAL_SLOT + SOOTLING_PALETTE_COUNT) /* palette p = hazard p: spikes, fire, water, lava */
 #define ISLAND_PAL_SLOT (HAZARD_PAL_SLOT + HAZARD_PALETTE_COUNT) /* one palette per look */
-_Static_assert(ISLAND_PAL_SLOT + ISLAND_PALETTE_COUNT <= 256, "palette slots exceed the 256 the hardware has");
+#define TRIPSTRIP_PAL_SLOT (ISLAND_PAL_SLOT + ISLAND_PALETTE_COUNT) /* one palette: the gum strip */
+#define TRIPPICKUP_PAL_SLOT (TRIPSTRIP_PAL_SLOT + TRIPSTRIP_PALETTE_COUNT) /* one palette: the pickup */
+#define TRIPHAZ_PAL_SLOT (TRIPPICKUP_PAL_SLOT + TRIPPICKUP_PALETTE_COUNT) /* palette 0 cloud, 1 vent, 2 coal, as tools/build_triphaz_sprites.py assigns */
+_Static_assert(TRIPHAZ_PAL_SLOT + TRIPHAZ_PALETTE_COUNT <= 256, "palette slots exceed the 256 the hardware has");
 
 #endif

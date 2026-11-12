@@ -12,7 +12,10 @@
 
 #define ARENA_W       384                  /* world width in pixels (640 ref px x 0.6, user decision 2026-11-10) */
 #define ARENA_W16     ((int32_t)ARENA_W * 65536)
-#define ARENA_CAM_MAX (ARENA_W - SCREEN_W) /* camera travel 0..64 */
+/* ARENA_CAM_MAX is NOT the camera range any more (the camera runs the whole ring, see camera.h). It is the width of the
+ * ring strip the screen cannot show, 64 px, and is kept only because the city plane art (tools/import_bg_sheet.py
+ * CITY_CAM_MAX, bg.c _Static_assert) was drawn for a camera of 0..64. Retire it with the ring plane art (plan item R8). */
+#define ARENA_CAM_MAX (ARENA_W - SCREEN_W)
 
 /* Fold a difference of two coordinates on a ring of `w` units into (-w/2, w/2]. */
 static inline int32_t arena_fold(int32_t d, int32_t w) {

@@ -1,6 +1,6 @@
 """Visual proof by pixels: Sootling player palette colours appear in the flier screen box during play.
 Usage: check_hero_pixels.py sootling_sprites.c obs_sprites.c city_sprites.c pre_start.png playing.png   (python3.14 -I, Pillow)
-Arena: the flier stands on the middle island (spawn x FLIER_START_X, island top y 140; the player is the Sootling sprite). Only Sootling palette 0 colours (palette 1 is the red-balloon computer palette) that no obstacle or city palette uses are counted, so this check does not pass on other art. The hero is hidden before play, so the pre-start snapshot is bounded near 0.
+Arena: the flier stands on island 0 (left shore) (spawn x FLIER_START_X, island top y 140; the player is the Sootling sprite). Only Sootling palette 0 colours (palette 1 is the red-balloon computer palette) that no obstacle or city palette uses are counted, so this check does not pass on other art. The hero is hidden before play, so the pre-start snapshot is bounded near 0.
 Exit 1 on failure."""
 import os
 import sys
@@ -8,7 +8,10 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import pixel_common as pc
 
-FLIER_X, ISLAND_TOP_Y, BOX_W, BOX_H, MARGIN = 160, 140, 32, 32, 12
+# Screen pixels. Start = world x 40 (FLIER_START_X) on island 0, top y 164 (world y = screen y). The camera follows the player to the screen centre
+# (target = x - SCREEN_W / 2, src/core/camera.c), so once settled the hero is at screen x 40 - (40 - 160) = 160; it settles about 100 frames after play
+# starts (starts at cam 32, eases at most 2 px/frame) and the playing snapshot is ~75 frames in, hero at screen x ~150..160, inside the box margin.
+FLIER_X, ISLAND_TOP_Y, BOX_W, BOX_H, MARGIN = 160, 164, 32, 32, 12
 # Sootling 2-balloon frames are 207-263 opaque px of which only part uses player-only colours (balloon greens, body);
 # measured 2026-11-10: playing 135 with the v5 32 x 48 art, 182 with the 24 x 32 art. Before start no Sootling sprite is drawn (main.c hero_and_mode draws only in FLOW_PLAYING), so attract must be near 0; the 196 measured with v5 was a palette coincidence with other art. The old 200 was the runner sprite. The city and obstacle
 # palettes share none of these colours, so an empty or wrong-art box stays near 0.

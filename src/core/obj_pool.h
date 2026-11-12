@@ -19,6 +19,7 @@
 #define POOL_COLS 3      /* hardware sprites per object: widest frame in tiles (obstacle art is 3 columns) */
 #define POOL_SPRITES (POOL_MAX * POOL_COLS)
 #define POOL_NONE 0xFF
+#define TRIP_RIVAL_OBJ_BASE (POOL_MAX - 12) /* Gum Trip rivals use pool objects 20..31 (hazards stay below, see src/main.c) */
 
 #define POOL_F_LIVE 0x01 /* slot in use */
 /* bits 0x02..0x80 free for the game (kind specific) */
@@ -45,6 +46,9 @@ typedef struct {
 void obj_pool_init(ObjPool *p, uint16_t sprite_base);
 /* Index of a new live object (zeroed, then the given fields), or POOL_NONE when the pool is full. */
 uint8_t obj_pool_alloc(ObjPool *p, uint8_t type, int32_t x, int32_t y, int32_t vx, int32_t vy);
+/* Takes the specific free object i out of the free list and makes it live (zeroed): 1 on success, 0 when i is out of range or already live.
+ * Fixed users (the Gum Trip hazards own objects 0..14) claim their objects so obj_pool_alloc cannot hand them out. */
+int obj_pool_claim(ObjPool *p, uint8_t i);
 /* Frees a live object; a dead or out-of-range index is ignored. */
 void obj_pool_free(ObjPool *p, uint8_t i);
 /* One frame of free motion for every live object: x += vx, y += vy. */

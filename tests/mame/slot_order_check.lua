@@ -7,12 +7,13 @@
 --                magenta pixels (the copy's opaque pixels) and the pool sprite's own words stay unchanged.
 -- Both slots are reserved and unused by the game, so the copies are the only writers.
 -- The same run is the reachability test of the floating islands (plan 2026-11-10-islands-build-plan.md I11): after PLAYING
--- frame 60 it reads the 41 island sprites from the VRAM shadow and checks the 8 chains (head height, head top, column counts,
--- palette, auto-animation bit on the caps only), that g_island_draws advanced once per PLAYING frame (island_step ran), that the
+-- frame 60 it reads the 41 island sprites from the VRAM shadow and checks every column (islands are not chained: SCB2 full size,
+-- not sticky; a column the camera maths puts on screen has the exact SCB3 word and SCB4 x, one off screen has height 0; palette,
+-- auto-animation bit on the caps only), that g_island_draws advanced once per PLAYING frame (island_step ran), that the
 -- CPU wrote no island SCB1 word in a 60 frame window (the auto-animation does the work), and, with the island palettes painted
 -- magenta, that the first drawn row of a middle column is the stage y of its platform (the drawn line is the collision floor).
 -- Env: BRAWL_FLOW_ADDR, BRAWL_HIT_LAYOUT, BRAWL_RESULT, BRAWL_SLOT_LAYOUT (tests/mame/slot_probe.c output),
--- BRAWL_ISLAND_DRAWS_ADDR (g_island_draws), BRAWL_STAGE_PLATFORMS (x y w of each platform, from src/core/stage.c).
+-- BRAWL_ISLAND_DRAWS_ADDR (g_island_draws), BRAWL_CAM_ADDR (g_cam_px), BRAWL_STAGE_PLATFORMS (x y w of each platform, from src/core/stage.c).
 local flow_addr = tonumber(os.getenv("BRAWL_FLOW_ADDR"), 16)
 local result    = os.getenv("BRAWL_RESULT")
 local lay = {}
@@ -22,6 +23,8 @@ local slots = {}
 for v in (os.getenv("BRAWL_SLOT_LAYOUT") or ""):gmatch("%d+") do slots[#slots + 1] = tonumber(v) end
 local POOL_FIRST, POOL_END, BEHIND, FRONT = slots[1], slots[2], slots[3], slots[4]
 local ISL_FIRST, ISL_END, ISL_PAL, ISL_PAL_N = slots[1], slots[2], slots[5], slots[6]
+local ARENA_W, SCREEN_W, ISL_ROW = slots[7], slots[8], slots[9]
+local cam_addr = tonumber(os.getenv("BRAWL_CAM_ADDR"), 16)
 local draws_addr = tonumber(os.getenv("BRAWL_ISLAND_DRAWS_ADDR"), 16)
 local plats = {}
 do
@@ -42,6 +45,7 @@ local function field(tag, name)
 end
 local coin  = field(":AUDIO_COIN", "Coin 1")
 local start = field(":edge:joy:START", "1 Player Start")
+local ss = dofile("tests/mame/start_seq.lua")(coin, start)
 
 local function finish(ok, msg)
   local f = io.open(result, "w")
@@ -80,22 +84,39 @@ do
   local s = ISL_FIRST
   for i, p in ipairs(plats) do isl_head[i] = s; isl_cols[i] = p.w // 16; s = s + p.w // 16 end
 end
+-- Screen x of the column whose left edge is at world, or nil when no pixel shows: the camera maths of camera_check.lua step 5,
+-- written out from game state (the camera), never from VRAM.
+local function column_x(world, cam)
+  local v = (world - cam) % ARENA_W
+  if v >= ARENA_W - 16 then v = v - ARENA_W end
+  if v > -16 and v < SCREEN_W then return v end
+  return nil
+end
 local isl_before, isl_tiles, isl_saved
+local isl_checked = 0
 local function isl_fail(msg) finish(false, "islands: " .. msg) end
 
-local function isl_structure()
+local function isl_structure(cam)
   if #plats == 0 then isl_fail("no platforms in BRAWL_STAGE_PLATFORMS") end
   local total = 0
   for i, p in ipairs(plats) do
     local cols, h = isl_cols[i], isl_head[i]
     total = total + cols
-    local top = p.y - 4
+    local top = p.y - ISL_ROW
     local want = (((496 - top) & 0x1ff) << 7) | 1
-    if vram[SCB3 + h] ~= want then isl_fail(string.format("island %d head SCB3 %04x, want %04x (height 1, top %d)", i, vram[SCB3 + h] or -1, want, top)) end
-    for c = 1, cols - 1 do
-      if ((vram[SCB3 + h + c] or 0) & 0x40) == 0 then isl_fail(string.format("island %d column %d is not sticky", i, c)) end
+    for c = 0, cols - 1 do
+      local s, sx = h + c, column_x(p.x + 16 * c, cam)
+      local scb2, scb3, scb4 = vram[SCB2 + s], vram[SCB3 + s] or 0, vram[SCB4 + s] or 0
+      if scb2 ~= 0xfff then isl_fail(string.format("island %d column %d SCB2 %s, want 0fff", i, c, scb2 and string.format("%04x", scb2) or "unwritten")) end
+      if sx then
+        isl_checked = isl_checked + 1
+        local want4 = (sx & 0x1ff) << 7
+        if scb3 ~= want or (scb3 & 0x40) ~= 0 then isl_fail(string.format("island %d column %d should be visible, SCB3 %04x, want %04x (height 1, top %d, not sticky; camera %d)", i, c, scb3, want, top, cam)) end
+        if scb4 ~= want4 then isl_fail(string.format("island %d column %d SCB4 %04x, want %04x (x %d, camera %d)", i, c, scb4, want4, sx, cam)) end
+      elseif (scb3 & 0x3f) ~= 0 then
+        isl_fail(string.format("island %d column %d is off screen, SCB3 %04x should have height 0 (camera %d)", i, c, scb3, cam))
+      end
     end
-    if h + cols < ISL_END and ((vram[SCB3 + h + cols] or 0) & 0x40) ~= 0 then isl_fail(string.format("island %d chain runs into the next island", i)) end
     for c = 0, cols - 1 do
       local attr = vram[SCB1 + (h + c) * 64 + 1] or 0
       local pal = attr >> 8
@@ -104,7 +125,9 @@ local function isl_structure()
       if cap ~= ((attr & 0x08) ~= 0) then isl_fail(string.format("island %d column %d auto-animation bit %s, caps are columns 0 and %d", i, c, tostring((attr & 0x08) ~= 0), cols - 1)) end
     end
   end
-  if total ~= ISL_END - ISL_FIRST then isl_fail(string.format("%d columns in the stage table, %d island sprites", total, ISL_END - ISL_FIRST)) end
+  if isl_checked < 1 then isl_fail(string.format("no island column should be visible at camera %d: nothing checked", cam)) end
+  -- R01 uses 22 of the 41 island sprites; the rest are the Gum Trip islands
+  if total > ISL_END - ISL_FIRST then isl_fail(string.format("%d columns in the stage table, %d island sprites", total, ISL_END - ISL_FIRST)) end
 end
 
 local function isl_tile_words()
@@ -128,13 +151,17 @@ local function isl_restore() for a, w in pairs(isl_saved) do mem:write_u16(a, w)
 
 -- First magenta row in a middle column of every island fully inside the view; sheet row 4 is the first opaque row of a middle
 -- piece (ISLAND_LINE_ROW), so it must be at stage y.
-local function isl_pixels()
+local function isl_pixels(cam)
   local matched, bad, detail = 0, 0, {}
   for i, p in ipairs(plats) do
-    local h = isl_head[i]
-    local sx = ((vram[SCB4 + h] or 0) >> 7) & 0x1ff
-    if sx + p.w <= 320 then
-      local x = X_OFF + sx + 32 + 8
+    -- a middle column (not a cap) that the camera maths puts wholly on screen
+    local sx
+    for c = 1, isl_cols[i] - 2 do
+      local v = column_x(p.x + 16 * c, cam)
+      if v and v >= 0 and v + 16 <= SCREEN_W then sx = v; break end
+    end
+    if sx then
+      local x = X_OFF + sx + 8
       local first
       for y = p.y + Y_OFF - 12, p.y + Y_OFF + 12 do
         local px = screen:pixel(x, y)
@@ -148,7 +175,7 @@ local function isl_pixels()
   return matched, bad, table.concat(detail, "; ")
 end
 
-local isl_msg = ""
+local isl_msg, isl_cam, cam_prev = "", 0, nil
 
 -- The pool now holds only fliers, which move (the islands that stood still left it): a source that moved during the
 -- 8 frame window is dropped with its copies hidden and a still one is searched for, until the 600 frame limit.
@@ -185,6 +212,9 @@ local function magenta()
   return n
 end
 
+-- R01 starts the hero on island 0 and the camera eases 2 px a frame from 32 to the hero (settled by about PLAYING frame 100), so
+-- the island words are read at frame ISL_AT, where the camera is still, not at frame 60 where it is mid-scroll.
+local ISL_AT = 120
 local n, phase, phase_at, since_start = 0, "boot", 0, 0
 -- All words that shape the sprite on screen: SCB2..4 and every tile and attribute word of its strip (a flier changes tiles
 -- while flapping; a copy forged from an older tile would not match the pool sprite's pixels).
@@ -198,34 +228,35 @@ local function same(a, b) for i = 1, #a do if a[i] ~= b[i] then return false end
 emu.register_frame_done(function()
   n = n + 1
   local state = mem:read_u8(flow_addr + O_STATE)
+  local cam_last = cam_prev; cam_prev = mem:read_u16(cam_addr)
   if state ~= STATE_PLAYING then
     since_start = 0
-    if n > 300 and phase == "boot" then phase = "coin"; phase_at = n; coin:set_value(1) end
-    if phase == "coin" and n == phase_at + 15 then coin:set_value(0) end
-    if phase == "coin" and n >= phase_at + 40 then phase = "start"; phase_at = n; start:set_value(1) end
-    if phase == "start" and n == phase_at + 15 then start:set_value(0) end
+    if n > 300 and phase == "boot" then phase = "coin"; phase_at = n; ss.begin(n) end
+    if phase == "coin" then ss.step(n, false) end
     return
   end
-  if phase == "start" then start:set_value(0); phase = "play" end
+  if phase == "coin" then ss.step(n, true); phase = "play" end
   since_start = since_start + 1
   if not src then
     -- A pool head sprite fully inside the 320 px view (the arena is wider than the view and a sprite at the right edge is
     -- not drawn); look each frame after PLAYING frame 60 until an island sprite (still, unlike the pool fliers) shows, for at most 600 frames.
-    if since_start == 60 then
-      -- reads of the island shadow need the first PLAYING frames written: frame 60 is well past the match start
+    if since_start == ISL_AT then
+      -- reads of the island shadow need the first PLAYING frames written: frame ISL_AT is well past the match start
       isl_before = mem:read_u16(draws_addr)
-      isl_structure()
+      isl_cam = mem:read_u16(cam_addr)
+      if isl_cam ~= cam_last then isl_fail(string.format("camera moved %s -> %d at frame %d: the island words lag it", tostring(cam_last), isl_cam, ISL_AT)) end
+      isl_structure(isl_cam)
       isl_tiles = isl_tile_words()
       isl_writes = 0; isl_watch = true
       isl_paint()
       return
-    elseif since_start == 64 then
-      local matched, bad, detail = isl_pixels()
+    elseif since_start == ISL_AT + 4 then
+      local matched, bad, detail = isl_pixels(isl_cam)
       isl_restore()
       if bad > 0 or matched < 1 then isl_fail(string.format("%d islands matched the stage line, %d drawn above it; %s", matched, bad, detail)) end
-      isl_msg = string.format("%d islands: drawn line == stage y in %d visible; ", #plats, matched)
+      isl_msg = string.format("%d islands, %d visible columns checked at camera %d: exact SCB3/SCB4, drawn line == stage y in %d islands; ", #plats, isl_checked, isl_cam, matched)
       return
-    elseif since_start == 120 then
+    elseif since_start == ISL_AT + 60 then
       isl_watch = false
       local delta = (mem:read_u16(draws_addr) - isl_before) & 0xffff
       local after = isl_tile_words()
@@ -235,7 +266,7 @@ emu.register_frame_done(function()
       isl_msg = isl_msg .. string.format("g_island_draws %d at frame 60, +%d in 60 frames, 0 CPU SCB1 writes; ", isl_before, delta)
       return
     end
-    if since_start < 125 then return end
+    if since_start < ISL_AT + 65 then return end
     for s = POOL_FIRST, POOL_END - 1 do
       local v = vram[SCB3 + s] or 0
       local sx = ((vram[SCB4 + s] or 0) >> 7) & 0x1ff

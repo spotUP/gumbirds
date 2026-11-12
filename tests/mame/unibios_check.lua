@@ -88,10 +88,13 @@ local function phase2()
   local st = mem:read_u8(flow_addr + O_STATE)
   if p2 == "coin" then
     if p2_n == 1 then coin:set_value(1) elseif p2_n == 16 then coin:set_value(0) end
-    if p2_n >= 46 then p2, p2_n = "start", 0; start:set_value(1) end
+    if p2_n >= 46 then p2, p2_n = "start", 0 end
   elseif p2 == "start" then
+    -- BG4: the first Start press opens the title mode select, the second begins the game; pulses 60 frames apart
+    start:set_value(((p2_n - 1) % 60) < 15 and 1 or 0)
+    if p2_n == 50 and mem:read_u8(0x10fe00) ~= 2 then finish(false, "credit taken by the Start press that only opens the mode select (two coins, credit byte " .. mem:read_u8(0x10fe00) .. ", want 2)") return end
     if st == FLOW_PLAYING then start:set_value(0); p2, p2_n = "play", 0
-    elseif p2_n > 120 then finish(false, "start with two credits never reached FLOW_PLAYING") end
+    elseif p2_n > 240 then finish(false, "start with two credits never reached FLOW_PLAYING") end
   elseif p2 == "play" then
     -- The flier stays alive on the island with no input: walk off the right edge, steer back over the gap with
     -- left + flap until the horizontal speed is gone, then fall into the water (as tests/mame/flier_check.lua).
@@ -127,9 +130,9 @@ local function phase2()
         finish(false, "flow never reached an attract state after game over (state " .. st .. ")")
       end
       p2, p2_n = "again", 0
-      start:set_value(1)
     end
   elseif p2 == "again" then
+    start:set_value(((p2_n - 1) % 60) < 15 and 1 or 0) -- BG4: the first press opens the mode select, the second begins the game
     if st == FLOW_PLAYING then start:set_value(0); p2, p2_n, play_c0 = "again_run", 0, c
     elseif p2_n > 300 then finish(false, "start after game over never began a second game (state " .. st .. ")") end
   elseif p2 == "again_run" and p2_n == 120 then

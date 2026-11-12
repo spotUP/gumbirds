@@ -3,7 +3,10 @@
  * slot below the pool (near plane), a slot above the hero (rain column, unused by the game until BG-2; the hazard strip heads swap on their own). */
 #include "../../src/sprite_slots.h"
 #include "../../src/vram_layout.h"
+#include "../../src/core/camera.h"
+#include "gen/island_tables.h"
 unsigned int probe[] = {
     ISLAND_SPRITE, ISLAND_SPRITE + ISLAND_COUNT, BG_NEAR_SPRITE, FG_RAIN_SPRITE,
     ISLAND_PAL_SLOT, ISLAND_PALETTE_COUNT, /* first island palette slot and how many */
+    ARENA_W, SCREEN_W, ISLAND_LINE_ROW,    /* camera ring width, view width, rows between an island sprite top and its drawn line */
 };

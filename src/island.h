@@ -8,10 +8,17 @@
  * (the camera), which gfx_word drops while the camera stands still.
  */
 #include <ngdevkit/types.h>
+#include "core/trip_gen.h"
 
 void island_step(u8 playing, int cam_px); /* per frame: shows the islands on the rise of playing, hides them on the fall, follows the camera */
 
 void island_autoanim_baseline(void); /* LSPC auto-animation counter to ISLAND_STEP_FRAMES: at boot, and where a hazard hands the counter back */
 
+/* Gum Trip (plan step V1): the arena islands stay hidden (island_step is called with playing 0) and the islands of the generated
+ * course chunks take the island sprites, TRIP_VIEW_ISLAND_BLOCK columns per ring slot. g is the course while a trip runs, 0
+ * otherwise (the arena islands are loaded again on the way out). ready is game_trip_ready: no chunk is read while it is 0. */
+void island_trip_step(const TripGen *g, uint32_t scroll_px, int ready);
+
+extern volatile u16 g_island_trip_draws; /* frames the generated islands were placed (test sentinel) */
 extern volatile u16 g_island_draws; /* frames the islands were placed (test sentinel) */
 #endif

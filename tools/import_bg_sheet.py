@@ -12,18 +12,20 @@ import argparse, json, os, sys
 from PIL import Image
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DEFAULT_DRAFTS = os.path.join(ROOT, "thoughts/shared/drafts/2026-11-10-backgrounds-wide")
+DEFAULT_DRAFTS = os.path.join(ROOT, "thoughts/shared/drafts/2026-11-11-endless-planes-final-relit")
 TRANSP = (255, 0, 255)
 PAD = 64          # bit padding of the row masks: room for the largest negative plane x
 SCREEN_W = 320
-BG_CAM_MAX = 64   # camera range 0..64 px (ARENA_CAM_MAX in src/core/arena.h, asserted in src/bg.c)
 
-# Plane order = sprite draw order, back to front. k is the parallax factor in sixteenths: plane x = cam_px * k / 16.
+# Plane order = sprite draw order, back to front. k is the parallax factor in sixteenths: plane offset = (unwrapped camera px * k / 16) mod plane width.
 # top is the screen line of the sheet's first row (the draft slices rows of the 224 line scene). Sheet widths are whole
 # tile columns: the plane is width / 16 sprites, one per column. Cloud and airship sheets keep their own drift, no factor
 # applies, and they are not built yet (BG-2); they are not listed.
 PLANES = [("sky", 0, 0), ("far", 4, 48), ("midA", 8, 80), ("midB", 12, 112), ("near", 16, 128)]
 MOODS = {"moon": {"prefix": "plane_moon_"}}
+# Planes whose cover a plane must NOT count: Gum Trip hides near (BG_TRIP_HIDDEN_MASK in src/core/bg_scroll.h), so mid B must not lose
+# tiles to near. Sky does lose tiles to far (and to the other planes in front) where they are opaque across their whole width.
+NO_COVER = {"midB": {"near"}}
 
 
 def snap5(c):
@@ -40,31 +42,28 @@ def row_masks(im):
 
 
 def needed_tiles(imgs):
-    """Per plane, the set of (column, tile row) that can show a pixel at some camera position 0..BG_CAM_MAX. A tile is
-    dropped when every one of its opaque pixels that lies on the 320 px screen is covered by an opaque pixel of a later
-    plane (a plane in front) at every camera position, or lies off screen at every camera position. Exact, so the picture
-    is unchanged. The LSPC counts a sprite on every line of its height, so a dropped tile row cuts the column's height
-    (column_rows) and the sprite budget gets the line back."""
+    """Loop-valid trim. The planes loop with different periods, so over a long run every relative offset occurs. A pixel line of a
+    plane can be dropped only when a plane in front (except the planes in NO_COVER of it) is opaque across its WHOLE width on that
+    screen line, which covers the 320 px screen at every offset. Per plane the set of (column, tile row) holding any pixel line
+    that is not covered that way. Exact for every camera position, so the picture is unchanged. The LSPC counts a sprite on every
+    line of its height, so a dropped tile row cuts the column's height (column_rows) and the sprite budget gets the line back."""
     masks = [row_masks(i) for i in imgs]
-    screen = ((1 << SCREEN_W) - 1) << PAD
+    solid = {}  # screen line -> indices of the planes that are opaque over their whole width there
+    for j, (m, im) in enumerate(zip(masks, imgs)):
+        full = ((1 << im.size[0]) - 1) << PAD
+        for r, v in enumerate(m):
+            if v == full:
+                solid.setdefault(PLANES[j][2] + r, []).append(j)
     need = [set() for _ in imgs]
-    for cam in range(BG_CAM_MAX + 1):
-        offs = [(cam * k) >> 4 for _, k, _ in PLANES]
-        for k, im in enumerate(imgs):
-            top = PLANES[k][2]
-            cover = {}  # screen line -> bitmask of screen x covered by the planes in front
-            for j in range(k + 1, len(imgs)):
-                for r, m in enumerate(masks[j]):
-                    y = PLANES[j][2] + r
-                    cover[y] = cover.get(y, 0) | (m >> offs[j])  # plane x = -offset: bit x + PAD moves right to x - offset + PAD
-            for r in range(im.size[1]):
-                m = (masks[k][r] >> offs[k]) & screen
-                if m & ~cover.get(top + r, 0):
-                    # some visible pixel of this line is not covered: every tile of the row touching it is needed
-                    for c in range(im.size[0] // 16):
-                        tile_bits = (((1 << 16) - 1) << (c * 16 + PAD)) >> offs[k]
-                        if m & ~cover.get(top + r, 0) & tile_bits:
-                            need[k].add((c, r // 16))
+    for k, im in enumerate(imgs):
+        top = PLANES[k][2]
+        skip = NO_COVER.get(PLANES[k][0], ())
+        for r in range(im.size[1]):
+            if any(j > k and PLANES[j][0] not in skip for j in solid.get(top + r, [])):
+                continue
+            for c in range(im.size[0] // 16):
+                if masks[k][r] >> (c * 16 + PAD) & 0xFFFF:
+                    need[k].add((c, r // 16))
     return need
 
 
@@ -123,13 +122,13 @@ def main():
     cols = [column_rows(i) for i in imgs]  # plane order, so the flat index is the sprite slot (src/sprite_slots.h)
     out = os.path.join(ROOT, "assets/city")
     sheet.save(os.path.join(out, "city_sheet.png"))
-    defines = {"CAM_MAX": BG_CAM_MAX}  # CITY_CAM_MAX: src/bg.c asserts it equals ARENA_CAM_MAX
+    defines = {}
     for (n, _, top), i in zip(PLANES, imgs):
         defines["%s_COLS" % n.upper()] = i.size[0] // 16
         defines["%s_TOP" % n.upper()] = top
         defines["%s_BOTTOM" % n.upper()] = top + i.size[1]
     meta = {
-        "source": "tools/import_bg_sheet.py %s from thoughts/shared/drafts/2026-11-10-backgrounds-wide/plane_%s_*_1x.png (wide parallax planes, frame 0 of the draft loop)" % (a.mood, a.mood),
+        "source": "tools/import_bg_sheet.py %s from %s/plane_%s_*_1x.png (looping parallax planes, frame 0)" % (a.mood, os.path.relpath(a.drafts, ROOT), a.mood),
         "backdrop": "#1a1238",
         "palette_policy": "merge",
         "tile_palettes": True,

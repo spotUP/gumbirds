@@ -29,6 +29,22 @@ uint8_t obj_pool_alloc(ObjPool *p, uint8_t type, int32_t x, int32_t y, int32_t v
     return i;
 }
 
+int obj_pool_claim(ObjPool *p, uint8_t i) {
+    uint8_t *link = &p->free_head;
+    PoolObj *o;
+    if (i >= POOL_MAX) return 0;
+    while (*link != POOL_NONE && *link != i) link = &p->next_free[*link];
+    if (*link == POOL_NONE) return 0;
+    *link = p->next_free[i];
+    p->next_free[i] = POOL_NONE;
+    o = &p->obj[i];
+    o->x = o->y = o->vx = o->vy = 0;
+    o->type = 0; o->flags = POOL_F_LIVE; o->anim = 0; o->anim_tick = i;
+    p->hide &= ~((uint32_t)1 << i);
+    if (++p->live > p->peak) p->peak = p->live;
+    return 1;
+}
+
 void obj_pool_free(ObjPool *p, uint8_t i) {
     if (!obj_pool_is_live(p, i)) return;
     p->obj[i].flags = 0;

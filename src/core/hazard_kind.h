@@ -26,8 +26,15 @@
 #define HAZARD_KILL_WATER (HAZARD_STRIP_TOP_Y + 12 + HAZARD_DIP)
 #define HAZARD_KILL_LAVA (HAZARD_STRIP_TOP_Y + 10 + HAZARD_DIP)
 
-/* Kind of match number n (0 for the first match). */
-static inline uint8_t hazard_kind_for_match(uint16_t n) { return (uint8_t)(n % HAZARD_KINDS); }
+/* Order of the kinds by round (0 for the first round of a game): water, spikes, lava, fire, then again. */
+#define HAZARD_ROUND_ORDER_LIST HZ_WATER, HZ_SPIKES, HZ_LAVA, HZ_FIRE
+
+/* Kind of round number n (0 for the first round of a game). */
+static inline uint8_t hazard_kind_for_round(uint16_t n)
+{
+    static const uint8_t order[HAZARD_KINDS] = { HAZARD_ROUND_ORDER_LIST };
+    return order[n % HAZARD_KINDS];
+}
 
 /* Kill line of a kind in whole world pixels (index = hazard kind). */
 static inline int hazard_kill_px(uint8_t kind)

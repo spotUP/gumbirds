@@ -2,7 +2,7 @@
 -- passes BRAWL_PHASE=1 or 2. Sentinel-driven, no fixed frame numbers (the cap is only a hang guard).
 --   Phase 1: coin, start, autoplay (as flier_check.lua) until the score passes the table minimum, then idle
 --            until the hero dies; GAME_OVER -> NAME_ENTRY; type BRAWL_NAME with the joystick (up cycles,
---            A confirms) by reading the cursor position and symbol from RAM; wait for the table screen.
+--            A confirms) by reading the cursor position and symbol from RAM; wait for the save reminder, then the title screen.
 --            Asserts: score > 0 and ranks, g_hiscore_saves went 0 -> 1, backup RAM image holds name and
 --            score at the row computed from the pre-insert table. Writes name/score/row to BRAWL_EXPECT.
 --            Then keeps running 1500 frames past the BIOS title timeout: the game loop must not stall and the
@@ -30,7 +30,7 @@ local cd_frames, cd_bad, cd_max, cd_note = 0, 0, 0, ""      -- name entry countd
 local mem    = manager.machine.devices[":maincpu"].spaces["program"]
 local ports  = manager.machine.ioport.ports
 
-local FLOW_ATTRACT_TABLE, FLOW_PLAYING, FLOW_GAME_OVER, FLOW_NAME_ENTRY, FLOW_SAVE_REMINDER = 1, 3, 4, 5, 6
+local FLOW_ATTRACT_TITLE, FLOW_PLAYING, FLOW_GAME_OVER, FLOW_NAME_ENTRY, FLOW_SAVE_REMINDER = 0, 3, 4, 5, 6
 local TABLE_MIN = 1000             -- factory table last place; a score must beat it (ties rank below)
 local HOLD, GAP = 3, 4
 local WATCHDOG = 40000             -- MAME frames; hang guard only
@@ -43,6 +43,8 @@ end
 local function named(tag, nm) return field(tag, function(x) return x == nm end) end
 local coin  = named(":AUDIO_COIN", "Coin 1")
 local start = named(":edge:joy:START", "1 Player Start")
+local ss = dofile("tests/mame/start_seq.lua")(coin, start)
+ss.watch(manager.machine.devices[":maincpu"].spaces["program"])
 local abtn, bbtn, cbtn = named(":edge:joy:JOY1", "P1 A"), named(":edge:joy:JOY1", "P1 B"), named(":edge:joy:JOY1", "P1 C")
 local ubtn = named(":edge:joy:JOY1", "P1 Up")
 local rbtn = named(":edge:joy:JOY1", "P1 Right")
@@ -106,7 +108,7 @@ emu.register_frame_done(function()
     local fc = mem:read_u32(frame_addr)
     if fc ~= 0 then fc0 = fc0 or fc end
     if fc0 and fc - fc0 >= 30 then
-      if phase_no == 2 then phase = "verify" else phase = "coin"; coin_at = n; coin:set_value(1) end
+      if phase_no == 2 then phase = "verify" else phase = "coin"; coin_at = n; ss.begin(n) end
     end
     return
   end
@@ -133,13 +135,14 @@ emu.register_frame_done(function()
   end
 
   if phase == "coin" then
-    if n == coin_at + 15 then coin:set_value(0) end
-    if n >= coin_at + 30 then phase = "start"; start:set_value(1) end
+    -- one coin; the first Start press opens the title mode select, the second begins the game (BG4; tests/mame/start_seq.lua)
+    if ss.step(n, state == FLOW_PLAYING) then
+      -- BG4 regression: one coin, the first Start only opens the select (credit still 1), the second begins play (credit 0)
+      local bad = ss.verdict(1, 1, 0)
+      if bad then finish(false, bad) return end
+      phase = "play"
+    end
     return
-  elseif phase == "start" then
-    if state == FLOW_PLAYING then
-      start:set_value(0); phase = "play"
-    else return end
   end
 
   if phase == "play" then
@@ -232,7 +235,7 @@ emu.register_frame_done(function()
       entry_gap = HOLD + GAP
       return
     end
-    if state == FLOW_SAVE_REMINDER or state == FLOW_ATTRACT_TABLE then
+    if state == FLOW_SAVE_REMINDER or state == FLOW_ATTRACT_TITLE then
       if cd_frames == 0 or cd_bad > 0 or cd_max ~= NAME_TIMEOUT // 60 then
         finish(false, string.format("name countdown: %d frames drawn, %d wrong (%s), max %d, want %d",
           cd_frames, cd_bad, cd_note, cd_max, NAME_TIMEOUT // 60))
@@ -243,7 +246,7 @@ emu.register_frame_done(function()
   end
 
   if phase == "saved" then
-    if state ~= FLOW_ATTRACT_TABLE then return end
+    if state ~= FLOW_ATTRACT_TITLE then return end
     local saves = mem:read_u32(saves_addr)
     if saves ~= saves0 + 1 then
       finish(false, string.format("save sentinel %d -> %d, expected +1", saves0, saves)) return

@@ -2,12 +2,12 @@
 #include "../sprite_slots.h"
 #include "gen/city_tables.h"
 
-/* Per sprite slot of the planes (plane order, so the index is the slot): first tile row and tile rows drawn. */
+/* Per sprite slot of the planes (plane order: table index = slot - BG_SKY_SPRITE): first tile row and tile rows drawn. */
 static const unsigned char COL_ROW0[] = CITY_TABLE_COL_ROW0;
 static const unsigned char COL_ROWS[] = CITY_TABLE_COL_ROWS;
 static const unsigned char PLANE_TOP[] = CITY_TABLE_PLANE_TOP;
 /* C99 build (host tests): a compile-time check as a constant division, zero when the sizes differ. */
-enum { SB_CHECK_TABLE = 1 / (sizeof COL_ROWS == BG_SPRITE_END && sizeof COL_ROW0 == BG_SPRITE_END) }; /* one table row per background sprite */
+enum { SB_CHECK_TABLE = 1 / (sizeof COL_ROWS == BG_SPRITE_TOTAL && sizeof COL_ROW0 == BG_SPRITE_TOTAL) }; /* one table row per background sprite */
 
 /* y ranges and counts per line: the drawn art (the parallax planes: counts and y ranges in src/sprite_slots.h,
  * checked against the sheet in src/bg.c). Plane entries (SB_COLUMNS) count column by column from the generated table. */
@@ -20,7 +20,7 @@ const SpriteBudgetEntry SPRITE_BUDGET[] = {
     { "gameplay",    POOL_SPRITE_BASE,    HERO_SPRITE + HERO_SPRITE_COUNT - POOL_SPRITE_BASE,
                                                                 0, 224, SB_GAMEPLAY_PER_LINE, SB_ALWAYS },
     /* 24 columns, not the 21 visible at a camera offset: the LSPC picks sprites per line by Y only, so columns with X off screen still count. */
-    /* island sprites sit 4 lines above the platform top and are 16 high (ISLAND_LINE_ROW): lines 36-4 .. 164+12. The bands of the 8 islands
+    /* island sprites sit 4 lines above the platform top and are 16 high (ISLAND_LINE_ROW): lines 68-4 .. 164+12. The bands of the 4 islands
        are disjoint, so one line meets one island at most; the widest island (112 px) has 7 columns. */
     { "islands",     ISLAND_SPRITE,       ISLAND_COUNT,        32, 176, 7, SB_ALWAYS },
     { "hazard",      HAZARD_SPRITE,       HAZARD_COUNT,       192, 224, 24, SB_ALWAYS },
@@ -45,7 +45,7 @@ static int columns_on_line(const SpriteBudgetEntry *e, int y) {
     int plane = 0, n = 0;
     while (PLANE_FIRST[plane] != e->first) plane++;
     for (int c = 0; c < e->count; c++) {
-        int slot = e->first + c, top = PLANE_TOP[plane] + 16 * COL_ROW0[slot];
+        int slot = e->first + c - BG_SKY_SPRITE, top = PLANE_TOP[plane] + 16 * COL_ROW0[slot];
         if (COL_ROWS[slot] && y >= top && y < top + 16 * COL_ROWS[slot]) n++;
     }
     return n;

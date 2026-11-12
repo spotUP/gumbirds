@@ -10,6 +10,7 @@
 #include "flow.h"
 
 #define SE_FLAP      0x01   /* flap press edge: plays the jump sample */
+#define SE_HIT       0x02   /* Gum Trip hit (hazard or wall kill): plays the hit sample; fires on each frame Game.trip_events has TRIP_EV_HIT */
 #define SE_START     0x08   /* run begins: coin blip and music start */
 #define SE_GAME_OVER 0x10   /* run ends: music stop and jingle */
 

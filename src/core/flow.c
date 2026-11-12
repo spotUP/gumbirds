@@ -11,10 +11,13 @@ static void enter(Flow *f, FlowState s)
 static void start_game(Flow *f, uint32_t seed, int demo)
 {
     game_reset(&f->game, seed);
+    game_set_mode(&f->game, demo ? GAME_MODE_ARENA : f->mode); /* the demo is always the arena */
     f->demo = (uint8_t)demo;
+    f->game.rounds = (uint8_t)(!demo && f->mode != GAME_MODE_TRIP); /* real arena games get the round end and round start phases */
     f->highlight = -1;
     f->new_row = -1;
     f->reset_flash = 0;
+    f->select_open = 0;
     enter(f, demo ? FLOW_ATTRACT_DEMO : FLOW_PLAYING);
 }
 
@@ -24,14 +27,18 @@ void flow_init(Flow *f, const uint8_t *image, size_t len)
     f->highlight = -1;
     f->new_row = -1;
     f->demo = 0;
+    f->select_open = 0;
+    f->mode = GAME_MODE_ARENA;
+    f->input_prev = 0;
     f->reset_flash = 0;
     f->reset_hold = 0;
     f->reset_fired = 0;
     f->last_score = 0;
-    if (image) {
-        hiscore_load(&f->table, image, len);
-    } else {
-        hiscore_defaults(&f->table);
+    f->last_mode = GAME_MODE_ARENA;
+    /* a version 1 image (arena only) loads with the trip table at defaults; dirty stays 0 so the version 2 image is
+     * written back on the first new entry, not at boot (user 2026-11-11) */
+    if (!image || !score_load(&f->tables, image, len)) {
+        score_tables_defaults(&f->tables);
     }
     game_reset(&f->game, 1);
     nameentry_init(&f->entry);
@@ -39,20 +46,19 @@ void flow_init(Flow *f, const uint8_t *image, size_t len)
 }
 
 /* Would this score make the table? Tries the insert on a copy so the ranking rule
- * (ties rank below, zero never ranks) lives only in hiscore_insert. */
+ * (ties rank below, zero never ranks) lives only in hiscore_insert, reached through score_qualifies. */
 static int ranks(const Flow *f, uint32_t score)
 {
-    HiscoreTable t = f->table;
-    return hiscore_insert(&t, "", score) >= 0;
+    return score_qualifies(&f->tables, f->last_mode, score);
 }
 
-/* Scripted demo input: hover. Flap (press edge: release the frame after a press) whenever the flier is
+/* Scripted demo input: hover. Flap (press edge: release the frame after a press; and the flap cooldown is over) whenever the flier is
  * below DEMO_HOVER_Y, sweep right and left, switching every DEMO_SWEEP_FRAMES frames of the demo. */
 static uint8_t demo_input(Flow *f)
 {
     const Flier *fl = &f->game.flier;
     uint8_t in = 0;
-    if (!fl->flap_prev && fl->y > FL_PX(DEMO_HOVER_Y)) {
+    if (!fl->flap_prev && fl->flap_cd == 0 && fl->y > FL_PX(DEMO_HOVER_Y)) {
         in |= IN_A;
     }
     in |= ((f->timer / DEMO_SWEEP_FRAMES) & 1u) ? IN_LEFT : IN_RIGHT;
@@ -66,7 +72,7 @@ static void title_reset_combo(Flow *f, uint8_t input)
             f->reset_hold++;
         }
         if (!f->reset_fired && f->reset_hold >= RESET_HOLD_FRAMES) {
-            hiscore_defaults(&f->table);
+            score_tables_defaults(&f->tables); /* wipes both tables */
             f->dirty = 1;
             f->reset_fired = 1;
             f->reset_flash = 1;
@@ -74,6 +80,15 @@ static void title_reset_combo(Flow *f, uint8_t input)
     } else {
         f->reset_hold = 0;
         f->reset_fired = 0;
+    }
+}
+
+/* Title mode select: an up or down press edge toggles Arena / Gum Trip. A held stick does not repeat. */
+static void title_mode_select(Flow *f, uint8_t input)
+{
+    uint8_t edge = (uint8_t)(input & ~f->input_prev & (IN_UP | IN_DOWN));
+    if (edge) {
+        f->mode = f->mode == GAME_MODE_TRIP ? GAME_MODE_ARENA : GAME_MODE_TRIP;
     }
 }
 
@@ -85,16 +100,23 @@ void flow_step(Flow *f, uint8_t input, uint8_t start_pressed, uint32_t frame_cou
     switch (f->state) {
     case FLOW_ATTRACT_TITLE:
         title_reset_combo(f, input);
+        title_mode_select(f, input);
         if (start_pressed && (input & FLOW_RESET_COMBO) != FLOW_RESET_COMBO) {
-            start_game(f, frame_counter, 0);
+            /* BG4: the first start opens mode select, the second begins the game */
+            if (f->select_open) start_game(f, frame_counter, 0);
+            else { f->select_open = 1; f->timer = 0; }
         } else if (f->timer >= ATTRACT_TITLE_FRAMES) {
             f->reset_flash = 0;
+            f->select_open = 0;
+            f->highlight = -1; /* the saved row was shown on the title, the table that follows is plain */
             enter(f, FLOW_ATTRACT_TABLE);
         }
         break;
     case FLOW_ATTRACT_TABLE:
         if (start_pressed) {
-            start_game(f, frame_counter, 0);
+            f->highlight = -1;
+            enter(f, FLOW_ATTRACT_TITLE);
+            f->select_open = 1;
         } else if (f->timer >= ATTRACT_TABLE_FRAMES) {
             f->highlight = -1;
             start_game(f, frame_counter, 1);
@@ -102,7 +124,9 @@ void flow_step(Flow *f, uint8_t input, uint8_t start_pressed, uint32_t frame_cou
         break;
     case FLOW_ATTRACT_DEMO:
         if (start_pressed) {
-            start_game(f, frame_counter, 0);
+            f->demo = 0;
+            enter(f, FLOW_ATTRACT_TITLE);
+            f->select_open = 1;
         } else {
             game_step_arena(&f->game, demo_input(f));
             /* The demo never scores into the table: it only ever returns to the title. */
@@ -113,9 +137,10 @@ void flow_step(Flow *f, uint8_t input, uint8_t start_pressed, uint32_t frame_cou
         }
         break;
     case FLOW_PLAYING:
-        game_step_arena(&f->game, input);
+        game_step(&f->game, input);
         if (f->game.over) {
             f->last_score = f->game.score;
+            f->last_mode = f->game.mode;
             enter(f, FLOW_GAME_OVER);
         }
         break;
@@ -132,7 +157,7 @@ void flow_step(Flow *f, uint8_t input, uint8_t start_pressed, uint32_t frame_cou
     case FLOW_NAME_ENTRY:
         nameentry_step(&f->entry, input);
         if (f->entry.done) {
-            f->new_row = (int8_t)hiscore_insert(&f->table, f->entry.name, f->last_score);
+            f->new_row = (int8_t)score_insert(&f->tables, f->last_mode, f->entry.name, f->last_score);
             f->highlight = f->new_row;
             f->dirty = 1;
             enter(f, FLOW_SAVE_REMINDER);
@@ -140,18 +165,20 @@ void flow_step(Flow *f, uint8_t input, uint8_t start_pressed, uint32_t frame_cou
         break;
     case FLOW_SAVE_REMINDER:
         if (f->timer >= REMINDER_FRAMES) {
-            enter(f, FLOW_ATTRACT_TABLE); /* highlight stays until the table screen ends */
+            enter(f, FLOW_ATTRACT_TITLE); /* BG1: straight to the title; the highlight stays until the title times out */
         }
         break;
     }
+    f->input_prev = input;
 }
 
 void flow_view(const Flow *f, FlowView *v)
 {
     v->state = (FlowState)f->state;
     v->timer = f->timer;
-    v->table = &f->table;
-    v->highlight = f->highlight;
+    v->table_mode = (uint8_t)score_shown_mode(f->state, f->mode, f->last_mode, f->timer, SCORE_TABLE_SWAP_FRAMES);
+    v->table = &f->tables.t[v->table_mode];
+    v->highlight = v->table_mode == f->last_mode ? f->highlight : -1;
     v->game = &f->game;
     v->entry = &f->entry;
     v->score = f->last_score;
@@ -159,4 +186,6 @@ void flow_view(const Flow *f, FlowView *v)
                             ? 100
                             : (int)(((uint32_t)f->reset_hold * 100u) / RESET_HOLD_FRAMES);
     v->reset_flash = f->reset_flash;
+    v->mode = f->mode;
+    v->select_open = f->select_open;
 }

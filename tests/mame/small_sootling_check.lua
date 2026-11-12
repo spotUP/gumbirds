@@ -1,6 +1,6 @@
 -- Small Sootling reachability (make test-small-sootling): the 24 x 32 sheet is what the real ROM draws for the player.
 -- Spec numbers are written out here (not read from the build) so a stale sheet fails:
---   art 24 x 32, 160 tiles in the Sootling C-ROM range (the old 32 x 48 sheet has 296), sprite 32 wide (2 columns),
+--   art 24 x 32, 248 tiles in the Sootling C-ROM range (160 before the walk, landing and breathing clips; the old 32 x 48 sheet has 296), sprite 32 wide (2 columns),
 --   hit box offset 14 ((32 - 24) / 2 + box first column 10).
 -- Timeline: coin, start, wait for PLAYING, settle on the island, flap 8 times, settle again. Checks:
 --   1. probe values (what the ROM was built with) equal the spec numbers; g_soot_range holds the same tile count;
@@ -20,7 +20,7 @@ local function nums(name) local t = {} for v in (os.getenv(name) or ""):gmatch("
 local flay, slay = nums("BRAWL_FLIER_LAYOUT"), nums("BRAWL_SOOT_LAYOUT")
 local O_STATE, O_X, O_Y, O_VX, O_GROUND = flay[1], flay[6], flay[7], flay[8], flay[12]
 local P_ART_W, P_ART_H, P_TILES, P_SPRITE_W, P_BOX_DX, HERO, HALF_W, HALF_H16, ARENA_W, SCREEN_W, POOL_BASE, POOL_COUNT = table.unpack(slay)
-local SPEC = { art_w = 24, art_h = 32, tiles = 160, sprite_w = 32, box_dx = 14 }
+local SPEC = { art_w = 24, art_h = 32, tiles = 248, sprite_w = 32, box_dx = 14 }
 local FLOW_PLAYING = 3
 
 local mem   = manager.machine.devices[":maincpu"].spaces["program"]
@@ -32,6 +32,7 @@ local function field(tag, name)
 end
 local coin  = field(":AUDIO_COIN", "Coin 1")
 local start = field(":edge:joy:START", "1 Player Start")
+local ss = dofile("tests/mame/start_seq.lua")(coin, start)
 local abtn  = field(":edge:joy:JOY1", "P1 A")
 
 -- VRAM shadow through a write tap on the video port, as sprite_peak_check.lua
@@ -79,15 +80,12 @@ emu.register_frame_done(function() local ok_, err_ = pcall(function()
   local fc = mem:read_u32(frame_addr)
   if phase == "boot" then
     if fc ~= 0 then fc0 = fc0 or fc end
-    if fc0 and fc - fc0 >= 30 then phase = "coin"; coin_at = n; coin:set_value(1) end
+    if fc0 and fc - fc0 >= 30 then phase = "coin"; coin_at = n; ss.begin(n) end
     return
   elseif phase == "coin" then
-    if n == coin_at + 15 then coin:set_value(0) end
-    if n >= coin_at + 30 then phase = "start"; start:set_value(1) end
-    return
-  elseif phase == "start" then
-    if state ~= FLOW_PLAYING then return end
-    start:set_value(0)
+    if ss.step(n, state == FLOW_PLAYING) then phase = "start" else return end
+  end
+  if phase == "start" then
     -- 1. spec numbers against the build
     local sbase, scount = mem:read_u16(soot_addr), mem:read_u16(soot_addr + 2)
     if P_ART_W ~= SPEC.art_w or P_ART_H ~= SPEC.art_h or P_TILES ~= SPEC.tiles or P_SPRITE_W ~= SPEC.sprite_w or P_BOX_DX ~= SPEC.box_dx then
@@ -121,7 +119,7 @@ emu.register_frame_done(function() local ok_, err_ = pcall(function()
   end
 
   local x, y = g32(O_X), g32(O_Y)
-  local cam = mem:read_u8(cam_addr)
+  local cam = mem:read_u16(cam_addr)
   local on_ground = mem:read_u8(flow_addr + O_GROUND) == 1
   local pos = x .. ":" .. y .. ":" .. cam
   if pos == last_pos then still = still + 1 else still = 0 end
@@ -142,6 +140,8 @@ emu.register_frame_done(function() local ok_, err_ = pcall(function()
       if flapped then
         local kinds = 0
         for _ in pairs(tiles_seen) do kinds = kinds + 1 end
+        -- ground braking is now linear (FLIER_GROUND_ACCEL), so a landed flier stands still a little later: wait for the standing frames before judging (the same asserts, up to 300 ticks).
+        if (checked < 3 or kinds < 2) and tick < 300 then return end
         if checked < 3 or kinds < 2 then
           finish(false, string.format("standing checks %d (want >= 3), distinct player tiles %d (want >= 2)", checked, kinds)) return
         end

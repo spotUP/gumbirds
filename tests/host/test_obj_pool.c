@@ -125,7 +125,26 @@ static void test_anim_stagger(void) {
     CHECK(worst <= 8);
 }
 
+/* obj_pool_claim takes one named free object, leaves the others allocatable, refuses a live or out-of-range object. */
+static void test_claim(void) {
+    uint8_t i;
+    obj_pool_init(&P, 96);
+    CHECK(obj_pool_claim(&P, 7) == 1);
+    CHECK(obj_pool_claim(&P, 7) == 0);
+    CHECK(obj_pool_claim(&P, POOL_MAX) == 0);
+    CHECK(P.live == 1 && (P.obj[7].flags & POOL_F_LIVE) != 0);
+    for (int k = 0; k < POOL_MAX - 1; k++) {
+        i = obj_pool_alloc(&P, 1, 0, 0, 0, 0);
+        CHECK(i < POOL_MAX && i != 7);
+    }
+    CHECK(obj_pool_alloc(&P, 1, 0, 0, 0, 0) >= POOL_MAX);
+    obj_pool_init(&P, 96);
+    for (i = 0; i < 15; i++) CHECK(obj_pool_claim(&P, i) == 1);
+    CHECK(obj_pool_alloc(&P, 1, 0, 0, 0, 0) == 15);
+}
+
 int main(void) {
+    test_claim();
     test_alloc_free();
     test_sprite_runs();
     test_hide_once();

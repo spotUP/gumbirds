@@ -15,10 +15,11 @@
 #define GFX_AUTOANIM_DEFAULT_FRAMES 1 /* counter speed at boot and when no auto-animated strip is shown */
 void gfx_autoanim_speed(u8 frames_per_step); /* LSPC auto-animation: counter steps every N video frames (REG_LSPCMODE bits 15..8 = N-1) */
 extern volatile u8 g_autoanim_frames; /* frames per step last set (test sentinel) */
+extern volatile u32 g_vq_ramp_ops;  /* VQ_RAMP ops written by gfx_flush since boot (test sentinel: the plane scroll ran through the generated path) */
 extern volatile u16 g_swap_count;     /* bank swaps done by gfx_flush since boot (test sentinel) */
 /* Show the strip whose head SCB3 address is head0 or head1, one at a time, swapping at each wrap of the animation
  * counter (see gfx_flush). show_word is the head SCB3 word of the shown strip. Both heads must be hidden (0). */
-void gfx_swap_arm(u16 head0, u16 head1, u16 show_word);
+void gfx_swap_arm(u16 head0, u16 head1, u8 cols, u16 show_word); /* cols: SCB3 words per bank, the first at head */
 void gfx_swap_disarm(void);
 void gfx_init(void);                /* forget the hardware state (boot, BIOS resume) */
 #include "core/vram_queue.h"
@@ -32,10 +33,14 @@ void gfx_strip(u16 sprite, const u16 *tiles, u16 base, u8 rows, u16 attr);
 /* Strided SCB2..SCB4 run (vq_scb_run): vals[k] goes to addr + k * mod, one queue op for all changed words. For
  * per-frame words of many sprites at a fixed stride, e.g. the head SCB3/SCB4 of every pool object. */
 void gfx_scb_run(u16 addr, u16 mod, const u16 *vals, u8 n);
+static inline void gfx_scb_forget(u16 addr, u16 n) { vq_scb_forget(&g_gfx_q, addr, n); } /* see vq_scb_forget */
+void gfx_scb_ramp(u16 addr, u8 n, u8 split, u16 v1, u16 v2);  /* VQ_RAMP: words generated in the flush (vram_queue.h) */
 /* One column with a per-tile attribute: `pairs` = rows x {tile, attribute}; for init-time art that mixes palettes in a column. */
 void gfx_strip_attr(u16 sprite, const u16 *pairs, u16 base, u8 rows);
 void gfx_pal(u16 idx, u16 val);
 void gfx_text(u8 x, u8 y, u8 pal, const char *s);
+/* One fix cell: S-ROM tile number with palette pal (goes through the fix shadow, so an unchanged cell sends nothing). */
+void gfx_fix_tile(u8 x, u8 y, u8 pal, u16 tile);
 void gfx_text_backed(u8 x, u8 y, u8 pal, const char *s);
 void gfx_text_tall(u8 x, u8 y, u8 pal, const char *s);
 void gfx_text_tall_backed(u8 x, u8 y, u8 pal, const char *s);
@@ -61,6 +66,8 @@ void gfx_sprite_place(u16 first, u8 cols, u8 rows, int left, int top);
  * strips; SCB2 of every column plus the sticky SCB3 of columns 1..cols-1; the head SCB3 (height, y) and SCB4 (x). */
 void gfx_sprite_strips(u16 first, u8 cols, u8 rows, const u16 *tiles, u16 base, u16 attr);
 void gfx_sprite_chain(u16 first, u8 cols);
+/* Full size (SCB2 0xFFF) for each column and no sticky SCB3 bit: every column is placed on its own (ring columns). */
+void gfx_sprite_unchained(u16 first, u8 cols);
 static inline u16 gfx_scb3_word(u8 rows, int top) { return (u16)((((496 - top) & 0x1FF) << 7) | rows); }
-static inline u16 gfx_scb4_word(int left) { return (u16)((left & 0x1FF) << 7); }
+static inline u16 gfx_scb4_word(int left) { return VQ_SCB4_X(left); }
 #endif

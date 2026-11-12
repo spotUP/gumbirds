@@ -65,6 +65,7 @@ local function sym_addrs()
 end
 local syms = sym_addrs()
 local A_SENT, A_LAST, A_FRAME = syms.g_sound_sent, syms.g_sound_last, syms.g_frame_counter
+local A_RE = syms.g_round_end_s   -- u16 round_end, round_timer, round_start, flier visible (src/main.c): the ROUND nn / GO! hold ignores input
 
 local mem   = manager.machine.devices[":maincpu"].spaces["program"]
 local zio   = manager.machine.devices[":audiocpu"].spaces["io"]
@@ -76,6 +77,7 @@ local function field(tag, name)
 end
 local coin  = field(":AUDIO_COIN", "Coin 1")
 local start = field(":edge:joy:START", "1 Player Start")
+local ss = dofile("tests/mame/start_seq.lua")(coin, start)
 local rbtn  = field(":edge:joy:JOY1", "P1 Right")
 local lbtn  = field(":edge:joy:JOY1", "P1 Left")
 local abtn  = field(":edge:joy:JOY1", "P1 A")
@@ -205,14 +207,11 @@ emu.register_frame_done(function()
   if phase == "boot" then
     local fc = mem:read_u32(A_FRAME)
     if fc ~= 0 then fc0 = fc0 or fc end
-    if fc0 and fc - fc0 >= 30 then phase = "coin"; phase_at = n; coin:set_value(1) end
+    if fc0 and fc - fc0 >= 30 then phase = "coin"; phase_at = n; ss.begin(n) end
   elseif phase == "coin" then
-    if n == phase_at + 15 then coin:set_value(0) end
-    if n >= phase_at + 30 then phase = "start"; start:set_value(1) end
-  elseif phase == "start" then
-    if state == FLOW_PLAYING then start:set_value(0); phase = "settle"; phase_at = n end
+    if ss.step(n, state == FLOW_PLAYING) then phase = "settle"; phase_at = n end
   elseif phase == "settle" then
-    if n >= phase_at + 60 then phase = "flap"; phase_at = n; abtn:set_value(1) end
+    if n >= phase_at + 60 and mem:read_u16(A_RE) == 0 and mem:read_u16(A_RE + 4) == 0 then phase = "flap"; phase_at = n; abtn:set_value(1) end
   elseif phase == "flap" then
     if n == phase_at + 3 then abtn:set_value(0) end
     if n >= phase_at + 60 then phase = "idle"; phase_at = n end

@@ -33,6 +33,8 @@ local function field(tag, name)
 end
 local coin  = field(":AUDIO_COIN", "Coin 1")
 local start = field(":edge:joy:START", "1 Player Start")
+local ss = dofile("tests/mame/start_seq.lua")(coin, start)   -- one coin, Start opens the mode select, Start again begins play
+local play_n = nil   -- frame at which the flow state first read PLAYING
 
 local function image()
   local t = {}
@@ -77,7 +79,7 @@ local img_before, img_after = nil, nil
 
 -- Background proof for tests/mame/check_bg_pixels.py: two snapshots BG_GAP frames apart during play plus
 -- the five plane x values (g_bg_plane_x) and the plane write counter (g_bg_x_writes) the game exported at the same frame.
-local BG_A, BG_B = 420, 450
+local BG_A, BG_B = 100, 130   -- frames after PLAYING begins: past the ROUND nn / GO! hold (90 frames), where the arena is drawn
 local bg_lines = {}
 local function bg_record(tag)
   local xs = {}
@@ -95,7 +97,7 @@ end
 
 emu.register_frame_done(function()
   n = n + 1
-  if n >= 290 and n <= 700 then
+  if n >= 290 and n <= 760 then
     local c = mem:read_u32(frame_addr)
     if n == 290 then c_first = c end
     if prev and c < prev and not reset_msg then
@@ -104,20 +106,18 @@ emu.register_frame_done(function()
     end
     prev = c
     if n == 420 then c_last = c end
-    if n == 700 then c_end = c end
+    if n == 760 then c_end = c end
   end
+  if n == 320 and coin then ss.begin(n) end
+  if n >= 320 and not play_n and ss.step(n, mem:read_u8(flow_addr) == 3) then play_n = n end
   if n == 300 then
     st_early = mem:read_u8(flow_addr)
     img_before = image()
-  elseif n == 320 and coin then coin:set_value(1)
-  elseif n == 335 and coin then coin:set_value(0)
-  elseif n == 360 and start then start:set_value(1)
-  elseif n == 375 and start then start:set_value(0)
   elseif n == 350 then screen:snapshot("pre_start.png")
-  elseif n == BG_A then
+  elseif play_n and n == play_n + BG_A then
     screen:snapshot("bg_a.png")
     bg_record("a")
-  elseif n == BG_B then
+  elseif play_n and n == play_n + BG_B then
     screen:snapshot("playing.png")
     bg_record("b")
     local bf = io.open(result .. ".bg", "w")
@@ -128,16 +128,16 @@ emu.register_frame_done(function()
       tostring(fix_cell(2, 5)), tostring(fix_cell(2, 2)))
     mode_play = mem:read_u8(USER_MODE)
     st_play = mem:read_u8(flow_addr)
-  elseif n == 500 and coin then coin:set_value(1)
-  elseif n == 515 and coin then coin:set_value(0)
-  elseif n == 560 then
+  elseif play_n and n == play_n + 180 and coin then coin:set_value(1)
+  elseif play_n and n == play_n + 195 and coin then coin:set_value(0)
+  elseif play_n and n == play_n + 240 then
     mode_after_coin2 = mem:read_u8(USER_MODE)
     st_after_coin2 = mem:read_u8(flow_addr)
-  elseif n == 700 then
+  elseif n == 760 then
     st_late = mem:read_u8(flow_addr)
     img_after = image()
     local img_ok = img_before == img_after
-    local msg = string.format("counter %d -> %d over frames 290..420 (-> %d at 700), state %d -> %d, image %s, coin=%s start=%s, user_mode %s playing, %s after 2nd coin, state %s/%s",
+    local msg = string.format("counter %d -> %d over frames 290..420 (-> %d at 760), state %d -> %d, image %s, coin=%s start=%s, user_mode %s playing, %s after 2nd coin, state %s/%s",
       c_first, c_last, c_end, st_early, st_late, img_ok and "unchanged" or "CHANGED",
       tostring(coin ~= nil), tostring(start ~= nil), tostring(mode_play), tostring(mode_after_coin2),
       tostring(st_play), tostring(st_after_coin2))

@@ -63,8 +63,8 @@ include emu.mk
 # 
 # Note: build rules (%.c -> %.o -> %.elf) are defined in Makefile.build
 ELF=$(BUILDDIR)/rom.elf
-CORE_SRCS=rng game hiscore nameentry flow obstacle_view bg_scroll flier_view vram_queue obj_pool sound_queue sound_events flier stage island_layout ai camera
-$(ELF):	$(BUILDDIR)/src/main.o $(BUILDDIR)/gen/sootling_sprites.o $(BUILDDIR)/gen/hazard_sprites.o $(BUILDDIR)/gen/island_sprites.o $(BUILDDIR)/gen/obs_sprites.o $(BUILDDIR)/gen/city_sprites.o $(BUILDDIR)/src/bg.o $(BUILDDIR)/src/gfx.o $(BUILDDIR)/src/hazard.o $(BUILDDIR)/src/island.o $(BUILDDIR)/src/sound.o $(CORE_SRCS:%=$(BUILDDIR)/src/core/%.o)
+CORE_SRCS=rng game hiscore nameentry flow obstacle_view bg_scroll flier_view vram_queue obj_pool sound_queue sound_events flier stage island_layout ai camera trip trip_gen trip_hit trip_rival score_table trip_view trip_pickup_fx banner
+$(ELF):	$(BUILDDIR)/src/main.o $(BUILDDIR)/gen/sootling_sprites.o $(BUILDDIR)/gen/hazard_sprites.o $(BUILDDIR)/gen/island_sprites.o $(BUILDDIR)/gen/tripstrip_sprites.o $(BUILDDIR)/gen/trippickup_sprites.o $(BUILDDIR)/gen/triphaz_sprites.o $(BUILDDIR)/gen/obs_sprites.o $(BUILDDIR)/gen/city_sprites.o $(BUILDDIR)/src/bg.o $(BUILDDIR)/src/gfx.o $(BUILDDIR)/src/hazard.o $(BUILDDIR)/src/island.o $(BUILDDIR)/src/trip_strip.o $(BUILDDIR)/src/trip_pickup.o $(BUILDDIR)/src/sound.o $(CORE_SRCS:%=$(BUILDDIR)/src/core/%.o)
 $(PROM1): $(ELF)
 
 
@@ -76,8 +76,12 @@ $(PROM1): $(ELF)
 # The S-ROM is the Gumdrop font (tools/build_fix_font.py from assets/font/, imported by tools/import_font_sheet.py): 256 tiles,
 # tile index = sheet index, tile 255 blank (user decision 2026-11-10 replaced the ngdevkit ASCII font). The char to tile maps and the
 # five fix palettes come with it in build/gen/fix_font.h (src/gfx.c prints through the maps).
-$(BUILDDIR)/gen/fix_font.fix $(BUILDDIR)/gen/fix_font.h: assets/font/fix_font_sheet.png assets/font/fix_font.json tools/build_fix_font.py tools/sprite_pipeline.py
-	$(PYTHON) -I tools/build_fix_font.py --out $(BUILDDIR)/gen
+# The Gum Trip gum meter tiles (assets/tripmeter, 13 tiles) are pasted into the font at tile 186; tripmeter.h holds the cell table.
+$(BUILDDIR)/gen/tripmeter.fix $(BUILDDIR)/gen/tripmeter.h: assets/tripmeter/tripmeter_sheet.png assets/tripmeter/tripmeter_sheet.json assets/font/fix_font.json tools/build_tripmeter_tiles.py tools/sprite_pipeline.py
+	$(PYTHON) -I tools/build_tripmeter_tiles.py --out $(BUILDDIR)/gen
+$(BUILDDIR)/gen/fix_font.fix $(BUILDDIR)/gen/fix_font.h: assets/font/fix_font_sheet.png assets/font/fix_font.json tools/build_fix_font.py tools/sprite_pipeline.py assets/tripmeter/tripmeter_sheet.png assets/font/pop_burst.png $(BUILDDIR)/gen/tripmeter.fix
+	$(PYTHON) -I tools/build_fix_font.py --out $(BUILDDIR)/gen --overlay assets/tripmeter/tripmeter_sheet.png@186 --overlay assets/font/pop_burst.png@75
+	dd if=$(BUILDDIR)/gen/fix_font.fix bs=32 skip=186 count=13 2>/dev/null | cmp -s - $(BUILDDIR)/gen/tripmeter.fix || { echo "[FAIL] fix_font.fix tiles 186..198 differ from tripmeter.fix"; exit 1; }
 $(SROM1): $(BUILDDIR)/gen/fix_font.fix
 
 
@@ -91,7 +95,7 @@ $(SROM1): $(BUILDDIR)/gen/fix_font.fix
 # logo during the attract mode.
 # Note: build rules (%.gif -> %.c<1,2>) are defined in Makefile.build
 # Obstacle tiles come after the logo (256 tiles = OBS_TILE_BASE in src/vram_layout.h), city tiles after the obstacles (bases in src/vram_layout.h, from the generated headers); prerequisite order = cat order.
-CROM_SETS=assets/base-crom-logo gen/obs gen/city gen/sootling gen/hazard gen/island
+CROM_SETS=assets/base-crom-logo gen/obs gen/city gen/sootling gen/hazard gen/island gen/tripstrip gen/trippickup gen/triphaz
 CROM_LAYOUT=$(BUILDDIR)/gen/crom-layout.stamp
 $(CROM1): $(CROM_SETS:%=$(BUILDDIR)/%.c1) $(CROM_LAYOUT)
 $(CROM2): $(CROM_SETS:%=$(BUILDDIR)/%.c2) $(CROM_LAYOUT)
@@ -134,7 +138,21 @@ $(BUILDDIR)/gen/island.c1 $(BUILDDIR)/gen/island.c2 $(BUILDDIR)/gen/island_sprit
 $(BUILDDIR)/gen/island_sprites.o: $(BUILDDIR)/gen/island_sprites.c
 	$(M68KGCC) $(NGCFLAGS) $(CFLAGS) -c $< -o $@
 
-$(BUILDDIR)/src/main.o $(BUILDDIR)/src/bg.o $(BUILDDIR)/src/gfx.o $(BUILDDIR)/src/hazard.o $(BUILDDIR)/src/island.o $(BUILDDIR)/src/core/sprite_budget.o $(BUILDDIR)/src/core/island_layout.o: $(BUILDDIR)/gen/fix_font.h $(BUILDDIR)/gen/island_tables.h $(BUILDDIR)/gen/city_tables.h $(BUILDDIR)/gen/island_sprites.h $(BUILDDIR)/gen/hazard_sprites.h $(BUILDDIR)/gen/obs_sprites.h $(BUILDDIR)/gen/city_sprites.h $(BUILDDIR)/gen/sootling_sprites.h src/core/flier_view.h src/vram_layout.h src/sprite_slots.h src/bg.h src/gfx.h src/hazard.h src/island.h src/core/island_layout.h src/core/vram_queue.h
+# Gum Trip kill strip sprite set (tools/build_tripstrip_sprites.py over tools/sprite_pipeline.py). Sheet imported from
+# thoughts/shared/drafts/2026-11-11-gum-trip-import/ and committed under assets/tripstrip/. C-ROM position: after the island set.
+$(BUILDDIR)/gen/tripstrip.c1 $(BUILDDIR)/gen/tripstrip.c2 $(BUILDDIR)/gen/tripstrip_sprites.c $(BUILDDIR)/gen/tripstrip_sprites.h $(BUILDDIR)/gen/tripstrip_tables.h: assets/tripstrip/tripstrip_sheet.png assets/tripstrip/tripstrip_sheet.json tools/build_tripstrip_sprites.py tools/sprite_pipeline.py
+	$(PYTHON) -I tools/build_tripstrip_sprites.py --out $(BUILDDIR)/gen
+$(BUILDDIR)/gen/tripstrip_sprites.o: $(BUILDDIR)/gen/tripstrip_sprites.c
+# Gum Trip pickup sprite set (step V3): idle and collect animations, one palette. C-ROM position: after the kill strip set.
+$(BUILDDIR)/gen/trippickup.c1 $(BUILDDIR)/gen/trippickup.c2 $(BUILDDIR)/gen/trippickup_sprites.c $(BUILDDIR)/gen/trippickup_sprites.h $(BUILDDIR)/gen/trippickup_tables.h: assets/trippickup/trippickup_sheet.png assets/trippickup/trippickup_sheet.json tools/build_trippickup_sprites.py tools/sprite_pipeline.py
+	$(PYTHON) -I tools/build_trippickup_sprites.py --out $(BUILDDIR)/gen
+$(BUILDDIR)/gen/trippickup_sprites.o: $(BUILDDIR)/gen/trippickup_sprites.c
+$(BUILDDIR)/gen/triphaz.c1 $(BUILDDIR)/gen/triphaz.c2 $(BUILDDIR)/gen/triphaz_sprites.c $(BUILDDIR)/gen/triphaz_sprites.h $(BUILDDIR)/gen/triphaz_tables.h: assets/triphaz/triphaz_sheet.png assets/triphaz/triphaz_sheet.json tools/build_triphaz_sprites.py tools/sprite_pipeline.py
+	$(PYTHON) -I tools/build_triphaz_sprites.py --out $(BUILDDIR)/gen
+$(BUILDDIR)/gen/triphaz_sprites.o: $(BUILDDIR)/gen/triphaz_sprites.c
+	$(M68KGCC) $(NGCFLAGS) $(CFLAGS) -c $< -o $@
+
+$(BUILDDIR)/src/main.o $(BUILDDIR)/src/bg.o $(BUILDDIR)/src/gfx.o $(BUILDDIR)/src/hazard.o $(BUILDDIR)/src/island.o $(BUILDDIR)/src/trip_strip.o $(BUILDDIR)/src/trip_pickup.o $(BUILDDIR)/src/core/sprite_budget.o $(BUILDDIR)/src/core/island_layout.o $(BUILDDIR)/src/core/banner.o: $(BUILDDIR)/gen/fix_font.h $(BUILDDIR)/gen/tripmeter.h $(BUILDDIR)/gen/island_tables.h $(BUILDDIR)/gen/city_tables.h $(BUILDDIR)/gen/island_sprites.h $(BUILDDIR)/gen/tripstrip_sprites.h $(BUILDDIR)/gen/tripstrip_tables.h $(BUILDDIR)/gen/trippickup_sprites.h $(BUILDDIR)/gen/trippickup_tables.h $(BUILDDIR)/gen/triphaz_sprites.h $(BUILDDIR)/gen/triphaz_tables.h $(BUILDDIR)/gen/hazard_sprites.h $(BUILDDIR)/gen/obs_sprites.h $(BUILDDIR)/gen/city_sprites.h $(BUILDDIR)/gen/sootling_sprites.h src/core/flier_view.h src/vram_layout.h src/sprite_slots.h src/bg.h src/gfx.h src/hazard.h src/island.h src/core/island_layout.h src/core/vram_queue.h
 
 
 
@@ -224,7 +242,8 @@ BRAWL_WINDOW_FLAGS=-window -nomaximize -resolution 960x672 -nofilter -video bgfx
 # UniBIOS 4.0 for make run only (user decision 2026-11-09). The zip is never copied into the
 # repo: build/unibios/neogeo.zip = nullbios files + uni-bios_4_0.rom, searched before $(ROM).
 # Missing UNIBIOS file: make run falls back to nullbios. make test uses nullbios except test-reach (UniBIOS).
-UNIBIOS?=$(HOME)/Downloads/uni-bios-40.zip
+# Project copy bios/uni-bios-40.zip (git-ignored by *.zip, never committed) wins; else the download dir.
+UNIBIOS?=$(firstword $(wildcard bios/uni-bios-40.zip) $(HOME)/Downloads/uni-bios-40.zip)
 UNIBIOS_DIR=$(BUILDDIR)/unibios
 $(UNIBIOS_DIR)/neogeo.zip: $(UNIBIOS) $(ROM)/neogeo.zip
 	rm -rf $(UNIBIOS_DIR); mkdir -p $(UNIBIOS_DIR)/x
@@ -276,10 +295,16 @@ test: cart
 	@$(MAKE) --no-print-directory test-small-sootling
 	@$(MAKE) --no-print-directory test-reach
 	@$(MAKE) --no-print-directory test-vblank
+	@$(MAKE) --no-print-directory test-left-column
 	@$(MAKE) --no-print-directory test-scroll
 	@$(MAKE) --no-print-directory test-slots
 	@$(MAKE) --no-print-directory test-hazard
+	@$(MAKE) --no-print-directory test-score
 	@$(MAKE) --no-print-directory test-hazard-kill
+	@$(MAKE) --no-print-directory test-soft-reset
+	@$(MAKE) --no-print-directory test-ring
+	@$(MAKE) --no-print-directory test-solid
+	@$(MAKE) --no-print-directory test-trip
 	@$(MAKE) --no-print-directory test-sound
 	@set -e; T=$$(mktemp -d $(BUILDDIR)/test-run.XXXXXX); \
 	BRAWL_FRAME_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_frame_counter"{print $$1}') \
@@ -301,8 +326,15 @@ test: cart
 # Game.flier_steps (src/core/game.c game_step_arena) must track the PLAYING frames.
 test-flier: cart
 	@set -e; T=$$(mktemp -d $(BUILDDIR)/test-run.XXXXXX); \
+	BRAWL_PAIR_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flier_pair_calls"{print $$1}') \
+	BRAWL_BLOCKED_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flier_pair_blocked"{print $$1}') \
+	BRAWL_CEIL_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flier_ceiling_hits"{print $$1}') \
+	BRAWL_CEILRIVAL_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flier_ceiling_rival_hits"{print $$1}') \
 	BRAWL_SOOT_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_soot_range"{print $$1}') \
+	BRAWL_SOOTVIEW_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_soot_view"{print $$1}') \
+	BRAWL_RE_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_round_end_s"{print $$1}') \
 	BRAWL_FLOW_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flow"{print $$1}') \
+	BRAWL_STAGE_ADDR=$$($(NM) $(ELF) | awk '$$3=="stage_platforms"{print $$1}') \
 	BRAWL_FRAME_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_frame_counter"{print $$1}') \
 	BRAWL_FLIER_LAYOUT="$$($(M68KGCC) -std=c99 -S -o - tests/mame/flier_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
 	BRAWL_RESULT=$$T/result.txt \
@@ -363,6 +395,7 @@ test-vblank: cart
 	BRAWL_FLOW_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flow"{print $$1}') \
 	BRAWL_FRAME_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_frame_counter"{print $$1}') \
 	BRAWL_PALMAX_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_pal_words_frame_max"{print $$1}') \
+	BRAWL_VQ_LAYOUT="$$($(M68KGCC) $(NGCFLAGS) -Ibuild -std=c99 -S -o - tests/mame/vq_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
 	BRAWL_HIT_LAYOUT="$$($(M68KGCC) -std=c99 -S -o - tests/mame/hit_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
 	BRAWL_RESULT=$$T/result.txt \
 	SDL_VIDEODRIVER=dummy nice -n 19 $(MAME) -window -nomaximize -video none -sound none -nothrottle -seconds_to_run $(TEST_SECONDS) -noautosave -skip_gameinfo -hash $(ROM) -rp $(ROM) -nvram_directory $$T -autoboot_script tests/mame/vblank_check.lua neogeo -cart1 $(GAMEROM) > $$T/mame.log 2>&1 || true; \
@@ -377,6 +410,7 @@ test-vblank: cart
 test-scroll: cart
 	@set -e; T=$$(mktemp -d $(BUILDDIR)/test-run.XXXXXX); \
 	BRAWL_FLOW_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flow"{print $$1}') \
+	BRAWL_STAGE_ADDR=$$($(NM) $(ELF) | awk '$$3=="stage_platforms"{print $$1}') \
 	BRAWL_HIT_LAYOUT="$$($(M68KGCC) -std=c99 -S -o - tests/mame/hit_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
 	BRAWL_FLIER_LAYOUT="$$($(M68KGCC) -std=c99 -S -o - tests/mame/flier_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
 	BRAWL_CAMERA_LAYOUT="$$($(M68KGCC) $(NGCFLAGS) -Ibuild -std=c99 -S -o - tests/mame/camera_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
@@ -394,6 +428,7 @@ test-slots: cart
 	BRAWL_FLOW_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flow"{print $$1}') \
 	BRAWL_HIT_LAYOUT="$$($(M68KGCC) -std=c99 -S -o - tests/mame/hit_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
 	BRAWL_ISLAND_DRAWS_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_island_draws"{print $$1}') \
+	BRAWL_CAM_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_cam_px"{print $$1}') \
 	BRAWL_STAGE_PLATFORMS="$$(sed -n 's/^ *{ *\([0-9]*\), *\([0-9]*\), *\([0-9]*\), STAGE_PLATFORM_H.*/\1 \2 \3/p' src/core/stage.c | tr '\n' ' ')" \
 	BRAWL_SLOT_LAYOUT="$$($(M68KGCC) $(NGCFLAGS) -Ibuild -std=c99 -S -o - tests/mame/slot_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
 	BRAWL_RESULT=$$T/result.txt \
@@ -408,11 +443,16 @@ test-slots: cart
 test-hazard: cart
 	@set -e; T=$$(mktemp -d $(BUILDDIR)/test-run.XXXXXX); \
 	BRAWL_FLOW_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flow"{print $$1}') \
+	BRAWL_STAGE_ADDR=$$($(NM) $(ELF) | awk '$$3=="stage_platforms"{print $$1}') \
 	BRAWL_KIND_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_hazard_kind"{print $$1}') \
 	BRAWL_SPEED_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_autoanim_frames"{print $$1}') \
 	BRAWL_SWAPS_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_swap_count"{print $$1}') \
 	BRAWL_MATCHES_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_hazard_matches"{print $$1}') \
 	BRAWL_PALMAX_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_pal_words_frame_max"{print $$1}') \
+	BRAWL_CAM_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_cam_px"{print $$1}') \
+	BRAWL_FRAME_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_frame_counter"{print $$1}') \
+	BRAWL_LASTUS_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_last_us"{print $$1}') \
+	BRAWL_RE_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_round_end_s"{print $$1}') \
 	BRAWL_ISLAND_STEP="$$(sed -n 's/^.define ISLAND_STEP_FRAMES *\([0-9]*\).*/\1/p' $(BUILDDIR)/gen/island_tables.h)" \
 	BRAWL_HAZARD_STEPS="$$(sed -n 's/.*HAZARD_TABLE_STEP_FRAMES *{\(.*\)}.*/\1/p' $(BUILDDIR)/gen/hazard_tables.h)" \
 	BRAWL_HAZARD_VARIANTS="$$(sed -n 's/.*HAZARD_TABLE_VARIANTS *{\(.*\)}.*/\1/p' $(BUILDDIR)/gen/hazard_tables.h)" \
@@ -433,23 +473,45 @@ test-hazard-kill: cart
 	BRAWL_FLOW_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flow"{print $$1}') \
 	BRAWL_FRAME_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_frame_counter"{print $$1}') \
 	BRAWL_KIND_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_hazard_kind"{print $$1}') \
+	BRAWL_RE_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_round_end_s"{print $$1}') \
 	BRAWL_FLIER_LAYOUT="$$($(M68KGCC) -std=c99 -S -o - tests/mame/flier_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
 	BRAWL_KILL_LAYOUT="$$($(M68KGCC) $(NGCFLAGS) -Ibuild -std=c99 -S -o - tests/mame/hazard_kill_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
 	BRAWL_RESULT=$$T/result.txt \
-	SDL_VIDEODRIVER=dummy nice -n 19 $(MAME) -window -nomaximize -video none -sound none -nothrottle -seconds_to_run 150 -noautosave -skip_gameinfo -hash $(ROM) -rp $(ROM) -nvram_directory $$T -autoboot_script tests/mame/hazard_kill_check.lua neogeo -cart1 $(GAMEROM) > $$T/mame.log 2>&1 || true; \
+	SDL_VIDEODRIVER=dummy nice -n 19 $(MAME) -window -nomaximize -video none -sound none -nothrottle -seconds_to_run 400 -noautosave -skip_gameinfo -hash $(ROM) -rp $(ROM) -nvram_directory $$T -autoboot_script tests/mame/hazard_kill_check.lua neogeo -cart1 $(GAMEROM) > $$T/mame.log 2>&1 || true; \
 	if [ ! -f $$T/result.txt ]; then tail -n 15 $$T/mame.log; echo "[FAIL] no result from hazard kill Lua script"; exit 1; fi; \
 	cat $$T/result.txt; \
 	if grep -q '^PASS' $$T/result.txt; then rm -rf $$T; echo "[OK] make test-hazard-kill passed"; else echo "[FAIL] make test-hazard-kill, log kept in $$T"; exit 1; fi
 
+# Round clear banner (tests/mame/banner_check.lua): g_banner_calls stays 0 through attract (title, table, one demo phase);
+# in a real game a round won by RAM poke raises calls and cells during the hold and both stop rising right after it.
+# `make test-banner` alone runs it.
+test-banner: cart
+	@set -e; T=$$(mktemp -d $(BUILDDIR)/test-run.XXXXXX); \
+	BRAWL_FLOW_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flow"{print $$1}') \
+	BRAWL_FRAME_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_frame_counter"{print $$1}') \
+	BRAWL_CALLS_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_banner_calls"{print $$1}') \
+	BRAWL_CELLS_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_banner_cells"{print $$1}') \
+	BRAWL_RE_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_round_end_s"{print $$1}') \
+	BRAWL_FLIER_LAYOUT="$$($(M68KGCC) -std=c99 -S -o - tests/mame/flier_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
+	BRAWL_RESULT=$$T/result.txt \
+	SDL_VIDEODRIVER=dummy nice -n 19 $(MAME) -window -nomaximize -video none -sound none -nothrottle -seconds_to_run 120 -noautosave -skip_gameinfo -hash $(ROM) -rp $(ROM) -nvram_directory $$T -autoboot_script tests/mame/banner_check.lua neogeo -cart1 $(GAMEROM) > $$T/mame.log 2>&1 || true; \
+	if [ ! -f $$T/result.txt ]; then tail -n 15 $$T/mame.log; echo "[FAIL] no result from banner Lua script"; exit 1; fi; \
+	cat $$T/result.txt; \
+	if grep -q '^PASS' $$T/result.txt; then rm -rf $$T; echo "[OK] make test-banner passed"; else echo "[FAIL] make test-banner, log kept in $$T"; exit 1; fi
+
 # Camera view (tests/mame/camera_check.lua): drives the human right until the camera pixel sentinel g_cam_px goes
-# 0 -> 64 and the human crosses the arena seam; asserts the hero sprite x against camera_screen_x, at most 2 px camera
-# movement per frame, the hazard strip x (-camera) written only when the camera moved, zero VRAM writes outside vblank.
+# past 64 and the human crosses the arena seam; asserts the hero sprite x against camera_screen_x, at most 2 px camera
+# movement per frame, island columns and every hazard column (both banks) at their ring x, hazard SCB4 written only when the camera moved, zero VRAM writes outside vblank.
 # `make test-camera` alone runs it.
 test-camera: cart
 	@set -e; T=$$(mktemp -d $(BUILDDIR)/test-run.XXXXXX); \
 	BRAWL_FLOW_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flow"{print $$1}') \
 	BRAWL_CAM_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_cam_px"{print $$1}') \
 	BRAWL_BGX_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_bg_x_writes"{print $$1}') \
+	BRAWL_RAMP_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_vq_ramp_ops"{print $$1}') \
+	BRAWL_CAMU_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_cam_unwrapped"{print $$1}') \
+	BRAWL_STAGE_ADDR=$$($(NM) $(ELF) | awk '$$3=="stage_platforms"{print $$1}') \
+	BRAWL_POOL_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_pool"{print $$1}') \
 	BRAWL_FLIER_LAYOUT="$$($(M68KGCC) -std=c99 -S -o - tests/mame/flier_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
 	BRAWL_CAMERA_LAYOUT="$$($(M68KGCC) $(NGCFLAGS) -Ibuild -std=c99 -S -o - tests/mame/camera_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
 	BRAWL_RESULT=$$T/result.txt \
@@ -480,6 +542,7 @@ test-sprite-peak: cart
 test-sound: cart
 	@set -e; T=$$(mktemp -d $(BUILDDIR)/test-run.XXXXXX); \
 	BRAWL_FLOW_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flow"{print $$1}') \
+	BRAWL_STAGE_ADDR=$$($(NM) $(ELF) | awk '$$3=="stage_platforms"{print $$1}') \
 	BRAWL_HIT_LAYOUT="$$($(M68KGCC) -std=c99 -S -o - tests/mame/hit_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
 	BRAWL_FLIER_LAYOUT="$$($(M68KGCC) -std=c99 -S -o - tests/mame/flier_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
 	BRAWL_RESULT=$$T/result.txt \
@@ -507,7 +570,136 @@ test-unibios: cart bios
 	cat $$T/result.txt; \
 	if grep -q '^PASS' $$T/result.txt; then rm -rf $$T; echo "[OK] make test-unibios passed"; else echo "[FAIL] make test-unibios, log kept in $$T"; exit 1; fi
 
-.PHONY: run test test-crom test-srom test-debug-header test-camera test-sprite-peak test-flier test-small-sootling test-reach test-vblank test-scroll test-slots test-hazard test-hazard-kill test-sound test-unibios
+# Ring reachability (tests/mame/ring_check.lua): holds Left until the player's world x wraps across the seam, then Right
+# back; every PLAYING frame the flier is on screen (ring maths with g_cam_px), the hero SCB3 height is non-zero, the
+# camera moves at most CAM_MAX_STEP_PX per frame (ring distance), and both seam crossings happened. `make test-ring` alone.
+test-ring: cart
+	@set -e; T=$$(mktemp -d $(BUILDDIR)/test-run.XXXXXX); \
+	BRAWL_FLOW_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flow"{print $$1}') \
+	BRAWL_CAM_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_cam_px"{print $$1}') \
+	BRAWL_CAM_SIZE=$$($(NM) -S $(ELF) | awk '$$4=="g_cam_px"{print $$2}') \
+	BRAWL_FLIER_LAYOUT="$$($(M68KGCC) -std=c99 -S -o - tests/mame/flier_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
+	BRAWL_RING_LAYOUT="$$($(M68KGCC) $(NGCFLAGS) -Ibuild -std=c99 -S -o - tests/mame/ring_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
+	BRAWL_RESULT=$$T/result.txt \
+	SDL_VIDEODRIVER=dummy nice -n 19 $(MAME) -window -nomaximize -video none -sound none -nothrottle -seconds_to_run 90 -noautosave -skip_gameinfo -hash $(ROM) -rp $(ROM) -nvram_directory $$T -autoboot_script tests/mame/ring_check.lua neogeo -cart1 $(GAMEROM) > $$T/mame.log 2>&1 || true; \
+	if [ ! -f $$T/result.txt ]; then tail -n 15 $$T/mame.log; echo "[FAIL] no result from ring Lua script"; exit 1; fi; \
+	cat $$T/result.txt; \
+	if grep -q '^PASS' $$T/result.txt; then rm -rf $$T; echo "[OK] make test-ring passed"; else echo "[FAIL] make test-ring, log kept in $$T"; exit 1; fi
+
+# Solid platforms (tests/mame/solid_check.lua): the hero rises into an island underside and flies into an island side; the
+# hero box never overlaps the solid box from the ROM table, the velocity flips, g_flier_solid_hits rises. `make test-solid` alone.
+test-solid: cart
+	@set -e; T=$$(mktemp -d $(BUILDDIR)/test-run.XXXXXX); \
+	BRAWL_FLOW_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flow"{print $$1}') \
+	BRAWL_STAGE_ADDR=$$($(NM) $(ELF) | awk '$$3=="stage_platforms"{print $$1}') \
+	BRAWL_HITS_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flier_solid_hits"{print $$1}') \
+	BRAWL_FLIER_LAYOUT="$$($(M68KGCC) -std=c99 -S -o - tests/mame/flier_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
+	BRAWL_SOLID_LAYOUT="$$($(M68KGCC) $(NGCFLAGS) -Ibuild -std=c99 -S -o - tests/mame/solid_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
+	BRAWL_RESULT=$$T/result.txt \
+	SDL_VIDEODRIVER=dummy nice -n 19 $(MAME) -window -nomaximize -video none -sound none -nothrottle -seconds_to_run 90 -noautosave -skip_gameinfo -hash $(ROM) -rp $(ROM) -nvram_directory $$T -autoboot_script tests/mame/solid_check.lua neogeo -cart1 $(GAMEROM) > $$T/mame.log 2>&1 || true; \
+	if [ ! -f $$T/result.txt ]; then tail -n 15 $$T/mame.log; echo "[FAIL] no result from solid Lua script"; exit 1; fi; \
+	cat $$T/result.txt; \
+	if grep -q '^PASS' $$T/result.txt; then rm -rf $$T; echo "[OK] make test-solid passed"; else echo "[FAIL] make test-solid, log kept in $$T"; exit 1; fi
+
+# Gum Trip view (tests/mame/trip_check.lua): coin, Down on the title, Start; over 500 PLAYING frames the mode is TRIP, the distance grows
+# by the scroll speed (49152 raw at distance 0), the camera changes every frame or every second frame, the flier stays on screen,
+# zero game steps are missed and the frame logic ends before the visible lines end. `make test-trip` alone.
+# `make test-trip TRIP_PC_LOG=<file>` also samples the 68000 PC once per scan line and writes lines per function per frame to <file> (opt-in, no assert).
+test-trip: cart
+	@set -e; T=$$(mktemp -d $(BUILDDIR)/test-run.XXXXXX); \
+	export BRAWL_PC_LOG=$(TRIP_PC_LOG) BRAWL_PC_SYMS=$$T/syms.txt; \
+	if [ -n "$(TRIP_PC_LOG)" ]; then $(NM) -n -S --defined-only $(ELF) > $$T/syms.txt; fi; \
+	BRAWL_FLOW_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flow"{print $$1}') \
+	BRAWL_FRAME_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_frame_counter"{print $$1}') \
+	BRAWL_TRIPDRAWS_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_island_trip_draws"{print $$1}') \
+	BRAWL_ISLANDDRAWS_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_island_draws"{print $$1}') \
+	BRAWL_STRIPDRAWS_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_trip_strip_draws"{print $$1}') \
+	BRAWL_WINCALLS_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_trip_window_calls"{print $$1}') \
+	BRAWL_WINCLAMP_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_trip_window_clamps"{print $$1}') \
+	BRAWL_PICKUPDRAWS_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_trip_pickup_draws"{print $$1}') \
+	BRAWL_PICKUPTILES_ADDR=$$($(NM) $(ELF) | awk '$$3=="trippickup_tile_index"{print $$1}') \
+	BRAWL_PICKUPFRAMES_ADDR=$$($(NM) $(ELF) | awk '$$3=="trippickup_frames"{print $$1}') \
+	BRAWL_HAZDRAWS_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_trip_haz_draws"{print $$1}') \
+	BRAWL_METERDRAWS_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_meter_draws"{print $$1}') \
+	BRAWL_METERTAB_ADDR=$$($(NM) $(ELF) | awk '$$3=="tripmeter_cell"{print $$1}') \
+	BRAWL_CAM_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_cam_px"{print $$1}') \
+	BRAWL_CAM_SIZE=$$($(NM) -S $(ELF) | awk '$$4=="g_cam_px"{print $$2}') \
+	BRAWL_FLIER_LAYOUT="$$($(M68KGCC) -std=c99 -S -o - tests/mame/flier_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
+	BRAWL_TRIP_LAYOUT="$$($(M68KGCC) $(NGCFLAGS) -Ibuild -std=c99 -S -o - tests/mame/trip_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
+	BRAWL_RIVAL_LAYOUT="$$($(M68KGCC) $(NGCFLAGS) -Ibuild -std=c99 -S -o - tests/mame/rival_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
+	BRAWL_LASTUS_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_last_us"{print $$1}') \
+	BRAWL_VQ_LAYOUT="$$($(M68KGCC) $(NGCFLAGS) -Ibuild -std=c99 -S -o - tests/mame/vq_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
+	BRAWL_RESULT=$$T/result.txt \
+	SDL_VIDEODRIVER=dummy nice -n 19 $(MAME) -window -nomaximize -video none -sound none -nothrottle -seconds_to_run 90 -noautosave -skip_gameinfo -hash $(ROM) -rp $(ROM) -nvram_directory $$T -autoboot_script tests/mame/trip_check.lua neogeo -cart1 $(GAMEROM) > $$T/mame.log 2>&1 || true; \
+	if [ ! -f $$T/result.txt ]; then tail -n 15 $$T/mame.log; echo "[FAIL] no result from trip Lua script"; exit 1; fi; \
+	cat $$T/result.txt; \
+	if grep -q '^PASS' $$T/result.txt; then rm -rf $$T; echo "[OK] make test-trip passed"; else echo "[FAIL] make test-trip, log kept in $$T"; exit 1; fi
+
+# Score tables (tests/mame/score_check.lua): two boots under UniBIOS (backup RAM persists only there, see test-reach). Boot 1 plays a
+# Gum Trip run and an arena run through the real name entry, checks fix layer captions and rows, each score lands in its own table,
+# the save counter and the backup RAM image (magic, version, FNV-1a, both tables); boot 2 checks the tables came back and nothing
+# was re-saved. `make test-score` alone.
+SCORE_SECONDS?=300
+test-score: cart bios
+	@if [ ! -f "$(UNIBIOS)" ]; then echo "[FAIL] test-score needs UniBIOS: UNIBIOS file not found: $(UNIBIOS)"; exit 1; fi
+	@$(MAKE) --no-print-directory $(UNIBIOS_DIR)/neogeo.zip
+	@set -e; T=$$(mktemp -d $(BUILDDIR)/test-run.XXXXXX); \
+	for PH in 1 2; do \
+	BRAWL_PHASE=$$PH \
+	BRAWL_FLOW_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flow"{print $$1}') \
+	BRAWL_STAGE_ADDR=$$($(NM) $(ELF) | awk '$$3=="stage_platforms"{print $$1}') \
+	BRAWL_FRAME_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_frame_counter"{print $$1}') \
+	BRAWL_HISCORE_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_hiscore_image"{print $$1}') \
+	BRAWL_SAVES_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_hiscore_saves"{print $$1}') \
+	BRAWL_TABLEDRAWS_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_table_mode_draws"{print $$1}') \
+	BRAWL_FIXFONT_H=$(BUILDDIR)/gen/fix_font.h \
+	BRAWL_SCORE_LAYOUT="$$($(M68KGCC) $(NGCFLAGS) -Ibuild -std=c99 -S -o - tests/mame/score_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
+	BRAWL_REACH_LAYOUT="$$($(M68KGCC) -std=c99 -S -o - tests/mame/reach_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
+	BRAWL_FLIER_LAYOUT="$$($(M68KGCC) -std=c99 -S -o - tests/mame/flier_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
+	BRAWL_RESULT=$$T/result$$PH.txt BRAWL_EXPECT=$$T/expect.txt \
+	SDL_VIDEODRIVER=dummy nice -n 19 $(MAME) -window -nomaximize -video none -sound none -nothrottle -seconds_to_run $(SCORE_SECONDS) -noautosave -skip_gameinfo -hash $(ROM) $(REACH_BIOS_FLAGS) -nvram_directory $$T/nvram -autoboot_script tests/mame/score_check.lua neogeo -cart1 $(GAMEROM) > $$T/mame$$PH.log 2>&1 || true; \
+	if [ ! -f $$T/result$$PH.txt ]; then tail -n 15 $$T/mame$$PH.log 2>/dev/null; echo "[FAIL] test-score boot $$PH: no result from Lua script"; exit 1; fi; \
+	cat $$T/result$$PH.txt; \
+	grep -q '^PASS' $$T/result$$PH.txt || { echo "[FAIL] make test-score boot $$PH, log kept in $$T"; exit 1; }; \
+	done; rm -rf $$T; echo "[OK] make test-score passed"
+
+# Soft reset (tests/mame/soft_reset_check.lua, plan thoughts/spot/2026-11-10-soft-reset-test-plan.md): a MAME soft reset in play must
+# reboot the game (frame counter drops, g_boot_magic re-armed only afterwards), come back to attract with score 0 and a valid
+# score table, keep the game loop running and start a new play. Two legs: nullbios, then UniBIOS (skipped with a [SKIP] line,
+# not a pass, when the UNIBIOS file is missing). `make test-soft-reset` alone.
+SOFT_RESET_LEGS?=nullbios unibios40
+test-soft-reset: cart
+	@set -e; T=$$(mktemp -d $(BUILDDIR)/test-run.XXXXXX); \
+	for LEG in $(SOFT_RESET_LEGS); do \
+	if [ $$LEG = unibios40 ]; then \
+	if [ ! -f "$(UNIBIOS)" ]; then echo "[SKIP] test-soft-reset UniBIOS leg: UNIBIOS file not found: $(UNIBIOS)"; continue; fi; \
+	$(MAKE) --no-print-directory bios $(UNIBIOS_DIR)/neogeo.zip; \
+	RP="$(UNIBIOS_DIR);$(ROM)"; BIOSFLAG="-bios unibios40"; else RP="$(ROM)"; BIOSFLAG=""; fi; \
+	BRAWL_LABEL=$$LEG \
+	BRAWL_FLOW_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flow"{print $$1}') \
+	BRAWL_FRAME_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_frame_counter"{print $$1}') \
+	BRAWL_MAGIC_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_boot_magic"{print $$1}') \
+	BRAWL_REACH_LAYOUT="$$($(M68KGCC) -std=c99 -S -o - tests/mame/reach_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
+	BRAWL_RESULT=$$T/result-$$LEG.txt \
+	SDL_VIDEODRIVER=dummy nice -n 19 $(MAME) -window -nomaximize -video none -sound none -nothrottle -seconds_to_run 120 -noautosave -skip_gameinfo -hash $(ROM) -rp "$$RP" $$BIOSFLAG -nvram_directory $$T/nvram-$$LEG -autoboot_script tests/mame/soft_reset_check.lua neogeo -cart1 $(GAMEROM) > $$T/mame-$$LEG.log 2>&1 || true; \
+	if [ ! -f $$T/result-$$LEG.txt ]; then tail -n 15 $$T/mame-$$LEG.log; echo "[FAIL] test-soft-reset $$LEG: no result from Lua script"; exit 1; fi; \
+	cat $$T/result-$$LEG.txt; \
+	grep -q '^PASS' $$T/result-$$LEG.txt || { echo "[FAIL] make test-soft-reset $$LEG, log kept in $$T"; exit 1; }; \
+	done; rm -rf $$T; echo "[OK] make test-soft-reset passed"
+
+# Left column (tests/mame/left_column_check.lua): a test sprite at x 0, y 60 must draw as well as one at x 16, and slot 0 must carry no
+# sprite while PLAYING. Arena and Gum Trip. `make test-left-column` alone.
+test-left-column: cart
+	@set -e; for M in arena trip; do T=$$(mktemp -d $(BUILDDIR)/test-run.XXXXXX); \
+	BRAWL_FLOW_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flow"{print $$1}') \
+	BRAWL_FRAME_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_frame_counter"{print $$1}') \
+	BRAWL_LC_MODE=$$M BRAWL_RESULT=$$T/result.txt \
+	SDL_VIDEODRIVER=dummy nice -n 19 $(MAME) -window -nomaximize -video none -sound none -nothrottle -seconds_to_run $(TEST_SECONDS) -noautosave -skip_gameinfo -hash $(ROM) -rp $(ROM) -nvram_directory $$T -autoboot_script tests/mame/left_column_check.lua neogeo -cart1 $(GAMEROM) > $$T/mame.log 2>&1 || true; \
+	if [ ! -f $$T/result.txt ]; then tail -n 15 $$T/mame.log; echo "[FAIL] no result from left column Lua script ($$M)"; exit 1; fi; \
+	cat $$T/result.txt; \
+	if grep -q '^PASS' $$T/result.txt; then rm -rf $$T; else echo "[FAIL] make test-left-column ($$M), log kept in $$T"; exit 1; fi; done; echo "[OK] make test-left-column passed"
+
+.PHONY: run test test-crom test-srom test-debug-header test-camera test-sprite-peak test-left-column test-flier test-small-sootling test-reach test-vblank test-scroll test-slots test-hazard test-hazard-kill test-soft-reset test-ring test-solid test-trip test-score test-sound test-unibios
 
 # Header dependencies from -MMD (build/**/*.d): a changed header rebuilds every object that includes it.
 -include $(shell find $(BUILDDIR) -name '*.d' 2>/dev/null)

@@ -13,6 +13,7 @@ uint8_t se_step(SoundEvents *e, const FlowView *v)
         ev |= SE_START;
     } else if (playing && e->primed) {
         if (v->game->flaps > e->prev_flaps) ev |= SE_FLAP;
+        if (v->game->trip_events & TRIP_EV_HIT) ev |= SE_HIT;
     }
     if (!playing && e->prev_state == FLOW_PLAYING && v->state == FLOW_GAME_OVER) ev |= SE_GAME_OVER;
     e->prev_state = (uint8_t)v->state;

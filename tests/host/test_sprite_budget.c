@@ -14,19 +14,32 @@ static void test_slots(void) {
         CHECK(a->first + a->count <= 381);
         CHECK(a->y0 < a->y1 && a->y1 <= SB_LINES);
         CHECK(a->per_line <= a->count);
+        CHECK(a->first > SPRITE_RESERVED); /* no range includes sprite 0, which must never be visible (src/sprite_slots.h) */
         for (int j = i + 1; j < SPRITE_BUDGET_COUNT; j++) {
             const SpriteBudgetEntry *b = &SPRITE_BUDGET[j];
             CHECK(a->first + a->count <= b->first || b->first + b->count <= a->first);
         }
     }
+    CHECK(BG_SKY_SPRITE == SPRITE_RESERVED + 1);
+    CHECK(BG_SPRITE_END == 111 && BG_SPRITE_TOTAL == 110);
     /* draw order: planes behind the pool, hero above pool, hazard and foreground above hero */
     CHECK(BG_SPRITE_END <= ISLAND_SPRITE);
     CHECK(ISLAND_SPRITE + ISLAND_COUNT <= POOL_SPRITE_BASE);
-    CHECK(ISLAND_COUNT == island_total_columns());
+    CHECK(island_total_columns() == 22 && 22 <= ISLAND_COUNT);   /* stage 1 uses 22 of the range; the Gum Trip islands need the rest (user-approved, was ==) */
     CHECK(POOL_SPRITE_BASE + POOL_SPRITE_COUNT <= HERO_SPRITE);
     CHECK(HERO_SPRITE + HERO_SPRITE_COUNT <= HAZARD_SPRITE);
     CHECK(HAZARD_SPRITE + HAZARD_COUNT <= FG_RAIN_SPRITE);
-    CHECK(FG_SPRAY_SPRITE + FG_SPRAY_COUNT == SPRITE_SLOT_END);
+    CHECK(FG_SPRAY_SPRITE + FG_SPRAY_COUNT <= TRIP_STRIP_SPRITE);   /* Gum Trip kill strips come last (step V2) */
+    CHECK(TRIP_STRIP_SPRITE + TRIP_STRIP_COUNT == TRIP_PICKUP_SPRITE);
+    CHECK(TRIP_PICKUP_SPRITE + TRIP_PICKUP_COUNT == SPRITE_SLOT_END);
+    /* DF3: a liquid body falls behind the hazard art (pool and hero slots are below the strip); a spike body draws from the
+     * dead body slots, the last 4 hardware sprites, above every other range including the strip. */
+    CHECK(POOL_SPRITE_BASE + POOL_SPRITE_COUNT <= HAZARD_SPRITE);
+    CHECK(HERO_SPRITE + HERO_SPRITE_COUNT <= HAZARD_SPRITE);
+    CHECK(DEAD_BODY_SPRITE == SPRITE_SLOT_END);
+    CHECK(DEAD_BODY_SPRITE > HAZARD_SPRITE + HAZARD_COUNT - 1);
+    CHECK(DEAD_BODY_SPRITE + DEAD_BODY_COUNT == 381);
+    CHECK(DEAD_BODY_COUNT / DEAD_BODY_COLUMNS == 2);
 }
 
 /* The island row (plan I9): its count is the table's columns, its line range covers every island sprite, and the columns the
@@ -39,8 +52,8 @@ static void test_islands(void) {
     int sum = 0;
     for (int i = 0; i < STAGE_PLATFORM_COUNT; i++) sum += stage_platforms[i].w / 16;
     CHECK(row->count == ISLAND_COUNT);
-    CHECK(sum == ISLAND_COUNT);
-    CHECK(ISLAND_COUNT == 41);
+    CHECK(sum == 22);
+    CHECK(22 <= ISLAND_COUNT);
     int worst = 0, wline = 0, lines_with_two = 0;
     for (int y = 0; y < SB_LINES; y++) {
         int cols = 0, islands = 0;

@@ -8,7 +8,7 @@
 #define G(m) (offsetof(Flow, game) + offsetof(Game, m))
 unsigned int probe[] = {
     offsetof(Flow, state), offsetof(Flow, last_score),
-    offsetof(Flow, table) + offsetof(HiscoreTable, name), offsetof(Flow, table) + offsetof(HiscoreTable, score),
+    offsetof(Flow, tables) + offsetof(HiscoreTable, name), offsetof(Flow, tables) + offsetof(HiscoreTable, score),
     offsetof(Flow, entry) + offsetof(NameEntry, name), offsetof(Flow, entry) + offsetof(NameEntry, sym),
     offsetof(Flow, entry) + offsetof(NameEntry, pos), offsetof(Flow, entry) + offsetof(NameEntry, done),
     offsetof(Flow, game) + offsetof(Game, flier) + offsetof(Flier, x),

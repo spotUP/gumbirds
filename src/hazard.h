@@ -16,12 +16,14 @@
 
 /* Kind the core must use now: the shown strip, or the one the next strip will show (demo, title, a play starting this frame). */
 u8 hazard_kind_now(void);
+void hazard_game_restart(void);  /* a new game: the next strip is round 0's kind */
+void hazard_round_restart(void); /* a new round: the strip is swapped for the next kind on the next hazard_step */
 
 void hazard_load_palettes(void);
 void hazard_init(void);               /* hide both banks; the hardware state is unknown (video_init) */
-void hazard_step(u8 match_running, int cam_px); /* per frame: starts the strip on the rise of match_running, hides it on the fall; the strip scrolls with the world: head x = -cam_px, written (SCB4, both banks) only when it changed */
+void hazard_trip_anim(u8 trip); /* Gum Trip pins the auto-animation speed to the strip art (5 ticks); leaving it restores the arena (island) speed. Call after island_step */
+void hazard_step(u8 match_running, int cam_px); /* per frame: starts the strip on the rise of match_running, hides it on the fall; the strip is 24 unchained columns, each placed on the ring by camera_parked_column_x, SCB4 of both banks written only when a column x changed */
 
-extern volatile s16 g_hazard_x;       /* head x last sent (test sentinel, 0x7FFF before the first strip) */
 extern volatile u8 g_hazard_kind;     /* 0xFF while no strip is shown (test sentinel) */
 extern volatile u16 g_hazard_matches; /* strips started since boot (test sentinel) */
 #endif

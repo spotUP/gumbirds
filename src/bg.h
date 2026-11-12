@@ -9,6 +9,7 @@ extern volatile u32 g_bg_x_writes;    /* plane SCB4 runs (one per plane, all its
 
 void bg_load_palettes(void);          /* palettes + backdrop colour; call from video_init() */
 void bg_init(void);                   /* tiles, tops and heights of every column, written once; forces the x words on the next update */
-void bg_update(u8 cam_px);            /* each frame: plane x = -(cam_px * k / 16); a word goes out only when it changed */
+void bg_trip_planes(u8 trip);          /* 1 hides the planes Gum Trip drops (BG_TRIP_HIDDEN_MASK: far, near), 0 shows them again; also the backdrop colour: sky colour in trip, dark otherwise; words go out only on a change */
+void bg_update(s32 unwrapped_px);     /* each frame, camera_unwrapped_px: plane offset = (px * k / 16) mod plane width; returns at once when the camera did not move, words go out only for a plane whose offset changed */
 
 #endif

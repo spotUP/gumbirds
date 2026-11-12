@@ -51,6 +51,27 @@ int main(void)
         CHECK(se_step(&e, &v) == SE_GAME_OVER);
         CHECK(se_step(&e, &v) == 0);
     }
+    {   /* Gum Trip hit sound: SE_HIT once on each frame whose trip_events carries TRIP_EV_HIT, only while playing */
+        SoundEvents e;
+        Game g;
+        FlowView v;
+        memset(&g, 0, sizeof g);
+        memset(&v, 0, sizeof v);
+        v.game = &g;
+        se_init(&e);
+        v.state = FLOW_PLAYING;
+        CHECK(se_step(&e, &v) == SE_START);
+        g.trip_events = TRIP_EV_HIT;
+        CHECK(se_step(&e, &v) == SE_HIT);
+        CHECK(se_step(&e, &v) == SE_HIT);                  /* a level, not an edge: Game.trip_events is per frame, a new hit sets it again */
+        g.trip_events = TRIP_EV_PICKUP;
+        CHECK(se_step(&e, &v) == 0);                       /* a pickup does not play the hit sample */
+        g.trip_events = 0;
+        CHECK(se_step(&e, &v) == 0);
+        v.state = FLOW_ATTRACT_DEMO; g.trip_events = TRIP_EV_HIT;
+        se_init(&e);
+        CHECK(se_step(&e, &v) == 0);                       /* demo is silent */
+    }
     printf("%s: %d checks, %d failures\n", failures ? "FAIL" : "PASS", checks, failures);
     return failures != 0;
 }

@@ -4,6 +4,7 @@
 #include "../../src/core/hazard_kind.h"
 #include "../../src/core/ai.h"
 #include "../../src/core/nameentry.h"
+#include "../../src/core/stage.h"
 
 static int checks, failures;
 #define CHECK(c) do { checks++; if (!(c)) { failures++; printf("FAIL %s:%d: %s\n", __FILE__, __LINE__, #c); } } while (0)
@@ -39,15 +40,16 @@ int main(void) {
     t = mk(100, 100 + AI_ABOVE_MARGIN - 1, 2);
     CHECK(ai_decide(&me, &t) == AI_FLEE);
 
-    /* Think period: first think after the armed timer, then every AI_THINK_FRAMES +- jitter; one flap per think. */
+    /* Think period: first think after the armed timer, then every AI_THINK_FRAMES +- jitter; counted from a.thinks. */
     rng_seed(&r, 5);
     ai_init(&a, &r);
     me = mk(100, 100, 2);
     t = mk(250, 100, 2);
     thinks = 0;
     for (i = 1; i <= 3000; i++) {
+        uint32_t before = a.thinks;
         ai_step(&a, &r, &me, &t, &in);
-        if (in.flap) {
+        if (a.thinks != before) {
             int gap = i - last;
             thinks++;
             if (thinks > 1) { if (gap < gaps_min) gaps_min = gap; if (gap > gaps_max) gaps_max = gap; }
@@ -63,8 +65,16 @@ int main(void) {
     ai_init(&a, &r);
     for (i = 0; i < 60 && a.thinks == 0; i++) ai_step(&a, &r, &me, &t, &in);
     CHECK(a.state == AI_CHASE && in.dir == 1 && in.flap == 1);
+    /* The flap decision runs every frame: still flapping a frame later, but never inside the cooldown or while the button is held. */
+    ai_step(&a, &r, &me, &t, &in);
+    CHECK(in.dir == 1 && in.flap == 1);
+    me.flap_cd = 1;
     ai_step(&a, &r, &me, &t, &in);
     CHECK(in.dir == 1 && in.flap == 0);
+    me.flap_cd = 0; me.flap_prev = 1;
+    ai_step(&a, &r, &me, &t, &in);
+    CHECK(in.dir == 1 && in.flap == 0);
+    me.flap_prev = 0;
     /* Target far below (dir.y ~ 1) and only slightly right: no flap, no steer (|dir.x| <= 0.25). */
     t = mk(104, 170, 2);
     rng_seed(&r, 6);
@@ -146,7 +156,10 @@ int main(void) {
             CHECK(g.score == score0 + SCORE_CPU_DROWN); /* and not again while it stays drowned */
             g.flier.y = FL_PX(line) - flier_half_h(&g.flier);
             game_step_arena(&g, 0);
-            CHECK(g.flier.state == FLIER_DROWNED && g.over);
+            /* behaviour change approved by the user (dead flier hazard hunt): touching the line starts the fall, the run ends when the body is GONE; was CHECK(DROWNED && g.over) at once */
+            CHECK(g.flier.state == FLIER_DROWNED && !g.over);
+            for (i = 0; i < 400 && !g.over; i++) game_step_arena(&g, 0);
+            CHECK(g.flier.state == FLIER_GONE && g.over);
             /* Rematch: win match 1 under this kind; player_spawn and match_start must keep the kind's line. */
             game_reset(&g, 4);
             game_set_hazard(&g, (uint8_t)k);
@@ -159,6 +172,22 @@ int main(void) {
         }
     }
 
+    /* DF6 (dead flier hazard hunt): the round ends only when the last body is GONE, and a drowned rival scores once */
+    {
+        static Game g;
+        game_reset(&g, 11);
+        game_step_arena(&g, 0);
+        uint32_t score0 = g.score;
+        for (i = 0; i < g.cpu_count; i++) { g.cpu[i].state = FLIER_DROWNED; g.cpu[i].y = FL_PX(100); g.cpu[i].vy = 0; g.cpu[i].vx = 0; g.cpu[i].on_ground = 0; }
+        game_step_arena(&g, 0);
+        CHECK(g.matches_won == 0);                                   /* bodies still falling: no round end */
+        CHECK(g.score == score0);                                    /* entering the state by hand is not a drowning; a fall adds nothing */
+        for (i = 0; i < 3; i++) game_step_arena(&g, 0);
+        CHECK(g.matches_won == 0);
+        for (i = 0; i < g.cpu_count; i++) g.cpu[i].state = FLIER_GONE;
+        game_step_arena(&g, 0);
+        CHECK(g.matches_won == 1);                                   /* the last body left: the round ends */
+    }
     /* Match logic through the arena step: match 1 has CPU_START_COUNT fliers; removing them wins and starts
      * the next match with one more, capped at CPU_MAX, with the player's balloons reset. */
     {
@@ -180,21 +209,21 @@ int main(void) {
         }
         CHECK(g.cpu_count == CPU_MAX);
         /* Player death ends the run, no respawn. */
-        g.flier.state = FLIER_DROWNED;
+        g.flier.state = FLIER_GONE; /* behaviour change approved by the user (dead flier hazard hunt): was FLIER_DROWNED; the run ends when the body is gone */
         game_step_arena(&g, 0);
         CHECK(g.over);
     }
-    /* Stomp between computer fliers is counted: put cpu 1 feet-on cpu 0's balloons. */
+    /* Computer fliers never pop each other (BR-D3): cpu 1 feet-on cpu 0's balloons is a bounce, no stomp, no balloon lost. */
     {
         static Game g;
-        uint32_t before;
+        uint32_t before, bounces;
         game_reset(&g, 3);
         game_step_arena(&g, 0);
         g.cpu[1].x = g.cpu[0].x; g.cpu[1].y = g.cpu[0].y - FL_PX(26);
         g.cpu[1].vy = FL_PX(1);
-        before = g.stomps;
+        before = g.stomps; bounces = g.bounces;
         game_step_arena(&g, 0);
-        CHECK(g.stomps > before);
+        CHECK(g.stomps == before && g.bounces > bounces && g.cpu[0].balloons == FLIER_START_BALLOONS);
     }
     /* Body contact kills a balloon-less flier. */
     {
@@ -204,6 +233,26 @@ int main(void) {
         CHECK(flier_body_kill(&v, &o) == 0);
         v = mk(100, 100, 1); o = mk(101, 100, 2);
         CHECK(flier_body_kill(&v, &o) == 0);
+    }
+
+    /* A computer flier under an island with the target above it must get out from under: without the overhead steer it
+       flaps into the underside and bounces for ever (the island is solid). Island: top centre, x 144..240, y 68..80. */
+    {
+        Flier c = mk(192, 80 + 6 + 3, 2), tgt = mk(192, 30, 2);
+        Rng r2; Ai a2; FlierInput ci;
+        int top_seen = 0, hits0 = g_flier_solid_hits;
+        rng_seed(&r2, 9);
+        ai_init(&a2, &r2);
+        for (i = 0; i < 600 && !top_seen; i++) {
+            int32_t px = c.x, py = c.y;
+            FlierSolid so[STAGE_SOLIDS_MAX];
+            ai_step(&a2, &r2, &c, &tgt, &ci);
+            flier_step(&c, &ci, stage_floor_y(c.x, c.y + flier_half_h(&c)));
+            flier_collide_solids(&c, px, py, so, stage_solids_near(c.x, so, STAGE_SOLIDS_MAX));
+            if (c.y + flier_half_h(&c) <= FL_PX(68)) top_seen = 1;
+        }
+        CHECK(top_seen && i < 200);                      /* with the steer: 86 frames, 2 bounces; without it: 355 and 13 */
+        CHECK((int)g_flier_solid_hits - hits0 < 6);
     }
 
     printf("ai: %d checks, %d failures\n", checks, failures);

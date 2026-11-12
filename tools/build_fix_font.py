@@ -49,6 +49,9 @@ def main():
     ap.add_argument("--out", default=os.path.join(ROOT, "build/gen"))
     ap.add_argument("--sheet", default=os.path.join(ROOT, "assets/font/fix_font_sheet.png"))
     ap.add_argument("--meta", default=os.path.join(ROOT, "assets/font/fix_font.json"))
+    ap.add_argument("--overlay", action="append", default=[], metavar="PNG@TILE",
+                    help="paste a palette image (8 pixel rows, width a multiple of 8) at tiles TILE.. of the atlas, left to right; "
+                         "the target tiles must be transparent (all 0)")
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
     meta = json.load(open(a.meta))
@@ -62,6 +65,24 @@ def main():
     # atlas: 16 tiles per row, SROM_TILES tiles; tiles the sheet does not hold stay 0 (transparent)
     atlas = np.zeros((SROM_TILES // 16 * 8, 128), np.uint8)
     atlas[:px.shape[0]] = px
+    for spec in a.overlay:
+        path, _, at = spec.rpartition("@")
+        if not path or not at.isdigit():
+            sp.die("--overlay wants PNG@TILE, got %r" % spec)
+        ov = Image.open(path)
+        if ov.mode != "P" or ov.size[1] != 8 or ov.size[0] % 8:
+            sp.die("%s must be a palette image 8 pixels high, width a multiple of 8" % path)
+        o = np.array(ov, np.uint8)
+        if o.max() > 15:
+            sp.die("%s pixel value above 15" % path)
+        for k in range(o.shape[1] // 8):
+            tile = int(at) + k
+            if tile >= SROM_TILES or tile == BLANK:
+                sp.die("overlay tile %d is out of range or the blank tile" % tile)
+            dst = atlas[(tile // 16) * 8:(tile // 16) * 8 + 8, (tile % 16) * 8:(tile % 16) * 8 + 8]
+            if dst.any():
+                sp.die("overlay tile %d is not transparent in the font atlas" % tile)
+            dst[:] = o[:, k * 8:k * 8 + 8]
     if atlas[(BLANK // 16) * 8:, (BLANK % 16) * 8:(BLANK % 16) * 8 + 8].any():
         sp.die("tile %d must stay blank" % BLANK)
     img = Image.fromarray(atlas, "P")
@@ -96,7 +117,7 @@ def main():
                     ("p:^", "ARROW_UP"), ("p:v", "ARROW_DOWN"), ("p:{", "ICON_HEART"), ("p:}", "ICON_GUM"), ("p:~L", "ICON_SOOT_LEFT"),
                     ("p:~R", "ICON_SOOT_RIGHT"), ("s:capL", "PLATE_CAP_LEFT"), ("s:capR", "PLATE_CAP_RIGHT"), ("s:joint", "PLATE_JOINT"),
                     ("s:fill", "PLATE_FILL"), ("s:f_tl", "FRAME_TL"), ("s:f_t", "FRAME_T"), ("s:f_tr", "FRAME_TR"), ("s:f_l", "FRAME_L"),
-                    ("s:f_r", "FRAME_R"), ("s:f_bl", "FRAME_BL"), ("s:f_b", "FRAME_B"), ("s:f_br", "FRAME_BR"), ("s:rule", "RULE")):
+                    ("s:f_r", "FRAME_R"), ("s:f_bl", "FRAME_BL"), ("s:f_b", "FRAME_B"), ("s:f_br", "FRAME_BR"), ("s:rule", "RULE"), ("s:pop_burst", "POP_BURST")):
         h.append("#define FIXFONT_%s %d" % (name, t[k]))
     h += ["", "/* Fix palette slots 0..FIXFONT_PAL_COUNT-1 (palette RAM entries slot * 16 + i), in this order. Entry 0 is transparent. */",
           "#define FIXFONT_PAL_COUNT %d" % len(names)]

@@ -76,12 +76,36 @@ int vq_scb_run(VramQueue *q, u16 addr, u16 mod, const u16 *vals, u8 n) {
     if (first < 0) return 1;
     u16 a = (u16)(addr + (u16)first * mod);
     u8 words = (u8)(last - first + 1);
-    VqOp op = { &q->scb_hw[a - VQ_SCB_BASE], a, mod, 0, VQ_RUN, words, (u16)(VQ_US_RUN + VQ_US_RUN_WORD * words) };
+    VqOp op = { &q->scb_hw[a - VQ_SCB_BASE], a, mod, 0, VQ_RUN, words, (u16)(VQ_US_RUN + VQ_US_RUN_WORD * words), 0 };
     return push(q, &op);
 }
 
+void vq_scb_forget(VramQueue *q, u16 addr, u16 n) {
+    for (u16 i = (u16)(addr - VQ_SCB_BASE); n && i < VQ_SCB_WORDS; i++, n--) q->scb_valid[i >> 3] &= (u8)~(1u << (i & 7));
+}
+
+int vq_scb_ramp(VramQueue *q, u16 addr, u8 n, u8 split, u16 v1, u16 v2) {
+    u16 i = (u16)(addr - VQ_SCB_BASE);
+    if (!n || split > n || i >= VQ_SCB_WORDS || (u16)(i + n - 1) >= VQ_SCB_WORDS) return 0;
+    VqOp *op = tail_op(q);
+    if (!op) return 0;
+    op->tiles = 0; op->a = addr; op->b = v1; op->c = v2; op->kind = VQ_RAMP; op->rows = n;
+    op->cost = (u16)(VQ_US_RAMP + VQ_US_RAMP_WORD * n); op->split = split;
+    q->count++;
+    return 1;
+}
+
+void vq_ramp_expand(const VqOp *op, u16 *out) {
+    u16 v = op->b;
+    for (u8 k = 0; k < op->rows; k++) {
+        if (k == op->split) v = op->c;
+        out[k] = v;
+        v = (u16)(v + VQ_SCB4_COL);
+    }
+}
+
 int vq_vram_word(VramQueue *q, u16 addr, u16 val) {
-    VqOp op = { 0, addr, val, 0, VQ_WORD, 0, VQ_US_OP };
+    VqOp op = { 0, addr, val, 0, VQ_WORD, 0, VQ_US_OP, 0 };
     return push(q, &op);
 }
 
@@ -116,13 +140,13 @@ int vq_strip(VramQueue *q, u16 sprite, const u16 *tiles, u16 base, u8 rows, u16 
 }
 
 int vq_strip_attr(VramQueue *q, u16 sprite, const u16 *pairs, u16 base, u8 rows) {
-    VqOp op = { pairs, sprite, base, 0, VQ_STRIP_ATTR, rows, (u16)(VQ_US_STRIP + VQ_US_ROW * rows) };
+    VqOp op = { pairs, sprite, base, 0, VQ_STRIP_ATTR, rows, (u16)(VQ_US_STRIP + VQ_US_ROW * rows), 0 };
     q->strip[sprite].tiles = 0; /* the plain strip dedupe must not believe the column still holds its old tiles */
     return push(q, &op);
 }
 
 int vq_pal(VramQueue *q, u16 idx, u16 val) {
-    VqOp op = { 0, idx, val, 0, VQ_PAL, 0, VQ_US_PAL };
+    VqOp op = { 0, idx, val, 0, VQ_PAL, 0, VQ_US_PAL, 0 };
     return push(q, &op);
 }
 
@@ -156,7 +180,7 @@ int vq_fix_commit(VramQueue *q) {
         for (u16 y = 0; y < VQ_FIX_ROWS; y++) {
             u16 i = (u16)(x * VQ_FIX_ROWS + y);
             if (q->fix_want[i] == q->fix_hw[i]) continue;
-            VqOp op = { 0, (u16)(VQ_FIX_BASE + i), q->fix_want[i], 0, VQ_WORD, 0, VQ_US_OP };
+            VqOp op = { 0, (u16)(VQ_FIX_BASE + i), q->fix_want[i], 0, VQ_WORD, 0, VQ_US_OP, 0 };
             if (!push(q, &op)) return 0;
             q->fix_hw[i] = q->fix_want[i];
         }

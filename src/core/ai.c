@@ -1,4 +1,5 @@
 #include "ai.h"
+#include "stage.h"
 #include "arena.h"
 
 /* int16 x int16 -> int32 as one muls.w; see flier.c. */
@@ -48,6 +49,15 @@ AiState ai_decide(const Flier *self, const Flier *target) {
     return AI_CHASE;
 }
 
+/* Vertical aim: the direction to the target as a Q15 sine (y down), negated when fleeing. Same maths for the steering
+ * decision at a think and for the flap decision every frame. */
+static void aim(AiState s, const Flier *self, const Flier *target, int16_t *cx, int16_t *cy) {
+    uint8_t ang = flier_angle((int32_t)arena_dx(px(target->x), px(self->x)), (int32_t)(px(target->y) - px(self->y)));
+    *cx = flier_cos(ang);
+    *cy = flier_sin(ang);
+    if (s == AI_FLEE) { *cx = (int16_t)-*cx; *cy = (int16_t)-*cy; }
+}
+
 void ai_step(Ai *a, Rng *r, const Flier *self, const Flier *target, FlierInput *out) {
     out->flap = 0;
     if (a->timer > 0) a->timer--;
@@ -59,14 +69,24 @@ void ai_step(Ai *a, Rng *r, const Flier *self, const Flier *target, FlierInput *
             AiState s = ai_decide(self, target);
             a->state = (uint8_t)s;
             if (s != AI_FILL) {
-                uint8_t ang = flier_angle((int32_t)arena_dx(px(target->x), px(self->x)), (int32_t)(px(target->y) - px(self->y)));
-                int16_t cx = flier_cos(ang), cy = flier_sin(ang);
-                if (s == AI_FLEE) { cx = (int16_t)-cx; cy = (int16_t)-cy; }
+                int16_t cx, cy;
+                aim(s, self, target, &cx, &cy);
                 if (cx > AI_STEER_MIN) a->dir = 1;
                 else if (cx < -AI_STEER_MIN) a->dir = -1;
-                if (cy < AI_FLAP_MAX) out->flap = 1;
             }
         }
     }
     out->dir = a->dir;
+    /* The flap decision runs every frame (additive flight model: one flap cancels only part of a think period of gravity):
+     * flap on a fresh press while the target is above (dir.y < AI_FLAP_MAX) and the cooldown has run out. */
+    if (target && a->state != AI_FILL && self->flap_cd == 0 && !self->flap_prev) {
+        int16_t cx, cy;
+        aim((AiState)a->state, self, target, &cx, &cy);
+        if (cy < AI_FLAP_MAX) {
+            /* Flapping up into the underside of an island only bounces: steer out from under it first. */
+            int8_t away = (int8_t)stage_overhead_edge_dir(self->x, self->y - flier_half_h(self));
+            out->flap = 1;
+            if (away) out->dir = away;
+        }
+    }
 }
