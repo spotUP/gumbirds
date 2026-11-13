@@ -234,8 +234,10 @@ int game_flier_cam_px(const Game *g)
 typedef struct { uint8_t layout, plat; int16_t x; uint8_t len, up; } ArcPost;
 #define ARC_POST_W 16
 #define ARC_POSTS_MAX 3
-#define ARC_BONUS_CATCH_HALF_W 8  /* catcher box around the player in the bonus stage, px (own first value) */
-#define ARC_BONUS_CATCH_HALF_H 12
+/* Catcher box around the player in the bonus stage, px. Reference pop test: |dx| < 16 and |dy| < 24 between centres. Our test is box overlap
+ * with the 16 px bubble box (half 8), so the catcher half sizes are 16 - 8 = 8 wide and 24 - 8 = 16 high: the same distances. */
+#define ARC_BONUS_CATCH_HALF_W 8
+#define ARC_BONUS_CATCH_HALF_H 16
 static const ArcPost arc_posts[] = {
     { 14, 2, 144, 40, 0 }, { 14, 3, 232, 40, 0 }, { 14, 4, 320, 40, 0 }, /* N05 */
     { 17, 2, 176, 40, 1 },                                             /* N04 */
@@ -386,11 +388,13 @@ static int arc_interlude(Game *g, uint8_t input)
         in.flap = (input & IN_A) ? 1 : 0;
         in.dir = (int8_t)(((input & IN_RIGHT) ? 1 : 0) - ((input & IN_LEFT) ? 1 : 0));
         arena_flier_step(g, &g->flier, &in);
-        score_add(g, arc_bonus_step(&g->bonus, cx - ARC_BONUS_CATCH_HALF_W, cy - ARC_BONUS_CATCH_HALF_H, 2 * ARC_BONUS_CATCH_HALF_W, 2 * ARC_BONUS_CATCH_HALF_H));
+        arc_bonus_step(&g->bonus, g->flier.state == FLIER_ALIVE && g->flier.balloons > 0, cx - ARC_BONUS_CATCH_HALF_W, cy - ARC_BONUS_CATCH_HALF_H, 2 * ARC_BONUS_CATCH_HALF_W, 2 * ARC_BONUS_CATCH_HALF_H);
         if (g->flier.state == FLIER_GONE) {
             player_spawn(g); /* a bonus stage costs no life */
         }
         if (g->bonus.over) {
+            /* stand-in: result screen tally replaces this */
+            score_add(g, (uint32_t)g->bonus.caught * (uint32_t)arc_bonus_value(g->bonus.number) + (g->bonus.perfect ? (uint32_t)arc_bonus_perfect(g->bonus.number) : 0u));
             arc_bonus_done(&g->arc);
             arc_enter_stage(g);
         }

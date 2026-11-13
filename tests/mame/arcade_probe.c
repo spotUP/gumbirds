@@ -4,7 +4,7 @@
  * 9 cpu[0].state, 10 sizeof(Flier), 11 player Flier.state, 12 score, 13 over, 14 lives.score,
  * then the enum and knob values the script compares with: 15 FLOW_PLAYING, 16 GAME_MODE_ARCADE, 17 ARC_PLAY, 18 ARC_CLEAR,
  * 19 ARC_LIFE_PLAY, 20 ARC_LIFE_CONTINUE, 21 ARC_LIVES_START, 22 ARC_CLEAR_FRAMES, 23 ARC_CONTINUE_FRAMES, 24 FLIER_GONE,
- * 25 ISLAND_SPRITE, 26 ISLAND_COUNT, 27 FLOW_GAME_OVER, 28 ARC_LIFE_ENDED, 29 ISLAND_TILE_BASE, 30 ISLAND_TILE_COUNT, 31 ISLAND_PAL_SLOT, 32 bonus.nlive, 33 ARC_BONUS. */
+ * 25 ISLAND_SPRITE, 26 ISLAND_COUNT, 27 FLOW_GAME_OVER, 28 ARC_LIFE_ENDED, 29 ISLAND_TILE_BASE, 30 ISLAND_TILE_COUNT, 31 ISLAND_PAL_SLOT, 32 bonus.nlive, 33 ARC_BONUS, 34 bonus.timer (int16_t), 35 ARC_BONUS_LIVE_MAX. */
 #include <stddef.h>
 #include "../../src/core/flow.h"
 #include "../../src/sprite_slots.h"
@@ -19,4 +19,5 @@ unsigned int probe[] = {
     ARC_CONTINUE_FRAMES, FLIER_GONE, ISLAND_SPRITE, ISLAND_COUNT, FLOW_GAME_OVER, ARC_LIFE_ENDED,
     ISLAND_TILE_BASE, ISLAND_TILE_COUNT, ISLAND_PAL_SLOT,
     G(bonus) + offsetof(ArcBonus, nlive), ARC_BONUS,
+    G(bonus) + offsetof(ArcBonus, timer), ARC_BONUS_LIVE_MAX,
 };

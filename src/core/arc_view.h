@@ -27,12 +27,12 @@ static const uint8_t ARC_VIEW_COLS[ARCV_PIECES] = { 2, 1, 3, 3, 2 };
 /* Fills out[] (bodies first, then sparks) and returns the count. tick drives the flipper turn. */
 int arc_view_build(const ArcElements *a, unsigned tick, ArcSprite *out);
 /* Bonus stage bubbles: the Gum Trip pickup art (32 x 32 sprite, 2 columns, 16 idle frames; main.c asserts the sizes). For these blocks piece is the
- * bubble index (0..ARC_BONUS_BUBBLES-1, so a bubble keeps its sprite slot while the others come and go) and x, y are the sprite's top left in
+ * bubble index (0..ARC_BONUS_LIVE_MAX-1, so a bubble keeps its sprite slot while the others come and go) and x, y are the sprite's top left in
  * world px: the 16 px catch box sits 8 px right of the sprite left and 12 px below its top, like the pickup in Gum Trip. */
 #define ARC_VIEW_BUBBLE_FRAMES 16
 #define ARC_VIEW_BUBBLE_LEFT_OFF 8
 #define ARC_VIEW_BUBBLE_TOP_OFF 12
-/* Fills out[ARC_BONUS_BUBBLES] with the rising bubbles (live only) and returns the count. */
+/* Fills out[ARC_BONUS_LIVE_MAX] with the rising bubbles (live only) and returns the count. */
 int arc_view_bonus_build(const ArcBonus *b, ArcSprite *out);
 
 /* Sprite columns that cover scanline y (0..223) when the first n blocks are drawn. */

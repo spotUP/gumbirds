@@ -195,7 +195,7 @@ int main(void) {
     /* BONUS-DRAW: ALL POPPED shows once before a bonus, the bonus has its own round-start text, and its bubbles are drawn */
     {
         static Game b;
-        ArcSprite spr[ARC_BONUS_BUBBLES];
+        ArcSprite spr[ARC_BONUS_LIVE_MAX];
         int f, ups = 0, prev_end = RE_NONE, prev_timer = 0, saw_text = 0, seen_n = 0, ok = 1;
         start(&b, 3);
         b.rounds = 1;

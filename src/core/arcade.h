@@ -17,28 +17,28 @@
 #define ARC_GUM_HEAL 2                /* gum after a bonus stage or on a new life */
 #define ARC_GUM_MAX 2
 #define ARC_RANK_MAX 3
-#define ARC_BONUS_PERFECT_UNIT 4000u  /* perfect bonus = unit x bonus number */
-#define ARC_BONUS_FRAMES 1800         /* 30 s */
 #define ARC_BONUS_BUBBLES 20
-#define ARC_BONUS_GAP 45              /* frames between spawns */
-#define ARC_BONUS_LIVE_MAX 8          /* bubbles alive at once; a due spawn waits for a free place. 8 measured at logic end 218.4/224; 10 projects over 224 */
-#define ARC_BONUS_GAP_MIN 30          /* spawn gap = MIN + (random & MASK) frames: 30..61, mean 45 = ARC_BONUS_GAP */
-#define ARC_BONUS_GAP_MASK 31
+/* Pool of live bubbles; a spawn is skipped when all are live. The reference has 10 slots, but at its pace no more than 8 are ever alive:
+ * a 9th needs 8 spawn gaps of 40+ frames (320) while the longest rise (lowest nozzle top to 16 px past the top at 0.5 px/frame) is
+ * 312 frames, so 8 slots play exactly the same. tests/host/test_arcade.c checks the bound; 10 live measured logic end 219..222 with
+ * missed frames (make test-arcade-bonus stress fill), 8 live max 214. */
+#define ARC_BONUS_LIVE_MAX 8
+#define ARC_BONUS_SPAWN_MIN 40        /* spawn timer reload = MIN + (random & MASK) frames: 40..103 (reference) */
+#define ARC_BONUS_SPAWN_MASK 63
 #define ARC_BONUS_PUFF_FRAMES 16      /* frames the nozzle mouth puffs when a bubble leaves (4 art frames, 4 each) */
-#define ARC_BONUS_STRAIGHT 20         /* px a bubble rises straight above its nozzle top before it starts to sway */
+#define ARC_BONUS_STRAIGHT 40         /* px a bubble rises straight above its nozzle top before it starts to sway */
 #define ARC_NOZZLE_COUNT 4
 #define ARC_NOZZLE_W 32               /* nozzle art width, px */
 #define ARC_FLOOR_Y 164               /* top of the bonus floor strip, px */
 #define ARC_LAYOUT_BONUS 24           /* stage.c layout of the bonus stage: floor strip and nozzle tops, no islands */
 #define ARC_BONUS_BOX 16              /* bubble box, px */
-#define ARC_BONUS_STEPS 4             /* speed ladder */
 #define ARC_BONUS_WORLD_W 384
 #define ARC_LAYOUT_NONE (-1)
 #define ARC_LAYOUT_BASE 12 /* arcade stage n plays stage.c layout ARC_LAYOUT_BASE + n - 1 (the arena layouts 0..11 stay untouched) */
 #define ARC_PUMP_STAGES 4             /* blow-up animation steps: progress runs 0..ARC_PUMP_STAGES */
 #define ARC_CONTINUE_SECONDS 10       /* continue countdown at 60 Hz (own first value) */
 #define ARC_CONTINUE_FRAMES (ARC_CONTINUE_SECONDS * 60)
-#define ARC_BONUS_MIN_VISIBLE 300     /* reach rule: even the fastest bubble stays inside the 0..FLIER_WORLD_H screen rows at least this many frames (5 s) */
+#define ARC_BONUS_MIN_VISIBLE 290     /* reach rule: even the fastest bubble (bonus 5, reference pace 0.65625 px/frame) stays inside the 0..FLIER_WORLD_H screen rows at least this many frames (298 measured; was 300 at the old own speeds) */
 
 typedef enum { ARC_PLAY = 0, ARC_CLEAR, ARC_BONUS, ARC_OVER } ArcState;
 
@@ -60,21 +60,22 @@ typedef struct {
 typedef struct {
     int32_t y16;           /* top of the bubble, 16.16 px */
     int16_t x;             /* left, px */
-    int16_t delay;         /* frames until it appears */
-    uint8_t step;          /* speed ladder index */
-    uint8_t live;          /* 0 waiting or gone, 1 rising */
-    uint8_t done;          /* caught or escaped */
+    uint8_t live;          /* 0 free pool slot, 1 rising */
     uint8_t nozzle;        /* nozzle it came out of */
     int16_t x0;            /* left of the rising line, px; x = x0 + sway */
     uint16_t age;          /* frames since it left the nozzle */
+    uint8_t ph;            /* sway sine index 0..24 */
+    uint8_t amp;           /* sway amplitude 1..16 px */
 } ArcBubble;
 
 typedef struct {
-    ArcBubble b[ARC_BONUS_BUBBLES];
+    ArcBubble b[ARC_BONUS_LIVE_MAX]; /* pool; the slot index is the bubble's sprite slot */
+    Rng rng;
+    int16_t timer;         /* frames to the next spawn */
+    int spawned;           /* of ARC_BONUS_BUBBLES */
     int number;            /* bonus number, 1 based */
     int frame;
     int caught;
-    uint32_t score;        /* points won in this bonus stage, perfect bonus included */
     int over;
     int perfect;
     int nlive;             /* bubbles alive now */
@@ -102,13 +103,14 @@ int arc_gum_on_new_life(void);
 
 uint32_t arc_score_add(uint32_t score, uint32_t points); /* clamps at SCORE_CAP, never wraps */
 
-int32_t arc_bonus_speed16(int step);     /* 16.16 px per frame */
-int arc_bonus_value(int step);
+int32_t arc_bonus_speed16(int number);   /* 16.16 px per frame, bonus number 1 based (5 and up the same) */
+int arc_bonus_value(int number);         /* points per popped bubble: 300 / 500 / 700 / 700 / 700 */
+int arc_bonus_perfect(int number);       /* all 20 popped: 10000 / 15000 / 20000 / 25000 / 30000 */
 int arc_nozzle_x(int i);                 /* left, px */
 int arc_nozzle_top(int i);               /* top, px; the solid top of the stage.c bonus layout */
 void arc_bonus_init(ArcBonus *b, int number, uint32_t seed);
-/* One frame; the caller's rectangle (px) catches bubbles it overlaps. Returns points won this frame. */
-uint32_t arc_bonus_step(ArcBonus *b, int rx, int ry, int rw, int rh);
+/* One frame; when armed (the player still has a gum), the caller's rectangle (px) pops bubbles it overlaps. Returns bubbles popped this frame. No score is added. */
+int arc_bonus_step(ArcBonus *b, int armed, int rx, int ry, int rw, int rh);
 
 
 /* ---- rival pump-up (FQ4): one ArcPump per rival slot ---- */

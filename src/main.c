@@ -568,7 +568,7 @@ static void arcade_elems_step(const Game *g) {
 }
 
 /* Bonus stage: bubbles (Gum Trip pickup art, 2 sprite columns each) in the first slots of the shared strip range, in the order of the live
- * bubbles (at most ARC_BONUS_LIVE_MAX at once, so 20 slots); then the 4 gum nozzles in front of them and their mouth puffs (2 columns each);
+ * bubbles (at most ARC_BONUS_LIVE_MAX at once, 2 slots each); then the 4 gum nozzles in front of them and their mouth puffs (2 columns each);
  * the floor strip in the island slots (the bonus layout draws no islands, island_layout.c), 2 columns per 32 px tile. Arcade art, palette ARCADE_ANIM_NOZZLE. */
 #define BONUS_NOZZLE_SPRITE (ARC_BONUS_SPRITE + 2 * ARC_BONUS_LIVE_MAX)
 #define BONUS_PUFF_SPRITE (BONUS_NOZZLE_SPRITE + 2 * ARC_NOZZLE_COUNT)
@@ -637,7 +637,7 @@ static void bonus_static_place(void) {
 }
 
 static void arcade_bonus_step(const Game *g) {
-    ArcSprite blocks[ARC_BONUS_BUBBLES];
+    ArcSprite blocks[ARC_BONUS_LIVE_MAX];
     int n = 0;
     if (!g && !g_bonus_dirty) return;
     if (!g) { /* the bonus is over: park the bubble, nozzle, puff and floor slots (two runs, once) */

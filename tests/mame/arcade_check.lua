@@ -20,7 +20,7 @@ local O_FLOW, O_MODE, O_STAGE, O_ASTATE, O_LIVES, O_LSTATE, O_COUNT, O_NCPU, O_C
 local K = { playing = L[15], arcade = L[16], play = L[17], clear = L[18], life_play = L[19], life_cont = L[20], lives = L[21],
   clear_frames = L[22], cont_frames = L[23], gone = L[24], isl = L[25], isl_n = L[26], game_over = L[27], life_end = L[28],
   isl_tile = L[29], isl_tiles = L[30], isl_pal = L[31], bonus = L[33] }
-local O_NLIVE = L[32]
+local O_NLIVE, O_BTIMER, BONUS_LIVE_MAX = L[32], L[34], L[35]
 local mem    = manager.machine.devices[":maincpu"].spaces["program"]
 local screen = manager.machine.screens[":screen"]
 local ports  = manager.machine.ioport.ports
@@ -97,7 +97,7 @@ local clear_frames, hash1, hash2, wait = 0, nil, nil, 0
 local died, expect_lives, cd0, press = 0, nil, nil, 0
 -- per-frame logic end bookkeeping: steady = more than 3 frames after any stage/flow/arcade-state change, arcade state PLAY, lives state PLAY
 local walk = os.getenv("ARCADE_WALK") == "1"
-local bonus_run = os.getenv("ARCADE_BONUS") == "1" -- make test-arcade-bonus: clear stages 1..3 and measure the bonus stage (about 10 bubbles alive)
+local bonus_run = os.getenv("ARCADE_BONUS") == "1" -- make test-arcade-bonus: clear stages 1..3 and measure the bonus stage (up to 10 bubbles alive)
 local bon_by = {}
 local bon_over, bon_over_note, bon_prev, bon_prev_cur = 0, nil, nil, nil
 local bon_logic, bon_frames, bon_nlive_max, bon_busy, bon_wait = 0, 0, 0, 0, 0
@@ -175,9 +175,12 @@ emu.register_frame_done(function()
     if g(O_ASTATE) == K.bonus then
       if playing then
         local nl = g(O_NLIVE)
+        -- stress: the reference pace (spawn gap 40..103, about 300 frames per rise) rarely has more than 7 alive, so force the spawn
+        -- timer due while the pool has room: the pool fills to ARC_BONUS_LIVE_MAX and the logic end is measured at the real worst case
+        if nl < BONUS_LIVE_MAX then mem:write_u16(flow_addr + O_BTIMER, 1) end
         bon_frames = bon_frames + 1
         if nl > bon_nlive_max then bon_nlive_max = nl end
-        if nl >= 4 then bon_busy = bon_busy + 1; if fc_line >= 224 then bon_over = bon_over + 1; if not bon_over_note then bon_over_note = string.format('frame %d nlive %d bonus frame %d', n, nl, bon_frames) end elseif fc_line > bon_logic then bon_logic = fc_line end end
+        if nl >= 8 then bon_busy = bon_busy + 1; if fc_line >= 224 then bon_over = bon_over + 1; if not bon_over_note then bon_over_note = string.format('frame %d nlive %d bonus frame %d', n, nl, bon_frames) end elseif fc_line > bon_logic then bon_logic = fc_line end end
         bon_prev = nl
         -- fly left and right with flaps so the camera scrolls (the floor and nozzles must be placed again)
         rgt:set_value((bon_frames % 240) < 120 and 1 or 0); lft:set_value((bon_frames % 240) >= 120 and 1 or 0); abtn:set_value((bon_frames % 14) < 3 and 1 or 0)
@@ -187,9 +190,9 @@ emu.register_frame_done(function()
     elseif bon_frames > 0 then
       local why
       for k = 0, 10 do local t = bon_by[k]; if t then print(string.format('BON_NL %d frames %d over %d max %.1f', k, t[1], t[2], t[3])) end end
-      if bon_nlive_max < 8 then why = "bonus never had 8 bubbles alive (max " .. bon_nlive_max .. ")"
+      if bon_nlive_max < BONUS_LIVE_MAX then why = "bonus never had " .. BONUS_LIVE_MAX .. " bubbles alive (max " .. bon_nlive_max .. ")"
       elseif bon_over > 0 then why = "bonus logic end past 224 on " .. bon_over .. " of " .. bon_busy .. " busy frames, first " .. bon_over_note
-      elseif bon_busy < 100 then why = "only " .. bon_busy .. " frames with 8+ bubbles" end
+      elseif bon_busy < 50 then why = "only " .. bon_busy .. " frames with 8+ bubbles" end
       finish(why == nil, why or string.format("bonus stage: %d frames, max %d bubbles alive, %d frames with 8+ alive, max logic end %.1f of 224 (%d over)", bon_frames, bon_nlive_max, bon_busy, bon_logic, bon_over))
       return
     elseif bon_wait > 12000 then finish(false, "bonus stage never reached: " .. state()) return

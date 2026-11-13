@@ -60,74 +60,70 @@ uint32_t arc_score_add(uint32_t score, uint32_t points) {
     return score + points;
 }
 
-/* 0.30 / 0.37 / 0.44 / 0.50 px per frame in 16.16 */
-static const int32_t speed16[ARC_BONUS_STEPS] = { 19661, 24248, 28836, 32768 };
-static const int value[ARC_BONUS_STEPS] = { 300, 500, 700, 900 };
-int32_t arc_bonus_speed16(int step) { return speed16[step < 0 ? 0 : (step >= ARC_BONUS_STEPS ? ARC_BONUS_STEPS - 1 : step)]; }
-int arc_bonus_value(int step) { return value[step < 0 ? 0 : (step >= ARC_BONUS_STEPS ? ARC_BONUS_STEPS - 1 : step)]; }
+/* Reference (Balloon Fight bonus, thoughts/spot/2026-11-13-bonus-ref.md): one rise speed per bonus number, 0.500 / 0.5625 / 0.59375 / 0.625 / 0.65625 px per frame in 16.16. */
+static const int32_t speed16[5] = { 32768, 36864, 38912, 40960, 43008 };
+static const int value[5] = { 300, 500, 700, 700, 700 };
+static const int perfect[5] = { 10000, 15000, 20000, 25000, 30000 };
+#define BONUS_IDX(n) ((n) < 1 ? 0 : ((n) > 5 ? 4 : (n) - 1))
+int32_t arc_bonus_speed16(int number) { return speed16[BONUS_IDX(number)]; }
+int arc_bonus_value(int number) { return value[BONUS_IDX(number)]; }
+int arc_bonus_perfect(int number) { return perfect[BONUS_IDX(number)]; }
 
-/* Nozzles on the floor strip (own numbers): left x about 15, 34, 65 and 84 percent of the 384 px world; heights 24, 40, 32, 36 (the art in assets/arcade). */
-static const int16_t noz_x[ARC_NOZZLE_COUNT] = { 58, 130, 250, 322 };
+/* Nozzle columns: the reference's 4 columns (x 32, 80, 160, 208 of its 256 px screen) scaled x1.5 to our 384 px world, nozzle left edge; heights 24, 40, 32, 36 (the art in assets/arcade). */
+static const int16_t noz_x[ARC_NOZZLE_COUNT] = { 48, 120, 240, 312 };
 static const uint8_t noz_h[ARC_NOZZLE_COUNT] = { 24, 40, 32, 36 };
 int arc_nozzle_x(int i) { return noz_x[i & 3]; }
 int arc_nozzle_top(int i) { return ARC_FLOOR_Y - noz_h[i & 3]; }
 
-/* Speed ladder step per bubble; the seed rotates the start, later bonus numbers raise every step. */
-static const uint8_t pat_step[ARC_BONUS_BUBBLES] = { 0, 0, 1, 0, 1, 2, 1, 0, 2, 1, 2, 0, 3, 1, 2, 3, 1, 3, 2, 3 };
-/* Sway: 16 steps of a sine (+-8), scaled by an amplitude that damps from 12 px to 2 px with age. */
-static const int8_t sway_tab[16] = { 0, 3, 6, 7, 8, 7, 6, 3, 0, -3, -6, -7, -8, -7, -6, -3 };
+/* Sway: one 25 step sine (+-16), a step every 4 frames = period 100 frames; scaled by the bubble's random amplitude 1..16 (>> 4). Undamped. */
+static const int8_t sway_tab[25] = { 0, 4, 8, 11, 14, 15, 16, 16, 14, 12, 9, 6, 2, -2, -6, -9, -12, -14, -16, -16, -15, -14, -11, -8, -4 };
 
 void arc_bonus_init(ArcBonus *b, int number, uint32_t seed) {
-    Rng rng; int i, rot, at = 0, up = number > 1 ? number - 1 : 0;
-    rng_seed(&rng, seed);
-    rot = (int)rng_range(&rng, ARC_BONUS_BUBBLES);
-    b->number = number < 1 ? 1 : number; b->frame = 0; b->caught = 0; b->score = 0; b->over = 0; b->perfect = 0; b->nlive = 0;
+    int i;
+    rng_seed(&b->rng, seed);
+    b->number = number < 1 ? 1 : number; b->frame = 0; b->caught = 0; b->spawned = 0; b->over = 0; b->perfect = 0; b->nlive = 0;
+    b->timer = (int16_t)(ARC_BONUS_SPAWN_MIN + (int)(rng_next(&b->rng) & ARC_BONUS_SPAWN_MASK));
     for (i = 0; i < ARC_NOZZLE_COUNT; i++) b->puff[i] = 0;
-    for (i = 0; i < ARC_BONUS_BUBBLES; i++) {
-        int k = (i + rot) % ARC_BONUS_BUBBLES, s = pat_step[k] + up;
-        ArcBubble *u = &b->b[i];
-        u->nozzle = (uint8_t)(rng_next(&rng) & 3u);
-        u->x0 = (int16_t)(noz_x[u->nozzle] + 8 + (int)(rng_next(&rng) & 7u)); /* the 16 px box stays inside the 32 px mouth */
-        u->x = u->x0; u->y16 = (int32_t)(ARC_FLOOR_Y - noz_h[u->nozzle]) * 65536;
-        at += ARC_BONUS_GAP_MIN + (int)(rng_next(&rng) & ARC_BONUS_GAP_MASK);
-        u->delay = (int16_t)at; u->step = (uint8_t)(s >= ARC_BONUS_STEPS ? ARC_BONUS_STEPS - 1 : s);
-        u->live = 0; u->done = 0; u->age = 0;
-    }
+    for (i = 0; i < ARC_BONUS_LIVE_MAX; i++) { ArcBubble *u = &b->b[i]; u->live = 0; u->age = 0; u->ph = 0; u->amp = 0; u->nozzle = 0; u->x = u->x0 = 0; u->y16 = 0; }
 }
 
-uint32_t arc_bonus_step(ArcBonus *b, int rx, int ry, int rw, int rh) {
-    uint32_t won = 0; int i, open = 0;
+int arc_bonus_step(ArcBonus *b, int armed, int rx, int ry, int rw, int rh) {
+    int i, popped = 0;
     if (b->over) return 0;
     b->frame++;
     for (i = 0; i < ARC_NOZZLE_COUNT; i++) if (b->puff[i]) b->puff[i]--;
-    for (i = 0; i < ARC_BONUS_BUBBLES; i++) {
+    if (--b->timer <= 0) {
+        b->timer = (int16_t)(ARC_BONUS_SPAWN_MIN + (int)(rng_next(&b->rng) & ARC_BONUS_SPAWN_MASK));
+        if (b->spawned < ARC_BONUS_BUBBLES && b->nlive < ARC_BONUS_LIVE_MAX) {
+            ArcBubble *u = b->b;
+            while (u->live) u++;
+            u->nozzle = (uint8_t)(rng_next(&b->rng) & 3u);
+            u->x = u->x0 = (int16_t)(noz_x[u->nozzle] + (ARC_NOZZLE_W - ARC_BONUS_BOX) / 2);
+            u->y16 = (int32_t)(ARC_FLOOR_Y - noz_h[u->nozzle]) * 65536;
+            u->amp = (uint8_t)(1u + (rng_next(&b->rng) & 15u)); u->ph = 0; u->age = 0; u->live = 1;
+            b->spawned++; b->nlive++; b->puff[u->nozzle] = ARC_BONUS_PUFF_FRAMES;
+        }
+    }
+    for (i = 0; i < ARC_BONUS_LIVE_MAX; i++) {
         ArcBubble *u = &b->b[i];
-        if (u->done) continue;
-        if (!u->live) {
-            if (b->frame < u->delay || b->nlive >= ARC_BONUS_LIVE_MAX) { open = 1; continue; }
-            u->live = 1; b->nlive++; b->puff[u->nozzle] = ARC_BONUS_PUFF_FRAMES;
+        int y;
+        if (!u->live) continue;
+        u->y16 -= arc_bonus_speed16(b->number); u->age++;
+        y = (int)(u->y16 >> 16);
+        if (ARC_FLOOR_Y - noz_h[u->nozzle] - y > ARC_BONUS_STRAIGHT) {
+            if (!(u->age & 3) && ++u->ph == 25) u->ph = 0;
+            u->x = (int16_t)(u->x0 + ((sway_tab[u->ph] * u->amp) >> 4));
         }
-        u->y16 -= arc_bonus_speed16(u->step); u->age++;
-        {
-            int y = (int)(u->y16 >> 16), rise = ARC_FLOOR_Y - noz_h[u->nozzle] - y;
-            if (rise > ARC_BONUS_STRAIGHT) {
-                int amp = 12 - (int)(u->age >> 6); /* shifts, no division */
-                u->x = (int16_t)(u->x0 + ((sway_tab[(u->age >> 3) & 15] * (amp < 2 ? 2 : amp)) >> 3));
-            }
-            if (y + ARC_BONUS_BOX <= 0) { u->done = 1; u->live = 0; b->nlive--; continue; } /* escaped off the top */
-            if (u->x < rx + rw && rx < u->x + ARC_BONUS_BOX && y < ry + rh && ry < y + ARC_BONUS_BOX) {
-                u->done = 1; u->live = 0; b->nlive--; b->caught++; won += (uint32_t)arc_bonus_value(u->step);
-                continue;
-            }
+        if (y + ARC_BONUS_BOX <= 0) { u->live = 0; b->nlive--; continue; } /* escaped 16 px past the top: freed silently */
+        if (armed && u->x < rx + rw && rx < u->x + ARC_BONUS_BOX && y < ry + rh && ry < y + ARC_BONUS_BOX) {
+            u->live = 0; b->nlive--; b->caught++; popped++; /* no score here: the result screen tallies caught x value + perfect */
         }
-        open = 1;
     }
-    if (!open || b->frame >= ARC_BONUS_FRAMES) {
+    if (b->spawned == ARC_BONUS_BUBBLES && !b->nlive && !(b->frame & 255)) { /* the reference waits for its frame counter to wrap */
         b->over = 1;
-        if (b->caught == ARC_BONUS_BUBBLES) { b->perfect = 1; won += ARC_BONUS_PERFECT_UNIT * (uint32_t)b->number; }
+        b->perfect = b->caught == ARC_BONUS_BUBBLES;
     }
-    b->score += won;
-    return won;
+    return popped;
 }
 
 void arc_pump_start(ArcPump *p, int rank, int grounded) {

@@ -53,7 +53,7 @@ int arc_view_build(const ArcElements *a, unsigned tick, ArcSprite *out) {
 
 int arc_view_bonus_build(const ArcBonus *b, ArcSprite *out) {
     int n = 0, i;
-    for (i = 0; i < ARC_BONUS_BUBBLES; i++) {
+    for (i = 0; i < ARC_BONUS_LIVE_MAX; i++) {
         const ArcBubble *u = &b->b[i];
         ArcSprite *s = &out[n];
         if (!u->live) continue;

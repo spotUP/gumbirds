@@ -44,33 +44,46 @@ int main(void) {
     arc_start(&r); r.gum = 0; for (i = 0; i < 3; i++) clear_stage(&r); CHECK(r.state == ARC_BONUS && r.gum == 2);
     /* Clamp. */
     CHECK(arc_score_add(10, 5) == 15 && arc_score_add(999990, 20) == 999999 && arc_score_add(999999, 1) == 999999 && arc_score_add(5, 0xFFFFFFFFu) == 999999 && arc_score_add(0xFFFFFFFFu, 1) == 999999);
-    /* Bonus ladder. */
-    CHECK(arc_bonus_speed16(0) == 19661 && arc_bonus_speed16(3) == 32768);
-    CHECK(arc_bonus_speed16(1) > arc_bonus_speed16(0) && arc_bonus_speed16(2) > arc_bonus_speed16(1) && arc_bonus_speed16(3) > arc_bonus_speed16(2));
-    CHECK(arc_bonus_value(0) == 300 && arc_bonus_value(1) == 500 && arc_bonus_value(2) == 700 && arc_bonus_value(3) == 900);
-    /* Determinism: same seed, same pattern; different seed rotates it. */
+    /* Bonus tables (reference): speed per bonus number, value per bubble, perfect bonus; 5 and up repeat the last. */
     {
-        ArcBonus a, b, c; /* zeroed first: struct padding takes part in memcmp */
+        static const int32_t sp[5] = { 32768, 36864, 38912, 40960, 43008 };
+        static const int va[5] = { 300, 500, 700, 700, 700 }, pf[5] = { 10000, 15000, 20000, 25000, 30000 };
+        for (i = 1; i <= 7; i++) {
+            int k = i > 5 ? 4 : i - 1;
+            CHECK(arc_bonus_speed16(i) == sp[k] && arc_bonus_value(i) == va[k] && arc_bonus_perfect(i) == pf[k]);
+        }
+    }
+    /* Determinism: same seed, same run; different seed differs. */
+    {
+        ArcBonus a, b, c; int n;
         memset(&a, 0, sizeof a); memset(&b, 0, sizeof b); memset(&c, 0, sizeof c);
         arc_bonus_init(&a, 1, 1234); arc_bonus_init(&b, 1, 1234); arc_bonus_init(&c, 1, 99);
+        for (n = 0; n < 300; n++) { arc_bonus_step(&a, 0, 0, 0, 0, 0); arc_bonus_step(&b, 0, 0, 0, 0, 0); arc_bonus_step(&c, 0, 0, 0, 0, 0); }
         CHECK(memcmp(&a, &b, sizeof a) == 0);
         CHECK(memcmp(&a, &c, sizeof a) != 0);
     }
-    /* Perfect: a catcher that fills the whole world catches everything the frame it appears. */
+    /* Perfect: a catcher that fills the whole world pops every bubble the frame it appears; no score on pop, the end waits for the frame wrap. */
     {
-        ArcBonus a; uint32_t total = 0; int n = 0, sum = 0;
+        ArcBonus a; int n = 0, popped = 0;
         arc_bonus_init(&a, 3, 7);
-        for (i = 0; i < ARC_BONUS_BUBBLES; i++) sum += arc_bonus_value(a.b[i].step);
-        while (!a.over && n++ < ARC_BONUS_FRAMES + 5) total += arc_bonus_step(&a, 0, 0, ARC_BONUS_WORLD_W, 400);
-        CHECK(a.over && a.perfect && a.caught == ARC_BONUS_BUBBLES);
-        CHECK(total == (uint32_t)sum + ARC_BONUS_PERFECT_UNIT * 3u && a.score == total);
-        CHECK(arc_bonus_step(&a, 0, 0, 400, 400) == 0);
+        while (!a.over && n++ < 6000) {
+            popped += arc_bonus_step(&a, 1, 0, 0, ARC_BONUS_WORLD_W, 400);
+            if (a.spawned == ARC_BONUS_BUBBLES && !a.nlive && !a.over) CHECK((a.frame & 255) != 0);
+        }
+        CHECK(a.over && a.perfect && a.caught == ARC_BONUS_BUBBLES && popped == ARC_BONUS_BUBBLES && (a.frame & 255) == 0);
+        CHECK(arc_bonus_step(&a, 1, 0, 0, 400, 400) == 0);
     }
-    /* Miss: a catcher far away catches nothing; bubbles escape, the stage ends before the timer, no perfect. */
+    /* Unarmed (no gum) pops nothing. */
     {
         ArcBonus a; int n = 0; arc_bonus_init(&a, 1, 7);
-        while (!a.over && n++ < ARC_BONUS_FRAMES + 5) arc_bonus_step(&a, 0, -500, 10, 10);
-        CHECK(a.over && !a.perfect && a.caught == 0 && a.score == 0 && a.frame < ARC_BONUS_FRAMES);
+        while (!a.over && n++ < 6000) arc_bonus_step(&a, 0, 0, 0, ARC_BONUS_WORLD_W, 400);
+        CHECK(a.over && !a.perfect && a.caught == 0);
+    }
+    /* Miss: a catcher far away catches nothing; bubbles escape, no perfect, the end lands on a frame wrap. */
+    {
+        ArcBonus a; int n = 0; arc_bonus_init(&a, 1, 7);
+        while (!a.over && n++ < 6000) arc_bonus_step(&a, 1, 0, -500, 10, 10);
+        CHECK(a.over && !a.perfect && a.caught == 0 && (a.frame & 255) == 0);
     }
     /* Pump-up per rank. */
     {
@@ -109,52 +122,60 @@ int main(void) {
         CHECK(n == ARC_CONTINUE_FRAMES && l.state == ARC_LIFE_ENDED);
         arc_lose_life(&l); CHECK(l.state == ARC_LIFE_ENDED && arc_continue_step(&l, 1, 1) == 0);
     }
-    /* Bonus reach: every column inside the arena, bubble on screen long enough to be caught, all seeds and bonus numbers. */
+    /* Bonus reach: a bubble stays on screen long enough to be caught at every bonus number. */
     {
-        int s, num, st;
-        for (s = 0; s < 30; s++) for (num = 1; num <= 6; num++) {
-            ArcBonus a; arc_bonus_init(&a, num, (uint32_t)s * 7919u + 1);
-            for (i = 0; i < ARC_BONUS_BUBBLES; i++) CHECK(a.b[i].x >= 0 && a.b[i].x + ARC_BONUS_BOX <= ARENA_W && a.b[i].step < ARC_BONUS_STEPS);
-        }
-        for (st = 0; st < ARC_BONUS_STEPS; st++) {
-            /* frames inside rows 0..FLIER_WORLD_H: travel = world height + box, at the step's speed */
-            int32_t visible = (int32_t)(((int64_t)(FLIER_WORLD_H + ARC_BONUS_BOX) << 16) / arc_bonus_speed16(st));
+        int num;
+        for (num = 1; num <= 6; num++) {
+            int32_t visible = (int32_t)(((int64_t)(FLIER_WORLD_H + ARC_BONUS_BOX) << 16) / arc_bonus_speed16(num));
             CHECK(visible >= ARC_BONUS_MIN_VISIBLE);
         }
         CHECK(ARC_BONUS_WORLD_W == ARENA_W);
-        CHECK(ARC_BONUS_GAP * ARC_BONUS_BUBBLES + 700 < ARC_BONUS_FRAMES * 2); /* sanity: all spawn well before the limit */
     }
-    /* Nozzle bonus: at most 10 alive, 20 in all, spawn inside a nozzle mouth, straight rise then sway, ends when all 20 are gone. */
+    /* Nozzle bonus: at most 10 alive, 20 in all, spawn gap 40..103, straight rise 40 px then sway up to 16 px, ends on a frame wrap after all 20 are gone. */
     {
-        int s, num, peak = 0, spawned = 0, sway_seen = 0;
+        int s, num, peak = 0, spawned = 0, sway_seen = 0, gap_min = 1000, gap_max = 0, col_seen[ARC_NOZZLE_COUNT] = { 0 };
         for (s = 0; s < 30; s++) for (num = 1; num <= 6; num++) {
-            ArcBonus a; int n = 0, alive, prev_live[ARC_BONUS_BUBBLES] = { 0 };
+            ArcBonus a; int n = 0, alive, last_spawn = 0, prev_live[ARC_BONUS_LIVE_MAX] = { 0 }, first = 1;
             arc_bonus_init(&a, num, (uint32_t)s * 104729u + 3);
-            for (i = 0; i < ARC_BONUS_BUBBLES; i++) {
-                const ArcBubble *u = &a.b[i];
-                CHECK(u->nozzle < ARC_NOZZLE_COUNT && u->x0 >= arc_nozzle_x(u->nozzle) && u->x0 + ARC_BONUS_BOX <= arc_nozzle_x(u->nozzle) + ARC_NOZZLE_W);
-                CHECK((int)(u->y16 >> 16) == arc_nozzle_top(u->nozzle));
-            }
-            while (!a.over && n++ < ARC_BONUS_FRAMES + 5) {
+            while (!a.over && n++ < 6000) {
                 int k;
-                arc_bonus_step(&a, 0, -500, 10, 10); /* catches nothing */
-                for (alive = 0, i = 0; i < ARC_BONUS_BUBBLES; i++) {
+                arc_bonus_step(&a, 1, 0, -500, 10, 10); /* catches nothing */
+                for (alive = 0, i = 0; i < ARC_BONUS_LIVE_MAX; i++) {
                     const ArcBubble *u = &a.b[i];
                     alive += u->live;
-                    if (u->live && !prev_live[i]) spawned++;
+                    if (u->live && !prev_live[i]) {
+                        int gap = a.frame - last_spawn;
+                        spawned++; col_seen[u->nozzle] = 1;
+                        CHECK(u->nozzle < ARC_NOZZLE_COUNT && u->x0 >= arc_nozzle_x(u->nozzle) && u->x0 + ARC_BONUS_BOX <= arc_nozzle_x(u->nozzle) + ARC_NOZZLE_W);
+                        if (!first) { if (gap < gap_min) gap_min = gap; if (gap > gap_max) gap_max = gap; }
+                        first = 0; last_spawn = a.frame;
+                    }
                     prev_live[i] = u->live;
+                    if (!u->live) continue;
                     k = arc_nozzle_top(u->nozzle) - (int)(u->y16 >> 16);
-                    if (u->live && k <= ARC_BONUS_STRAIGHT) CHECK(u->x == u->x0);              /* straight rise */
-                    if (u->live && u->x != u->x0) { sway_seen = 1; CHECK(u->x >= u->x0 - 12 && u->x <= u->x0 + 12); }
-                    CHECK(!u->live || (u->x >= 0 && u->x + ARC_BONUS_BOX <= ARENA_W));
+                    if (k <= ARC_BONUS_STRAIGHT) CHECK(u->x == u->x0);                         /* straight rise */
+                    if (u->x != u->x0) { sway_seen = 1; CHECK(u->x >= u->x0 - 16 && u->x <= u->x0 + 16); }
+                    CHECK(u->x >= 0 && u->x + ARC_BONUS_BOX <= ARENA_W);
                 }
                 CHECK(alive == a.nlive && alive <= ARC_BONUS_LIVE_MAX);
                 if (alive > peak) peak = alive;
             }
-            CHECK(a.over && a.frame < ARC_BONUS_FRAMES && !a.perfect);
+            CHECK(a.over && !a.perfect && a.spawned == ARC_BONUS_BUBBLES && a.nlive == 0 && (a.frame & 255) == 0);
         }
-        CHECK(peak == ARC_BONUS_LIVE_MAX && sway_seen && spawned == 30 * 6 * ARC_BONUS_BUBBLES);
+        CHECK(peak >= 6 && peak <= ARC_BONUS_LIVE_MAX && sway_seen && spawned == 30 * 6 * ARC_BONUS_BUBBLES);
+        CHECK(gap_min >= 40 && gap_max <= 103); /* skipped spawns (pool full) only lengthen a gap, never below 40 */
+        CHECK(col_seen[0] && col_seen[1] && col_seen[2] && col_seen[3]);
         CHECK(ARC_BONUS_BUBBLES == 20 && ARC_BONUS_LIVE_MAX == 8);
+        /* the 8 slot pool never skips a spawn: every bubble is gone before LIVE_MAX more spawns can follow it at the minimum gap */
+        for (i = 0; i < ARC_NOZZLE_COUNT; i++) {
+            int num;
+            for (num = 1; num <= 6; num++) {
+                int32_t y16 = (int32_t)arc_nozzle_top(i) * 65536; int f = 0;
+                while ((int)(y16 >> 16) + ARC_BONUS_BOX > 0) { y16 -= arc_bonus_speed16(num); f++; }
+                CHECK(f < ARC_BONUS_LIVE_MAX * ARC_BONUS_SPAWN_MIN);
+            }
+        }
+        CHECK(arc_nozzle_x(0) == 48 && arc_nozzle_x(1) == 120 && arc_nozzle_x(2) == 240 && arc_nozzle_x(3) == 312);
         for (i = 0; i < ARC_NOZZLE_COUNT; i++) CHECK(arc_nozzle_x(i) >= 0 && arc_nozzle_x(i) + ARC_NOZZLE_W <= ARENA_W && arc_nozzle_top(i) > 0 && (i == 0 || arc_nozzle_x(i) >= arc_nozzle_x(i - 1) + ARC_NOZZLE_W));
     }
     printf("%d checks, %d failures\n", checks, failures);
