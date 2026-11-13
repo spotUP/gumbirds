@@ -66,7 +66,7 @@ end
 emu.register_frame_done(function() local ok_, err_ = pcall(function()
   n = n + 1
   if n > 4000 then finish(false, "watchdog in phase " .. phase) return end
-  if not (coin and start and abtn and rbtn and lay[10] and sl[4] == 4 and stage_addr and hits_addr) then finish(false, "missing input, layout or address") return end
+  if not (coin and start and abtn and rbtn and lay[10] and sl[4] == 8 and stage_addr and hits_addr) then finish(false, "missing input, layout or address") return end
   local state = mem:read_u8(flow_addr + O_STATE)
   if phase == "boot" then
     if n >= 300 then phase = "coin"; phase_at = n; ss.begin(n) end

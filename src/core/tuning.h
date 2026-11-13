@@ -53,12 +53,20 @@
 
 /* Demo play input: the flier hovers. It flaps while below DEMO_HOVER_Y (pixels, y grows downwards) and steers
  * sweeps right and left, switching direction every DEMO_SWEEP_FRAMES frames. Chosen under the flap-impulse model (2026-11-11): the demo
- * flier cannot dodge, and 12 of 12 demos from different start frames end with it alive (the earlier 90 / 60 survived 4 of 12). */
+ * flier cannot dodge, and 12 of 12 demos from different start frames end with it alive (the earlier 90 / 60 survived 4 of 12).
+ * 2026-11-13: 50, above the rival ceiling (FLIER_RIVAL_CEILING_DROP below the hero ceiling): a rival never gets above the demo flier, and the higher
+ * flier wins a bump. At 120 the flier hovered under the rivals and lost gum to them once they lifted off together. */
 #ifndef DEMO_HOVER_Y
-#define DEMO_HOVER_Y 120
+#define DEMO_HOVER_Y 50
 #endif
 #ifndef DEMO_SWEEP_FRAMES
 #define DEMO_SWEEP_FRAMES 90
+#endif
+
+/* Attract overlay (how-to-play words and icons): least frames the action word, lever and A icon stay on one state before they may
+ * change. First value 15 (a quarter second): the demo flaps about every 20 frames, so FLAP and STEER both show without flicker. */
+#ifndef ATTRACT_HOLD_FRAMES
+#define ATTRACT_HOLD_FRAMES 15
 #endif
 
 /* Game over screen length. */
@@ -78,7 +86,7 @@
 
 /* Flier flight model (src/core/flier.c), user decisions 2026-11-11. 16.16 fixed point, pixels per frame at 60 fps. */
 #ifndef FLIER_FLAP_IMPULSE
-#define FLIER_FLAP_IMPULSE 40960 /* upward speed added to vy by each air flap */
+#define FLIER_FLAP_IMPULSE 47104 /* upward speed added to vy by each air flap; 15% above the reference ratio (user 2026-11-12: flaps too weak) */
 #endif
 #ifndef FLIER_FLAP_COOLDOWN
 #define FLIER_FLAP_COOLDOWN 9 /* frames between two flaps; a press inside it does nothing */
@@ -93,7 +101,7 @@
 #define FLIER_FALL_MAX_NO_BALLOON 174763 /* downward speed cap without gum (2.6667 px/frame; also the dead fall) */
 #endif
 #ifndef FLIER_FLAP_IMPULSE_ONE_GUM
-#define FLIER_FLAP_IMPULSE_ONE_GUM 34133 /* upward speed added by each air flap (and the ground jump) with exactly one gum */
+#define FLIER_FLAP_IMPULSE_ONE_GUM 39253 /* upward speed added by each air flap (and the ground jump) with exactly one gum */
 #endif
 #ifndef FLIER_PARACHUTE_FALL_MAX
 #define FLIER_PARACHUTE_FALL_MAX 21845 /* downward speed cap under a parachute (0.3333 px/frame); a faster arrival is clamped */
@@ -168,17 +176,17 @@
 #define FLIER_FLAP_HOLD 2 /* ticks per flap frame: 8 frames, 16 ticks per play; a press sooner than that cuts the wingbeat and restarts it */
 #endif
 
-/* Arena slice (src/core/stage.c, game_step_arena). The stage is static: 4 platform rectangles in the 384x180 world
+/* Arena slice (src/core/stage.c, game_step_arena). The stage layout is picked per round: up to 8 platform rectangles in the 384x180 world
  * (world 384x180, ARENA_W in arena.h; world y = screen y; each flier's kill_y, set per hazard kind, kills; FLIER_WATER_Y is only the default). Platforms are solid on every side (flier_collide_solids), the box STAGE_PLATFORM_H deep.
  * STAGE_* and FLIER_START_* are layout/spawn constants checked by tests/host/test_stage.c, not gameplay knobs. */
 #ifndef STAGE_PLATFORM_COUNT
-#define STAGE_PLATFORM_COUNT 4
+#define STAGE_PLATFORM_COUNT 8 /* platform slots of the largest layout (user decision: 8); a layout with fewer islands leaves the rest zero (w 0 = unused, no columns drawn) */
 #endif
 #ifndef STAGE_PLATFORM_H
 #define STAGE_PLATFORM_H 12 /* solid depth below the standing line: the drawn island art (assets/islands, 16 px piece, line row 4) ends 12 px below it */
 #endif
 #ifndef STAGE_SPAWN_COUNT
-#define STAGE_SPAWN_COUNT 3 /* computer flier spawn points in stage.c; also the computer flier array size */
+#define STAGE_SPAWN_COUNT 6 /* computer flier spawn points per layout in stage.c; also the computer flier array size (arcade layouts hold 3 to 6 rivals, stage_rival_count) */
 #endif
 #ifndef FLIER_START_X
 #define FLIER_START_X 40
@@ -205,13 +213,19 @@
 #define CPU_START_COUNT 2 /* computer fliers in match 1; +1 per match won */
 #endif
 #ifndef CPU_MAX
-#define CPU_MAX 3 /* cap (design doc 5.1); arrays are sized STAGE_SPAWN_COUNT, so never raise it above that */
+#define CPU_MAX 3 /* arena cap (design doc 5.1); arcade stages use stage_rival_count instead; arrays are sized STAGE_SPAWN_COUNT */
 #endif
 #ifndef AI_THINK_FRAMES
 #define AI_THINK_FRAMES 30 /* 500 ms */
 #endif
 #ifndef AI_THINK_JITTER
 #define AI_THINK_JITTER 8 /* +- 125 ms */
+#endif
+#ifndef AI_RANK_THINK_STEP
+#define AI_RANK_THINK_STEP 6 /* arcade: each rival rank above 1 thinks this many frames sooner (rank 1 is the arena value) */
+#endif
+#ifndef ARC_LIVES_START
+#define ARC_LIVES_START 3 /* lives in an arcade run (own first value) */
 #endif
 #ifndef AI_FILL_DIST
 #define AI_FILL_DIST 25 /* balloon-less and farther than this: refill state (idle) */
@@ -291,6 +305,32 @@
 /* Frames per unit of gum lost: 2 gives 0.5 gum per frame (plan section 5). */
 #ifndef GUM_DECAY_FRAMES
 #define GUM_DECAY_FRAMES 2
+#endif
+/* Game frames per sheet frame of the player's gum bubble (src/core/gum_view.c): wobble loop, then pop one shot. */
+#ifndef GUM_WOBBLE_FRAMES
+#define GUM_WOBBLE_FRAMES 6
+#endif
+#ifndef GUM_POP_FRAMES
+#define GUM_POP_FRAMES 3
+#endif
+/* Where the bubble hangs on the player (src/core/gum_view.c, Sootling E art): its bottom edge sits GUM_BIRD_ROW pixels below the
+ * bird sprite top plus the per frame dy; its string column is the bird's string column, GUM_BIRD_DX / GUM_BIRD_DX_FLIP pixels
+ * from the bird centre (the mirrored bird's string is one pixel further left). */
+#ifndef GUM_BIRD_ROW
+#define GUM_BIRD_ROW 8
+#endif
+#ifndef GUM_BIRD_DX
+#define GUM_BIRD_DX 1
+#endif
+#ifndef GUM_BIRD_DX_FLIP
+#define GUM_BIRD_DX_FLIP 0
+#endif
+/* Game frames per sheet frame of the splash a flier makes in water and in lava (src/core/splash_view.c; assets/splash/splash.json). */
+#ifndef SPLASH_TICKS
+#define SPLASH_TICKS 3
+#endif
+#ifndef SPLASH_LAVA_TICKS
+#define SPLASH_LAVA_TICKS 4
 #endif
 #ifndef GUM_PICKUP
 #define GUM_PICKUP 256

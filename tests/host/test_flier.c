@@ -377,6 +377,21 @@ static void test_hazard_kill_lines(void) {
     }
 }
 
+/* A popped (FALLING) flier crossing the liquid: liquid_hit for exactly one step, state stays FALLING; spikes never. */
+static void test_dead_fall_liquid_hit(void) {
+    for (int k = 0; k < HAZARD_KINDS; k++) {
+        Flier f;
+        int hits = 0;
+        flier_init(&f, FL_PX(100), FL_PX(100), 0, 0);
+        f.kill_y = FL_PX(hazard_kill_px((uint8_t)k));
+        f.solid_kill = (uint8_t)(k == HZ_SPIKES);
+        f.state = FLIER_FALLING; f.vy = FLIER_FALL_START_VY;
+        for (int i = 0; i < 200 && f.state != FLIER_GONE; i++) { step(&f, 0, 0); hits += f.liquid_hit; }
+        CHECK(hits == (k == HZ_SPIKES ? 0 : 1));
+        CHECK(f.state == FLIER_GONE);
+    }
+}
+
 static void test_water_and_balloons(void) {
     Flier f;
     flier_init(&f, FL_PX(100), FL_PX(180) - FLIER_HALF_H16_BALLOON - 10, 3, 0);
@@ -636,7 +651,7 @@ static void test_peaks(void) {
     }
     double v0 = (double)FLIER_FLAP_IMPULSE - FLIER_GRAVITY_BALLOON, want = v0 * v0 / (2.0 * FLIER_GRAVITY_BALLOON);
     (void)want;
-    CHECK(-top == 389120);
+    CHECK(-top == 518144);   /* was 389120 at impulse 40960; flap raised 15% on user request 2026-11-12 */
     for (int nb = 0; nb <= 2; nb += 2) {
         Flier j = stand((uint8_t)nb);
         int32_t jy0 = j.y, jtop = 0;
@@ -649,7 +664,7 @@ static void test_peaks(void) {
         double g = nb ? FLIER_GRAVITY_BALLOON : FLIER_GRAVITY_NO_BALLOON;
         double jw = jv * jv / (2.0 * g);
         (void)jw;
-        CHECK(-jtop == (nb ? 430080 : 1024100));   /* behaviour change approved by the user: no-gum jump peak was 696320 at gravity 5120 */
+        CHECK(-jtop == (nb ? 565248 : 1347710));   /* behaviour change approved by the user: no-gum jump peak was 696320 at gravity 5120 (1024100 at impulse 40960) */
     }
 }
 
@@ -1380,6 +1395,7 @@ int main(void) {
     test_bounce();
     test_water_and_balloons();
     test_hazard_kill_lines();
+    test_dead_fall_liquid_hit();
     test_angle();
     test_stomp();
     test_contact_rule();

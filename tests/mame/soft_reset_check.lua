@@ -11,6 +11,10 @@
 -- coin begins a play after the reset; then a coin + start must reach FLOW_PLAYING with the counter running (a new play).
 -- Env: BRAWL_FLOW_ADDR, BRAWL_FRAME_ADDR, BRAWL_MAGIC_ADDR (hex, nm on the ELF), BRAWL_REACH_LAYOUT (reach_probe.c numbers),
 -- BRAWL_RESULT (file), BRAWL_LABEL (text for the result line, e.g. the BIOS).
+-- MAME runs the autoboot script again on every soft reset, and the first copy's frame callback stays registered: without this guard a
+-- second copy starts from "title" beside the first, plays on its own and soft-resets again (UniBIOS leg: "new play stalled ... -> 0").
+if SOFT_RESET_CHECK_LOADED then return end
+SOFT_RESET_CHECK_LOADED = true
 local frame_addr = tonumber(os.getenv("BRAWL_FRAME_ADDR"), 16)
 local flow_addr  = tonumber(os.getenv("BRAWL_FLOW_ADDR"), 16)
 local magic_addr = tonumber(os.getenv("BRAWL_MAGIC_ADDR"), 16)
@@ -128,10 +132,11 @@ emu.register_frame_done(function()
       if st == FLOW_PLAYING then phase, p_n, play_c0 = "newplay_run", 0, c else phase, p_n = "newcoin", 0 end
     end
   elseif phase == "newcoin" then
+    -- one Start with a credit begins the highlighted mode at once (no second press)
     if p_n == 1 then press(coin, true) elseif p_n == 16 then press(coin, false) elseif p_n == 46 then press(start, true)
     elseif p_n == 61 then press(start, false) end
     if st == FLOW_PLAYING then phase, p_n, play_c0 = "newplay_run", 0, c
-    elseif p_n > 300 then finish(false, "coin + start after the reset never began a play (state " .. st .. "): " .. sane) end
+    elseif p_n > 300 then finish(false, "coin + one Start after the reset never began a play (state " .. st .. "): " .. sane) end
   elseif phase == "newplay_run" and p_n == 120 then
     if st ~= FLOW_PLAYING or c - play_c0 < 100 then
       finish(false, string.format("new play stalled: state %d, counter %d -> %d in 120 frames", st, play_c0, c))

@@ -102,6 +102,8 @@ void hazard_trip_anim(u8 trip) {
     else if (!trip && g_trip_anim) { island_autoanim_baseline(); g_trip_anim = 0; }
 }
 
+u8 hazard_owns_anim(void) { return g_hazard_kind != 0xFF || g_trip_anim; }
+
 void hazard_game_restart(void) { g_round = 0; g_restart = 0; }
 void hazard_round_restart(void) { g_round++; g_restart = 1; }
 

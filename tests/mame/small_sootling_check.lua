@@ -1,6 +1,6 @@
 -- Small Sootling reachability (make test-small-sootling): the 24 x 32 sheet is what the real ROM draws for the player.
 -- Spec numbers are written out here (not read from the build) so a stale sheet fails:
---   art 24 x 32, 248 tiles in the Sootling C-ROM range (160 before the walk, landing and breathing clips; the old 32 x 48 sheet has 296), sprite 32 wide (2 columns),
+--   art 24 x 32, 304 tiles in the Sootling C-ROM range (160 before the walk, landing and breathing clips; the old 32 x 48 sheet has 296), sprite 32 wide (2 columns),
 --   hit box offset 14 ((32 - 24) / 2 + box first column 10).
 -- Timeline: coin, start, wait for PLAYING, settle on the island, flap 8 times, settle again. Checks:
 --   1. probe values (what the ROM was built with) equal the spec numbers; g_soot_range holds the same tile count;
@@ -13,6 +13,7 @@
 -- (flier_probe.c), BRAWL_SOOT_LAYOUT (small_sootling_probe.c), BRAWL_RESULT.
 local flow_addr  = tonumber(os.getenv("BRAWL_FLOW_ADDR"), 16)
 local frame_addr = tonumber(os.getenv("BRAWL_FRAME_ADDR"), 16)
+local blink_addr = tonumber(os.getenv("BRAWL_BLINK_ADDR"), 16)  -- g_blink_pool: pool flier frames hidden / drawn by the protected blink
 local soot_addr  = tonumber(os.getenv("BRAWL_SOOT_ADDR"), 16)
 local cam_addr   = tonumber(os.getenv("BRAWL_CAM_ADDR"), 16)
 local result     = os.getenv("BRAWL_RESULT")
@@ -20,7 +21,7 @@ local function nums(name) local t = {} for v in (os.getenv(name) or ""):gmatch("
 local flay, slay = nums("BRAWL_FLIER_LAYOUT"), nums("BRAWL_SOOT_LAYOUT")
 local O_STATE, O_X, O_Y, O_VX, O_GROUND = flay[1], flay[6], flay[7], flay[8], flay[12]
 local P_ART_W, P_ART_H, P_TILES, P_SPRITE_W, P_BOX_DX, HERO, HALF_W, HALF_H16, ARENA_W, SCREEN_W, POOL_BASE, POOL_COUNT = table.unpack(slay)
-local SPEC = { art_w = 24, art_h = 32, tiles = 248, sprite_w = 32, box_dx = 14 }
+local SPEC = { art_w = 24, art_h = 32, tiles = 304, sprite_w = 32, box_dx = 14 }
 local FLOW_PLAYING = 3
 
 local mem   = manager.machine.devices[":maincpu"].spaces["program"]
@@ -65,6 +66,7 @@ local function screen_x(world, cam, w)
   return x
 end
 
+local poke_tick, bh0, bs0
 local n, phase, fc0, coin_at, tick, flaps = 0, "boot", nil, nil, 0, 0
 local tiles_seen, checked, last_pos, still = {}, 0, nil, 0
 local flapped = false
@@ -146,7 +148,16 @@ emu.register_frame_done(function() local ok_, err_ = pcall(function()
           finish(false, string.format("standing checks %d (want >= 3), distinct player tiles %d (want >= 2)", checked, kinds)) return
         end
         local cpu_draws = mem:read_u16(soot_addr + 10)
-        local cpu_tile = mem:read_u16(soot_addr + 8)
+        local cpu_tile = mem:read_u16(soot_addr + 8)        -- computer fliers are never spawn protected in the arena: protect cpu[0] by hand (invincible = 255 frames) and watch the pool blink sentinels move
+        local O_CINV = flay[23] + flay[27] - flay[10]
+        if not poke_tick then
+          mem:write_u8(flow_addr + O_CINV, 255)
+          poke_tick, bh0, bs0 = tick, mem:read_u16(blink_addr), mem:read_u16(blink_addr + 2)
+          return
+        end
+        if tick < poke_tick + 40 then return end
+        local bh, bs = mem:read_u16(blink_addr) - bh0, mem:read_u16(blink_addr + 2) - bs0
+        if bh == 0 or bs == 0 then finish(false, string.format("pool flier blink: %d hidden, %d drawn frames in 40 ticks of a protected computer flier (want both > 0)", bh, bs)) return end
         if cpu_draws == 0 then finish(false, "no computer flier drawn (g_soot_cpu_draws 0)") return end
         if cpu_tile < sbase or cpu_tile >= sbase + scount then
           finish(false, string.format("computer sprite tile %d outside Sootling range %d+%d", cpu_tile, sbase, scount)) return
@@ -160,8 +171,8 @@ emu.register_frame_done(function() local ok_, err_ = pcall(function()
           end
         end
         if seen == 0 then finish(false, "no pool slot has a Sootling sized SCB3") return end
-        finish(true, string.format("small Sootling on screen: art %dx%d, %d tiles, hero SCB3 height %d tiles, %d distinct player tiles, %d standing frames matched top = feet - 32 and screen x",
-          P_ART_W, P_ART_H, scount, SPEC.art_h // 16, kinds, checked))
+        finish(true, string.format("small Sootling on screen: art %dx%d, %d tiles, hero SCB3 height %d tiles, %d distinct player tiles, %d standing frames matched top = feet - 32 and screen x; protected computer flier blinked %d hidden / %d drawn",
+          P_ART_W, P_ART_H, scount, SPEC.art_h // 16, kinds, checked, bh, bs))
         return
       end
       phase = "flap"; tick = 0; flaps = 0

@@ -9,6 +9,7 @@
 
 /* Sprite columns of an island of width w (pixels), 0 when the generated tables have no piece list for that width. */
 int island_columns(int w);
+int island_platform_columns(int w); /* island_columns of a platform of the current stage: 0 for all in the arcade bonus layout */
 /* Animation index (ISLAND_ANIM_*) of column col of an island of width w, -1 when out of range or width unknown. */
 int island_piece_anim(int w, int col);
 /* 1 when the animation index swaps tiles by hardware auto-animation (an 8-frame run), else 0. */

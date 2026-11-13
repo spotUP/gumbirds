@@ -5,6 +5,7 @@
 #include "../../src/core/stage.h"
 #include "../../src/core/arena.h"
 #include "../../src/core/island_layout.h"
+#include "gen/island_tables.h"
 #include "../../src/sprite_slots.h"
 #include "../../src/core/nameentry.h"
 
@@ -16,13 +17,14 @@ int main(void) {
     /* Layout stays inside the world and above the water. */
     for (i = 0; i < STAGE_PLATFORM_COUNT; i++) {
         const StagePlatform *p = &stage_platforms[i];
+        if (!p->w) continue; /* unused slot of a layout with fewer islands */
         CHECK(p->x >= 0 && p->x + p->w <= ARENA_W);
         CHECK(p->y > 0 && p->y + p->h <= FLIER_WATER_Y);
     }
     /* The accepted layout (stage 1 = R01), slot for slot. */
     {
         static const int16_t want[STAGE_PLATFORM_COUNT][3] = {
-            { 0, 164, 80 }, { 280, 148, 80 }, { 128, 108, 112 }, { 296, 68, 80 },
+            { 0, 164, 80 }, { 280, 148, 80 }, { 128, 108, 112 }, { 296, 68, 80 }, { 0, 0, 0 }, { 0, 0, 0 }, { 0, 0, 0 }, { 0, 0, 0 },
         };
         for (i = 0; i < STAGE_PLATFORM_COUNT; i++)
             CHECK(stage_platforms[i].x == want[i][0] && stage_platforms[i].y == want[i][1] && stage_platforms[i].w == want[i][2]);
@@ -62,7 +64,7 @@ int main(void) {
     CHECK(stage_floor_y(FL_PX(383), FL_PX(170)) == FLIER_NO_FLOOR);
     /* Spawns stand on a platform, and no spawn box touches any island: the box (4 px wide, 11 px tall with balloons) lies inside its own
        island's columns, clear of every other island's collision rectangle and drawn rows (sprite top = y - 4, 16 tall). */
-    for (i = 0; i < STAGE_SPAWN_COUNT; i++) {
+    for (i = 0; i < stage_rival_count(); i++) {
         int32_t f = stage_floor_y(FL_PX(stage_spawns[i].x), FL_PX(stage_spawns[i].y) + FL_PX(6));
         int sx0 = stage_spawns[i].x - FLIER_HALF_W, sx1 = stage_spawns[i].x + FLIER_HALF_W;
         int sy0 = stage_spawns[i].y - 6, sy1 = stage_spawns[i].y + 5, own = 0;
@@ -96,7 +98,7 @@ int main(void) {
         /* Far from everything: nothing returned. */
         CHECK(stage_solids_near(FL_PX(105), so, 8) == 0 || so[0].y16 >= 0);
         /* A flier standing at any spawn is touched by no solid; one rising into the underside of every island is turned back. */
-        for (i = 0; i < STAGE_SPAWN_COUNT; i++) {
+        for (i = 0; i < stage_rival_count(); i++) {
             Flier f;
             flier_init(&f, FL_PX(stage_spawns[i].x), FL_PX(stage_spawns[i].y + 6) - FLIER_HALF_H16_BALLOON, 2, 0);
             n = stage_solids_near(f.x, so, 8);
@@ -106,6 +108,7 @@ int main(void) {
             const StagePlatform *p = &stage_platforms[i];
             Flier f;
             int32_t py;
+            if (!p->w) continue;
             /* feet 30 px under the island bottom, gum top (31 above the feet) one pixel inside it; rose 2 px this frame */
             flier_init(&f, FL_PX(p->x + p->w / 2), FL_PX(p->y + STAGE_PLATFORM_H + 32) - FLIER_HALF_H16_BALLOON, 2, 0);
             py = f.y;
@@ -143,6 +146,78 @@ int main(void) {
         int32_t y0 = g.flier.y;
         for (i = 0; i < 20; i++) game_step_arena(&g, (i & 1) ? 0 : IN_A);
         CHECK(g.flier.y < y0);
+    }
+    /* Layout rotation (ROT1): every layout in the table passes the R01 range checks; the player start stands on island 0 of each; a real game's round n plays layout (n - 1) mod count. */
+    CHECK(stage_layout_count() == 12);
+    for (int l = 0; l < stage_layout_count(); l++) {
+        stage_select(l);
+        CHECK(stage_layout_index() == l);
+        CHECK(island_total_columns() <= ISLAND_COUNT);
+        CHECK(stage_floor_y(FL_PX(FLIER_START_X), FL_PX(FLIER_START_Y) + FL_PX(6)) == FL_PX(stage_platforms[0].y));
+        for (i = 0; i < STAGE_PLATFORM_COUNT; i++) {
+            const StagePlatform *p = &stage_platforms[i];
+            if (!p->w) { CHECK(p->h == 0 && island_columns(0) == 0); continue; } /* unused slot: no columns drawn */
+            CHECK(p->x >= 0 && p->x + p->w <= ARENA_W && p->y >= 36 && p->y + p->h <= FLIER_WATER_Y && island_columns(p->w) == p->w / 16);
+        }
+        for (i = 0; i < stage_rival_count(); i++) {
+            int own = 0;
+            for (int k = 0; k < STAGE_PLATFORM_COUNT; k++) {
+                const StagePlatform *p = &stage_platforms[k];
+                if (stage_spawns[i].y + 6 == p->y && stage_spawns[i].x - FLIER_HALF_W >= p->x && stage_spawns[i].x + FLIER_HALF_W <= p->x + p->w) own++;
+                else if (p->w) CHECK(!(stage_spawns[i].x + FLIER_HALF_W > p->x && stage_spawns[i].x - FLIER_HALF_W < p->x + p->w && stage_spawns[i].y + 5 > p->y - 4 && stage_spawns[i].y - 6 < p->y + 12));
+            }
+            CHECK(own == 1);
+        }
+    }
+    {
+        Game r;
+        int16_t first_x2 = 0;
+        game_reset(&r, 1);
+        CHECK(stage_layout_index() == 0);
+        first_x2 = stage_platforms[2].x;
+        for (int round = 2; round <= 4; round++) {
+            r.rounds = 1; r.matches_won = (uint32_t)(round - 1); r.round_end = RE_PAN;
+            for (i = 0; i < 600 && r.round_end != RE_NONE; i++) game_step_arena(&r, 0);
+            CHECK(r.round_end == RE_NONE);
+            CHECK(stage_layout_index() == (round - 1) % stage_layout_count());
+            CHECK(stage_look() == (round - 1) % 3); /* round 2 garden, 3 deck, 4 roof */
+            CHECK((stage_platforms[2].x != first_x2) == (stage_layout_index() != 0));
+        }
+        game_reset(&r, 1); /* a new game, the demo included, starts on layout 0 */
+        CHECK(stage_layout_index() == 0);
+    }
+    /* island look = level modulo 3: roof, garden, deck */
+    CHECK(STAGE_LOOK_COUNT == 3 && STAGE_LOOK_ROOF == 0 && STAGE_LOOK_GARDEN == 1 && STAGE_LOOK_DECK == 2);
+    CHECK(stage_look_for_level(0) == STAGE_LOOK_ROOF && stage_look_for_level(1) == STAGE_LOOK_GARDEN);
+    CHECK(stage_look_for_level(2) == STAGE_LOOK_DECK && stage_look_for_level(3) == STAGE_LOOK_ROOF);
+    CHECK(stage_look_for_level(7) == STAGE_LOOK_GARDEN && stage_look_for_level(-1) == STAGE_LOOK_ROOF);
+    /* ROT3a: true 48 px islands (3 columns: left cap, middle m0, right cap). The width table keeps indices 0..3 and gets 48 as index 4. */
+    {
+        static const unsigned char widths[] = ISLAND_TABLE_WIDTH;
+        static const struct { int layout, x, y; } w48[] = {
+            { 4, 112, 128 }, { 4, 8, 108 }, { 4, 296, 92 }, { 4, 200, 76 }, { 4, 128, 60 }, { 4, 56, 44 },   /* N06 */
+            { 5, 168, 132 }, { 5, 168, 76 }, { 5, 88, 100 },                                                  /* N04 (the 4th island stays 64) */
+            { 6, 96, 132 }, { 6, 168, 100 }, { 6, 240, 84 }, { 6, 312, 52 }, { 6, 16, 68 },                  /* N08 */
+            { 8, 112, 128 }, { 8, 8, 108 }, { 8, 296, 92 }, { 8, 200, 76 }, { 8, 128, 60 }, { 8, 56, 44 },   /* N09 */
+        };
+        FlierSolid so[8];
+        CHECK(ISLAND_WIDTH_COUNT == 5 && widths[0] == 64 && widths[3] == 112 && widths[4] == 48);
+        CHECK(island_columns(48) == 3 && island_columns(64) == 4 && island_columns(112) == 7);
+        CHECK(island_piece_anim(48, 0) == 0 && island_piece_anim(48, 1) == 1 && island_piece_anim(48, 2) == 6 && island_piece_anim(48, 3) == -1);
+        CHECK(island_anim_swaps(island_piece_anim(48, 0)) && island_anim_swaps(island_piece_anim(48, 2)) && !island_anim_swaps(island_piece_anim(48, 1)));
+        for (i = 0; i < (int)(sizeof w48 / sizeof w48[0]); i++) {
+            int found = 0, n;
+            stage_select(w48[i].layout);
+            for (int k = 0; k < STAGE_PLATFORM_COUNT; k++)
+                if (stage_platforms[k].x == w48[i].x && stage_platforms[k].y == w48[i].y) { found++; CHECK(stage_platforms[k].w == 48 && island_columns(stage_platforms[k].w) == 3); }
+            CHECK(found == 1);
+            n = stage_solids_near(FL_PX(w48[i].x + 24), so, 8);
+            found = 0;
+            for (int k = 0; k < n; k++) if (so[k].x16 == FL_PX(w48[i].x) && so[k].y16 == FL_PX(w48[i].y)) { found++; CHECK(so[k].w16 == FL_PX(48)); }
+            CHECK(found == 1);
+        }
+        stage_select(5);
+        { int n64 = 0; for (i = 0; i < STAGE_PLATFORM_COUNT; i++) n64 += stage_platforms[i].x == 264 && stage_platforms[i].w == 64; CHECK(n64 == 1); }
     }
     printf("stage: %d checks, %d failures\n", checks, failures);
     return failures != 0;

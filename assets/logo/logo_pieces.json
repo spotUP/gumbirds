@@ -1,0 +1,151 @@
+{
+ "note": "Free gum pieces per logo frame. tile = index into logo_rim_pieces_1x.png (16x16 tiles, left to right), flip_x = drawn mirrored, x/y = top left in frame (layer) coordinates of logo_rim_frames_1x.png; screen = layer + layer_top_left_on_screen of logo_rim.json. Taken from the approved generator (drafts 2026-11-10-hud-title-final frames() through 2026-11-10-logo-rim-redraw/redraw.py load()); equals numbers.txt \"free pieces per frame\".",
+ "frames": [
+  [],
+  [],
+  [],
+  [],
+  [],
+  [],
+  [
+   {
+    "tile": 0,
+    "flip_x": 0,
+    "x": 204,
+    "y": 37
+   },
+   {
+    "tile": 1,
+    "flip_x": 0,
+    "x": 196,
+    "y": 29
+   },
+   {
+    "tile": 0,
+    "flip_x": 1,
+    "x": 183,
+    "y": 29
+   },
+   {
+    "tile": 1,
+    "flip_x": 1,
+    "x": 175,
+    "y": 38
+   },
+   {
+    "tile": 0,
+    "flip_x": 1,
+    "x": 179,
+    "y": 49
+   },
+   {
+    "tile": 1,
+    "flip_x": 0,
+    "x": 191,
+    "y": 53
+   },
+   {
+    "tile": 0,
+    "flip_x": 0,
+    "x": 202,
+    "y": 48
+   },
+   {
+    "tile": 2,
+    "flip_x": 0,
+    "x": 79,
+    "y": 111
+   }
+  ],
+  [
+   {
+    "tile": 3,
+    "flip_x": 0,
+    "x": 210,
+    "y": 39
+   },
+   {
+    "tile": 4,
+    "flip_x": 0,
+    "x": 198,
+    "y": 27
+   },
+   {
+    "tile": 3,
+    "flip_x": 1,
+    "x": 180,
+    "y": 28
+   },
+   {
+    "tile": 4,
+    "flip_x": 1,
+    "x": 169,
+    "y": 40
+   },
+   {
+    "tile": 3,
+    "flip_x": 1,
+    "x": 174,
+    "y": 55
+   },
+   {
+    "tile": 4,
+    "flip_x": 0,
+    "x": 191,
+    "y": 61
+   },
+   {
+    "tile": 3,
+    "flip_x": 0,
+    "x": 207,
+    "y": 54
+   },
+   {
+    "tile": 5,
+    "flip_x": 0,
+    "x": 79,
+    "y": 118
+   }
+  ],
+  [
+   {
+    "tile": 6,
+    "flip_x": 0,
+    "x": 215,
+    "y": 44
+   },
+   {
+    "tile": 6,
+    "flip_x": 1,
+    "x": 178,
+    "y": 30
+   },
+   {
+    "tile": 6,
+    "flip_x": 1,
+    "x": 170,
+    "y": 64
+   },
+   {
+    "tile": 6,
+    "flip_x": 0,
+    "x": 211,
+    "y": 62
+   },
+   {
+    "tile": 5,
+    "flip_x": 0,
+    "x": 79,
+    "y": 129
+   }
+  ],
+  [
+   {
+    "tile": 5,
+    "flip_x": 0,
+    "x": 79,
+    "y": 144
+   }
+  ]
+ ]
+}

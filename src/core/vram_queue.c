@@ -25,6 +25,7 @@ void vq_invalidate(VramQueue *q) {
     q->head = q->count = 0;
     for (u16 i = 0; i < VQ_FIX_COLS * VQ_FIX_ROWS; i++) { q->fix_hw[i] = 0xFFFF; q->fix_want[i] = 0xFFFF; }
     for (u16 i = 0; i < VQ_FIX_COLS; i++) q->fix_dirty[i] = 0;
+    q->fix_any = 0;
     for (u16 i = 0; i < VQ_SCB_WORDS / 8; i++) q->scb_valid[i] = 0;
     for (u16 i = 0; i < VQ_SPRITES; i++) q->strip[i].tiles = 0;
 }
@@ -155,7 +156,8 @@ void vq_fix_put(VramQueue *q, u8 x, u8 y, u16 cell) {
     u16 i = (u16)(x * VQ_FIX_ROWS + y);
     if (q->fix_want[i] == cell) return;
     q->fix_want[i] = cell;
-    q->fix_dirty[x] = 1;
+    q->fix_dirty[x] |= 1ul << y;
+    q->fix_any = 1;
 }
 
 void vq_fix_text(VramQueue *q, u8 x, u8 y, u16 hi, const u16 *map, const char *s) {
@@ -165,26 +167,53 @@ void vq_fix_text(VramQueue *q, u8 x, u8 y, u16 hi, const u16 *map, const char *s
         u16 cell = (u16)(hi | map[(u8)*s]);
         if (q->fix_want[i] == cell) continue;
         q->fix_want[i] = cell;
-        q->fix_dirty[x] = 1;
+        q->fix_dirty[x] |= 1ul << y;
+        q->fix_any = 1;
     }
 }
 
+/* Marks only the cells whose wanted value changes: a clear of a screen that is mostly blank already must not hand the
+ * commit 1280 cells to compare (tests/host/test_vram_queue.c). */
 void vq_fix_fill(VramQueue *q, u16 cell) {
-    for (u16 i = 0; i < VQ_FIX_COLS * VQ_FIX_ROWS; i++) q->fix_want[i] = cell;
-    for (u16 x = 0; x < VQ_FIX_COLS; x++) q->fix_dirty[x] = 1;
+    u16 *w = q->fix_want;
+    for (u16 x = 0; x < VQ_FIX_COLS; x++) {
+        uint32_t m = 0, bit = 1;
+        for (u16 y = 0; y < VQ_FIX_ROWS; y++, w++, bit <<= 1)
+            if (*w != cell) { *w = cell; m |= bit; }
+        q->fix_dirty[x] |= m;
+        if (m) q->fix_any = 1;
+    }
 }
 
-int vq_fix_commit(VramQueue *q) {
+/* Walks only the dirty bits: the cost is per changed cell, not per touched column (a whole-column scan cost about
+ * 3.6 raster lines per column at the end of the logic frame and pushed "cam moved" frames past line 224). */
+int vq_fix_commit_n(VramQueue *q, u16 budget) {
+    if (!q->fix_any) return 1; /* most frames change no fix cell: the empty 40 column walk cost about 6 lines */
     for (u16 x = 0; x < VQ_FIX_COLS; x++) {
-        if (!q->fix_dirty[x]) continue;
-        for (u16 y = 0; y < VQ_FIX_ROWS; y++) {
-            u16 i = (u16)(x * VQ_FIX_ROWS + y);
-            if (q->fix_want[i] == q->fix_hw[i]) continue;
+        uint32_t m = q->fix_dirty[x];
+        if (!m) continue;
+        u16 i = (u16)(x * VQ_FIX_ROWS), r = 0;
+        for (; m; m >>= 1, i++, r++) {
+            /* skip clean rows 8 at a time: a bit-per-row walk cost ~1.5 raster lines per column for one cell low on the screen (arc-fix) */
+            while (!(m & 0xFFu)) { m >>= 8; i = (u16)(i + 8); r = (u16)(r + 8); }
+            if (!(m & 1) || q->fix_want[i] == q->fix_hw[i]) continue;
             VqOp op = { 0, (u16)(VQ_FIX_BASE + i), q->fix_want[i], 0, VQ_WORD, 0, VQ_US_OP, 0 };
-            if (!push(q, &op)) return 0;
+            if (!push(q, &op)) { q->fix_dirty[x] = m << r; return 0; } /* this row and the rest stay dirty */
             q->fix_hw[i] = q->fix_want[i];
+            if (--budget == 0) { q->fix_dirty[x] = (m >> 1) << (r + 1); return 1; } /* the next commit resumes after row r */
         }
         q->fix_dirty[x] = 0;
     }
+    q->fix_any = 0; /* the cut and queue-full returns above leave bits, and the flag, set */
     return 1;
 }
+
+/* shortcut: counts ops, not VRAM words; the reserve is tuned in ops (gfx.c) */
+int vq_fix_commit_room(VramQueue *q, u16 max, u16 reserve) {
+    u16 pend = vq_pending(q);
+    if (pend + reserve >= VQ_CAP) return 1; /* no room above the reserve: the columns stay dirty for the next frame */
+    u16 room = (u16)(VQ_CAP - reserve - pend);
+    return vq_fix_commit_n(q, room < max ? room : max);
+}
+
+int vq_fix_commit(VramQueue *q) { return vq_fix_commit_n(q, 0xFFFFu); }

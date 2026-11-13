@@ -12,18 +12,19 @@ static int32_t dist2(const Flier *a, const Flier *b) {
     return m16(dx, dx) + m16(dy, dy);
 }
 
-static uint16_t next_timer(Rng *r) {
+static uint16_t next_timer(const Ai *a, Rng *r) {
     /* 0..2*JITTER from the top byte of the generator: byte * (2J+1) >> 8, no divide. */
     uint16_t b = (uint16_t)((rng_next(r) >> 16) & 0xFFu);
     int32_t j = m16((int16_t)b, (int16_t)(2 * AI_THINK_JITTER + 1)) >> 8;
-    return (uint16_t)(AI_THINK_FRAMES + (int)j - AI_THINK_JITTER);
+    return (uint16_t)(AI_THINK_FRAMES + (int)j - AI_THINK_JITTER - a->think_cut);
 }
 
-void ai_init(Ai *a, Rng *r) {
+void ai_init(Ai *a, Rng *r, int rank) {
     Ai z = {0};
     *a = z;
     a->state = AI_CHASE;
-    a->timer = next_timer(r);
+    a->think_cut = (uint8_t)((rank > 1 ? rank - 1 : 0) * AI_RANK_THINK_STEP);
+    a->timer = next_timer(a, r);
 }
 
 const Flier *ai_nearest(const Flier *self, const Flier *player, const Flier *cpus, int cpu_count) {
@@ -62,7 +63,7 @@ void ai_step(Ai *a, Rng *r, const Flier *self, const Flier *target, FlierInput *
     out->flap = 0;
     if (a->timer > 0) a->timer--;
     if (a->timer == 0) {
-        a->timer = next_timer(r);
+        a->timer = next_timer(a, r);
         a->thinks++;
         a->dir = 0;
         if (target) {

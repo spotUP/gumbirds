@@ -33,7 +33,7 @@ local function field(tag, name)
 end
 local coin  = field(":AUDIO_COIN", "Coin 1")
 local start = field(":edge:joy:START", "1 Player Start")
-local ss = dofile("tests/mame/start_seq.lua")(coin, start)   -- one coin, Start opens the mode select, Start again begins play
+local ss = dofile("tests/mame/start_seq.lua")(coin, start)   -- one coin, one Start begins play
 local play_n = nil   -- frame at which the flow state first read PLAYING
 
 local function image()

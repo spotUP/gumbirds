@@ -195,7 +195,7 @@ emu.register_frame_done(function()
       start:set_value(0); START_AT = n + 30
     else
       if n > math.max(300, n_wait + 30) and phase == "boot" then phase = "coin"; phase_at = n; ss.begin(n) end
-      -- one coin; the first Start press opens the title mode select, the second begins the game (BG4; tests/mame/start_seq.lua).
+      -- one coin; one Start with a credit begins the highlighted mode at once (tests/mame/start_seq.lua).
       -- Later presses repeat every 60 frames (a name entry screen would eat one).
       if phase == "coin" then ss.step(n, false) end
     end

@@ -16,6 +16,10 @@ local pair_addr  = tonumber(os.getenv("BRAWL_PAIR_ADDR") or "", 16)   -- g_flier
 local blocked_addr = tonumber(os.getenv("BRAWL_BLOCKED_ADDR") or "", 16)   -- g_flier_pair_blocked (flier.c): platform-block predicate hits
 local ceil_addr = tonumber(os.getenv("BRAWL_CEIL_ADDR") or "", 16)   -- g_flier_ceiling_hits (flier.c): ceiling bounces in flier_step
 local ceilrival_addr = tonumber(os.getenv("BRAWL_CEILRIVAL_ADDR") or "", 16)   -- of those, on the lowered computer flier line
+local sent_addr = tonumber(os.getenv("BRAWL_SENT_ADDR") or "", 16)   -- g_sound_sent / g_sound_last (sound.c): the 68k side of the sound latch, visible with -sound none
+local last_addr = tonumber(os.getenv("BRAWL_LAST_ADDR") or "", 16)
+local ID_POP = dofile("tests/mame/snd_ids.lua").SND_SFX_POP
+local pop_prev, pop_f, pop_hit_n   -- side pop: last g_sound_sent seen, frame a pop command was sent, frame the score rose
 local lay = {}
 for v in (os.getenv("BRAWL_FLIER_LAYOUT") or ""):gmatch("%d+") do lay[#lay + 1] = tonumber(v) end
 local O_STATE, O_FRAME, O_STEPS, O_OVER, O_SCORE, O_X, O_Y, O_VX, O_VY, O_FSTATE, O_BAL, O_GROUND =
@@ -24,6 +28,7 @@ local O_CPUN, O_CPUALIVE, O_STOMPS, O_WON, O_C0X, O_C0Y, O_THINKS, O_C1X =
   lay[13], lay[14], lay[15], lay[16], lay[17], lay[18], lay[19], lay[20]
 local K_POP, K_DEFEAT, O_C0STATE, O_C0BAL, O_KILLY = lay[21], lay[22], lay[23], lay[24], lay[25]
 local O_SPAWN, O_INV = lay[26], lay[27]   -- player's spawn_inv (uint16) and invincible (uint8)   -- knob values and cpu[0] state, balloons
+local SIDE_ARENA_W = 384   -- ARENA_W of the ring
 local mem    = manager.machine.devices[":maincpu"].spaces["program"]
 local rs     = dofile("tests/mame/round_skip.lua")(mem, flow_addr, lay) -- rs.live(): no round end or round start text running
 local ports  = manager.machine.ioport.ports
@@ -96,7 +101,7 @@ local function flapview_step()
   local function lift()
     mem:write_u32(flow_addr + O_Y, s32_to_u(40)); mem:write_u32(flow_addr + O_VY, 0); mem:write_u32(flow_addr + O_VX, 0)
     fv_t, fv_rec = 0, {}
-  end
+      end
   local function shown() return mem:read_u16(view_addr + 2) end
   local function airborne_or_fail()
     if mem:read_u8(flow_addr + O_GROUND) == 1 then finish(false, string.format("flap view stage %d: the player landed after %d frames, lifted too low", fv_stage, fv_t)) return false end
@@ -106,6 +111,10 @@ local function flapview_step()
     mem:write_u8(flow_addr + O_BAL, 2)   -- a computer flier may have popped one: the rest frame checked below is the two-balloon flap clip
     lift(); fv_stage = 1; return false
   end
+  -- The pinned player (y 40, above everything) pops each rival that lifts off beneath it, now that rivals sit and pump first and
+  -- all lift off together after the window; the last one ends the round and hides the player (RE_PAN), so no flap would show.
+  -- Restart the running stage when that happens: the next round starts with rivals pumping again, a stage fits in that window.
+  if not rs.live() then fv_t, fv_rec = 0, {}; abtn:set_value(0) return false end
   -- hold the player high up every frame so it never lands (flap and gravity still run; only y and vy are pinned)
   mem:write_u32(flow_addr + O_Y, s32_to_u(40)); mem:write_u32(flow_addr + O_VY, 0); mem:write_u32(flow_addr + O_VX, 0)
   if fv_stage == 1 then
@@ -168,7 +177,7 @@ local function flapview_step()
     -- fv_rec[k] is the sample at t = 20 + k. The play after press 1 is on its fifth frame by p2 - 1 (not rest);
     -- the restart by press 2 shows the rest frame within two samples of p2.
     local before, after = fv_rec[p2 - 1 - 20], math.min(fv_rec[p2 - 20] or -1, fv_rec[p2 + 1 - 20] or -1)
-    if before == FLAP_REST then finish(false, "flap view: the first play was already back at rest before the second press") return false end
+    if before == FLAP_REST then finish(false, string.format("flap view: the first play was already back at rest before the second press; balloons %d; frames %s", mem:read_u8(flow_addr + O_BAL), table.concat(fv_rec, ","))) return false end
     if after ~= FLAP_REST then finish(false, string.format("flap view: the second press %d frames after the first did not restart the play (frames %s)", FLAP_COOLDOWN, table.concat(fv_rec, ","))) return false end
     cpu_report = cpu_report .. string.format("; second press %d frames after the first restarted the play", FLAP_COOLDOWN)
     return true
@@ -203,7 +212,7 @@ emu.register_frame_done(function() local ok_, err_ = pcall(function()
     if fc0 and fc - fc0 >= 30 then phase = "coin"; coin_at = n; ss.begin(n) end
     return
   elseif phase == "coin" then
-    -- one coin; the first Start press opens the title mode select, the second begins the game (BG4; tests/mame/start_seq.lua)
+    -- one coin; one Start press begins the game (BG4; tests/mame/start_seq.lua)
     if ss.step(n, state == FLOW_PLAYING) then phase = "start" end
     return
   elseif phase == "start" then
@@ -241,11 +250,12 @@ emu.register_frame_done(function() local ok_, err_ = pcall(function()
       thinks0 = g32(O_THINKS)
     end
     tick = tick + 1
-    if tick >= 150 then
+    -- rivals sit and pump for up to 150 frames (arc_pump_frames_for_rank) before the AI runs: wait that out, then watch 150 frames
+    if tick >= 300 then
       local moved = g32(O_C0X) ~= cpu_x0 or g32(O_C0Y) ~= cpu_y0 or g32(O_C1X) ~= cpu_x1
       local thinks = g32(O_THINKS) - thinks0
-      if not moved then finish(false, "computer fliers did not move in 150 frames") return end
-      if thinks < 3 then finish(false, "AI think counter advanced only " .. thinks .. " in 150 frames") return end
+      if not moved then finish(false, "computer fliers did not move in 300 frames") return end
+      if thinks < 3 then finish(false, "AI think counter advanced only " .. thinks .. " in 300 frames") return end
       -- Sentinel: the Sootling frame-select path ran for the player and a computer flier (main.c hero_show,
       -- pool_show_hero): the tile numbers last written to the sprite registers lie in the Sootling tile range.
       local sbase, scount = mem:read_u16(soot_addr), mem:read_u16(soot_addr + 2)
@@ -331,6 +341,12 @@ emu.register_frame_done(function() local ok_, err_ = pcall(function()
       mem:write_u8(flow_addr + O_GROUND, 0)
     end
     tick = tick + 1
+    -- test side only: the contact under test is player vs cpu0, so park every other rival half an arena (ring) away each frame; on the 4-island stage they otherwise meet the staged pair
+    for i = 1, mem:read_u8(flow_addr + O_CPUN) - 1 do
+      local a = O_C0X + i * (O_C1X - O_C0X)
+      mem:write_u32(flow_addr + a, ((g32(O_C0X) >> 16) + SIDE_ARENA_W // 2) % SIDE_ARENA_W << 16)
+      mem:write_u32(flow_addr + O_C0Y + i * (O_C1X - O_C0X), g32(O_C0Y))
+    end
     if side_step >= 2 then
       -- other computer fliers pop the free player while the wait runs and the side pop is set up; a player at zero balloons is FALLING (dead) and flier_pair ignores it,
       -- so restoring the balloon count afterwards cannot revive it. Keep the player immune; the pop under test lands on computer flier 0, whose own window is not touched.
@@ -356,6 +372,10 @@ emu.register_frame_done(function() local ok_, err_ = pcall(function()
       if tick > 300 then finish(false, "no level contact in 300 frames: flier_pair never ran") end
       return
     elseif side_step == 2 then
+      -- test side only: during the wait the bounced player drifts into cpu0 and pops it (it fell to 0 balloons here); park the player half an arena away, put() brings it back for step 3
+      mem:write_u32(flow_addr + O_X, ((g32(O_C0X) >> 16) + SIDE_ARENA_W // 2) % SIDE_ARENA_W << 16)
+      mem:write_u32(flow_addr + O_Y, g32(O_C0Y))
+      mem:write_u32(flow_addr + O_VX, 0); mem:write_u32(flow_addr + O_VY, 0)
       if n - side_n0 >= 80 then
         -- the free player may have been popped by a computer flier during the wait: restore the balloon here so the inflate clip is over before the walk view
         mem:write_u8(flow_addr + O_BAL, 2)
@@ -363,14 +383,25 @@ emu.register_frame_done(function() local ok_, err_ = pcall(function()
       end
       return
     end
+    if side_armed and sent_addr and last_addr and ID_POP then
+      local sent = mem:read_u16(sent_addr)
+      if pop_prev and sent ~= pop_prev and mem:read_u8(last_addr) == ID_POP then pop_f = pop_f or n end
+      pop_prev = sent
+    end
     if side_armed and g32(O_SCORE) ~= side_score0 then
+      pop_hit_n = pop_hit_n or n
+      if not (sent_addr and last_addr and ID_POP) then finish(false, "missing BRAWL_SENT_ADDR / BRAWL_LAST_ADDR / pop id") return end
+      if not pop_f then
+        if n - pop_hit_n < 6 then return end   -- the pop command goes out through the sound queue a frame or two after the burst
+        finish(false, "side pop: the balloon burst but the 68k never sent the pop command (id " .. ID_POP .. ") within 5 frames") return
+      end
       local delta = g32(O_SCORE) - side_score0
       local want = K_POP + ((side_bal0 == 1 and c0state > 1) and K_DEFEAT or 0)
       if calls <= side_calls0 or c0bal ~= side_bal0 - 1 or delta ~= want then
         finish(false, string.format("side pop: pair calls %d -> %d, cpu0 balloons %d -> %d, score delta %d, want %d",
           side_calls0, calls, side_bal0, c0bal, delta, want)) return
       end
-      cpu_report = cpu_report .. string.format("; side contact popped the lower gum, score +%d (pair calls +%d)", delta, calls - side_calls0)
+      cpu_report = cpu_report .. string.format("; side contact popped the lower gum, score +%d (pair calls +%d), pop sent at frame %d (burst seen %d)", delta, calls - side_calls0, pop_f, pop_hit_n)
       -- put the player back where it stood: the rest of the check walks off the middle island
       mem:write_u32(flow_addr + O_X, s32_to_u(stand_x))
       mem:write_u32(flow_addr + O_Y, s32_to_u(stand_y))
@@ -380,12 +411,13 @@ emu.register_frame_done(function() local ok_, err_ = pcall(function()
       return
     end
     if side_armed and c0bal < side_bal0 then finish(false, "side pop: cpu0 lost a balloon but the score never rose") return end
-    if c0state > 1 or c0bal == 0 then finish(false, "computer flier 0 gone before the side pop") return end
+    if c0state > 1 or c0bal == 0 then finish(false, string.format("computer flier 0 gone before the side pop: state %d balloons %d at (%.1f,%.1f), player balloons %d, step tick %d, frames since stomp %d", c0state, c0bal, gs32(O_C0X) / 65536, gs32(O_C0Y) / 65536, mem:read_u8(flow_addr + O_BAL), tick, n - side_n0)) return end
     side_calls0, side_bal0, side_score0 = calls, c0bal, g32(O_SCORE)
     -- 11 px: flier_pair pops a one-balloon gum from above only while |dx| < FLIER_BODY_HALF_W + FLIER_GUM_HALF_W1
     -- (7 + 5 = 12 px, edge exclusive); cpu0 has one balloon left after the stomp, so 12 px is outside the box and bounces.
     put(11, -16, 0, 65536)
     side_armed = true
+    if sent_addr then pop_prev = mem:read_u16(sent_addr) end   -- baseline now: the pop is sent the same game frame the gum bursts, before the first sample below
     if tick > 300 then finish(false, "no side pop in 300 frames") end
     return
   elseif phase == "walkview" then

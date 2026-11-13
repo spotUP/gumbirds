@@ -158,14 +158,12 @@ static void rig_tick(Rig *r, uint8_t in, uint8_t start)
     }
 }
 
-/* Begin a real game from an attract screen: the first start press opens mode select (BG4), the second begins. seed 0 keeps the frame. */
+/* Begin a real game from an attract screen: one start press (a taken credit) begins the highlighted mode. seed 0 keeps the frame. */
 static void rig_begin(Rig *r, uint32_t seed)
 {
-    rig_tick(r, 0, 1);
-    CHECK(r->f.state == FLOW_ATTRACT_TITLE && r->f.select_open);
-    rig_tick(r, 0, 0);
     if (seed) r->frame = seed - 1;
     rig_tick(r, 0, 1);
+    CHECK(r->f.state == FLOW_PLAYING);
 }
 
 static void rig_ticks(Rig *r, uint8_t in, int n)
@@ -271,10 +269,10 @@ static void scenario_full(const HiscoreTable *pre, const char *want_name)
     rig_ticks(&r, 0, ATTRACT_TITLE_FRAMES);
     CHECK(r.f.state == FLOW_ATTRACT_TABLE && r.f.highlight == -1);   /* the title timeout clears the highlight */
     /* BG4: start in the table opens mode select on the title */
-    rig_tick(&r, 0, 1);
+    rig_tick(&r, IN_A, 0);
     CHECK(r.f.state == FLOW_ATTRACT_TITLE && r.f.select_open);
     rig_ticks(&r, 0, ATTRACT_TITLE_FRAMES);
-    CHECK(r.f.state == FLOW_ATTRACT_TABLE && !r.f.select_open);
+    CHECK(r.f.state == FLOW_ATTRACT_TABLE && !r.f.select_open);   /* an unpaid browse select still falls back to attract */
     rig_ticks(&r, 0, ATTRACT_TABLE_FRAMES);
     CHECK(r.f.state == FLOW_ATTRACT_DEMO);
     CHECK(r.f.highlight == -1);
@@ -382,15 +380,57 @@ static void test_cycle_and_demo(void)
         CHECK(r.f.state == FLOW_ATTRACT_DEMO && !r.f.game.over && r.f.game.flier.state == FLIER_ALIVE && r.f.game.flier_steps > 0);
     }
 
-    /* BG4: start during the demo opens mode select on the title; no game starts until the second press */
+    /* BG4 (changed by the coin item): a taken credit during the demo starts a game at once, no second press */
     rig_until(&r, FLOW_ATTRACT_DEMO, 0, 100000);
-    rig_tick(&r, 0, 1);
-    CHECK(r.f.state == FLOW_ATTRACT_TITLE && r.f.select_open && !r.f.demo);
-    rig_ticks(&r, 0, 10);
-    CHECK(r.f.state == FLOW_ATTRACT_TITLE);
     rig_tick(&r, 0, 1);
     CHECK(r.f.state == FLOW_PLAYING && !r.f.demo && r.f.game.frame == 0 && r.f.game.rounds == 1);
     /* a real run that dies still saves nothing without a rank (table full of big scores) */
+}
+
+/* ATTRACT-DEMOS1: each pass through the demo phase plays the next mode (arena, Gum Trip, arcade, arena ...). The order of the attract
+ * phases stays title, table, demo. The demo never moves the mode highlighted on the title and leaves no run state behind. */
+static void test_demo_modes(void)
+{
+    static const uint8_t want[6] = { GAME_MODE_ARENA, GAME_MODE_TRIP, GAME_MODE_ARCADE, GAME_MODE_ARENA, GAME_MODE_TRIP, GAME_MODE_ARCADE };
+    Rig r;
+    int c, i;
+    memset(&r, 0, sizeof r);
+    flow_init(&r.f, NULL, 0);
+    r.f.mode = GAME_MODE_TRIP;                  /* the title highlight must survive every demo */
+    for (c = 0; c < 6; c++) {
+        int saw_table = 0, steps = 0;
+        FlowState prev = (FlowState)r.f.state;
+        while (r.f.state != FLOW_ATTRACT_DEMO && steps++ < 100000) {
+            rig_tick(&r, 0, 0);
+            if (r.f.state == FLOW_ATTRACT_TABLE) saw_table = 1;
+            if (r.f.state == FLOW_ATTRACT_DEMO) CHECK(prev == FLOW_ATTRACT_TABLE && saw_table); /* title, table, demo */
+            prev = (FlowState)r.f.state;
+        }
+        CHECK(r.f.state == FLOW_ATTRACT_DEMO && r.f.game.mode == want[c] && r.f.mode == GAME_MODE_TRIP);
+        for (i = 0; i < 200 && r.f.state == FLOW_ATTRACT_DEMO; i++) rig_tick(&r, 0, 0);
+        CHECK(r.f.game.frame > 0 && r.f.mode == GAME_MODE_TRIP);
+        while (r.f.state == FLOW_ATTRACT_DEMO) rig_tick(&r, 0, 0);
+        CHECK(r.f.state == FLOW_ATTRACT_TITLE && r.f.mode == GAME_MODE_TRIP && !r.f.demo);
+    }
+    /* a coin during any demo goes to the title with the list open, in every mode */
+    for (c = 0; c < 3; c++) {
+        rig_until(&r, FLOW_ATTRACT_DEMO, 0, 100000);
+        rig_ticks(&r, 0, 30);
+        flow_coin(&r.f);
+        CHECK(r.f.state == FLOW_ATTRACT_TITLE && r.f.select_open && !r.f.demo && r.f.mode == GAME_MODE_TRIP);
+    }
+    /* an arcade demo leaves no run state: the next real game, arena or arcade, starts clean */
+    for (c = 0; c < 2; c++) {
+        rig_until(&r, FLOW_ATTRACT_DEMO, 0, 100000);
+        for (i = 0; i < 3 && r.f.game.mode != GAME_MODE_ARCADE; i++) { r.f.state = FLOW_ATTRACT_TABLE; r.f.timer = ATTRACT_TABLE_FRAMES; rig_until(&r, FLOW_ATTRACT_DEMO, 0, 100000); }
+        rig_ticks(&r, 0, 120);
+        r.f.game.score = 777; r.f.game.lives.lives = 1; r.f.game.arc.stage = 5;
+        r.f.mode = c ? GAME_MODE_ARCADE : GAME_MODE_ARENA;
+        rig_tick(&r, 0, 1);
+        CHECK(r.f.state == FLOW_PLAYING && !r.f.demo && r.f.game.mode == r.f.mode && r.f.game.score == 0 && r.f.game.frame == 0);
+        if (c) CHECK(r.f.game.arc.stage == 1 && r.f.game.lives.lives == ARC_LIVES_START);
+        r.f.state = FLOW_ATTRACT_TABLE; r.f.timer = ATTRACT_TABLE_FRAMES; r.f.demo = 0;
+    }
 }
 
 static void test_operator_reset(void)
@@ -461,28 +501,35 @@ static void test_mode_select(void)
     memset(&r, 0, sizeof r);
     flow_init(&r.f, NULL, 0);
     CHECK(r.f.state == FLOW_ATTRACT_TITLE && r.f.mode == GAME_MODE_ARENA);   /* default arena */
-    rig_press(&r, IN_UP);
-    CHECK(r.f.mode == GAME_MODE_TRIP);
-    rig_press(&r, IN_DOWN);
-    CHECK(r.f.mode == GAME_MODE_ARENA);
+    /* three entries Arena, Gum Trip, Arcade: Down steps forward, Up back, both wrap */
     rig_press(&r, IN_DOWN);
     CHECK(r.f.mode == GAME_MODE_TRIP);
+    rig_press(&r, IN_DOWN);
+    CHECK(r.f.mode == GAME_MODE_ARCADE);
+    rig_press(&r, IN_DOWN);
+    CHECK(r.f.mode == GAME_MODE_ARENA);
+    rig_press(&r, IN_UP);
+    CHECK(r.f.mode == GAME_MODE_ARCADE);
+    rig_press(&r, IN_UP);
+    CHECK(r.f.mode == GAME_MODE_TRIP);
     rig_press(&r, IN_UP);
     CHECK(r.f.mode == GAME_MODE_ARENA);
-    /* held stick: one toggle on the edge, none while held */
-    rig_ticks(&r, IN_UP, 100);
+    /* held stick: one step on the edge, none while held */
+    rig_ticks(&r, IN_DOWN, 100);
     CHECK(r.f.mode == GAME_MODE_TRIP);
     rig_tick(&r, 0, 0);
-    /* other buttons and left/right never toggle */
-    rig_press(&r, IN_A); rig_press(&r, IN_LEFT); rig_press(&r, IN_RIGHT);
+    /* other buttons and left/right never step */
+    rig_press(&r, IN_B); rig_press(&r, IN_LEFT); rig_press(&r, IN_RIGHT);
     CHECK(r.f.mode == GAME_MODE_TRIP);
-    /* up and down together on one frame: one toggle */
+    /* up and down together on one frame: one step forward */
     rig_press(&r, IN_UP | IN_DOWN);
+    CHECK(r.f.mode == GAME_MODE_ARCADE);
+    rig_press(&r, IN_DOWN);
     CHECK(r.f.mode == GAME_MODE_ARENA);
     /* the view carries the selection */
     {
         FlowView v;
-        rig_press(&r, IN_UP);
+        rig_press(&r, IN_DOWN);
         flow_view(&r.f, &v);
         CHECK(v.mode == GAME_MODE_TRIP);
     }
@@ -518,6 +565,13 @@ static void test_mode_select(void)
     flow_init(&r.f, NULL, 0);
     rig_ticks(&r, FLOW_RESET_COMBO, RESET_HOLD_FRAMES);
     CHECK(r.saves == 1 && r.f.mode == GAME_MODE_ARENA);
+    /* Start with ARCADE highlighted begins the arcade run through the real path */
+    memset(&r, 0, sizeof r);
+    flow_init(&r.f, NULL, 0);
+    rig_press(&r, IN_UP);
+    CHECK(r.f.mode == GAME_MODE_ARCADE);
+    rig_begin(&r, 0);
+    CHECK(r.f.state == FLOW_PLAYING && r.f.game.mode == GAME_MODE_ARCADE && r.f.game.arc.stage == 1);
 }
 
 /* ---- one score table per mode (rivals + scores plan S3) ---- */
@@ -526,7 +580,7 @@ static void test_mode_select(void)
 static void run_mode_to_table(Rig *r, uint8_t m, uint32_t score)
 {
     rig_until(r, FLOW_ATTRACT_TITLE, 0, 10000);
-    if (r->f.mode != m) rig_press(r, IN_UP);
+    for (int k = 0; k < 3 && r->f.mode != m; k++) rig_press(r, IN_DOWN);   /* Down steps forward through the three entries */
     CHECK(r->f.mode == m);
     rig_begin(r, 0);
     CHECK(r->f.state == FLOW_PLAYING && r->f.game.mode == m);
@@ -619,15 +673,121 @@ static void test_score_modes(void)
     { Flow g; flow_init(&g, r.backup, sizeof r.backup); CHECK(memcmp(&g.tables, &r.f.tables, sizeof g.tables) == 0 && g.tables.t[0].score[0] == 424242); }
 }
 
+/* Menu buttons: A is a second Start on the attract screens (never begins a game by itself), B goes back to the title. */
+static void test_menu_buttons(void)
+{
+    Rig r;
+    memset(&r, 0, sizeof r);
+    flow_init(&r.f, NULL, 0);
+    /* title, select closed: A edge opens the select; a second A with the select open does nothing */
+    rig_press(&r, IN_A);
+    CHECK(r.f.state == FLOW_ATTRACT_TITLE && r.f.select_open);
+    rig_press(&r, IN_A);
+    CHECK(r.f.state == FLOW_ATTRACT_TITLE && r.f.select_open);
+    /* B on the title does nothing */
+    rig_press(&r, IN_B);
+    CHECK(r.f.state == FLOW_ATTRACT_TITLE && r.f.select_open);
+    /* a held A is one edge */
+    flow_init(&r.f, NULL, 0);
+    r.f.input_prev = IN_A;
+    rig_tick(&r, IN_A, 0);
+    CHECK(!r.f.select_open);
+    /* table: A opens the select on the title, B returns to the title with it closed */
+    rig_until(&r, FLOW_ATTRACT_TABLE, 0, 3000);
+    CHECK(r.f.state == FLOW_ATTRACT_TABLE);
+    rig_press(&r, IN_A);
+    CHECK(r.f.state == FLOW_ATTRACT_TITLE && r.f.select_open);
+    rig_until(&r, FLOW_ATTRACT_TABLE, 0, 3000);
+    CHECK(r.f.state == FLOW_ATTRACT_TABLE);
+    rig_press(&r, IN_B);
+    CHECK(r.f.state == FLOW_ATTRACT_TITLE && !r.f.select_open);
+    /* demo: same two buttons, and the demo flag is cleared */
+    rig_until(&r, FLOW_ATTRACT_DEMO, 0, 6000);
+    CHECK(r.f.state == FLOW_ATTRACT_DEMO && r.f.demo);
+    rig_press(&r, IN_A);
+    CHECK(r.f.state == FLOW_ATTRACT_TITLE && r.f.select_open && !r.f.demo);
+    rig_until(&r, FLOW_ATTRACT_DEMO, 0, 6000);
+    CHECK(r.f.state == FLOW_ATTRACT_DEMO && r.f.demo);
+    rig_press(&r, IN_B);
+    CHECK(r.f.state == FLOW_ATTRACT_TITLE && !r.f.select_open && !r.f.demo);
+    /* A without a credit (no start) only opens the select, never a game */
+    flow_init(&r.f, NULL, 0);
+    rig_press(&r, IN_A); rig_press(&r, IN_A);
+    CHECK(r.f.state == FLOW_ATTRACT_TITLE && r.f.select_open);
+    /* COIN-TITLE: a coin in each attract phase lands on the title with the select open */
+    flow_init(&r.f, NULL, 0);
+    rig_until(&r, FLOW_ATTRACT_TABLE, 0, 100000);
+    flow_coin(&r.f);
+    CHECK(r.f.state == FLOW_ATTRACT_TITLE && r.f.select_open && r.f.timer == 0);
+    rig_until(&r, FLOW_ATTRACT_DEMO, 0, 100000);
+    flow_coin(&r.f);
+    CHECK(r.f.state == FLOW_ATTRACT_TITLE && r.f.select_open && !r.f.demo);
+    /* CREDIT-START: with a credit and no press the title waits no longer than attract (no auto start from flow) */
+    rig_ticks(&r, 0, 5);
+    CHECK(r.f.state == FLOW_ATTRACT_TITLE);
+    /* START: a taken credit starts the highlighted mode at once, from title, table and demo */
+    {
+        int m;
+        for (m = GAME_MODE_ARENA; m <= GAME_MODE_ARCADE; m++) {
+            flow_init(&r.f, NULL, 0);
+            r.f.mode = (uint8_t)m;
+            rig_tick(&r, 0, 1);
+            CHECK(r.f.state == FLOW_PLAYING && r.f.game.mode == m && !r.f.select_open);
+        }
+    }
+    flow_init(&r.f, NULL, 0);
+    rig_until(&r, FLOW_ATTRACT_TABLE, 0, 100000);
+    rig_tick(&r, 0, 1);
+    CHECK(r.f.state == FLOW_PLAYING && !r.f.demo);
+    flow_init(&r.f, NULL, 0);
+    rig_until(&r, FLOW_ATTRACT_DEMO, 0, 100000);
+    rig_tick(&r, 0, 1);
+    CHECK(r.f.state == FLOW_PLAYING && !r.f.demo);
+    /* a coin during play does not move the flow */
+    flow_coin(&r.f);
+    CHECK(r.f.state == FLOW_PLAYING);
+    /* the reset combo on the title takes no game and no select */
+    flow_init(&r.f, NULL, 0);
+    r.f.input_prev = 0;
+    rig_tick(&r, FLOW_RESET_COMBO, 1);
+    CHECK(r.f.state == FLOW_ATTRACT_TITLE && !r.f.select_open);
+    /* no start and no credit: the title falls back to attract */
+    flow_init(&r.f, NULL, 0);
+    rig_press(&r, IN_A);
+    rig_ticks(&r, 0, ATTRACT_TITLE_FRAMES);
+    CHECK(r.f.state == FLOW_ATTRACT_TABLE);
+}
+
+/* NE1: Start confirms one letter in name entry, exactly like A. */
+static void test_name_entry_start(void)
+{
+    Rig r;
+    memset(&r, 0, sizeof r);
+    flow_init(&r.f, NULL, 0);
+    rig_until(&r, FLOW_ATTRACT_TITLE, 0, 10000);
+    rig_begin(&r, 0);
+    r.f.game.score = 9999999;
+    r.f.game.over = 1;
+    rig_tick(&r, 0, 0);
+    rig_until(&r, FLOW_NAME_ENTRY, 0, 3000);
+    CHECK(r.f.state == FLOW_NAME_ENTRY && r.f.entry.pos == 0);
+    rig_tick(&r, 0, 1);
+    rig_tick(&r, 0, 0);
+    CHECK(r.f.entry.pos == 1);
+}
+
 int main(void)
 {
     test_nameentry();
     test_nameentry_stuck_button();
     test_full_flow();
     test_cycle_and_demo();
+    test_demo_modes();
     test_operator_reset();
     test_mode_select();
+    test_menu_buttons();
     test_score_modes();
+    test_name_entry_start();
     printf("test_flow: %d checks, %d failures\n", checks, failures);
     return failures ? 1 : 0;
 }

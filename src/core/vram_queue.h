@@ -19,6 +19,10 @@ typedef uint8_t u8;
 typedef uint16_t u16;
 
 #define VQ_CAP 384
+/* Fix cells one vq_fix_commit queues at most: more would fill the queue and block the logic frame until the vblank flush drains it
+ * (the table to demo screen change did, tests/mame/vblank_check.lua demo class). Ordinary frames change far fewer cells. */
+#define VQ_FIX_COMMIT_MAX 128
+#define VQ_FIX_RESERVE 192 /* queue slots a budgeted commit leaves for the next frame's sprite, tile and palette ops */
 #define VQ_FIX_COLS 40
 #define VQ_FIX_ROWS 32
 #define VQ_FIX_BASE 0x7000u
@@ -45,6 +49,19 @@ static inline int vq_raster_in_vblank(u16 lspcmode) {  /* one read of the regist
     return line >= 0x1F0u || (line >= 0xF8u && line < 0x10Fu);
 }
 #define VQ_RASTER_IN_VBLANK(lspcmode) vq_raster_in_vblank((u16)(lspcmode))
+
+/* Fix cells the end-of-frame commit may still queue at raster line `line` and end before vblank: a stage entry frame
+ * (banner text, all rivals spawning) reached the commit at line 0x1C9 and 128 cells (~39 lines) ran logic past 0x1F0
+ * (test-arcade A6, thoughts/spot/2026-11-13-arc-fix.md). The cells left stay dirty for the next frame's commit.
+ * shortcut: cells per line is measured (0.45..1 line per cell on stage entry frames, MAME), not derived from cycle counts; retune if the commit loop changes. */
+#define VQ_FIX_LINE_END 0x1E6u   /* commit must end by here: margin for the loop tail and the frame counter write */
+#define VQ_FIX_CELLS_PER_LINE 1u
+static inline u16 vq_fix_line_budget(u16 line) {
+    if (line < 0x110u) return VQ_FIX_COMMIT_MAX;   /* top vblank lines: the whole visible frame is still ahead */
+    if (line >= VQ_FIX_LINE_END) return 0;
+    u16 n = (u16)((VQ_FIX_LINE_END - line) * VQ_FIX_CELLS_PER_LINE);
+    return n < VQ_FIX_COMMIT_MAX ? n : VQ_FIX_COMMIT_MAX;
+}
 
 
 /* VQ_RUN: `rows` words at VRAM a, a + b, a + 2b, ... (REG_VRAMMOD = b), read at flush time from the SCB shadow
@@ -78,7 +95,8 @@ typedef struct {
     u16 head, count;
     u16 fix_want[VQ_FIX_COLS * VQ_FIX_ROWS];
     u16 fix_hw[VQ_FIX_COLS * VQ_FIX_ROWS];
-    u8 fix_dirty[VQ_FIX_COLS];
+    uint32_t fix_dirty[VQ_FIX_COLS];  /* per column, bit y: the wanted cell of row y changed since it was last queued (VQ_FIX_ROWS == 32) */
+    u8 fix_any;                       /* some fix_dirty bit is set: a commit with no change returns at once (tests/host/test_vram_queue.c) */
     u16 scb_hw[VQ_SCB_WORDS];
     u8 scb_valid[VQ_SCB_WORDS / 8];
     VqStripKey strip[VQ_SPRITES];
@@ -130,6 +148,9 @@ void vq_fix_put(VramQueue *q, u8 x, u8 y, u16 cell);
 void vq_fix_text(VramQueue *q, u8 x, u8 y, u16 hi, const u16 *map, const char *s);
 void vq_fix_fill(VramQueue *q, u16 cell);
 int vq_fix_commit(VramQueue *q);           /* queue the changed fix cells; 0 when the queue filled up (call again) */
+/* Same, but queues at most `budget` cells and returns 1 with the rest left dirty for the next call (a screen change spreads over frames). */
+int vq_fix_commit_n(VramQueue *q, u16 budget);
+int vq_fix_commit_room(VramQueue *q, u16 max, u16 reserve); /* budget = min(max, free slots - reserve): never fills the queue, so the logic frame cannot block */
 /* The consumer side is inline: gfx_flush runs it in vblank, where a call per op cost more than the op's writes. */
 static inline const VqOp *vq_peek(const VramQueue *q) { return q->count ? &q->ops[q->head] : 0; }
 
@@ -143,8 +164,8 @@ static inline void vq_pop(VramQueue *q) {
  * 12 cycles = 1 us; thoughts/shared/research/2026-11-09_object-pool.md, section Flush speed fix), rounded up with
  * margin. Before that loop was rewritten a word op cost about 31 us of bookkeeping; now a word op costs about 13 us
  * and a word inside a run 3.5 us. The cost is set on enqueue (op->cost). */
-#define VQ_US_OP 15u          /* word op: about 158 cycles (13 us) */
-#define VQ_US_PAL 18u         /* palette op: about 190 cycles (16 us) */
+#define VQ_US_OP 18u          /* word op: 216 cycles (18.0 us), measured in MAME on the first Gum Trip frame */
+#define VQ_US_PAL 20u         /* palette op: about 20 us, measured in MAME */
 #define VQ_US_STRIP 22u       /* strip op overhead: about 230 cycles (19 us) */
 #define VQ_US_ROW 5u          /* strip row, two data writes: 56 cycles (4.7 us) */
 #define VQ_US_RUN 22u         /* run op overhead (address and stride set, stride restore): about 230 cycles (19 us) */

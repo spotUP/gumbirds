@@ -20,6 +20,8 @@
 #include "trip_gen.h"
 #include "trip_hit.h"
 #include "trip_rival.h"
+#include "arcade.h"
+#include "arc_elements.h"
 
 /* Input bits, active when set. Buttons A..D map to the Neo Geo A, B, C, D buttons. */
 #define IN_A 0x01u /* flap (press); name entry: accept */
@@ -39,7 +41,8 @@ typedef enum {
 /* Play mode, chosen on the title (flow.h Flow.mode) and set by game_set_mode after game_reset. */
 typedef enum {
     GAME_MODE_ARENA = 0,
-    GAME_MODE_TRIP
+    GAME_MODE_TRIP,
+    GAME_MODE_ARCADE
 } GameMode;
 
 /* Round end (arena, real game): HOLD shows the banner for MATCH_END_FRAMES, PAN slides the camera back to the spawn with
@@ -82,6 +85,12 @@ typedef struct {
     uint8_t trip_events; /* TRIP_EV_* bits of the last game_step_trip frame (0 when none); sound and view read it */
     uint8_t trip_rival_events; /* TRIP_RIV_EV_* bits of the last game_step_trip frame (0 when none); sound and view read it */
     uint8_t trip_hold;   /* hold steps taken at run start while the first screen chunks are built (one per game_step_trip), sentinel */
+    ArcRun arc;          /* Arcade run (stage table, arcade.h), live in GAME_MODE_ARCADE; the arena step runs it */
+    uint8_t cont_a;      /* A was held on the previous arena step (press edge for the arcade continue) */
+    ArcLives lives;      /* Arcade lives: a flier death loses one, none left ends the run (continue screen: game_step_arena) */
+    ArcPump pump[STAGE_SPAWN_COUNT]; /* per computer flier: blow-up window that decides its stomp score */
+    ArcElements elems;   /* Arcade stage elements of the current stage (arc_elements.h), built by match_start, stepped in play only */
+    ArcBonus bonus;      /* Arcade bonus stage, live while arc.state == ARC_BONUS after the banner hold */
     Camera camera;       /* follows the living human fliers, stepped every game_step_arena; view reads game_camera_px */
 } Game;
 
@@ -114,6 +123,10 @@ int game_flier_visible(const Game *g);
 /* Round start phase (RoundStart) and the round number to show (matches_won + 1). */
 int game_round_start_phase(const Game *g);
 int game_round_number(const Game *g);
+/* Text of the round-start phase when it is not "STAGE nn": line 0 and 1 of the bonus stage announcement, else 0. */
+const char *game_round_start_text(const Game *g, int line);
+/* BANNER_* flags for the round banner: 0 in the arena, BANNER_STAGE in arcade, BANNER_BONUS while the arcade bonus stage runs. */
+int game_banner_flags(const Game *g);
 /* 1 while the hazard strip animation must hold: a round start phase or a round end hold/pan. Arena only. */
 int game_hazards_frozen(const Game *g);
 

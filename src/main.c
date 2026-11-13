@@ -18,6 +18,12 @@
 #include "core/trip_view.h"
 #include "gen/triphaz_tables.h"
 #include "gen/tripmeter.h"
+#include "gen/attract_icons.h"
+#include "core/attract_overlay.h"
+#include "gen/arcade_sprites.h"
+#include "gen/arcade_tables.h"
+#include "core/arc_view.h"
+#include "gen/trippickup_tables.h"
 #include "gfx.h"
 #include "sprite_slots.h"
 #include "vram_layout.h"
@@ -25,8 +31,14 @@
 #include "hazard.h"
 #include "island.h"
 #include "trip_strip.h"
+#include "gum.h"
+#include "splash.h"
+#include "core/splash_view.h"
+#include "logo.h"
 #include "trip_pickup.h"
 #include "sound.h"
+#include "core/sound_events.h"
+#include "snd_commands.h"
 
 /* Palette 0 = white text, palette 1 = yellow (highlight). Entry 0 of a palette is transparent; the backdrop is the last palette RAM entry (bg.c). */
 #define PAL_TEXT FIXFONT_PAL_WHITE
@@ -93,6 +105,7 @@ static FlierAnim g_hero_anim;
  * and for a computer flier (0 until drawn, player 0 again while hidden), and computer draws so far. g_soot_range holds
  * {first Sootling tile, tile count, palette slot of the player palette, then those three sentinels in that order}. */
 volatile u16 g_blink_hidden, g_blink_shown; /* test sentinels: hero frames hidden / drawn while the blink test runs */
+volatile u16 g_blink_pool[2]; /* test sentinels: pool flier frames hidden / drawn by the protected blink */
 volatile u16 g_soot_range[6] = { SOOT_TILE_BASE, SOOTLING_TILE_COUNT, SOOT_PAL_SLOT, 0, 0, 0 };
 /* Test hook (tests/mame/flier_check.lua): what hero_show last chose for the player: clip, sheet frame, ticks on that frame. */
 volatile u16 g_soot_view[3];
@@ -115,6 +128,7 @@ volatile u16 g_round_end_s[4];
 volatile u16 g_banner_calls, g_banner_cells; /* round clear banner draws, for the MAME tests */
 /* Round start text on the fix layer: phase drawn (RS_*) and the round number shown, so the cells are written and cleared once. */
 static u8 g_rs_drawn = RS_NONE;
+static u8 g_cont_key = 0xFF; /* arcade continue panel on the fix layer: 0 none, else 1 + seconds left */
 static u8 g_banner_up; /* the round clear banner is on the fix layer */
 #define BANNER_ROWS_PER_FRAME 2
 static u8 g_banner_pending; /* rows still to draw: the panel opens a few rows per frame to stay inside vblank */
@@ -124,7 +138,9 @@ static int g_rs_num;
 /* Fix layer cell of the off screen marker last drawn (col 0xFF: none). */
 static u8 g_edge_col = 0xFF, g_edge_row;
 
+static struct { u8 drawn, frame, flip; int cx, top; } g_gum_pose;   /* where the player is drawn this frame: the gum bubble sits on it (src/gum.c) */
 static void hero_hide(void) {
+    g_gum_pose.drawn = 0;
     gfx_word(ADDR_SCB3 + HERO_SPRITE, 0); /* height 0 hides the sprite and the sticky ones after it */
     g_soot_player_tile = 0;
 }
@@ -195,10 +211,11 @@ static void hero_show(const Game *g, int cam_px) {
     int left = sx;
     u16 attr = (u16)(((SOOT_PAL_SLOT + f->palette) << 8) | (flip ? SOOT_FLIP : 0));
     u16 slot = HERO_SPRITE;
-    if (g->mode == GAME_MODE_ARENA && flier_body_front(fl)) {
+    if (g->mode != GAME_MODE_TRIP && flier_body_front(fl)) {
         int d = dead_claim(DEAD_OWNER_HERO);
         if (d >= 0) { hero_hide(); slot = (u16)(DEAD_BODY_SPRITE + d * DEAD_BODY_COLUMNS); }
     } else dead_release(DEAD_OWNER_HERO);
+    g_gum_pose.drawn = 1; g_gum_pose.frame = shown; g_gum_pose.flip = (u8)flip; g_gum_pose.cx = left + SOOT_COLUMNS * 8; g_gum_pose.top = top;
     soot_strips(slot, f, tiles, flip, attr);
     gfx_sprite_place(slot, SOOT_COLUMNS, f->tiles_h, left, top);
 }
@@ -210,6 +227,7 @@ static void hero_show(const Game *g, int cam_px) {
  * the computer fliers (pool_sync_cpus) and the pool stress test hook. The arena platforms are the island sprites (src/island.c).
  */
 _Static_assert(POOL_SPRITE_COUNT == POOL_SPRITES, "pool sprite range size");
+_Static_assert(BG_SPRITE_END <= GUM_SPRITE && GUM_SPRITE + GUM_COUNT <= ISLAND_SPRITE, "gum sprites overlap the background or the islands");
 _Static_assert(ISLAND_SPRITE + ISLAND_COUNT <= POOL_SPRITE_BASE, "island sprites overlap the object pool");
 _Static_assert(POOL_SPRITE_BASE + POOL_SPRITE_COUNT <= HERO_SPRITE, "object pool sprites overlap hero");
 _Static_assert(HERO_SPRITE + HERO_SPRITE_COUNT <= HAZARD_SPRITE, "hero overlaps hazard sprites");
@@ -226,8 +244,11 @@ static void obs_load_palettes(void) {
 
 static void island_load_palettes(void) {
     for (int p = 0; p < ISLAND_PALETTE_COUNT; p++)
-        for (int i = 0; i < 16; i++)
-            gfx_pal((ISLAND_PAL_SLOT + p) * 16 + i, island_palettes[p][i]);
+        for (int i = 0; i < 16; i++) {
+            gfx_pal((ISLAND_PAL_SLOT + STAGE_LOOK_ROOF * ISLAND_PALETTE_COUNT + p) * 16 + i, island_palettes[p][i]);
+            gfx_pal((ISLAND_PAL_SLOT + STAGE_LOOK_GARDEN * ISLAND_PALETTE_COUNT + p) * 16 + i, island_garden_palettes[p][i]);
+            gfx_pal((ISLAND_PAL_SLOT + STAGE_LOOK_DECK * ISLAND_PALETTE_COUNT + p) * 16 + i, island_deck_palettes[p][i]);
+        }
 }
 
 /* Height 0 and not sticky hides a sprite on its own. */
@@ -248,6 +269,7 @@ volatile u8 g_pool_live;
 #define POOL_F_FLIP 0x08 /* computer flier faces left: mirrored */
 #define POOL_F_TRIPHAZ 0x10    /* Gum Trip hazard (objects 0..TRIP_VIEW_HAZ_OBJECTS-1, claimed for the whole trip): type = TripHazKind, x/y = art left/top in screen px (16.16), anim = frame */
 #define POOL_F_TRIPHAZ_ON 0x20 /* the hazard is shown this frame */
+#define POOL_F_BLINK 0x80      /* protected flier on its dark half period this frame (flier_view_visible): hidden, not drawn */
 #define POOL_F_SCREEN 0x40     /* flier x is already in screen space (Gum Trip rivals): drawn with camera 0 */
 _Static_assert(TRIPHAZ_MAX_COLUMNS <= POOL_COLS, "Gum Trip hazard frames must fit a pool run");
 _Static_assert(TRIP_VIEW_HAZ_OBJECTS <= POOL_MAX - 12, "Gum Trip hazards leave objects 20..31 for rivals");
@@ -301,7 +323,7 @@ static FlierAnim g_cpu_anim[STAGE_SPAWN_COUNT];
 /* A computer flier that bounced on spikes draws from a dead body slot (in front of the spike art) instead of a pool object. */
 static int cpu_show_front(const Game *g, int i) {
     const Flier *c = &g->cpu[i];
-    if (g->mode != GAME_MODE_ARENA || !flier_body_front(c)) { dead_release(DEAD_OWNER_CPU(i)); return 0; }
+    if (g->mode == GAME_MODE_TRIP || !flier_body_front(c)) { dead_release(DEAD_OWNER_CPU(i)); return 0; }
     int d = dead_claim(DEAD_OWNER_CPU(i));
     if (d < 0) return 0;
     int flip;
@@ -318,7 +340,8 @@ static int cpu_show_front(const Game *g, int i) {
 }
 
 static void pool_sync_cpus(const Game *g) {
-    for (int i = 0; i < STAGE_SPAWN_COUNT; i++) {
+    int slots = g->mode == GAME_MODE_ARCADE ? STAGE_SPAWN_COUNT : CPU_MAX; /* arena runs 3 slots: the extra arcade slots cost frame time in the arena worst case */
+    for (int i = 0; i < slots; i++) {
         const Flier *c = &g->cpu[i];
         u8 k = g_cpu_obj[i];
         int visible = i < g->cpu_count && flier_body_visible(c) && (c->state >= FLIER_FALLING || (int)((c->y + flier_half_h(c)) >> 16) <= SCREEN_H);
@@ -337,9 +360,11 @@ static void pool_sync_cpus(const Game *g) {
         PoolObj *p = &g_pool.obj[k];
         int flip;
         p->type = flier_anim_step(&g_cpu_anim[i], c, &k_clips, &flip); /* sheet frame; the player palette offset is added in pool_show_hero */
+        if (arc_pump_in_window(&g->pump[i]) && c->state == FLIER_ALIVE) p->type = flier_pump_frame(&k_clips, arc_pump_progress(&g->pump[i])); /* sitting rival: pump frame */
         if (flip) p->flags |= POOL_F_FLIP; else p->flags &= (u8)~POOL_F_FLIP;
         p->x = c->x;
         p->y = (int32_t)(c->y + flier_half_h(c));
+        if (flier_view_visible(c, g->frame)) p->flags &= (u8)~POOL_F_BLINK; else p->flags |= POOL_F_BLINK;
     }
 }
 
@@ -370,6 +395,7 @@ static void pool_sync_rivals(const Game *g) {
         if (flip) p->flags |= POOL_F_FLIP; else p->flags &= (u8)~POOL_F_FLIP;
         p->x = c->x;
         p->y = (int32_t)(c->y + flier_half_h(c));
+        if (flier_view_visible(c, g->frame)) p->flags &= (u8)~POOL_F_BLINK; else p->flags |= POOL_F_BLINK;
     }
 }
 
@@ -401,6 +427,8 @@ static u16 g_pool_scb4[POOL_MAX];
 
 /* Same run layout as an obstacle, with the Sootling frame table, tile base and the computer palette. */
 static void pool_show_hero(PoolObj *p, u8 i, u16 *scb3) {
+    if (p->flags & POOL_F_BLINK) { g_blink_pool[0]++; if (g_pool_drawn[i]) pool_hide_run(i); return; } /* the animation kept stepping in the sync; the hide costs queue words once */
+    g_blink_pool[1]++;
     u8 fi = soot_frame(SOOTLING_ANIM_CPU, p->type);
     const SootlingFrame *f = &sootling_frames[fi];
     int flip = (p->flags & POOL_F_FLIP) != 0;
@@ -507,11 +535,156 @@ static void pool_show(void) {
     if (g_pool.live) g_pool_frames++;
 }
 
+/* Arcade stage elements (src/core/arc_view.h): vent, spark, flipper, grabber, hatch, in the ARC_ELEM_SPRITE columns. Which frame and where
+ * is core logic (arc_view_build); here the blocks become strips. Slots are filled front to back; the rest are hidden every frame
+ * (gfx_word drops unchanged words), which also covers a mode, stage or state change and the arena. */
+_Static_assert(ARCADE_VENT_ART_W == 32 && ARCADE_SPARK_ART_W == 16 && ARCADE_FLIPPER_ART_W == 40 && ARCADE_GRABBER_ART_W == 40 && ARCADE_GRABBER_ART_H == 44,
+               "arcade art sizes differ from ARC_VIEW_W/H in core/arc_view.h");
+_Static_assert(ARCADE_VENT_FRAMES == ARCADE_PIECE_BODY_A_COUNT && ARCADE_SPARK_FRAMES == ARCADE_PIECE_SPARK_A_COUNT && ARCADE_FLIPPER_FRAMES == ARCADE_PIECE_FLIPPER_A_COUNT &&
+               ARCADE_GRABBER_FRAMES == ARC_GRAB_FRAMES && ARCADE_PIECE_HATCH_COUNT == 1, "arcade frame counts differ from arc_view");
+_Static_assert(ARCADE_MAX_COLUMNS <= 3, "arcade frames are at most 3 columns (ARC_VIEW_COLS)");
+static const u8 k_arc_anim[ARCV_PIECES] = { ARCADE_ANIM_STORM, ARCADE_ANIM_STORM, ARCADE_ANIM_PLAYER, ARCADE_ANIM_PLAYER, ARCADE_ANIM_STORM };
+static const u8 k_arc_first[ARCV_PIECES] = { ARCADE_PIECE_BODY_A_FIRST, ARCADE_PIECE_SPARK_A_FIRST, ARCADE_PIECE_FLIPPER_A_FIRST, ARCADE_PIECE_GRABBER_A_FIRST, ARCADE_PIECE_HATCH_FIRST };
+static u16 g_arc_tick;
+static u8 g_arc_dirty; /* slots may hold element sprites: hide them once after the last draw, not every frame (vblank budget) */
+
+static void arcade_elems_step(const Game *g) {
+    ArcSprite blocks[ARC_VIEW_MAX];
+    int n = 0, used = 0;
+    if (!g && !g_arc_dirty) return;
+    g_arc_dirty = g != 0;
+    if (g) n = arc_view_build(&g->elems, g_arc_tick++, blocks);
+    for (int i = 0; i < n; i++) {
+        const ArcSprite *b = &blocks[i];
+        const ArcadeFrame *f = &arcade_frames[arcade_anims[k_arc_anim[b->piece]].first_frame + k_arc_first[b->piece] + b->frame];
+        int w = f->tiles_w * 16, sx = camera_screen_x(b->x - f->pad_left, g_cam_px, w);
+        if (used + f->tiles_w > ARC_ELEM_COUNT || !camera_visible(sx, w)) continue;
+        u16 slot = (u16)(ARC_ELEM_SPRITE + used);
+        gfx_sprite_strips(slot, f->tiles_w, f->tiles_h, &arcade_tile_index[f->tile_offset], ARCADE_TILE_BASE, (u16)((ARCADE_PAL_SLOT + f->palette) << 8));
+        gfx_sprite_place(slot, f->tiles_w, f->tiles_h, sx, b->y - f->pad_top);
+        used += f->tiles_w;
+    }
+    for (int i = used; i < ARC_ELEM_COUNT; i++) obs_hide_slot(ARC_ELEM_SPRITE + i);
+}
+
+/* Bonus stage: bubbles (Gum Trip pickup art, 2 sprite columns each) in the first slots of the shared strip range, in the order of the live
+ * bubbles (at most ARC_BONUS_LIVE_MAX at once, so 20 slots); then the 4 gum nozzles in front of them and their mouth puffs (2 columns each);
+ * the floor strip in the island slots (the bonus layout draws no islands, island_layout.c), 2 columns per 32 px tile. Arcade art, palette ARCADE_ANIM_NOZZLE. */
+#define BONUS_NOZZLE_SPRITE (ARC_BONUS_SPRITE + 2 * ARC_BONUS_LIVE_MAX)
+#define BONUS_PUFF_SPRITE (BONUS_NOZZLE_SPRITE + 2 * ARC_NOZZLE_COUNT)
+#define BONUS_FLOOR_TILES (ARC_BONUS_WORLD_W / 32)
+_Static_assert(BONUS_PUFF_SPRITE + 2 * ARC_NOZZLE_COUNT <= ARC_BONUS_SPRITE + TRIP_STRIP_COUNT, "bonus sprites exceed the shared strip range");
+_Static_assert(ARC_BONUS_COUNT >= 2 * ARC_BONUS_LIVE_MAX && 2 * BONUS_FLOOR_TILES <= ISLAND_COUNT, "bonus sprite slot counts");
+_Static_assert(ARCADE_PIECE_NOZZLE0_COUNT == 1 && ARCADE_PIECE_FLOOR_COUNT == 1 && ARCADE_PIECE_PUFF_COUNT == 4, "bonus art frame counts");
+_Static_assert(TRIPPICKUP_PICKUP_IDLE_FRAMES == ARC_VIEW_BUBBLE_FRAMES, "pickup idle frame count differs from arc_view bubbles");
+static u8 g_bonus_dirty;
+static int g_bonus_cam = -1; /* camera the floor and nozzles were last placed for; -1 = place them again */
+static const u16 k_bonus_hidden[48]; /* SCB3 height 0 */
+
+static void bonus_piece(u16 slot, int piece, int x, int y) {
+    const ArcadeFrame *f = &arcade_frames[arcade_anims[ARCADE_ANIM_NOZZLE].first_frame + piece];
+    int w = f->tiles_w * 16, sx = camera_screen_x(x - f->pad_left, g_cam_px, w);
+    if (!camera_visible(sx, w)) { for (int c = 0; c < f->tiles_w; c++) obs_hide_slot(slot + c); return; }
+    gfx_sprite_strips(slot, f->tiles_w, f->tiles_h, &arcade_tile_index[f->tile_offset], ARCADE_TILE_BASE, (u16)((ARCADE_PAL_SLOT + f->palette) << 8));
+    gfx_sprite_place(slot, f->tiles_w, f->tiles_h, sx, y - f->pad_top);
+}
+
+#define BONUS_STATIC_COLS (2 * BONUS_FLOOR_TILES + 2 * ARC_NOZZLE_COUNT)
+#define BONUS_COL_UNKNOWN (CAMERA_COL_HIDDEN - 1)
+static s16 g_bonus_cx[BONUS_STATIC_COLS]; /* screen x last sent per floor / nozzle column, CAMERA_COL_HIDDEN, or BONUS_COL_UNKNOWN */
+static u16 g_bonus_scb4[BONUS_STATIC_COLS];
+static const u16 *g_bonus_bub_tiles[ARC_BONUS_LIVE_MAX]; /* tiles last queued per bubble slot: an unchanged frame skips gfx_sprite_strips (its dedupe cost 2 raster lines a bubble) */
+static u16 g_bonus_bub_on; /* bit i: bubble slot i is shown and its two columns are chained */
+static u8 g_bonus_puff_on; /* bit k: nozzle k's puff sprite is shown */
+
+/* The floor tiles and nozzles never move except with the camera: like island.c, strips and size words go out once, then per camera step
+ * one camera_screen_x per piece, SCB3 only when a column enters or leaves the screen and one run op for the SCB4 x words (the per-piece
+ * gfx_sprite_place of every frame cost about 60 raster lines of the logic budget when the camera scrolled). */
+static void bonus_static_place(void) {
+    int idx = 0, piece, moved = 0, first = g_bonus_cam < 0;
+    if (g_bonus_cam == (int)g_cam_px) return;
+    g_bonus_cam = (int)g_cam_px;
+    if (first) for (idx = 0; idx < BONUS_STATIC_COLS; idx++) g_bonus_cx[idx] = BONUS_COL_UNKNOWN;
+    idx = 0;
+    for (piece = 0; piece < BONUS_FLOOR_TILES + ARC_NOZZLE_COUNT; piece++) {
+        int fl = piece < BONUS_FLOOR_TILES, k = piece - BONUS_FLOOR_TILES;
+        const ArcadeFrame *f = &arcade_frames[arcade_anims[ARCADE_ANIM_NOZZLE].first_frame + (fl ? ARCADE_PIECE_FLOOR_FIRST : ARCADE_PIECE_NOZZLE0_FIRST + k)];
+        u16 slot = (u16)(fl ? ISLAND_SPRITE + 2 * piece : BONUS_NOZZLE_SPRITE + 2 * k);
+        int y = (fl ? ARC_FLOOR_Y : arc_nozzle_top(k)) - f->pad_top;
+        int sx0 = camera_screen_x((fl ? 32 * piece : arc_nozzle_x(k)) - f->pad_left, g_cam_px, 16);
+        if (first) {
+            gfx_sprite_strips(slot, f->tiles_w, f->tiles_h, &arcade_tile_index[f->tile_offset], ARCADE_TILE_BASE, (u16)((ARCADE_PAL_SLOT + f->palette) << 8));
+            gfx_sprite_unchained(slot, f->tiles_w);
+        }
+        for (int c = 0; c < f->tiles_w; c++, idx++, sx0 += 16) {
+            int sx = camera_strip_x(sx0);
+            s16 *last = &g_bonus_cx[idx];
+            if (sx == *last) continue;
+            if (sx == CAMERA_COL_HIDDEN) {
+                gfx_word((u16)(ADDR_SCB3 + slot + c), 0);
+            } else {
+                if (*last == CAMERA_COL_HIDDEN || *last == BONUS_COL_UNKNOWN) gfx_word((u16)(ADDR_SCB3 + slot + c), gfx_scb3_word(f->tiles_h, y));
+                g_bonus_scb4[idx] = gfx_scb4_word(sx);
+                moved = 1;
+            }
+            *last = (s16)sx;
+        }
+    }
+    if (moved) {
+        gfx_scb_run((u16)(ADDR_SCB4 + ISLAND_SPRITE), 1, g_bonus_scb4, (u8)(2 * BONUS_FLOOR_TILES));
+        gfx_scb_run((u16)(ADDR_SCB4 + BONUS_NOZZLE_SPRITE), 1, g_bonus_scb4 + 2 * BONUS_FLOOR_TILES, (u8)(2 * ARC_NOZZLE_COUNT));
+    }
+}
+
+static void arcade_bonus_step(const Game *g) {
+    ArcSprite blocks[ARC_BONUS_BUBBLES];
+    int n = 0;
+    if (!g && !g_bonus_dirty) return;
+    if (!g) { /* the bonus is over: park the bubble, nozzle, puff and floor slots (two runs, once) */
+        gfx_scb_run((u16)(ADDR_SCB3 + ARC_BONUS_SPRITE), 1, k_bonus_hidden, (u8)(BONUS_PUFF_SPRITE + 2 * ARC_NOZZLE_COUNT - ARC_BONUS_SPRITE));
+        gfx_scb_run((u16)(ADDR_SCB3 + ISLAND_SPRITE), 1, k_bonus_hidden, 2 * BONUS_FLOOR_TILES);
+        g_bonus_dirty = 0;
+        g_bonus_cam = -1;
+        g_bonus_puff_on = 0;
+        g_bonus_bub_on = 0;
+        for (int i = 0; i < ARC_BONUS_LIVE_MAX; i++) g_bonus_bub_tiles[i] = 0;
+        for (int i = 0; i < BONUS_STATIC_COLS; i++) g_bonus_cx[i] = BONUS_COL_UNKNOWN;
+        return;
+    }
+    g_bonus_dirty = 1;
+    n = arc_view_bonus_build(&g->bonus, blocks);
+    for (int i = 0; i < ARC_BONUS_LIVE_MAX; i++) {
+        u16 slot = (u16)(ARC_BONUS_SPRITE + 2 * i);
+        if (i < n) {
+            const ArcSprite *b = &blocks[i];
+            const TrippickupFrame *f = &trippickup_frames[trippickup_anims[TRIPPICKUP_ANIM_PICKUP_IDLE].first_frame + b->frame];
+            int sx = camera_screen_x(b->x, g_cam_px, 32);
+            if (camera_visible(sx, 32)) {
+                const u16 *tl = &trippickup_tile_index[f->tile_offset];
+                if (g_bonus_bub_tiles[i] != tl) { gfx_sprite_strips(slot, 2, 2, tl, TRIPPICKUP_TILE_BASE, (u16)(TRIPPICKUP_PAL_SLOT << 8)); g_bonus_bub_tiles[i] = tl; }
+                if (!(g_bonus_bub_on & (1u << i))) { gfx_sprite_chain(slot, 2); g_bonus_bub_on |= 1u << i; } /* the chain words go out once, then 2 words a frame */
+                gfx_word((u16)(ADDR_SCB3 + slot), gfx_scb3_word(2, b->y));
+                gfx_word((u16)(ADDR_SCB4 + slot), gfx_scb4_word(sx));
+                continue;
+            }
+        }
+        if (g_bonus_bub_on & (1u << i)) { obs_hide_slot(slot); obs_hide_slot(slot + 1); g_bonus_bub_on &= ~(1u << i); g_bonus_bub_tiles[i] = 0; }
+    }
+    bonus_static_place();
+    for (int k = 0; k < ARC_NOZZLE_COUNT; k++) {
+        int top = arc_nozzle_top(k), x = arc_nozzle_x(k), p = g->bonus.puff[k];
+        if (p) { bonus_piece((u16)(BONUS_PUFF_SPRITE + 2 * k), ARCADE_PIECE_PUFF_FIRST + ((ARC_BONUS_PUFF_FRAMES - p) >> 2), x, top - 24); g_bonus_puff_on |= (u8)(1 << k); }
+        else if (g_bonus_puff_on & (1 << k)) { obs_hide_slot((u16)(BONUS_PUFF_SPRITE + 2 * k)); obs_hide_slot((u16)(BONUS_PUFF_SPRITE + 2 * k + 1)); g_bonus_puff_on &= (u8)~(1 << k); }
+    }
+}
+
 /* BIOS_USER_MODE: 1 attract, 2 game in progress (coins then only add credits). */
 static volatile u8 g_start_pending;
-static volatile u8 g_force_play; /* BG4: the BIOS accepted a credit without a held start button (title compulsion timer): the credit must become a game */
-static volatile u8 g_open_pending; /* BG4: a start press that only opens the mode select; no credit is reported to the BIOS */
 static u8 read_input(void);
+volatile u8 g_coin_calls; /* coins the BIOS reported (vector 0x134) and game_loop has not yet played a blip for; also read by MAME tests */
+
+/* COIN_SOUND (vector 0x134, ngdevkit.ld): runs in the BIOS vblank handler, so it only counts. */
+void coin_sound(void) { g_coin_calls++; }
 
 /*
  * PLAYER_START (vector 0x128), called by the BIOS from its vblank SYSTEM_IO when a player
@@ -538,17 +711,8 @@ void player_start(void) {
         bios_start_flag = 0; /* refused: the BIOS keeps the credit */
         return;
     }
-    /* BG4: the opening press (attract screen, mode select closed) only opens the mode select. Refusing here makes
-     * the BIOS keep the credit; the press that begins play is accepted below. A call without the start button held
-     * is the BIOS title compulsion timer: that stays accepted (the flow opens the select, as before). */
-    if (!g_flow.select_open && (bios_statcurnt & 1)) {
-        bios_start_flag = 0;
-        g_open_pending = 1;
-        return;
-    }
     bios_user_mode = 2;
     g_start_pending = 1;
-    if (!(bios_statcurnt & 1)) g_force_play = 1;
 }
 
 /* Off screen marker for the human flier (design D1): a '<' or '>' on the fix layer at the screen edge, at the flier's
@@ -651,7 +815,7 @@ static void draw_number(u8 x, u8 y, u8 pal, u32 v, int width) {
 /* Caption rows are padded to the same width so the longer one is fully overwritten when the mode changes. */
 static void draw_table(const HiscoreTable *t, u8 mode, int highlight, u8 y0) {
     char line[HISCORE_NAME_LEN + 1];
-    text(12, (u8)(y0 - 2), PAL_TEXT, mode == GAME_MODE_TRIP ? "GUM TRIP SCORES" : "ARENA SCORES   ");
+    text(12, (u8)(y0 - 2), PAL_TEXT, mode == GAME_MODE_TRIP ? "GUM TRIP SCORES" : mode == GAME_MODE_ARCADE ? "ARCADE SCORES  " : "ARENA SCORES   ");
     g_table_mode_draws[mode == GAME_MODE_TRIP ? 1 : 0]++;
     for (int i = 0; i < HISCORE_ENTRIES; i++) {
         u8 pal = (i == highlight) ? PAL_HIGH : PAL_TEXT;
@@ -688,17 +852,160 @@ static void draw_gum_meter(u16 gum) {
 static u32 g_hud_score;
 static u32 g_hud_lives;
 
-/* Title mode selector (agent default, no approved art): the two mode names under PRESS START, a marker in the gold HUD
- * colour on the selected one. Up or down on the title toggles (flow.c); redrawn only when the selection moved or after a
- * fix layer clear (g_draw_state change sets g_title_mode to 0xFF). Rows 14 and 15 sit above the high score table (row 16). */
-static u8 g_title_mode = 0xFF;
-static void draw_mode_select(u8 mode) {
-    if (mode == g_title_mode) return;
-    g_title_mode = mode;
-    text(15, 14, PAL_HIGH, mode == GAME_MODE_ARENA ? ">" : " ");
-    text(17, 14, mode == GAME_MODE_ARENA ? PAL_HIGH : PAL_TEXT, "ARENA");
-    text(15, 15, PAL_HIGH, mode == GAME_MODE_TRIP ? ">" : " ");
-    text(17, 15, mode == GAME_MODE_TRIP ? PAL_HIGH : PAL_TEXT, "GUM TRIP");
+/* Title screen (art: assets/font/draw_hud_title_final.py title_final(), art row r = fix row r + 2). Everything is drawn
+ * once after the fix layer clear and again only when its value changes; draw() resets the cache on a state change. */
+#define TITLE_HI_ROW 3
+#define TITLE_PLATE_ROW 22
+#define TITLE_SELECT_ROW 23   /* rows 23 to 25: the mode select, drawn only while it is open */
+#define TITLE_PLAYERS_ROW 26
+#define TITLE_CREDIT_ROW 29
+#define TITLE_BLINK_ON 3      /* the plate line shows for 3 of every 5 logo animation steps */
+#define BIOS_CREDIT_BCD ((volatile u8 *)0x10fe00) /* BCD, 1 = one credit; measured by tests/mame/logo_check.lua under UniBIOS 4.0 (nullbios never counts) */
+enum { TL_UNKNOWN = 0xFF, TL_HIDDEN = 0, TL_PRESS, TL_INSERT };
+static struct { u8 init, line, select, credits; u32 hi; u8 mode; } g_title = { 0, TL_UNKNOWN, 0xFF, 0xFF, 0xFFFFFFFFu, 0xFF };
+volatile u16 g_title_press_draws; /* test sentinel: frames "PRESS START" was (re)sent */
+
+static void title_reset(void) { g_title.init = 0; g_title.line = TL_UNKNOWN; g_title.select = 0xFF; g_title.credits = 0xFF; g_title.hi = 0xFFFFFFFFu; g_title.mode = 0xFF; }
+
+static void plate(u8 x0, u8 x1, u8 row) {
+    gfx_fix_tile((u8)(x0 - 1), row, PAL_TEXT, FIXFONT_PLATE_CAP_LEFT);
+    for (u8 c = x0; c <= x1; c++) gfx_fix_tile(c, row, PAL_TEXT, FIXFONT_PLATE_FILL);
+    gfx_fix_tile((u8)(x1 + 1), row, PAL_TEXT, FIXFONT_PLATE_CAP_RIGHT);
+}
+
+static u8 credits_now(void) {
+    u8 b = *BIOS_CREDIT_BCD;
+    u8 n = (u8)((b >> 4) * 10 + (b & 15));
+    return n > 99 ? 99 : n;
+}
+
+/* A takes a banked credit the way Start does: the BIOS only deducts on a Start press, so for A the game does the BCD
+ * subtraction itself. Returns 1 when a credit was taken. */
+static u8 take_credit(void) {
+    u8 b = *BIOS_CREDIT_BCD;
+    if (!b) return 0;
+    *BIOS_CREDIT_BCD = (u8)((b & 15) ? b - 1 : b - 7);
+    return 1;
+}
+
+/* The two title Sootlings (art: player left, computer right and mirrored), in the sprites after the logo. They step with the
+ * logo animation; tiles and positions are sent only when the step changes. */
+static u16 g_title_soot_step = 0xFFFF;
+static void title_soot_reset(void) { g_title_soot_step = 0xFFFF; }
+static void title_soot_step(int active) {
+    if (!active) {
+        if (g_title_soot_step != 0xFFFF) for (u8 i = 0; i < TITLE_SOOT_COUNT; i++) gfx_word((u16)(ADDR_SCB3 + TITLE_SOOT_SPRITE + i), 0);
+        g_title_soot_step = 0xFFFF;
+        return;
+    }
+    u16 t = logo_ticks();
+    if (t == g_title_soot_step) return;
+    g_title_soot_step = t;
+    static const s8 BOB[8] = { 0, 1, 2, 1, 0, -1, -2, -1 };
+    for (u8 who = 0; who < 2; who++) {
+        const SootlingAnim *an = &sootling_anims[who];
+        u8 k = (u8)((t + who * 3) % 8);
+        const SootlingFrame *f = &sootling_frames[soot_frame(who, (u8)(k % an->frame_count))];
+        u16 slot = (u16)(TITLE_SOOT_SPRITE + who * SOOT_COLUMNS);
+        u16 attr = (u16)(((SOOT_PAL_SLOT + f->palette) << 8) | (who ? SOOT_FLIP : 0));
+        soot_strips(slot, f, &sootling_tile_index[f->tile_offset], who, attr);
+        gfx_sprite_place(slot, SOOT_COLUMNS, f->tiles_h, who ? 250 : 14, (who ? 118 : 112) + BOB[k]);
+    }
+}
+
+static void draw_mode_select(u8 open, u8 mode) {
+    u8 key = open ? (u8)(1 + mode) : 0;
+    if (key == g_title.select) return;
+    g_title.select = key;
+    if (!open) { text(15, TITLE_SELECT_ROW, PAL_TEXT, "          "); text(15, TITLE_SELECT_ROW + 1, PAL_TEXT, "          "); text(15, TITLE_SELECT_ROW + 2, PAL_TEXT, "          "); return; }
+    gfx_text_backed(15, TITLE_SELECT_ROW, PAL_HIGH, mode == GAME_MODE_ARENA ? ">" : " ");
+    gfx_text_backed(17, TITLE_SELECT_ROW, mode == GAME_MODE_ARENA ? PAL_HIGH : PAL_TEXT, "ARENA   ");
+    gfx_text_backed(15, TITLE_SELECT_ROW + 1, PAL_HIGH, mode == GAME_MODE_TRIP ? ">" : " ");
+    gfx_text_backed(17, TITLE_SELECT_ROW + 1, mode == GAME_MODE_TRIP ? PAL_HIGH : PAL_TEXT, "GUM TRIP");
+    gfx_text_backed(15, TITLE_SELECT_ROW + 2, PAL_HIGH, mode == GAME_MODE_ARCADE ? ">" : " ");
+    gfx_text_backed(17, TITLE_SELECT_ROW + 2, mode == GAME_MODE_ARCADE ? PAL_HIGH : PAL_TEXT, "ARCADE  ");
+}
+
+static void draw_title(const FlowView *v) {
+    if (!g_title.init) {
+        g_title.init = 1;
+        gfx_text_backed(11, TITLE_HI_ROW, PAL_HIGH, "HIGH SCORE");
+        plate(13, 26, TITLE_PLAYERS_ROW);
+        gfx_text_backed(13, TITLE_PLAYERS_ROW, PAL_TEXT, "1 OR 2 PLAYERS");
+        plate(28, 36, TITLE_CREDIT_ROW);
+    }
+    u32 hi = v->table->score[0];
+    if (hi > 999999) hi = 999999;
+    if (hi != g_title.hi) {
+        g_title.hi = hi;
+        char buf[8];
+        put_number(buf, hi, 6);
+        gfx_text_backed(22, TITLE_HI_ROW, PAL_TEXT, buf);
+    }
+    u8 cr = credits_now();
+    if (cr != g_title.credits) {
+        g_title.credits = cr;
+        char buf[3];
+        put_number(buf, cr, 2);
+        gfx_text_backed(28, TITLE_CREDIT_ROW, PAL_TEXT, "CREDITS ");
+        gfx_text_backed(36, TITLE_CREDIT_ROW, PAL_TEXT, buf + 1);
+        if (cr > 9) gfx_text_backed(35, TITLE_CREDIT_ROW, PAL_TEXT, buf);
+    }
+    u8 line = (logo_ticks() % 5) < TITLE_BLINK_ON ? ((cr > 0 || v->select_open) ? TL_PRESS : TL_INSERT) : TL_HIDDEN;
+    if (line != g_title.line) {
+        g_title.line = line;
+        if (line == TL_HIDDEN) {
+            text(13, TITLE_PLATE_ROW, PAL_TEXT, "             "); /* a space is the empty fix tile: caps and fill both clear */
+        } else {
+            plate(14, 24, TITLE_PLATE_ROW);
+            gfx_text_backed(14, TITLE_PLATE_ROW, PAL_HIGH, line == TL_PRESS ? "PRESS START" : "INSERT COIN");
+            if (line == TL_PRESS) g_title_press_draws++;
+        }
+    }
+    draw_mode_select(v->select_open, v->mode);
+}
+
+/* Attract how-to-play overlay (fix layer, bottom left: cols 1..13, rows 21..26; the title's reserved cells are rows 3, 22-25 from col 11 on, row 29, so only
+ * col 13 of row 22 is shared and the demo state never draws the title). Leaving the demo state clears the whole fix layer (draw), so nothing needs erasing. */
+#define OV_COL_MIN 1
+#define OV_COL_MAX 13
+#define OV_ROW_MIN 21
+#define OV_ROW_MAX 26
+_Static_assert(ATTRACT_CAP1_ROW >= OV_ROW_MIN && ATTRACT_START_ROW + 2 - 1 <= OV_ROW_MAX && ATTRACT_BUTTON_ROW + 3 - 1 <= OV_ROW_MAX, "overlay rows leave 21..26");
+_Static_assert(ATTRACT_CAP1_COL >= OV_COL_MIN && ATTRACT_START_COL + 2 - 1 <= OV_COL_MAX && ATTRACT_BUTTON_COL + 3 - 1 <= OV_COL_MAX, "overlay cols leave 1..13");
+_Static_assert(ATTRACT_FIX_BASE >= FIXFONT_SROM_TILES && ATTRACT_FIX_BASE + ATTRACT_ICON_TILES <= 0x1000, "overlay icon tiles overlap the font or leave the 12-bit fix code range");
+static u8 g_ov_stage;  /* 0: captions, 1: Start icon, 2: running */
+static u8 g_ov_key = AO_NONE;
+
+static void ov_frame(u8 col, u8 row, u8 frame) {
+    const attract_frame_t *fr = &attract_frames[frame];
+    for (u8 r = 0; r < fr->rows; r++)
+        for (u8 c = 0; c < fr->cols; c++) {
+            int8_t t = fr->tiles[r * fr->cols + c];
+            if (t == ATTRACT_ICON_BLANK) gfx_fix_tile((u8)(col + c), (u8)(row + r), 0, FIXFONT_BLANK);
+            else gfx_fix_tile((u8)(col + c), (u8)(row + r), ATTRACT_PAL_SLOT, (u16)(ATTRACT_FIX_BASE + t));
+        }
+}
+
+/* One item per frame while the demo starts (captions, Start icon), then the action word, lever and A icon, redrawn only when the key changes. */
+static void draw_overlay(const FlowView *v) {
+    if (g_ov_stage == 0) {
+        const char *const *cap = attract_captions[v->game->mode];
+        text(ATTRACT_CAP1_COL, ATTRACT_CAP1_ROW, PAL_TEXT, cap[0]);
+        text(ATTRACT_CAP2_COL, ATTRACT_CAP2_ROW, PAL_TEXT, cap[1]);
+        g_ov_stage = 1;
+    } else if (g_ov_stage == 1) {
+        ov_frame(ATTRACT_START_COL, ATTRACT_START_ROW, attract_states[0].start);
+        g_ov_stage = 2;
+    } else if (v->ov_key != AO_NONE && v->ov_key != g_ov_key) {
+        const u8 st = v->ov_key == AO_FLAP ? 0 : 1;
+        u8 lever = attract_states[st].lever;
+        if (v->ov_key == AO_STEER_LEFT) lever = ATTRACT_FRAME_STICK_LEFT;
+        g_ov_key = v->ov_key;
+        text(ATTRACT_ACTION_COL, ATTRACT_ACTION_ROW, FIXFONT_PAL_GOLD, st == 0 ? "FLAP " : "STEER");
+        ov_frame(ATTRACT_LEVER_COL, ATTRACT_LEVER_ROW, lever);
+        ov_frame(ATTRACT_BUTTON_COL, ATTRACT_BUTTON_ROW, attract_states[st].a);
+    }
 }
 
 static void draw(const FlowView *v) {
@@ -707,10 +1014,11 @@ static void draw(const FlowView *v) {
      * hardware reset of the fix layer goes through video_init, which forces this branch (g_draw_state = -1). */
     if ((int)v->state != g_draw_state) {
         gfx_cls();
-        g_title_mode = 0xFF;
+        title_reset();
         g_draw_state = (int)v->state;
         g_hud_game = 0;
-        g_rs_drawn = RS_NONE; g_rs_num = 0; g_banner_up = 0;
+        g_ov_stage = 0; g_ov_key = AO_NONE;
+        g_rs_drawn = RS_NONE; g_rs_num = 0; g_banner_up = 0; g_cont_key = 0xFF;
         g_meter_step = METER_NONE;
 #ifdef GUMBIRDS_DEBUG_HEADER /* gmake DEBUG_HEADER=1; the normal build leaves the top rows to the HUD */
         text(2, 2, PAL_TEXT, "GUMBIRDS");
@@ -721,8 +1029,7 @@ static void draw(const FlowView *v) {
     }
     switch (v->state) {
     case FLOW_ATTRACT_TITLE:
-        gfx_center_text(13, PAL_TEXT, "PRESS START");
-        draw_mode_select(v->mode);
+        draw_title(v);
         break;
     case FLOW_ATTRACT_TABLE:
         draw_table(v->table, v->table_mode, v->highlight, 8);
@@ -743,24 +1050,52 @@ static void draw(const FlowView *v) {
             }
         }
         if (v->game && v->game->mode == GAME_MODE_TRIP) draw_gum_meter(v->game->trip.gum);
+        if (v->state == FLOW_ATTRACT_DEMO && v->game) draw_overlay(v);
         {
             /* ROUND nn then GO! (arena game only: the demo and Gum Trip report RS_NONE); fix font, no panel; cleared when the phase ends */
             u8 rs = (v->state == FLOW_PLAYING && v->game) ? (u8)game_round_start_phase(v->game) : (u8)RS_NONE;
             int rn = rs == RS_ROUND ? game_round_number(v->game) : 0;
             if (rs != g_rs_drawn || rn != g_rs_num) {
-                if (rs == RS_ROUND) {
+                const char *l0 = rs == RS_ROUND ? game_round_start_text(v->game, 0) : 0;
+                if (rs == RS_ROUND && l0) {
+                    gfx_center_text(12, PAL_TEXT, "                  ");
+                    gfx_center_text(13, PAL_TEXT, "                  ");
+                    gfx_center_text(12, PAL_TEXT, l0);
+                    gfx_center_text(13, PAL_TEXT, game_round_start_text(v->game, 1));
+                } else if (rs == RS_ROUND) {
                     char rb[10] = "ROUND ";
+                    if (v->game->mode == GAME_MODE_ARCADE) { rb[0] = 'S'; rb[1] = 'T'; rb[2] = 'A'; rb[3] = 'G'; rb[4] = 'E'; }
                     rb[6] = (char)('0' + (rn / 10) % 10); rb[7] = (char)('0' + rn % 10); rb[8] = 0;
                     if (rb[6] == '0') { rb[6] = rb[7]; rb[7] = 0; }
                     gfx_center_text(13, PAL_TEXT, "           ");
                     gfx_center_text(13, PAL_TEXT, rb);
                 } else if (rs == RS_GO) {
-                    gfx_center_text(13, PAL_TEXT, "           ");
+                    gfx_center_text(12, PAL_TEXT, "                  ");
+                    gfx_center_text(13, PAL_TEXT, "                  ");
                     gfx_center_text(13, PAL_TEXT, "GO!");
                 } else {
                     gfx_center_text(13, PAL_TEXT, "           ");
                 }
                 g_rs_drawn = rs; g_rs_num = rn;
+            }
+        }
+        {
+            /* Arcade continue screen (game_step_arena freezes the world): a plate with the words and the seconds left; redrawn once a second */
+            u8 key = (v->state == FLOW_PLAYING && v->game && v->game->mode == GAME_MODE_ARCADE && v->game->lives.state == ARC_LIFE_CONTINUE)
+                         ? (u8)(1 + arc_continue_seconds(&v->game->lives)) : 0;
+            if (key != g_cont_key) {
+                u8 row;
+                char sb[16] = "TIME LEFT   ";
+                if (key) {
+                    for (row = 11; row <= 14; row++) plate(13, 26, row);
+                    gfx_center_text(11, PAL_HIGH, "CONTINUE");
+                    gfx_center_text(12, PAL_TEXT, "PRESS BUTTON A");
+                    if (key > 10) { sb[10] = '1'; sb[11] = '0'; } else sb[10] = (char)('0' + key - 1);
+                    gfx_center_text(13, PAL_TEXT, sb);
+                } else if (g_cont_key != 0xFF) {
+                    for (row = 11; row <= 14; row++) text(12, row, PAL_TEXT, "                ");
+                }
+                g_cont_key = key;
             }
         }
         {
@@ -773,7 +1108,7 @@ static void draw(const FlowView *v) {
                 u8 rows, rows_left = BANNER_ROWS_PER_FRAME;
                 int f;
                 int fr = MATCH_END_FRAMES - (int)v->game->round_timer;
-                bc.winner = BANNER_P1; bc.round = (uint16_t)game_round_number(v->game); bc.last = 0;
+                bc.winner = BANNER_P1; bc.round = (uint16_t)game_round_number(v->game); bc.last = (uint8_t)game_banner_flags(v->game);
                 blank = banner_cell(0, &bc, BANNER_W, 0); /* outside the panel: what an undrawn cell is */
                 if (fr < 0) fr = 0;
                 if (fr > 119) fr = 119;
@@ -859,8 +1194,8 @@ static void draw(const FlowView *v) {
  * later entry re-enables interrupts and resumes game_loop() with RAM intact. The flow
  * state machine owns attract/title/play, so commands 2 and 3 need no separate screens.
  * Command 0 keeps the ngdevkit default: flow_init already loads defaults when the
- * backup RAM image is missing or invalid. Command 1 never comes (rom_eye_catcher_mode 0:
- * the BIOS draws the eye-catcher).
+ * backup RAM image is missing or invalid. Command 1 never comes (header mode,
+ * rom_eye_catcher_mode 2: the cart's own header code, not the BIOS, draws the eye-catcher).
  *
  * g_boot_magic lives in .bss, so the C runtime init clears it and main() sets it after
  * init. A reset must not leave it set (relies on the BIOS work RAM test/clear at boot;
@@ -886,7 +1221,10 @@ static void game_loop(void);
  */
 static void video_init(void) {
     gfx_init();
+    /* Commit the fix clear FIRST, while palette 0 is still the BIOS zero: the budgeted queue flushes in order, so a clear
+     * committed last left the BIOS tile 0x20 fill visible about 30 frames after a coin (tests/mame/unibios_check.lua, COIN1). */
     gfx_cls();
+    gfx_commit_all();
     /* Fix layer palettes 0..FIX_PAL_COUNT-1 (generated with the font). */
     for (u8 s = 0; s < FIX_PAL_COUNT; s++)
         for (u8 i = 0; i < 16; i++) gfx_pal((u16)(s * 16 + i), fixfont_palettes[s][i]);
@@ -895,8 +1233,16 @@ static void video_init(void) {
     island_load_palettes();
     trip_strip_load_palettes();
     trip_pickup_load_palettes();
+    gum_load_palettes();
+    splash_load_palettes();
+    logo_load_palettes();
+    logo_reset();
+    title_soot_reset();
     for (u8 i = 0; i < TRIPHAZ_PALETTE_COUNT; i++)
         for (u8 c = 0; c < 16; c++) gfx_pal((u16)((TRIPHAZ_PAL_SLOT + i) * 16 + c), triphaz_palettes[i][c]);
+    for (u8 i = 0; i < ARCADE_PALETTE_COUNT; i++)
+        for (u8 c = 0; c < 16; c++) gfx_pal((u16)((ARCADE_PAL_SLOT + i) * 16 + c), arcade_palettes[i][c]);
+    for (u8 c = 0; c < 16; c++) gfx_pal((u16)(ATTRACT_PAL_SLOT * 16 + c), attract_icon_palette[c]);
     bg_load_palettes();
     gfx_word(ADDR_SCB3 + SPRITE_RESERVED, 0); /* sprite 0 is never visible (src/sprite_slots.h): nothing else writes this slot */
     bg_init();
@@ -906,7 +1252,7 @@ static void video_init(void) {
     dead_release_all();
     pool_hide_all(); /* the hardware state is unknown; live objects redraw next frame */
     g_draw_state = -1;
-    gfx_commit();
+    gfx_commit_all();
     gfx_drain(); /* init is outside the per-frame budget: it blocks, one flush per vblank, until everything is written */
 }
 
@@ -964,24 +1310,33 @@ static u8 g_bram_unsaved;
 static void game_loop(void) {
     FlowView view;
     for (;;) {
-        u8 start = (u8)(g_start_pending | g_open_pending); /* games start only through the BIOS PLAYER_START (credit taken) */
+        /* A credit is taken by the BIOS (player_start) on a Start press, or here for A: both reach flow_step as start,
+         * and flow_step turns a taken credit into a game at once. A coin jumps to the title first. */
+        static u8 s_a_prev;
+        u8 in = read_input();
+        u8 a_edge = (u8)((in & IN_A) && !s_a_prev);
+        s_a_prev = (u8)((in & IN_A) != 0);
+        u8 start = g_start_pending;
         g_start_pending = 0;
-        g_open_pending = 0;
-        flow_step(&g_flow, read_input(), start, g_frame_counter);
-        if (g_force_play) {
-            /* The credit is already taken: run the second press of BG4 (open the select, then begin play) in the same frame. */
-            g_force_play = 0;
-            if (start) flow_step(&g_flow, read_input(), 1, g_frame_counter);
-        }
+        __asm__ volatile ("move.w #0x2700,%%sr" ::: "memory"); /* coin_sound counts in the vblank handler: keep read and decrement whole */
+        u8 coined = coin_drain((uint8_t *)&g_coin_calls);
+        __asm__ volatile ("move.w #0x2000,%%sr" ::: "memory");
+        if (coined && !start) flow_coin(&g_flow);
+        if (a_edge && !start && g_flow.state <= FLOW_ATTRACT_DEMO && bios_user_mode == 1 && (in & FLOW_RESET_COMBO) != FLOW_RESET_COMBO && take_credit()) start = 1;
+        flow_step(&g_flow, in, start, g_frame_counter);
         {
             /* hazard kind per round: a new game starts at round 0; a new round (not during the banner HOLD) swaps the strip */
             static int s_round = 0;
             static u8 s_was_playing = 0;
-            u8 playing = g_flow.state == FLOW_PLAYING && g_flow.game.mode == GAME_MODE_ARENA;
+            u8 playing = g_flow.state == FLOW_PLAYING && (g_flow.game.mode == GAME_MODE_ARENA || g_flow.game.mode == GAME_MODE_ARCADE); /* a new arcade stage swaps the strip like a new round */
             int rnd = game_round_number(&g_flow.game);
             if (playing && !s_was_playing) { hazard_game_restart(); s_round = rnd; }
             else if (playing && rnd != s_round && g_flow.game.round_end != RE_HOLD) { hazard_round_restart(); s_round = rnd; }
             s_was_playing = playing;
+        }
+        { /* arena layout per round: game.c match_start selected it; the island sprites follow in the same frame (the ROUND banner freeze) */
+            static int s_layout = 0, s_look = 0;
+            if (stage_layout_index() != s_layout || stage_look() != s_look) { s_layout = stage_layout_index(); s_look = stage_look(); island_relayout(); }
         }
         game_set_hazard(&g_flow.game, hazard_kind_now()); /* after flow_step: a new play resets the game; same kind the strip starts with this frame */
         if (g_flow.dirty) {
@@ -993,6 +1348,7 @@ static void game_loop(void) {
         flow_view(&g_flow, &view);
         g_round_end_s[0] = g_flow.game.round_end; g_round_end_s[1] = g_flow.game.round_timer;
         g_round_end_s[2] = g_flow.game.round_start; g_round_end_s[3] = game_flier_visible(&g_flow.game);
+        if (coined) sound_play_sfx(SND_SFX_COIN);
         sound_frame(&view);
         sound_tick();
         draw(&view);
@@ -1001,10 +1357,23 @@ static void game_loop(void) {
             u8 trip = view.state == FLOW_PLAYING && view.game && view.game->mode == GAME_MODE_TRIP;
             u8 trip_game = (view.state == FLOW_PLAYING || view.state == FLOW_GAME_OVER) && view.game && view.game->mode == GAME_MODE_TRIP;
             hazard_step((view.state == FLOW_PLAYING || view.state == FLOW_GAME_OVER) && !trip_game, g_cam_px); /* the hazard strip is the arena's floor; Gum Trip has its own */
+            /* arcade only: elements kill, so they must be seen (worst scanline with them is checked in tests/host/test_sprite_budget.c) */
+            arcade_elems_step(view.state == FLOW_PLAYING && view.game && view.game->mode == GAME_MODE_ARCADE ? view.game : 0);
+            arcade_bonus_step(view.state == FLOW_PLAYING && view.game && view.game->mode == GAME_MODE_ARCADE && view.game->arc.state == ARC_BONUS ? view.game : 0);
             island_step(view.state == FLOW_PLAYING && !trip, g_cam_px); /* arena islands are not drawn in Gum Trip */
-            island_trip_step(trip ? &view.game->trip_gen : 0, trip ? view.game->trip.px : 0, trip && game_trip_ready(view.game));
-            trip_strip_step(trip ? &view.game->trip_gen : 0, trip ? view.game->trip.px : 0, trip && game_trip_ready(view.game));
-            trip_pickup_step(trip ? &view.game->trip_gen : 0, trip ? view.game->trip.px : 0, trip ? view.game->trip.steps : 0, trip && game_trip_ready(view.game));
+            /* the course (islands, kill strips, pickups) stays through Game Over like the planes and the hazard anim: all leave at the title */
+            island_trip_step(trip_game ? &view.game->trip_gen : 0, trip_game ? view.game->trip.px : 0, trip_game && game_trip_ready(view.game));
+            trip_strip_step(trip_game ? &view.game->trip_gen : 0, trip_game ? view.game->trip.px : 0, trip_game && game_trip_ready(view.game));
+            trip_pickup_step(trip_game ? &view.game->trip_gen : 0, trip_game ? view.game->trip.px : 0, trip_game ? view.game->trip.steps : 0, trip_game && game_trip_ready(view.game));
+            /* Arena: the bubble is always full size (no gum value, no pop); Gum Trip: its gum meter. */
+            u8 arena = view.state == FLOW_PLAYING && view.game && (view.game->mode == GAME_MODE_ARENA || view.game->mode == GAME_MODE_ARCADE);
+            gum_step(arena || (trip && game_trip_ready(view.game)), trip ? view.game->trip.gum : GUM_MAX, (trip || arena) ? view.game->frame : 0, g_gum_pose.drawn, g_gum_pose.frame, g_gum_pose.flip, g_gum_pose.cx, g_gum_pose.top);
+            {   /* the splash starts from the same crossing that plays the splosh sound; it keeps running through Game Over */
+                const SoundEvents *se = sound_events();
+                splash_update(splash_enabled((view.state == FLOW_PLAYING || view.state == FLOW_GAME_OVER) && view.game, trip_game), se->n_splosh > 0, view.game ? view.game->hazard_kind : 0, se->splosh_x, g_cam_px);
+            }
+            logo_step(view.state == FLOW_ATTRACT_TITLE);
+            title_soot_step(view.state == FLOW_ATTRACT_TITLE);
             hazard_trip_anim(trip_game);
             bg_trip_planes(trip_game); /* Gum Trip drops the far and near background planes; arena and title show them */
         }

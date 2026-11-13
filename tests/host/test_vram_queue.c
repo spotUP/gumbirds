@@ -117,6 +117,67 @@ int main(void)
     (void)total_cost();
     vq_fix_put(&q, 40, 0, 1); /* out of range is ignored */
     CHECK(commit_all() == 0);
+    /* The commit runs at the end of the logic frame: its work must scale with the cells that changed, not with whole
+     * columns (32 compares per touched column cost about 3.6 lines and pushed "cam moved" frames past line 224).
+     * Dirty state is one bit per changed cell; a clear that changes nothing marks nothing. */
+    {
+        int clean = 1;
+        vq_fix_fill(&q, 0x20);
+        vq_fix_put(&q, 2, 3, 0x1041);
+        for (u16 x = 0; x < VQ_FIX_COLS; x++) if (q.fix_dirty[x] != (x == 2 ? (1u << 3) : 0u)) clean = 0;
+        CHECK(clean);
+        (void)commit_all();
+        vq_fix_fill(&q, 0x20);           /* same content again: no dirty cell outside the one that differs */
+        clean = 1;
+        for (u16 x = 0; x < VQ_FIX_COLS; x++) if (q.fix_dirty[x] != (x == 2 ? (1u << 3) : 0u)) clean = 0;
+        CHECK(clean);
+        (void)commit_all();
+        for (u16 x = 0; x < VQ_FIX_COLS; x++) if (q.fix_dirty[x]) clean = 0;
+        CHECK(clean);
+        /* a budget cut mid-column keeps exactly the rows not queued yet */
+        vq_fix_put(&q, 5, 1, 0x1001); vq_fix_put(&q, 5, 7, 0x1002); vq_fix_put(&q, 5, 31, 0x1003);
+        CHECK(vq_fix_commit_n(&q, 2) && vq_pending(&q) == 2 && q.fix_dirty[5] == (1u << 31));
+        CHECK(vq_fix_commit_n(&q, 2) && vq_pending(&q) == 3 && q.fix_dirty[5] == 0);
+        /* A frame with no fix change (most play frames) must not walk the 40 columns: that empty walk cost about 6 lines
+         * at the very end of the heaviest "cam moved" frames and pushed two past line 224. fix_any says a cell is dirty. */
+        CHECK(q.fix_any == 0);
+        vq_fix_put(&q, 5, 1, 0x1004); vq_fix_put(&q, 6, 2, 0x1005);
+        CHECK(q.fix_any == 1);
+        CHECK(vq_fix_commit_n(&q, 1) && q.fix_any == 1 && q.fix_dirty[6] == (1u << 2)); /* a budget cut keeps it set */
+        CHECK(vq_fix_commit_n(&q, 1) && q.fix_dirty[6] == 0); /* budget spent on the last cell: the flag may stay set */
+        {
+            u16 p = vq_pending(&q);
+            CHECK(vq_fix_commit_n(&q, 1) && q.fix_any == 0 && vq_pending(&q) == p); /* the next commit finds nothing, clears it */
+        }
+        vq_fix_fill(&q, 0x20);
+        CHECK(q.fix_any == 1);
+        (void)commit_all();
+        CHECK(q.fix_any == 0);
+        (void)total_cost();
+    }
+    /* budgeted commit with headroom: never fills the queue (the logic frame must not block), leftovers drain over frames */
+    vq_fix_fill(&q, 0x30);
+    {
+        int frames = 0, total = 0;
+        while (frames < 64) {
+            u16 before = vq_pending(&q);
+            CHECK(vq_fix_commit_room(&q, 128, 200));
+            CHECK(vq_pending(&q) <= VQ_CAP - 200 || vq_pending(&q) == before);
+            total += vq_pending(&q) - before;
+            (void)total_cost();
+            frames++;
+            if (vq_pending(&q) == 0 && total == VQ_FIX_COLS * VQ_FIX_ROWS) break;
+        }
+        CHECK(total == VQ_FIX_COLS * VQ_FIX_ROWS && frames == 10);
+    }
+    /* a queue already full to the reserve takes no cells and keeps the columns dirty */
+    vq_fix_fill(&q, 0x31);
+    for (u16 i = 0; i < 190; i++) vq_pal(&q, i, i);
+    CHECK(vq_fix_commit_room(&q, 128, 200) && vq_pending(&q) == 190); /* no room above the reserve */
+    (void)total_cost();
+    CHECK(vq_fix_commit_room(&q, 128, 200) && vq_pending(&q) == 128);
+    (void)total_cost();
+    (void)commit_all();
     /* font maps: plain, backed, tall (two rows), space and unknown are the blank tile 255 */
     vq_fix_fill(&q, FIXFONT_BLANK);
     (void)commit_all();
@@ -233,6 +294,12 @@ int main(void)
         CHECK(!VQ_RASTER_IN_VBLANK(0x10Fu << 7));          /* last vblank line: no margin left */
         CHECK(VQ_RASTER_IN_VBLANK(0x1F0u << 7) && VQ_RASTER_IN_VBLANK(0xF8u << 7));
     }
+    /* Fix commit budget by raster line: full early, shrinking late, none at the end line (arc-fix stage 1 entry). */
+    CHECK(vq_fix_line_budget(0x100u) == VQ_FIX_COMMIT_MAX);
+    CHECK(vq_fix_line_budget(0x120u) == VQ_FIX_COMMIT_MAX);
+    CHECK(vq_fix_line_budget(0x1C9u) == (VQ_FIX_LINE_END - 0x1C9u) * VQ_FIX_CELLS_PER_LINE);
+    CHECK(vq_fix_line_budget(VQ_FIX_LINE_END - 1u) == VQ_FIX_CELLS_PER_LINE);
+    CHECK(vq_fix_line_budget(VQ_FIX_LINE_END) == 0 && vq_fix_line_budget(0x1FFu) == 0);
 
     printf("%d checks, %d failed\n", checks, failures);
     return failures ? 1 : 0;

@@ -135,10 +135,10 @@ emu.register_frame_done(function()
   end
 
   if phase == "coin" then
-    -- one coin; the first Start press opens the title mode select, the second begins the game (BG4; tests/mame/start_seq.lua)
+    -- one coin; one Start press begins the game (BG4; tests/mame/start_seq.lua)
     if ss.step(n, state == FLOW_PLAYING) then
-      -- BG4 regression: one coin, the first Start only opens the select (credit still 1), the second begins play (credit 0)
-      local bad = ss.verdict(1, 1, 0)
+      -- B1b2 regression: one coin, the Start press is accepted and takes the credit (credit 0), later retry presses take no second credit (still 0)
+      local bad = ss.verdict(1, 0, 0)
       if bad then finish(false, bad) return end
       phase = "play"
     end

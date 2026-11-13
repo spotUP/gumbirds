@@ -129,7 +129,11 @@ void gfx_center_text(u8 y, u8 pal, const char *s) {
 
 void gfx_cls(void) { vq_fix_fill(&g_gfx_q, SROM_EMPTY_TILE); }
 
-void gfx_commit(void) { RETRY(vq_fix_commit(&g_gfx_q)); }
+void gfx_commit(void) {
+    u16 max = vq_fix_line_budget(VQ_RASTER_LINE(*REG_LSPCMODE)); /* a late heavy frame leaves cells dirty for the next one */
+    if (max) RETRY(vq_fix_commit_room(&g_gfx_q, max, VQ_FIX_RESERVE));
+}
+void gfx_commit_all(void) { RETRY(vq_fix_commit(&g_gfx_q)); }
 
 void gfx_sprite_block(u16 first, u8 cols, u8 rows, const u16 *tiles, u16 base, u16 attr, int left, int top) {
     gfx_sprite_strips(first, cols, rows, tiles, base, attr);

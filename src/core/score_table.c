@@ -46,10 +46,20 @@ static void trip_defaults(HiscoreTable *t)
     }
 }
 
+static void arcade_defaults(HiscoreTable *t)
+{
+    int i;
+    for (i = 0; i < HISCORE_ENTRIES; i++) {
+        copy(t->name[i], "ARCADE  ", HISCORE_NAME_LEN);
+        t->score[i] = SCORE_ARCADE_DEFAULT_TOP - (uint32_t)i * SCORE_ARCADE_DEFAULT_STEP;
+    }
+}
+
 void score_tables_defaults(ScoreTables *s)
 {
     hiscore_defaults(&s->t[0]);
     trip_defaults(&s->t[1]);
+    arcade_defaults(&s->t[2]);
 }
 
 static int table_valid(const HiscoreTable *t)
@@ -133,31 +143,43 @@ size_t score_serialise(const ScoreTables *s, uint8_t *buf, size_t cap)
     return SCORE_IMAGE_SIZE;
 }
 
-int score_load(ScoreTables *s, const uint8_t *buf, size_t len)
+/* Read modes tables from p, then check them. The modes after them keep the defaults. */
+static int read_tables(ScoreTables *s, const uint8_t *p, unsigned modes)
 {
     unsigned m;
     int i;
-    const uint8_t *p;
-    if (buf && len >= SCORE_IMAGE_SIZE && get32(buf) == HISCORE_MAGIC &&
-        (((uint32_t)buf[4] << 8) | buf[5]) == SCORE_VERSION &&
-        get32(buf + SCORE_IMAGE_SIZE - 4) == fnv1a(buf, SCORE_IMAGE_SIZE - 4)) {
-        p = buf + 6;
-        for (m = 0; m < SCORE_MODES; m++) {
-            for (i = 0; i < HISCORE_ENTRIES; i++) {
-                copy(s->t[m].name[i], p, HISCORE_NAME_LEN);
-                s->t[m].score[i] = get32(p + HISCORE_NAME_LEN);
-                p += HISCORE_NAME_LEN + 4;
-            }
+    score_tables_defaults(s);
+    for (m = 0; m < modes; m++) {
+        for (i = 0; i < HISCORE_ENTRIES; i++) {
+            copy(s->t[m].name[i], p, HISCORE_NAME_LEN);
+            s->t[m].score[i] = get32(p + HISCORE_NAME_LEN);
+            p += HISCORE_NAME_LEN + 4;
         }
-        if (score_tables_valid(s)) {
+    }
+    return score_tables_valid(s);
+}
+
+int score_load(ScoreTables *s, const uint8_t *buf, size_t len)
+{
+    unsigned ver = 0;
+    if (buf && len >= HISCORE_IMAGE_SIZE && get32(buf) == HISCORE_MAGIC) {
+        ver = ((uint32_t)buf[4] << 8) | buf[5];
+    }
+    if (ver == SCORE_VERSION && len >= SCORE_IMAGE_SIZE &&
+        get32(buf + SCORE_IMAGE_SIZE - 4) == fnv1a(buf, SCORE_IMAGE_SIZE - 4)) {
+        if (read_tables(s, buf + 6, SCORE_MODES)) {
             return 1;
         }
-    } else if (buf && len >= HISCORE_IMAGE_SIZE && get32(buf) == HISCORE_MAGIC &&
-               (((uint32_t)buf[4] << 8) | buf[5]) == HISCORE_VERSION) {
+    } else if (ver == SCORE_VERSION_2 && len >= SCORE_IMAGE_SIZE_2 &&
+               get32(buf + SCORE_IMAGE_SIZE_2 - 4) == fnv1a(buf, SCORE_IMAGE_SIZE_2 - 4)) {
+        if (read_tables(s, buf + 6, 2)) {
+            return 3;
+        }
+    } else if (ver == HISCORE_VERSION) {
         HiscoreTable v1;
         if (hiscore_load(&v1, buf, len) && table_valid(&v1)) {
+            score_tables_defaults(s);
             s->t[0] = v1;
-            trip_defaults(&s->t[1]);
             return 2;
         }
     }

@@ -12,7 +12,10 @@
  *            sprite list hold index 0, so it is drawn again after all others), which hid the ceiling, hero and islands there
  *   1..110   parallax background planes, one sprite per 16 px column, back to front (BG_*_SPRITE, widths from
  *            CITY_TABLE_PLANE_COLS): sky 20, far 21, mid A 22, mid B 23, near 24 sprites
- *   111..119 free (clouds and airship drift, BG-2)
+ *   111..112 the player's gum bubble (Gum Trip only, GUM_SPRITE, src/gum.c): 2 columns, drawn over the planes, under the islands
+ *   113..115 the splash of a flier falling into water or lava (SPLASH_SPRITE, src/splash.c): 3 columns, drawn BEHIND the islands, pool and
+ *            the hazard strip, so the liquid covers the splash base
+ *   116..119 free (clouds and airship drift, BG-2)
  *   120..160 floating islands (ISLAND_COUNT 41 = room for the stage platform columns, 22 in stage 1, and the Gum Trip islands): one sprite per column of each platform in
  *            stage table order, drawn by src/island.c; they sit below the pool so fliers draw in front
  *   161..256 object pool (POOL_SPRITE_COUNT = POOL_MAX x POOL_COLS, src/core/obj_pool.h): object i owns
@@ -44,6 +47,10 @@
 #define BG_NEAR_Y1 224
 #define BG_SPRITE_END (BG_NEAR_SPRITE + BG_NEAR_COUNT)
 #define BG_SPRITE_TOTAL (BG_SPRITE_END - BG_SKY_SPRITE) /* rows of the generated column tables; table index = slot - BG_SKY_SPRITE */
+#define GUM_SPRITE 111
+#define GUM_COUNT 2
+#define SPLASH_SPRITE 113
+#define SPLASH_COUNT 3
 #define ISLAND_SPRITE 120
 #define ISLAND_COUNT 41
 #define POOL_SPRITE_BASE 161
@@ -56,8 +63,23 @@
 #define FG_RAIN_COUNT 10
 #define FG_SPRAY_SPRITE 319
 #define FG_SPRAY_COUNT 4
+/* Arcade stage elements (src/core/arc_view.h): drawn in arcade mode only, in the rain and spray slots, which no code draws (the rain mood is
+   not built). The planned 261..308 is the hazard strip. 14 columns: the worst stage (R10) needs 13 for bodies; smoke and air particles are not drawn. */
+#define ARC_ELEM_SPRITE FG_RAIN_SPRITE
+#define ARC_ELEM_COUNT (FG_RAIN_COUNT + FG_SPRAY_COUNT)
 #define TRIP_STRIP_SPRITE 323 /* Gum Trip kill strips: 22 floor columns, then 22 ceiling columns (step V2) */
 #define TRIP_STRIP_COUNT 44
+/* The title shares the Gum Trip kill strip range: no strip is drawn on the title, and trip_strip_step rewrites every column's tiles,
+ * SCB3 and SCB4 on each Gum Trip entry (after its hide_all: g_key and g_x forgotten), so the logo leaves nothing stale. Asserted in
+ * src/logo.c; the title hides these slots (logo_hide) on every other state. 20 strips + up to 8 free pieces, then 2 title Sootlings x 2 columns. */
+#define LOGO_SPRITE TRIP_STRIP_SPRITE
+/* The arcade bonus stage bubbles share the range too (no Gum Trip strip is drawn in the arcade): 2 sprite columns per bubble, bubble i at
+ * ARC_BONUS_SPRITE + 2 * i. They are hidden (arcade_bonus_step in main.c) once when the bonus ends; Gum Trip entry rewrites every strip slot. */
+#define ARC_BONUS_SPRITE TRIP_STRIP_SPRITE
+#define ARC_BONUS_COUNT 40
+#define LOGO_COUNT 28
+#define TITLE_SOOT_SPRITE (LOGO_SPRITE + LOGO_COUNT)
+#define TITLE_SOOT_COUNT 4
 #define TRIP_PICKUP_SPRITE 367 /* Gum Trip pickups: 2 sprite columns per ring slot, 5 slots (step V3) */
 #define TRIP_PICKUP_COUNT 10
 #define SPRITE_SLOT_END 377

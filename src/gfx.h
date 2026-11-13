@@ -46,6 +46,7 @@ void gfx_text_tall(u8 x, u8 y, u8 pal, const char *s);
 void gfx_text_tall_backed(u8 x, u8 y, u8 pal, const char *s);
 void gfx_center_text(u8 y, u8 pal, const char *s);
 void gfx_cls(void);
+void gfx_commit_all(void);          /* commit every changed fix cell now (init and reset paths, outside the frame budget) */
 void gfx_commit(void);              /* fold the fix layer changes into the queue (end of the frame's logic) */
 void gfx_wait_vblank(void);         /* park until the next vblank; the vblank callback flushes the queue */
 void gfx_flush(void);               /* runs only from the vblank callback in gfx.c */

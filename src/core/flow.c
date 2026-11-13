@@ -11,8 +11,15 @@ static void enter(Flow *f, FlowState s)
 static void start_game(Flow *f, uint32_t seed, int demo)
 {
     game_reset(&f->game, seed);
-    game_set_mode(&f->game, demo ? GAME_MODE_ARENA : f->mode); /* the demo is always the arena */
+    if (demo) {
+        game_set_mode(&f->game, f->demo_mode); /* each demo plays the next mode; the title highlight (f->mode) is untouched */
+        f->demo_mode = (uint8_t)(f->demo_mode == GAME_MODE_ARCADE ? GAME_MODE_ARENA : f->demo_mode + 1); /* count and wrap, no % */
+    } else {
+        game_set_mode(&f->game, f->mode);
+    }
     f->demo = (uint8_t)demo;
+    f->demo_in = 0;
+    attract_overlay_reset(&f->ov);
     f->game.rounds = (uint8_t)(!demo && f->mode != GAME_MODE_TRIP); /* real arena games get the round end and round start phases */
     f->highlight = -1;
     f->new_row = -1;
@@ -27,6 +34,9 @@ void flow_init(Flow *f, const uint8_t *image, size_t len)
     f->highlight = -1;
     f->new_row = -1;
     f->demo = 0;
+    f->demo_mode = GAME_MODE_ARENA;
+    f->demo_in = 0;
+    attract_overlay_reset(&f->ov);
     f->select_open = 0;
     f->mode = GAME_MODE_ARENA;
     f->input_prev = 0;
@@ -83,13 +93,25 @@ static void title_reset_combo(Flow *f, uint8_t input)
     }
 }
 
-/* Title mode select: an up or down press edge toggles Arena / Gum Trip. A held stick does not repeat. */
+/* Title mode select: a press edge steps through Arena, Gum Trip, Arcade: Down forward, Up back, both wrap (both on one frame: forward). A held stick does not repeat. */
 static void title_mode_select(Flow *f, uint8_t input)
 {
     uint8_t edge = (uint8_t)(input & ~f->input_prev & (IN_UP | IN_DOWN));
     if (edge) {
-        f->mode = f->mode == GAME_MODE_TRIP ? GAME_MODE_ARENA : GAME_MODE_TRIP;
+        if (edge & IN_DOWN) f->mode = f->mode == GAME_MODE_ARCADE ? GAME_MODE_ARENA : (uint8_t)(f->mode + 1);
+        else f->mode = f->mode == GAME_MODE_ARENA ? GAME_MODE_ARCADE : (uint8_t)(f->mode - 1);
     }
+}
+
+/* A coin in any attract phase jumps to the title with the mode list open (the logo and the press start prompt). */
+void flow_coin(Flow *f)
+{
+    if (f->state > FLOW_ATTRACT_DEMO) return;
+    f->demo = 0;
+    f->highlight = -1;
+    f->select_open = 1;
+    if (f->state != FLOW_ATTRACT_TITLE) enter(f, FLOW_ATTRACT_TITLE);
+    else f->timer = 0;
 }
 
 void flow_step(Flow *f, uint8_t input, uint8_t start_pressed, uint32_t frame_counter)
@@ -97,14 +119,18 @@ void flow_step(Flow *f, uint8_t input, uint8_t start_pressed, uint32_t frame_cou
     if (f->timer < 0xFFFFu) {
         f->timer++;
     }
+    /* MB1/MB2: A is a second Start on the attract screens, B goes back to the title (press edges) */
+    uint8_t a_edge = (uint8_t)(input & ~f->input_prev & IN_A);
+    uint8_t b_edge = (uint8_t)(input & ~f->input_prev & IN_B);
     switch (f->state) {
     case FLOW_ATTRACT_TITLE:
         title_reset_combo(f, input);
         title_mode_select(f, input);
         if (start_pressed && (input & FLOW_RESET_COMBO) != FLOW_RESET_COMBO) {
-            /* BG4: the first start opens mode select, the second begins the game */
-            if (f->select_open) start_game(f, frame_counter, 0);
-            else { f->select_open = 1; f->timer = 0; }
+            /* start_pressed means a credit was taken: it always becomes a game, in the highlighted mode */
+            start_game(f, frame_counter, 0);
+        } else if (a_edge && (input & FLOW_RESET_COMBO) != FLOW_RESET_COMBO) {
+            if (!f->select_open) { f->select_open = 1; f->timer = 0; } /* A without a credit only opens the select */
         } else if (f->timer >= ATTRACT_TITLE_FRAMES) {
             f->reset_flash = 0;
             f->select_open = 0;
@@ -115,8 +141,11 @@ void flow_step(Flow *f, uint8_t input, uint8_t start_pressed, uint32_t frame_cou
     case FLOW_ATTRACT_TABLE:
         if (start_pressed) {
             f->highlight = -1;
+            start_game(f, frame_counter, 0);
+        } else if (a_edge || b_edge) {
+            f->highlight = -1;
             enter(f, FLOW_ATTRACT_TITLE);
-            f->select_open = 1;
+            f->select_open = !b_edge || a_edge;
         } else if (f->timer >= ATTRACT_TABLE_FRAMES) {
             f->highlight = -1;
             start_game(f, frame_counter, 1);
@@ -124,11 +153,15 @@ void flow_step(Flow *f, uint8_t input, uint8_t start_pressed, uint32_t frame_cou
         break;
     case FLOW_ATTRACT_DEMO:
         if (start_pressed) {
+            start_game(f, frame_counter, 0);
+        } else if (a_edge || b_edge) {
             f->demo = 0;
             enter(f, FLOW_ATTRACT_TITLE);
-            f->select_open = 1;
+            f->select_open = !b_edge || a_edge;
         } else {
-            game_step_arena(&f->game, demo_input(f));
+            f->demo_in = demo_input(f);
+            attract_overlay_step(&f->ov, f->demo_in);
+            game_step(&f->game, f->demo_in);
             /* The demo never scores into the table: it only ever returns to the title. */
             if (f->game.over || f->timer >= ATTRACT_DEMO_FRAMES) {
                 f->demo = 0;
@@ -155,7 +188,7 @@ void flow_step(Flow *f, uint8_t input, uint8_t start_pressed, uint32_t frame_cou
         }
         break;
     case FLOW_NAME_ENTRY:
-        nameentry_step(&f->entry, input);
+        nameentry_step(&f->entry, start_pressed ? (uint8_t)(input | IN_A) : input); /* NE1: Start confirms a letter like A */
         if (f->entry.done) {
             f->new_row = (int8_t)score_insert(&f->tables, f->last_mode, f->entry.name, f->last_score);
             f->highlight = f->new_row;
@@ -188,4 +221,5 @@ void flow_view(const Flow *f, FlowView *v)
     v->reset_flash = f->reset_flash;
     v->mode = f->mode;
     v->select_open = f->select_open;
+    v->ov_key = f->ov.key;
 }

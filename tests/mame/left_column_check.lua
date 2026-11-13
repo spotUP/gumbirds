@@ -111,7 +111,7 @@ emu.register_frame_done(function() local ok_, err_ = pcall(function()
   if state ~= FLOW_PLAYING then finish(false, "left PLAYING in case " .. ci) return end
   playing = n - pa
   -- keep the flier up: with gravity it would fall into the water and the flow would leave PLAYING. One flap every 16 frames gains
-  -- height (impulse 40960 against 16 * 2048 of gravity), the 9 frame cooldown is respected.
+  -- height (impulse 47104 against 16 * 2048 of gravity), the 9 frame cooldown is respected.
   if abtn then abtn:set_value((playing % 16) < 2 and 1 or 0) end
   -- invariant: slot 0 has no height on every checked PLAYING frame
   local w3 = vram[0x8200] or 0

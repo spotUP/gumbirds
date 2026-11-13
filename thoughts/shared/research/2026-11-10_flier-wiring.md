@@ -10,7 +10,7 @@ Runner hero replaced by the flier core (src/core/flier.[ch]) in PLAYING. Spec: 2
 
 ## Changed per file
 - src/core/tuning.h: STAGE_PLATFORM_COUNT 8, STAGE_PLATFORM_H 8, FLIER_START_X 160, FLIER_START_Y 120, FLIER_START_BALLOONS 2.
-- src/core/stage.[ch] (new): const table `stage_platforms[8]`, `stage_floor_y(x16, feet16)` (highest platform top at or below the feet overlapping x +- FLIER_HALF_W, else FLIER_NO_FLOOR; solid from above only).
+- src/core/stage.[ch] (new): const table `stage_platforms[8]`, `stage_floor_y(x16, feet16)` (highest platform top at or below the feet overlapping x +- FLIER_HALF_W, else FLIER_NO_FLOOR; solid from above only). Update 2026-11-11: the platform body is also solid; stage_solids_near + flier_collide_solids bounce a flier off undersides and sides, stage_floor_y stays the floor line only.
 - src/core/game.[ch]: Game gains `Flier flier; uint32_t flier_steps` (the sentinel). game_reset inits the flier (no parachute). New `game_step_arena`: A = flap, left/right = dir, `flier_step` with the stage floor, `flier_steps++`; over when state >= DROWNED (DROWNED or GONE); score = survival distance + bonus. Old runner `game_step` kept for legacy host tests.
 - src/core/flow.c: demo and PLAYING call game_step_arena.
 - src/main.c: hero sprite follows the flier (runner frames as placeholder; hidden when GONE or below screen); one OB_VENT pool object per platform (`pool_sync_stage`); lasers hidden in play; HUD "Balloons N" (fix layer); city stays still (bg_update(0, ...)).

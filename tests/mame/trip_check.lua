@@ -53,6 +53,7 @@ local STRIPDRAWS_ADDR = tonumber(os.getenv("BRAWL_STRIPDRAWS_ADDR"), 16)   -- g_
 local MAX_HOLD = 3
 local MODE_TRIP = 1
 local MIN_PLAYING = 400
+SPLASH_T = { live = 0 }   -- Gum Trip floor death splash check (phase done)
 local MAX_MISSED = 0
 local mem    = manager.machine.devices[":maincpu"].spaces["program"]
 local screen = manager.machine.screens[":screen"]
@@ -93,7 +94,7 @@ local vram, vaddr, vmod = {}, 0, 1   -- shadow of the sprite control RAM, rebuil
 -- of the writes, the model value g_last_us, words per vq_probe bucket, binned by Trip.steps & 3 read at the tap that opened the flush.
 -- Optional env: BRAWL_LASTUS_ADDR (g_last_us), BRAWL_VQ_LAYOUT (vq_probe.c); without them the probe is off.
 local PF = { lastus = tonumber(os.getenv("BRAWL_LASTUS_ADDR") or "", 16), vq = nums("BRAWL_VQ_LAYOUT"), n = 0, steps = nil,
-  words = 0, t0 = nil, t1 = nil, buckets = {}, bins = {}, measured = 0, skipped = 0, late = 0, first_ts = nil, max = nil, dmin = nil, prev_t = nil, off64 = 0 }
+  words = 0, t0 = nil, t1 = nil, buckets = {}, bins = {}, measured = 0, skipped = 0, late = 0, first_ts = nil, max = nil, dmin = nil, prev_t = nil, off64 = 0, over = 0, worst = 0 }
 PF.on = PF.lastus ~= nil and #PF.vq == 24
 PF.names, PF.slot = { "unowned" }, {}
 function PF.range(name, a, b) PF.names[#PF.names + 1] = name; for s = a, b - 1 do PF.slot[s] = #PF.names end end
@@ -134,6 +135,7 @@ function PF.close(late)   -- called at a logic-end tap; closes the flush opened 
       if PF.words > bin.wmax then bin.wmax = PF.words end
       for k, v in pairs(PF.buckets) do bin.bsum[k] = (bin.bsum[k] or 0) + v end
       PF.measured = PF.measured + 1
+      if span > model * 1.03 + 70 then PF.over = PF.over + 1; PF.worst = math.max(PF.worst, span - model * 1.03 - 70) end   -- modeled cost must not undercut the measured span
       if not PF.max or span > PF.max.span then PF.max = { span = span, model = model, n = PF.n, steps = PF.steps, words = PF.words, buckets = PF.buckets } end
     end
   end
@@ -143,11 +145,11 @@ function PF.row(b, div) local t = {} for k, v in pairs(b) do t[#t + 1] = string.
 PF_FIRST_TS_LIMIT, PF_SPAN_LIMIT = 88, 2000   -- limits: SCB words of the first Trip frame (was 88 before trip_strip_init), GFX_FLUSH_BUDGET_US
 function PF.ok()
   if not PF.on then return true end
-  return PF.first_ts ~= nil and PF.first_ts < PF_FIRST_TS_LIMIT and PF.max ~= nil and PF.max.span <= PF_SPAN_LIMIT
+  return PF.first_ts ~= nil and PF.first_ts < PF_FIRST_TS_LIMIT and PF.max ~= nil and PF.max.span <= PF_SPAN_LIMIT and PF.over == 0
 end
 function PF.report()
   if not PF.on then return "; TRIP_FLUSH off (BRAWL_LASTUS_ADDR / BRAWL_VQ_LAYOUT missing)" end
-  local o = { string.format("; TRIP_FLUSH measured %d skipped %d late %d, first Trip frame trip_strip/scb words %s (want < %d), max span %.0f us (want <= %d), smallest nonzero gap between write times %.3f us, spans not a multiple of 64 us: %d", PF.measured, PF.skipped, PF.late, tostring(PF.first_ts), PF_FIRST_TS_LIMIT, PF.max and PF.max.span or -1, PF_SPAN_LIMIT, (PF.dmin or 0) * 1e6, PF.off64) }
+  local o = { string.format("; TRIP_FLUSH measured %d skipped %d late %d, first Trip frame trip_strip/scb words %s (want < %d), max span %.0f us (want <= %d), smallest nonzero gap between write times %.3f us, spans not a multiple of 64 us: %d, flushes with span > model*1.03+70: %d (worst excess %.0f us)", PF.measured, PF.skipped, PF.late, tostring(PF.first_ts), PF_FIRST_TS_LIMIT, PF.max and PF.max.span or -1, PF_SPAN_LIMIT, (PF.dmin or 0) * 1e6, PF.off64, PF.over, PF.worst) }
   for b = 0, 3 do local x = PF.bins[b]; if x then
     o[#o + 1] = string.format("; TRIP_FLUSH steps&3=%d: count %d, span mean %.0f max %.0f us, model mean %.0f max %d us, words max %d, mean words per bucket: %s", b, x.n, x.span / x.n, x.smax, x.model / x.n, x.mmax, x.wmax, PF.row(x.bsum, x.n))
   end end
@@ -309,6 +311,8 @@ function LN.count(frame)
   LN.frame_worst = 0
   for y = 0, 223 do
     if tot[y] > LN.frame_worst then LN.frame_worst = tot[y] end
+    local gp = per[4][y] + per[5][y] + per[6][y]   -- the gameplay budget row (pool + hero, 161..259) on one line, against SB_GAMEPLAY_PER_LINE
+    if gp > (LN.gp_max or 0) then LN.gp_max = gp end
     if tot_scr[y] > line_worst.screen then line_worst.screen = tot_scr[y] end
     if tot[y] > line_worst.v then
       line_worst.v, line_worst.y, line_worst.frame = tot[y], y, frame
@@ -356,7 +360,7 @@ end
 function LN.message(kinds)
   local parts = {}
   for i, r in ipairs(LINE_RANGES) do parts[#parts + 1] = string.format("%s %d (alone max %d)", r[1], line_worst.split[i] or 0, line_class[r[1]]) end
-  return string.format("; ROM sprites per line (printed, not asserted): worst %d (every sprite with height > 0) at line %d, PLAYING frame %d of %d counted; worst counting only sprites on screen in x %d; split %s; hazard kinds seen on screen %s; hardware limit 96, SB_LIMIT 90",
+  return string.format("; gameplay range (pool + hero) per line max %d (printed; SB_GAMEPLAY_PER_LINE)", LN.gp_max or 0) .. string.format("; ROM sprites per line (printed, not asserted): worst %d (every sprite with height > 0) at line %d, PLAYING frame %d of %d counted; worst counting only sprites on screen in x %d; split %s; hazard kinds seen on screen %s; hardware limit 96, SB_LIMIT 90",
     line_worst.v, line_worst.y, line_worst.frame, line_frames, line_worst.screen, table.concat(parts, ", "), kinds)
 end
 -- Gum Trip rivals (tests/mame/rival_probe.c layout, BRAWL_RIVAL_LAYOUT): all state in HZ.rv (the main chunk is at the 200 locals limit).
@@ -630,6 +634,7 @@ local function pickup_compare(want)
 end
 
 local strip_checked, strip_vis, strip_bad, strip_first, strip_hold_vis, tile_bad, tile_first, speed_bad, speed_first = 0, 0, 0, nil, 0, 0, nil, 0, nil
+STRIP_X = { bad = 0, ok = 0 }  -- global: the main chunk is at the 200 local limit;  -- visible strip sprites off / on the world column grid
 local rim_group = {}   -- rim role (A: j&3 is 0 or 3, B: 1 or 2) -> tile group (tile & ~7) seen first, later ones must match
 local fill_tile = nil
 local strip_started, strip_settle = false, 0   -- frames between the course being ready and the first visible strip column
@@ -650,6 +655,7 @@ local function strip_compare(want, wpx)
       got[key] = (got[key] or 0) + 1
       strip_vis = strip_vis + 1
       local j = (x + wpx) // 16
+      if (x + wpx) & 15 ~= 0 then STRIP_X.bad = STRIP_X.bad + 1 else STRIP_X.ok = STRIP_X.ok + 1 end   -- a visible column sits on a 16 px world grid at the current scroll
       local m = j & 3
       local role = (m == 0 or m == 3) and "A" or "B"
       for r = 0, rows - 1 do
@@ -702,9 +708,8 @@ emu.register_frame_done(function() local ok_, err_ = pcall(function()
     -- hazards (from TRIP_DENSITY_START_PX) only appear for some seeds within the run. Pressing Start at a fixed g_frame_counter
     -- value instead of a fixed MAME frame makes the course independent of the boot length, which any ROM change shifts
     -- (thoughts/spot/2026-11-11-test-trip-hazard-failure.md).
-    -- BG4 title mode select (src/core/flow.c:104-107): the first Start only opens the select (tapped here after Down), the second begins play.
-    if n == phase_at + 12 then start:set_value(1) end
-    if n == phase_at + 16 then start:set_value(0) end
+    -- Coin item (2026-11-13): with a credit ONE Start begins the highlighted mode, so no Start tap before the pinned frame
+    -- (the old select-opening tap started the run about 110 frames early and the pin below passed on a run already under way).
     if n >= phase_at + 24 then
       local fc = mem:read_u32(frame_addr)
       if fc > HZ.START_FC then finish(false, string.format("title reached at g_frame_counter %d, after the pinned Start frame %d: raise HZ.START_FC", fc, HZ.START_FC)) return end
@@ -714,7 +719,8 @@ emu.register_frame_done(function() local ok_, err_ = pcall(function()
   elseif phase == "start" then
     if state ~= 3 then return end
     start:set_value(0); phase = "play"; phase_at = n; counting = true
-    -- the flow step that saw Start ran with g_frame_counter == HZ.START_FC (the seed), so PLAYING is first read at that value
+    -- the flow step that sees the Start set at START_FC enters PLAYING with g_frame_counter still START_FC (the seed is that
+    -- counter value; no symbol exposes the seed itself), so the first PLAYING read is exactly START_FC
     local sfc = mem:read_u32(frame_addr)
     if sfc ~= HZ.START_FC then finish(false, string.format("course seed not pinned: PLAYING first read at g_frame_counter %d, want %d (HZ.START_FC)", sfc, HZ.START_FC)) end
     return
@@ -820,6 +826,22 @@ emu.register_frame_done(function() local ok_, err_ = pcall(function()
     -- hazards only start after TRIP_DENSITY_START_PX (600) of distance, so play on until 60 hazard sightings are compared (or 1700 frames)
     if playing >= MIN_PLAYING + 100 and ((hz_vis >= 60 and HZ.rv.pop_ok ~= nil) or playing >= 1700) then phase = "done" end
   end
+  if phase == "done" and not SPLASH_T.over then
+    -- Gum Trip has no liquid: a flier dying at the floor must not start the arena splash (SPLASH_SPRITE 113..115, src/main.c splash_enabled)
+    if SPLASH_T.k == nil then
+      if state ~= 3 then finish(false, "trip splash check: not PLAYING when the floor death was due") return end
+      mem:write_u32(flow_addr + O_FY, 215 * 65536); mem:write_u32(flow_addr + flay[9], 0)   -- below the lowest kill line (HAZARD_KILL_WATER 208)
+      SPLASH_T.k = 0
+    end
+    SPLASH_T.k = SPLASH_T.k + 1
+    if SPLASH_T.k >= 4 and mem:read_u8(flow_addr + flay[10]) ~= 3 and SPLASH_T.k < 8 then finish(false, "trip splash check: flier not DROWNED after the poke below the kill line") return end
+    for s_ = 113, 115 do if ((vram[0x8200 + s_] or 0) & 0x3f) ~= 0 then SPLASH_T.live = SPLASH_T.live + 1 end end
+    if SPLASH_T.k >= 40 then
+      if SPLASH_T.live ~= 0 then finish(false, string.format("a splash sprite was live in %d slot-frames after a Gum Trip floor death (want 0, no liquid)", SPLASH_T.live)) return end
+      SPLASH_T.over = true
+    end
+    return
+  end
   if phase == "done" then
     local pk_anim_n = 0
     for _ in pairs(pk_anim) do pk_anim_n = pk_anim_n + 1 end
@@ -849,7 +871,7 @@ emu.register_frame_done(function() local ok_, err_ = pcall(function()
     local ok = mode_bad == 0 and grow_bad == 0 and ramp_bad == 0 and cam_bad == 0 and max_still <= 1 and travel_ok
       and off_screen == 0 and missed <= MAX_MISSED and steps_bad == 0 and logic_end < 224 and playing >= MIN_PLAYING
       and hold_bad == 0 and hold_frames >= 1 and hold_frames <= MAX_HOLD
-      and strip_bad == 0 and strip_settle <= MAX_SETTLE and strip_checked >= 400 and strip_vis >= 4000 and tile_bad == 0 and strip_hold_vis == 0 and speed_bad == 0 and (strip1 - strip0) % 65536 >= 100 and isl_bad == 0 and isl_vis >= 20 and (draws1 - draws0) % 65536 >= 100 and arena1 == arena0
+      and strip_bad == 0 and STRIP_X.bad == 0 and STRIP_X.ok > 0 and strip_settle <= MAX_SETTLE and strip_checked >= 400 and strip_vis >= 4000 and tile_bad == 0 and strip_hold_vis == 0 and speed_bad == 0 and (strip1 - strip0) % 65536 >= 100 and isl_bad == 0 and isl_vis >= 20 and (draws1 - draws0) % 65536 >= 100 and arena1 == arena0
     finish(ok, string.format("trip: PLAYING frames %d, mode not TRIP %d (want 0), distance growth outside speed %d (want 0, first: %s), first growth %s (want %d..%d) or a falling growth: %d of %d bad (want 0), camera step >1: %d (first: %s), longest still camera run %d (want <= 1), camera travel %d vs distance %.1f px, flier screen x %d..%d (want 0..%d), off screen %d (first: %s), frames without a game step %d (want %d), Trip.steps off %d (want 0), logic end max %.1f lines after vblank end (want < 224; hold max %.1f at %s; first %d frames after ready max %.1f at %s; steady max %.1f at %s), hold frames %d (want 1..%d, nothing moved but one chunk built: bad %d, want 0), max VRAM data words per frame %d, vblank %.0f lines, island slots checked %d (generated island columns expected on screen: %d, want >= 20), bad %d (want 0; first: %s), g_island_trip_draws +%d (want >= 100), g_island_draws +%d (arena island code, want 0), kill strips: frames compared %d, frames from ready to the first visible column %d (want <= %d), visible strip columns seen %d (want >= 4000), frames whose columns differ from the spec %d (want 0; first: %s), tile errors %d (want 0; first: %s), strip sprites visible in the hold %d (want 0), auto-animation speed errors %d (want 0; first: %s; register reads %s, want %d), g_trip_strip_draws +%d (want >= 100)",
       playing, mode_bad, grow_bad, tostring(first_grow), tostring(first_g), SPEED_MIN, SPEED_MIN + 64, ramp_bad, ramp_checked, cam_bad, tostring(first_cam), max_still,
       cam_total, dist_total / 65536, min_sx, max_sx, SCREEN_W - 1, off_screen, tostring(first_off), missed, MAX_MISSED, steps_bad, logic_end, cat_max.hold, tostring(cat_at.hold), EARLY_FRAMES, cat_max.early, tostring(cat_at.early), cat_max.steady, tostring(cat_at.steady), hold_frames, MAX_HOLD, hold_bad, max_words, VB_LEN_S / LINE_S,

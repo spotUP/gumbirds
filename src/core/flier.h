@@ -92,6 +92,7 @@ typedef struct {
     uint8_t flap_cd;     /* frames until the next flap is allowed (FLIER_FLAP_COOLDOWN after a flap or ground jump) */
     uint8_t has_parachute;
     uint8_t sway_tick;
+    uint8_t liquid_hit;  /* 1 on the one step a dead FALLING body's feet cross the kill line (not spikes): the splash/sound signal, same as the DROWNED edge */
     uint8_t flapped;     /* 1 on the frame a flap impulse or ground jump was applied (view only, never read by the physics) */
     uint8_t facing;      /* 1 = right, 0 = left: the last non-zero input dir (view only, never read by the physics) */
     uint8_t no_wrap;     /* 1 = the side edges do not wrap (Gum Trip: the caller clamps x). 0 in the arena. */

@@ -1,0 +1,29 @@
+{
+ "frame_w": 48,
+ "frame_h": 48,
+ "frames": 12,
+ "anchor_x": 24,
+ "surface_row": 42,
+ "base_row": 47,
+ "note": "one row of frames; colour 0 transparent; cell left = entry x - anchor_x, cell top = surface screen line - surface_row (water 204 - 42 = 162, lava 202 - 42 = 160). Draw the splash BEHIND the liquid sprites: rows surface_row..base_row are solid body colour with no waterline, the liquid covers them",
+ "liquids": {
+  "water": {
+   "file": "splash_water_1x.png",
+   "ticks_per_frame": 3,
+   "cell_top_screen_y": 162,
+   "palette": "hazard palette of water (all 10 colours used are in it)"
+  },
+  "lava": {
+   "file": "splash_lava_1x.png",
+   "ticks_per_frame": 4,
+   "cell_top_screen_y": 160,
+   "palette": "hazard palette of lava (all 10 colours used are in it)"
+  },
+  "gum": {
+   "file": "splash_gum_1x.png",
+   "ticks_per_frame": 4,
+   "palette": "the Gum Trip strip palette (assets/tripstrip/tripstrip_sheet.json palettes.gum), same 10 colours in the same index order; pass it as meta palettes.gum so the splat palette equals the strip palette. Draw script: assets/splash/gum_splat_src/draw_gum_splat_B3.py",
+   "note": "cell top = Gum Trip floor surface screen line - 42; floor line to be set by the wiring (see thoughts/spot/2026-11-13-gum-splat-wire.md)"
+  }
+ }
+}

@@ -13,11 +13,28 @@ typedef struct {
     int16_t x, y, w, h; /* world pixels; y is the top (the floor the flier stands on) */
 } StagePlatform;
 
-extern const StagePlatform stage_platforms[STAGE_PLATFORM_COUNT];
+/* The current layout (stage_select copies it in from the const layout table; game_reset selects 0 before first use). */
+extern StagePlatform stage_platforms[STAGE_PLATFORM_COUNT];
 
 /* Computer flier spawn points (world pixels, flier centre), each just above a platform top. */
 typedef struct { int16_t x, y; } StageSpawn;
-extern const StageSpawn stage_spawns[STAGE_SPAWN_COUNT];
+extern StageSpawn stage_spawns[STAGE_SPAWN_COUNT];
+
+/* Layout table: a real game's round n plays layout (n - 1) mod stage_layout_count() (game.c match_start); game_reset selects 0. */
+int stage_layout_count(void);
+int stage_layout_index(void);
+void stage_select(int i);
+/* Island look (art set): roof, garden, deck by level modulo 3. level is 0 based (arena: matches won; arcade: stage - 1).
+ * stage_set_level picks the look once, at the round start (no division per frame); stage_look reads it. Gum Trip draws the roof look. */
+#define STAGE_LOOK_ROOF 0
+#define STAGE_LOOK_GARDEN 1
+#define STAGE_LOOK_DECK 2
+#define STAGE_LOOK_COUNT 3
+int stage_look_for_level(int level);
+void stage_set_level(int level);
+int stage_look(void);
+/* Rivals of the current layout (arcade): the first stage_rival_count() entries of stage_spawns are filled, 3 to STAGE_SPAWN_COUNT. */
+int stage_rival_count(void);
 
 /*
  * Floor for flier_step: the top (16.16) of the highest platform that lies at or below the flier feet (feet16, 16.16)

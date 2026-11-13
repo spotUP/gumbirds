@@ -244,6 +244,7 @@ int flier_collide_solids(Flier *f, int32_t prev_x, int32_t prev_y, const FlierSo
 
 void flier_step(Flier *f, const FlierInput *in, int32_t floor_y) {
     f->flapped = 0;
+    f->liquid_hit = 0;
     uint8_t edge = (uint8_t)(in->flap && !f->flap_prev);
     f->flap_prev = in->flap ? 1 : 0;
     if (in->dir) f->facing = in->dir > 0;
@@ -260,7 +261,9 @@ void flier_step(Flier *f, const FlierInput *in, int32_t floor_y) {
         f->vy += FLIER_GRAVITY_NO_BALLOON;
         if (f->vy > FLIER_FALL_MAX_NO_BALLOON) f->vy = FLIER_FALL_MAX_NO_BALLOON;
         f->x = f->no_wrap ? f->x + f->vx : arena_wrap_x(f->x + f->vx);
+        int32_t feet_before = f->y + hh;
         f->y += f->vy;
+        if (!f->solid_kill && f->state == FLIER_FALLING && feet_before < f->kill_y && f->y + hh >= f->kill_y) f->liquid_hit = 1;
         if (f->solid_kill && !f->bounced && f->vy > 0 && f->y + hh >= f->kill_y) { /* spike tips: one bounce, then it falls on */
             f->y = f->kill_y - hh;
             spike_bounce(f);

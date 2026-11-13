@@ -162,7 +162,7 @@ local function find_row(mode, name, score)
 end
 
 local function coin_start()
-  coin:set_value(1); wait(15); coin:set_value(0); wait(15) -- one coin: the first Start press opens the title mode select (no credit), the second begins play (BG4)
+  coin:set_value(1); wait(15); coin:set_value(0); wait(15) -- one coin: one Start press takes the credit and begins play (BG4)
   until_(function() press(start); return g8(O_STATE) == S_PLAYING end, 60, "PLAYING after Start")
 end
 -- play a run to GAME_OVER through input only; return when NAME_ENTRY is up.

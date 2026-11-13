@@ -1,7 +1,7 @@
 -- Round clear banner sentinels (make test-banner). Sentinels g_banner_calls / g_banner_cells (src/main.c draw()):
 --   1. attract (title, table, then one whole demo phase): g_banner_calls stays 0 (the demo shows no banner, user decision);
 --      whether the demo itself reached round_end == RE_HOLD is reported (a demo that never does leaves the check weaker).
---   2. real game (coin, two Starts via start_seq.lua): a round won by RAM poke (round_skip.lua) enters RE_HOLD; during
+--   2. real game (coin, one Start via start_seq.lua): a round won by RAM poke (round_skip.lua) enters RE_HOLD; during
 --      the hold calls and cells rise above 0; after the hold both counters stop rising within BANNER_SETTLE frames.
 -- Env: BRAWL_FLOW_ADDR, BRAWL_FRAME_ADDR, BRAWL_CALLS_ADDR, BRAWL_CELLS_ADDR, BRAWL_RE_ADDR, BRAWL_FLIER_LAYOUT, BRAWL_RESULT.
 local function hex(name) return tonumber(os.getenv(name) or "", 16) end

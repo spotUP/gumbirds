@@ -17,3 +17,27 @@
     channel: 1
     name: coin
     uri: file://build/sound/sfx/coin.wav
+- adpcm_a:
+    channel: 3
+    name: die
+    uri: file://build/sound/sfx/die.wav
+- adpcm_a:
+    channel: 6
+    name: fall
+    uri: file://build/sound/sfx/fall.wav
+- adpcm_a:
+    channel: 1
+    name: splosh
+    uri: file://build/sound/sfx/splosh.wav
+- adpcm_a:
+    channel: 1
+    name: spike
+    uri: file://build/sound/sfx/spike.wav
+- adpcm_a:
+    channel: 1
+    name: sizzle
+    uri: file://build/sound/sfx/sizzle.wav
+- adpcm_a:
+    channel: 2
+    name: pop
+    uri: file://build/sound/sfx/pop.wav

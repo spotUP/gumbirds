@@ -6,7 +6,7 @@
  * entry already exists in flow.c), so hiscore_insert / hiscore_defaults are reused, not
  * duplicated. Link hiscore.c with score_table.c.
  *
- * Backup RAM image v2, big endian (explicit, like hiscore.h):
+ * Backup RAM image v3 (v2 = first two tables, 250 bytes, still loads), big endian (explicit, like hiscore.h):
  *   offset  size  field
  *      0     4    magic 'R' 'O' 'O' 'F' (HISCORE_MAGIC, same as v1)
  *      4     2    version (2)
@@ -24,10 +24,14 @@
 #include "hiscore.h"
 #include "tuning.h"
 
-#define SCORE_MODES 2u           /* index = GameMode: 0 arena, 1 trip */
+#define SCORE_MODES 3u           /* index = GameMode: 0 arena, 1 trip, 2 arcade */
 #define SCORE_CAP 999999u        /* display fact (6 digits): clamp, never wrap */
-#define SCORE_VERSION 2u
-#define SCORE_IMAGE_SIZE 250u
+#define SCORE_VERSION 3u
+#define SCORE_IMAGE_SIZE 370u
+#define SCORE_VERSION_2 2u        /* load path only: arena + trip, 250 bytes */
+#define SCORE_IMAGE_SIZE_2 250u
+#define SCORE_ARCADE_DEFAULT_TOP 10000u
+#define SCORE_ARCADE_DEFAULT_STEP 1000u
 
 /* Trip default rows (agent default): 3000 down to 300 in steps of 300, name "GUMTRIP",
  * lower than the arena defaults so the first run ranks. */
@@ -57,7 +61,7 @@ int score_insert(ScoreTables *s, unsigned mode, const char *name, uint32_t score
 int score_entry(const ScoreTables *s, unsigned mode, unsigned row, char *name8, uint32_t *score);
 
 /* Image round trip. Serialise returns SCORE_IMAGE_SIZE or 0 when cap is too small.
- * Load returns 1 (valid v2), 2 (valid v1: arena from the image, trip defaults) or 0 (anything
+ * Load returns 1 (valid v3), 3 (valid v2: arena + trip, arcade defaults), 2 (valid v1: arena from the image, others defaults) or 0 (anything
  * else, including a corrupt block or unsorted rows: both tables set to defaults). */
 size_t score_serialise(const ScoreTables *s, uint8_t *buf, size_t cap);
 int score_load(ScoreTables *s, const uint8_t *buf, size_t len);

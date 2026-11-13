@@ -7,7 +7,7 @@ ROOT=$(cd "$HERE/../.." && pwd)
 OUT=${BRAWL_TEST_OUT:-$ROOT/build/test-host}
 mkdir -p "$OUT"
 CC="nice -n 19 clang -I $ROOT/build -std=c99 -Wall -Wextra -Werror -pedantic"
-SRC="$ROOT/src/core/rng.c $ROOT/src/core/game.c $ROOT/src/core/hiscore.c $ROOT/src/core/nameentry.c $ROOT/src/core/flow.c $ROOT/src/core/obstacle_view.c $ROOT/src/core/bg_scroll.c $ROOT/src/core/vram_queue.c $ROOT/src/core/obj_pool.c $ROOT/src/core/sound_queue.c $ROOT/src/core/sound_events.c $ROOT/src/core/flier.c $ROOT/src/core/stage.c $ROOT/src/core/island_layout.c $ROOT/src/core/ai.c $ROOT/src/core/flier_view.c $ROOT/src/core/sprite_budget.c $ROOT/src/core/camera.c $ROOT/src/core/trip.c $ROOT/src/core/trip_gen.c $ROOT/src/core/trip_hit.c $ROOT/src/core/trip_rival.c $ROOT/src/core/score_table.c $ROOT/src/core/trip_view.c $ROOT/src/core/trip_pickup_fx.c $ROOT/src/core/banner.c"
+SRC="$ROOT/src/core/rng.c $ROOT/src/core/game.c $ROOT/src/core/hiscore.c $ROOT/src/core/nameentry.c $ROOT/src/core/flow.c $ROOT/src/core/obstacle_view.c $ROOT/src/core/bg_scroll.c $ROOT/src/core/vram_queue.c $ROOT/src/core/obj_pool.c $ROOT/src/core/sound_queue.c $ROOT/src/core/sound_events.c $ROOT/src/core/flier.c $ROOT/src/core/stage.c $ROOT/src/core/island_layout.c $ROOT/src/core/ai.c $ROOT/src/core/flier_view.c $ROOT/src/core/sprite_budget.c $ROOT/src/core/camera.c $ROOT/src/core/trip.c $ROOT/src/core/trip_gen.c $ROOT/src/core/trip_hit.c $ROOT/src/core/trip_rival.c $ROOT/src/core/score_table.c $ROOT/src/core/trip_view.c $ROOT/src/core/trip_pickup_fx.c $ROOT/src/core/banner.c $ROOT/src/core/gum_view.c $ROOT/src/core/splash_view.c $ROOT/src/core/arcade.c $ROOT/src/core/arc_elements.c $ROOT/src/core/arc_view.c $ROOT/src/core/attract_overlay.c"
 fail=0
 # test_flier_view reads the generated Sootling tables
 (cd "$ROOT" && gmake -s build/gen/sootling_tables.h build/gen/city_tables.h build/gen/island_tables.h build/gen/fix_font.h >"$OUT/gen.log" 2>&1) || { echo "[ERROR] gen sootling_tables.h failed"; tail -n 5 "$OUT/gen.log"; exit 1; }
@@ -50,6 +50,21 @@ tail -n 1 "$OUT/test_flier.log"; grep FAIL "$OUT/test_flier.log" | head -n 10
 $CC -o "$OUT/test_stage" "$HERE/test_stage.c" $SRC -lm >"$OUT/build.log" 2>&1 || { echo "[ERROR] stage build failed"; tail -n 20 "$OUT/build.log"; exit 1; }
 nice -n 19 "$OUT/test_stage" >"$OUT/test_stage.log" 2>&1 || fail=1
 tail -n 1 "$OUT/test_stage.log"; grep FAIL "$OUT/test_stage.log" | head -n 10
+$CC -o "$OUT/test_attract_overlay" "$HERE/test_attract_overlay.c" $SRC >"$OUT/build.log" 2>&1 || { echo "[ERROR] attract_overlay build failed"; tail -n 20 "$OUT/build.log"; exit 1; }
+nice -n 19 "$OUT/test_attract_overlay" >"$OUT/test_attract_overlay.log" 2>&1 || fail=1
+tail -n 1 "$OUT/test_attract_overlay.log"; grep FAIL "$OUT/test_attract_overlay.log" | head -n 10
+$CC -o "$OUT/test_arcade" "$HERE/test_arcade.c" "$ROOT/src/core/arcade.c" "$ROOT/src/core/rng.c" -lm >"$OUT/build.log" 2>&1 || { echo "[ERROR] arcade build failed"; tail -n 20 "$OUT/build.log"; exit 1; }
+nice -n 19 "$OUT/test_arcade" >"$OUT/test_arcade.log" 2>&1 || fail=1
+tail -n 1 "$OUT/test_arcade.log"; grep FAIL "$OUT/test_arcade.log" | head -n 10
+$CC -o "$OUT/test_arc_elements" "$HERE/test_arc_elements.c" "$ROOT/src/core/arc_elements.c" -lm >"$OUT/build.log" 2>&1 || { echo "[ERROR] arc_elements build failed"; tail -n 20 "$OUT/build.log"; exit 1; }
+nice -n 19 "$OUT/test_arc_elements" >"$OUT/test_arc_elements.log" 2>&1 || fail=1
+tail -n 1 "$OUT/test_arc_elements.log"; grep FAIL "$OUT/test_arc_elements.log" | head -n 10
+$CC -o "$OUT/test_arcade_game" "$HERE/test_arcade_game.c" $SRC -lm >"$OUT/build.log" 2>&1 || { echo "[ERROR] arcade_game build failed"; tail -n 20 "$OUT/build.log"; exit 1; }
+nice -n 19 "$OUT/test_arcade_game" >"$OUT/test_arcade_game.log" 2>&1 || fail=1
+tail -n 1 "$OUT/test_arcade_game.log"; grep FAIL "$OUT/test_arcade_game.log" | head -n 10
+$CC -o "$OUT/test_arc_gap" "$HERE/test_arc_gap.c" $SRC -lm >"$OUT/build.log" 2>&1 || { echo "[ERROR] arc_gap build failed"; tail -n 20 "$OUT/build.log"; exit 1; }
+nice -n 19 "$OUT/test_arc_gap" >"$OUT/test_arc_gap.log" 2>&1 || fail=1
+tail -n 1 "$OUT/test_arc_gap.log"; grep FAIL "$OUT/test_arc_gap.log" | head -n 10
 $CC -o "$OUT/test_ai" "$HERE/test_ai.c" $SRC -lm >"$OUT/build.log" 2>&1 || { echo "[ERROR] ai build failed"; tail -n 20 "$OUT/build.log"; exit 1; }
 nice -n 19 "$OUT/test_ai" >"$OUT/test_ai.log" 2>&1 || fail=1
 tail -n 1 "$OUT/test_ai.log"; grep FAIL "$OUT/test_ai.log" | head -n 10
@@ -72,6 +87,15 @@ tail -n 1 "$OUT/test_camera_column.log"; grep FAIL "$OUT/test_camera_column.log"
 $CC -o "$OUT/test_trip_view" "$HERE/test_trip_view.c" $SRC >"$OUT/build.log" 2>&1 || { echo "[ERROR] test_trip_view build failed"; tail -n 20 "$OUT/build.log"; exit 1; }
 nice -n 19 "$OUT/test_trip_view" >"$OUT/test_trip_view.log" 2>&1 || fail=1
 tail -n 1 "$OUT/test_trip_view.log"; grep FAIL "$OUT/test_trip_view.log" | head -n 10
+$CC -o "$OUT/test_arc_view" "$HERE/test_arc_view.c" $SRC >"$OUT/build.log" 2>&1 || { echo "[ERROR] test_arc_view build failed"; tail -n 20 "$OUT/build.log"; exit 1; }
+nice -n 19 "$OUT/test_arc_view" >"$OUT/test_arc_view.log" 2>&1 || fail=1
+tail -n 1 "$OUT/test_arc_view.log"; grep FAIL "$OUT/test_arc_view.log" | head -n 10
+$CC -o "$OUT/test_gum_view" "$HERE/test_gum_view.c" $SRC >"$OUT/build.log" 2>&1 || { echo "[ERROR] test_gum_view build failed"; tail -n 20 "$OUT/build.log"; exit 1; }
+nice -n 19 "$OUT/test_gum_view" >"$OUT/test_gum_view.log" 2>&1 || fail=1
+tail -n 1 "$OUT/test_gum_view.log"; grep FAIL "$OUT/test_gum_view.log" | head -n 10
+$CC -o "$OUT/test_splash_view" "$HERE/test_splash_view.c" $SRC >"$OUT/build.log" 2>&1 || { echo "[ERROR] test_splash_view build failed"; tail -n 20 "$OUT/build.log"; exit 1; }
+nice -n 19 "$OUT/test_splash_view" >"$OUT/test_splash_view.log" 2>&1 || fail=1
+tail -n 1 "$OUT/test_splash_view.log"; grep FAIL "$OUT/test_splash_view.log" | head -n 10
 $CC -o "$OUT/test_trip_haz" "$HERE/test_trip_haz.c" $SRC -lm >"$OUT/build.log" 2>&1 || { echo "[ERROR] test_trip_haz build failed"; tail -n 20 "$OUT/build.log"; exit 1; }
 nice -n 19 "$OUT/test_trip_haz" >"$OUT/test_trip_haz.log" 2>&1 || fail=1
 tail -n 1 "$OUT/test_trip_haz.log"; grep FAIL "$OUT/test_trip_haz.log" | head -n 10

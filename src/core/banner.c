@@ -77,17 +77,17 @@ static uint16_t winner_line(uint16_t frame, const BannerCtx *ctx, uint8_t col)
 static uint16_t line3(uint16_t frame, const BannerCtx *ctx, uint8_t col, uint8_t row)
 {
     uint8_t pal = (frame < LINE3_GOLD_A || (frame >= LINE3_WHITE_B && frame < LINE3_GOLD_B)) ? FIXFONT_PAL_WHITE : FIXFONT_PAL_GOLD;
-    uint8_t text_row = ctx->last ? 15 : 16;
+    uint8_t text_row = (ctx->last & BANNER_LAST) ? 15 : 16;
     char ch;
     if (frame < LINE3_START) return row == text_row ? waiting_dash(col) : CELL(FIXFONT_PAL_PINK, FIXFONT_PLATE_FILL);
-    if (ctx->last) {
+    if (ctx->last & BANNER_LAST) {
         ch = row == 15 ? text_at("MATCH OVER", 15, col) : 0;
     } else if (col >= 22 && col <= 23 && (row == 15 || row == 16)) {
         uint16_t r = ctx->round < 1 ? 1 : ctx->round > 99 ? 99 : ctx->round;
         uint8_t digit = (uint8_t)(col == 22 ? r / 10 : r % 10);
         return CELL(pal, (row == 15 ? FIXFONT_TALL_BACKED + FIXFONT_TALL_TOP : FIXFONT_TALL_BACKED + FIXFONT_TALL_BOTTOM) + digit);
     } else {
-        ch = row == 16 ? text_at("ROUND", 16, col) : 0;
+        ch = row == 16 ? text_at((ctx->last & BANNER_BONUS) ? "BONUS" : (ctx->last & BANNER_STAGE) ? "STAGE" : "ROUND", 16, col) : 0;
     }
     if (!ch || ch == ' ') return CELL(FIXFONT_PAL_PINK, FIXFONT_PLATE_FILL);
     return CELL(pal, glyph(ch));
@@ -105,7 +105,7 @@ uint16_t banner_cell(uint16_t frame, const BannerCtx *ctx, uint8_t col, uint8_t 
         /* outline on frame 0 (corners, edges) */
         uint8_t top = (uint8_t)(r == 0 ? 0 : r == BANNER_H - 1 ? 2 : 1);
         uint8_t left = (uint8_t)(c == 0 ? 0 : c == BANNER_W - 1 ? 2 : 1);
-        static const uint8_t tile[3][3] = {
+        static const uint16_t tile[3][3] = {
             {FIXFONT_FRAME_TL, FIXFONT_FRAME_T, FIXFONT_FRAME_TR},
             {FIXFONT_FRAME_L, FIXFONT_PLATE_FILL, FIXFONT_FRAME_R},
             {FIXFONT_FRAME_BL, FIXFONT_FRAME_B, FIXFONT_FRAME_BR}};

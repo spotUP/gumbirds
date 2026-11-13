@@ -28,6 +28,20 @@ local POOL_MAX = lay[2]
 local VQ = {}   -- tests/mame/vq_probe.c values: queue field offsets and sprite slot range starts, in the order of that file
 for v in (os.getenv("BRAWL_VQ_LAYOUT") or ""):gmatch("%d+") do VQ[#VQ + 1] = tonumber(v) end
 
+-- Demo run (BRAWL_DEMO=1, no input): the attract demos of all three modes with the how-to-play overlay. Class 4 "demo" is every logic frame
+-- whose flow state is FLOW_ATTRACT_DEMO; same limits as the play classes. Env as attract_check.lua: BRAWL_ATTRACT_LAYOUT (attract_probe.c output).
+local DEMO_RUN = os.getenv("BRAWL_DEMO") == "1"
+local AL = {}
+for v in (os.getenv("BRAWL_ATTRACT_LAYOUT") or ""):gmatch("%d+") do AL[#AL + 1] = tonumber(v) end
+local O_AMODE, K_DEMO, K_ARENA, K_TRIP, K_ARCADE = AL[4], AL[6], AL[7], AL[8], AL[9]
+local O_AFLOW = AL[1]
+local DEMO_MIN_FRAMES = 150   -- logic frames sampled per mode before the demo run may end
+local LOGIC_LIMIT = 224       -- logic end must stay below the visible lines, else the flush is skipped
+local FLUSH_BUDGET_US = 2000  -- GFX_FLUSH_BUDGET_US
+local demo_mode = {}          -- per mode (arena/trip/arcade): frames, logic end max, flush us max, vram words max, palette words max
+for _, m in ipairs({ K_ARENA or -1, K_TRIP or -2, K_ARCADE or -3 }) do demo_mode[m] = { frames = 0, lmax = 0, us = 0, vwords = 0, pwords = 0, us_late = 0, vw_late = 0, over = 0, first_over = nil, lmax_late = 0, idx_lmax = 0 } end
+local prev_demo_mode, demo_idx, prev_idx = nil, 0, 0   -- demo_idx: logic frame number inside the current demo
+
 local function sym_addrs()
   local gcc
   for line in io.lines("config.mk") do gcc = gcc or line:match("^M68KGCC=(.*)$") end
@@ -137,8 +151,9 @@ local function new_stat()
   return { frames = 0, rows = rows, lsum = 0, lcnt = 0, lmax = 0, n999 = 0, us_sum = 0, us_max = 0, skipped = 0 }
 end
 local stat = { flush = {}, queue = {} }
-for c = 1, 3 do stat.flush[c], stat.queue[c] = new_stat(), new_stat() end
-local CLASS = { "cam moved (PLAYING)", "cam still (PLAYING)", "not PLAYING" }
+local NCLS = 4
+for c = 1, NCLS do stat.flush[c], stat.queue[c] = new_stat(), new_stat() end
+local CLASS = { "cam moved (PLAYING)", "cam still (PLAYING)", "not PLAYING", "demo" }
 
 local function note(side, row, line, inv)
   local a = acc[side]
@@ -189,7 +204,8 @@ local function frame_end(l)
   local cam = mem:read_u16(A_CAM)
   if #q_first_words < 3 then q_first_words[#q_first_words + 1] = string.format("state %d cam %d", st, cam) end
   local playing = st == STATE_PLAYING
-  local cls = (not playing) and 3 or ((prev_cam ~= nil and cam ~= prev_cam) and 1 or 2)
+  local in_demo = DEMO_RUN and K_DEMO ~= nil and mem:read_u8(flow_addr + O_AFLOW) == K_DEMO
+  local cls = in_demo and 4 or (not playing) and 3 or ((prev_cam ~= nil and cam ~= prev_cam) and 1 or 2)
   prev_cam = cam
   if prev_cls then   -- the flush that ran between the previous logic end and this one belongs to the previous frame's class
     local fs = stat.flush[prev_cls]
@@ -197,7 +213,23 @@ local function frame_end(l)
     local us = A_LASTUS and mem:read_u16(A_LASTUS) or 0
     fs.us_sum = fs.us_sum + us
     if us > fs.us_max then fs.us_max = us end
+    if prev_cls == 4 and prev_demo_mode and demo_mode[prev_demo_mode] then   -- flush of the previous demo frame: VRAM data words and palette words
+      local dm, vw = demo_mode[prev_demo_mode], 0
+      for r = 1, ROW_PAL - 1 do vw = vw + acc.flush.w[r] end
+      dm.vwords = math.max(dm.vwords, vw); dm.pwords = math.max(dm.pwords, acc.flush.w[ROW_PAL]); dm.us = math.max(dm.us, us)
+      if prev_idx > 3 then dm.us_late = math.max(dm.us_late, us); dm.vw_late = math.max(dm.vw_late, vw) end
+    end
     fold("flush", prev_cls, acc.flush)
+  end
+  prev_idx = demo_idx
+  demo_idx = in_demo and (prev_demo_mode and demo_idx + 1 or 1) or 0
+  prev_demo_mode = in_demo and mem:read_u8(flow_addr + O_AMODE) or nil
+  if in_demo and demo_mode[prev_demo_mode] then
+    local dm = demo_mode[prev_demo_mode]
+    dm.frames = dm.frames + 1
+    if l >= LOGIC_LIMIT then dm.over = dm.over + 1; dm.first_over = dm.first_over or demo_idx end
+    if l > dm.lmax then dm.lmax = l; dm.idx_lmax = demo_idx end
+    if demo_idx > 3 and l > dm.lmax_late then dm.lmax_late = l end   -- worst after the first 3 frames of a demo
   end
   flush_seen = false
   local qs = stat.queue[cls]
@@ -315,7 +347,7 @@ local function bucket_report()
   add("VBLANK_BUCKET units: queue side = CPU enqueue of changed words, line = lines after vblank end (0..224); flush side = VRAM words written by gfx_flush, line = lines after vblank start (0..39 is vblank). words = per frame; mean over all frames of the class; first/last over frames that wrote.")
   add(string.format("VBLANK_RUNTIME input drive %s; fc tap calls %d, frame_end calls %d, first queue tap offsets: %s; first frame_end reads: %s; probe values %d",
     FO1_DRIVE and "right+A" or "none", fc_calls, fe_calls, table.concat(q_offsets, ", "), table.concat(q_first_words, ", "), #VQ))
-  for c = 1, 3 do
+  for c = 1, NCLS do
     local q, f = stat.queue[c], stat.flush[c]
     add(string.format("VBLANK_CLASS %s: logic frames %d, logic end mean %.1f max %.1f lines, frames with write inside vblank (999) %d (of these without any queued word inside vblank %d), flush frames %d, flush us mean %.0f max %d, vblanks with flush skipped %d",
       CLASS[c], q.frames, q.lcnt > 0 and q.lsum / q.lcnt or 0, q.lmax, q.n999, q.n999_noword or 0, f.frames, f.frames > 0 and f.us_sum / f.frames or 0, f.us_max, f.skipped))
@@ -323,13 +355,13 @@ local function bucket_report()
   for _, side in ipairs({ "queue", "flush" }) do
     for r = 1, R do
       local any = false
-      for c = 1, 3 do if stat[side][c].rows[r].words > 0 or stat[side][c].rows[r].inv > 0 then any = true end end
+      for c = 1, NCLS do if stat[side][c].rows[r].words > 0 or stat[side][c].rows[r].inv > 0 then any = true end end
       if any then
         local parts = {}
-        for c = 1, 3 do
+        for c = 1, NCLS do
           local s = stat[side][c]
           local row = s.rows[r]
-          parts[#parts + 1] = string.format("%s: words max %d mean %.1f, first %s last %s (mean %s / %s)", c == 1 and "moved" or (c == 2 and "still" or "other"),
+          parts[#parts + 1] = string.format("%s: words max %d mean %.1f, first %s last %s (mean %s / %s)", c == 1 and "moved" or (c == 2 and "still" or (c == 3 and "other" or "demo")),
             row.wmax, s.frames > 0 and row.words / s.frames or 0,
             row.nz > 0 and string.format("%.1f", row.fmin) or "-", row.nz > 0 and string.format("%.1f", row.lmax) or "-",
             row.nz > 0 and string.format("%.1f", row.fsum / row.nz) or "-", row.nz > 0 and string.format("%.1f", row.lsum / row.nz) or "-")
@@ -338,7 +370,7 @@ local function bucket_report()
       end
     end
   end
-  for c = 1, 3 do   -- frames whose logic wrote inside vblank, by the bucket that wrote there
+  for c = 1, NCLS do   -- frames whose logic wrote inside vblank, by the bucket that wrote there
     for r = 1, R do
       local row = stat.queue[c].rows[r]
       if row.inv > 0 then add(string.format("VBLANK_OVERRUN_BUCKET class %s bucket %s: frames %d, words %d", CLASS[c], row_names[r], row.invframes, row.inv)) end
@@ -356,8 +388,8 @@ emu.register_frame_done(function()
   end
   words, first_t, last_t = 0, nil, nil
   if n == SETTLE_FRAME then counting = true end
-  -- one coin at 320; first Start press (n 360) opens the title mode select, the second (n 420) begins the game (BG4; start_seq.lua)
-  if coin and start then
+  -- one coin at 320; one Start press begins the game, later presses are retries (BG4; start_seq.lua)
+  if coin and start and not DEMO_RUN then
     if n == 320 then ss.begin(n) end
     if n >= 320 then ss.step(n, n >= 450) end
   end
@@ -391,6 +423,30 @@ emu.register_frame_done(function()
   local live = A_LIVE and mem:read_u8(A_LIVE) or 0
   full_now = stress_on and live == POOL_MAX and mem:read_u8(flow_addr + O_STATE) == STATE_PLAYING
   if full_now then full_frames = full_frames + 1 end
+  if DEMO_RUN then
+    local ready = n > 9000
+    if not ready then
+      ready = true
+      for _, dm in pairs(demo_mode) do if dm.frames < DEMO_MIN_FRAMES then ready = false end end
+    end
+    if ready then
+      local ok, parts = bad_vram == 0 and bad_pal == 0 and total_vram > 0, {}
+      for name, m in pairs({ arena = K_ARENA, trip = K_TRIP, arcade = K_ARCADE }) do
+        local dm = demo_mode[m]
+        local bad = dm.frames < DEMO_MIN_FRAMES or dm.lmax >= LOGIC_LIMIT or dm.us > FLUSH_BUDGET_US or dm.pwords > PAL_WORDS_MAX
+        if bad then ok = false end
+        parts[#parts + 1] = string.format("demo %s: frames %d, logic end max %.1f at demo frame %d (limit %d; frames over %d, first at demo frame %s; max after frame 3: %.1f), flush max %d us (limit %d; after frame 3: %d), VRAM data words per frame max %d (after frame 3: %d), palette words per flush max %d (limit %d)%s",
+          name, dm.frames, dm.lmax, dm.idx_lmax, LOGIC_LIMIT, dm.over, tostring(dm.first_over), dm.lmax_late, dm.us, FLUSH_BUDGET_US, dm.us_late, dm.vwords, dm.vw_late, dm.pwords, PAL_WORDS_MAX, bad and " [OVER]" or "")
+      end
+      local palmax = mem:read_u16(palmax_addr)   -- g_pal_words_frame_max over the whole demo run, boot included
+      if palmax > PAL_WORDS_MAX then ok = false end
+      parts[#parts + 1] = string.format("demo run: palette words per flush max %d (limit %d)%s", palmax, PAL_WORDS_MAX, palmax > PAL_WORDS_MAX and " [OVER]" or "")
+      table.sort(parts)
+      finish(ok, string.format("demo run at frame %d, vram writes %d (outside vblank %d), palette writes %d (outside vblank %d)%s\n%s", n, total_vram, bad_vram, total_pal, bad_pal,
+        first_bad and (", first bad: " .. first_bad) or "", table.concat(parts, "\n")), bucket_report())
+    end
+    return
+  end
   if n >= END_FRAME then
     local backlog = A_BACKLOG and mem:read_u16(A_BACKLOG) or -1
     local flushmax = A_FLUSHMAX and mem:read_u16(A_FLUSHMAX) or -1

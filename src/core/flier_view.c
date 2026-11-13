@@ -107,3 +107,11 @@ int flier_view_visible(const Flier *f, uint32_t frame) {
     if (!(f->invincible || f->spawn_inv) || f->state >= FLIER_FALLING) return 1;
     return ((frame / FLIER_BLINK_HALF_PERIOD) & 1u) == 0;
 }
+
+uint8_t flier_pump_frame(const FlierClips *c, int progress)
+{
+    int n = c->count[c->inflate], p = progress < 0 ? 0 : (progress > ARC_PUMP_STAGES - 1 ? ARC_PUMP_STAGES - 1 : progress);
+    int x = p * (n - 1), q = 0;
+    while (x >= ARC_PUMP_STAGES - 1) { x -= ARC_PUMP_STAGES - 1; q++; } /* x / (STAGES - 1) without a libgcc divide: per pumping rival per frame */
+    return (uint8_t)(c->first[c->inflate] + q);
+}

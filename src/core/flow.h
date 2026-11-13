@@ -31,6 +31,7 @@
 #include "hiscore.h"
 #include "score_table.h"
 #include "nameentry.h"
+#include "attract_overlay.h"
 
 typedef enum {
     FLOW_ATTRACT_TITLE = 0,
@@ -54,6 +55,9 @@ typedef struct {
     uint8_t input_prev;      /* held input last frame, for the title edge */
     uint8_t select_open;     /* 1 after the first start press: mode select is open, the next start on the title begins the game */
     uint8_t demo;            /* 1 when game is the attract demo */
+    uint8_t demo_in;         /* input the scripted demo fed the game on the last demo frame (demo_input() computes it) */
+    AttractOverlay ov;       /* how-to-play state for the demo overlay, stepped with demo_in */
+    uint8_t demo_mode;       /* GameMode the NEXT attract demo plays; start_game advances it arena, Gum Trip, arcade, arena ... (game.mode is the running demo's mode) */
     uint8_t reset_flash;     /* 1 for the frames after an operator reset (draw a message) */
     uint16_t reset_hold;     /* frames the reset combo has been held */
     uint8_t reset_fired;     /* combo already fired, wait for release */
@@ -77,6 +81,7 @@ typedef struct {
     int reset_flash;
     uint8_t mode;            /* GameMode highlighted on the title */
     uint8_t select_open;     /* title: mode select opened by a start press */
+    uint8_t ov_key;          /* ATTRACT_DEMO: AttractOverlay key (AO_*), AO_NONE before the first demo frame */
 } FlowView;
 
 /* Start in ATTRACT_TITLE. image/len is the backup RAM content (NULL allowed: defaults). */
@@ -86,6 +91,7 @@ void flow_init(Flow *f, const uint8_t *image, size_t len);
  * on the frame a credited start happens. frame_counter is a free running counter. */
 void flow_step(Flow *f, uint8_t input, uint8_t start_pressed, uint32_t frame_counter);
 
+void flow_coin(Flow *f);
 void flow_view(const Flow *f, FlowView *v);
 
 #endif

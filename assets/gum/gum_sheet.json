@@ -871,8 +871,8 @@
  },
  "defines": {
   "LEVELS": 16,
-  "WOBBLE_FRAMES": 6,
-  "POP_FRAMES": 7,
+  "SHEET_WOBBLE_FRAMES": 6,
+  "SHEET_POP_FRAMES": 7,
   "GUM_PER_LEVEL": 64,
   "TICK_HZ": 60
  },

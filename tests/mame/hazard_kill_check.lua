@@ -25,6 +25,7 @@ local kind_addr  = tonumber(os.getenv("BRAWL_KIND_ADDR"), 16)
 local result     = os.getenv("BRAWL_RESULT")
 local function nums(name) local t = {} for v in (os.getenv(name) or ""):gmatch("%d+") do t[#t + 1] = tonumber(v) end return t end
 local flay, klay = nums("BRAWL_FLIER_LAYOUT"), nums("BRAWL_KILL_LAYOUT")
+local O_X = flay[6]
 local O_STATE, O_Y, O_VY, O_FSTATE, O_BAL, O_GROUND = flay[1], flay[7], flay[9], flay[10], flay[11], flay[12]
 local P_KINDS, P_SPIKES, P_FIRE, P_WATER, P_LAVA, P_TOP, HALF_H16, O_KILLY, O_GKIND, HERO, HERO_N, HAZ, COLS,
       HALF_NOBAL, REMOVE_FEET, ART_H, SCREEN_H, HAZ_N, DEAD, DEAD_N = table.unpack(klay)
@@ -67,16 +68,47 @@ end
 
 local rs = dofile("tests/mame/round_skip.lua")(mem, flow_addr, flay) -- rs.win(): win the round by poke; rs.live(): no round end or round start text
 local adv_from = nil
+-- ROT1: the arena layout rotates per round (src/core/stage.c layouts). stage_platforms is a RAM copy of the current layout: four int16 x, y, w, h each.
+local stage_addr = tonumber(os.getenv("BRAWL_STAGE_ADDR") or "", 16)
+local HOME = "0,164,80,12 280,148,80,12" -- every layout of src/core/stage.c starts with the two home islands
+local function layout_now()
+  local t = {}
+  for i = 0, 7 do t[#t + 1] = string.format("%d,%d,%d,%d", mem:read_i16(stage_addr + i * 8), mem:read_i16(stage_addr + i * 8 + 2), mem:read_i16(stage_addr + i * 8 + 4), mem:read_i16(stage_addr + i * 8 + 6)) end
+  local text = table.concat(t, " ")
+  if text:sub(1, #HOME) ~= HOME then return nil, text end
+  return text
+end
+local lay_prev, lay_seen, lay_cur = nil, {}, nil
+local st_fc, st_run, st_chg, st_chg_max, st_changes, st_lay = nil, 0, false, 0, 0, nil
 local function g32(o) return mem:read_u32(flow_addr + o) end
 local function put_feet(feet_px) mem:write_u32(flow_addr + O_Y, (feet_px * 65536 - HALF_H16) & 0xffffffff) end
 
 local n, phase, phase_at, n_wait, fc0 = 0, "boot", 0, 0, nil
 local covered, lines, plays, tick, kind, line = {}, {}, 0, 0, nil, nil
+-- Death sound: the 68k sentinels g_sound_sent / g_sound_last (one command per frame) over the death of each kind. Fire sends sizzle and never hit; the other kinds never send sizzle.
+local snd_ids = dofile("tests/mame/snd_ids.lua")
+local A_SENT, A_LAST = tonumber(os.getenv("BRAWL_SENT_ADDR"), 16), tonumber(os.getenv("BRAWL_LAST_ADDR"), 16)
+local snd_prev, snd_seen = nil, {}
+local function snd_watch()
+  local s = mem:read_u16(A_SENT)
+  if snd_prev and s ~= snd_prev then local c = mem:read_u8(A_LAST); snd_seen[c] = (snd_seen[c] or 0) + 1 end
+  snd_prev = s
+end
+local function snd_check()
+  local sz, hit = snd_seen[snd_ids.SND_SFX_SIZZLE] or 0, snd_seen[snd_ids.SND_SFX_HIT] or 0
+  if kind == 1 and (sz < 1 or hit > 0) then return string.format("fire death sent sizzle %d times, hit %d times (want sizzle >= 1, hit 0)", sz, hit) end
+  if kind ~= 1 and sz > 0 then return string.format("%s death sent sizzle %d times (want 0)", NAMES[kind], sz) end
+end
 local overlap_kinds, overlap_verdict, first_frames = 0, 0, 0
+local popped, popped_n, pf_splash, pf_checked = {}, 0, 0, false
 local fall = nil   -- per play dead fall record, see phase "fall"
 local fall_kinds, front_kinds, sign_kinds = 0, 0, 0
+-- Splash sprites (src/sprite_slots.h SPLASH_SPRITE / SPLASH_COUNT, written out like the other spec numbers): live during a
+-- liquid death, empty again once the animation (12 frames x 3 water / 4 lava ticks, +6 slack) has run, below the hazard slots.
+local SPLASH_S, SPLASH_N, SPLASH_DONE = 113, 3, 54
 local function s32(v) if v >= 0x80000000 then return v - 0x100000000 end return v end
 local function scb3_h(slot) return (vram[0x8200 + slot] or 0) & 0x3f end
+local function splash_live() for s_ = SPLASH_S, SPLASH_S + SPLASH_N - 1 do if scb3_h(s_) ~= 0 then return true end end return false end
 
 emu.register_frame_done(function() local ok_, err_ = pcall(function()
   if done then return end
@@ -88,13 +120,25 @@ emu.register_frame_done(function() local ok_, err_ = pcall(function()
   local state = mem:read_u8(flow_addr + flay[1])
   local fc = mem:read_u32(frame_addr)
   local hk = mem:read_u8(kind_addr)
+  -- Relayout stall: Lua frames in a row where the main loop did not finish an iteration (g_frame_counter unchanged), for the runs that contain a layout change.
+  if stage_addr then
+    local lt = layout_now()
+    if lt and st_lay and lt ~= st_lay then st_chg = true; st_changes = st_changes + 1 end
+    if lt then st_lay = lt end
+  end
+  if fc == st_fc then st_run = st_run + 1
+  else
+    if st_chg then if st_run > st_chg_max then st_chg_max = st_run end; st_chg = false end
+    st_run = 0
+  end
+  st_fc = fc
 
   if phase == "boot" then
     if fc ~= 0 then fc0 = fc0 or fc end
     if fc0 and fc - fc0 >= 30 and n > n_wait + 30 then phase = "coin"; phase_at = n; ss.begin(n) end
     return
   elseif phase == "coin" then
-    -- one coin; first Start press opens the title mode select, the second begins the game (BG4; tests/mame/start_seq.lua)
+    -- one coin; one Start press begins the game (BG4; tests/mame/start_seq.lua)
     ss.step(n, false)
     if state == FLOW_PLAYING and hk ~= 0xFF then
       -- First frame of PLAYING seen (the strip is already shown): the line must be right NOW, not after a sync wait.
@@ -112,18 +156,26 @@ emu.register_frame_done(function() local ok_, err_ = pcall(function()
     return
   end
 
-  if state ~= FLOW_PLAYING and phase ~= "die" and phase ~= "fall" then finish(false, "left PLAYING in phase " .. phase .. " (flier died early?)") return end
+  if state ~= FLOW_PLAYING and phase ~= "die" and phase ~= "fall" and phase ~= "popfall" then finish(false, "left PLAYING in phase " .. phase .. " (flier died early?) state " .. state .. " plays " .. plays .. " kind " .. tostring(kind) .. " fstate " .. mem:read_u8(flow_addr + O_FSTATE) .. string.format(" x %d y %d hk %d re %d,%d,%d", mem:read_u32(flow_addr + O_X) >> 16, mem:read_u32(flow_addr + O_Y) >> 16, hk, mem:read_u16(tonumber(os.getenv("BRAWL_RE_ADDR"), 16)), mem:read_u16(tonumber(os.getenv("BRAWL_RE_ADDR"), 16) + 2), mem:read_u16(tonumber(os.getenv("BRAWL_RE_ADDR"), 16) + 4))) return end
 
   if phase == "advance" then -- a poke won the round: wait for the next round's strip
     if hk ~= adv_from and hk < P_KINDS then phase = "sync"; tick = 0 end
     return
   end
   if phase == "sync" then
+    if mem:read_u8(flow_addr + flay[13]) == 0 then tick = 0 return end -- match_start has not run: a new game's island reload can hold the main loop for frames
     if not rs.live() then tick = 0 return end -- play is frozen during the banner hold, the camera slide and ROUND nn / GO!
     tick = tick + 1
     if tick < 5 then return end
+    if not stage_addr then finish(false, "missing BRAWL_STAGE_ADDR") return end
+    do
+      local k, text = layout_now()
+      if not k then finish(false, "stage_platforms in RAM do not start with the home islands: " .. text) return end
+      if lay_prev and k == lay_prev then finish(false, "layout " .. k .. " did not change after a won round") return end
+      lay_prev = nil; lay_seen[k] = true; lay_cur = k
+    end
     kind = hk
-    if kind < P_KINDS and kind ~= ORDER[plays % 4 + 1] then rs.win(); adv_from = kind; phase = "advance"; return end
+    if kind < P_KINDS and kind ~= ORDER[plays % 4 + 1] then lay_prev = lay_cur; rs.win(); adv_from = kind; phase = "advance"; return end
     if kind >= P_KINDS then finish(false, "g_hazard_kind " .. kind .. " is not a kind") return end
     local gk = mem:read_u8(flow_addr + O_GKIND)
     if gk ~= kind then finish(false, string.format("Game.hazard_kind %d but the strip shows kind %d (%s): game_set_hazard not wired", gk, kind, NAMES[kind])) return end
@@ -136,6 +188,8 @@ emu.register_frame_done(function() local ok_, err_ = pcall(function()
     if (HERO + HERO_N - 1) >= HAZ then finish(false, string.format("hero slots %d..%d are not below hazard slot %d: hero would draw in front of the strip", HERO, HERO + HERO_N - 1, HAZ)) return end
     mem:write_u8(flow_addr + O_BAL, mem:read_u8(flow_addr + O_BAL) < 2 and 2 or mem:read_u8(flow_addr + O_BAL))
     phase = "hold"; tick = 0
+    -- x 184 is under no stage platform (islands span x 0..80 and 280..360 at the sides, the shelf is at y 108..120): the gum column above the feet must not overlap a solid, or the solids push the flier out of the kill line
+    mem:write_u32(flow_addr + O_X, 184 * 65536)
     put_feet(line - 1); mem:write_u32(flow_addr + O_VY, 0); mem:write_u8(flow_addr + O_GROUND, 0)
     return
   elseif phase == "hold" then
@@ -160,22 +214,44 @@ emu.register_frame_done(function() local ok_, err_ = pcall(function()
       if bottom <= SPEC_TOP then finish(false, string.format("%s: hero sprite bottom %d does not reach the strip top %d (overlap check vacuous)", NAMES[kind], bottom, SPEC_TOP)) return end
       overlap_kinds = overlap_kinds + 1
     end
-    phase = "die"; tick = 0
+    if kind >= 2 and not popped[kind] then
+      -- a real popped fall: the last balloon gone, FALLING (2) from 40 px above the surface; the body must splash on crossing it (no DROWNED poke)
+      popped[kind] = true
+      mem:write_u8(flow_addr + O_BAL, 0); mem:write_u8(flow_addr + O_FSTATE, 2)
+      put_feet(line - 40); mem:write_u32(flow_addr + O_VY, 0)
+      phase = "popfall"; tick = 0; pf_splash = 0
+      return
+    end
+    phase = "die"; tick = 0; snd_seen = {}
     put_feet(line); mem:write_u32(flow_addr + O_VY, 0)
     return
-  elseif phase == "die" then
+  elseif phase == "popfall" then
     tick = tick + 1
+    if splash_live() then pf_splash = pf_splash + 1 end
+    local fs = mem:read_u8(flow_addr + O_FSTATE)
+    if tick == 2 and fs == FL_ALIVE then finish(false, NAMES[kind] .. ": popped FALLING poke did not stick (flier ALIVE again)") return end
+    if tick > 900 then finish(false, NAMES[kind] .. ": flier never came back after the popped fall") return end
+    if tick > 5 and fs == FL_GONE and not pf_checked then
+      pf_checked = true
+      if pf_splash < 8 then finish(false, string.format("%s: popped flier fell through the surface, splash live in only %d frames (want >= 8)", NAMES[kind], pf_splash)) return end
+      popped_n = popped_n + 1
+    end
+    if pf_checked and state ~= FLOW_PLAYING then pf_checked = false; phase = "wait_end"; n_wait = n return end
+    if pf_checked and fs == FL_ALIVE then pf_checked = false; phase = "sync"; tick = 0 end
+    return
+  elseif phase == "die" then
+    tick = tick + 1; snd_watch()
     local fs = mem:read_u8(flow_addr + O_FSTATE)
     if fs == FL_DROWNED or fs > FL_DROWNED then
       covered[kind] = true; plays = plays + 1
       lines[#lines + 1] = string.format("%s line %d (alive at %d, dead at %d)", NAMES[kind], line, line - 1, line)
       phase = "fall"; tick = 0
-      fall = { frames = 0, last_vy = nil, flips = 0, max_feet = 0, below = 0, behind = 0, front = 0, prev_feet = nil, prev_state = nil }
+      fall = { frames = 0, last_vy = nil, flips = 0, max_feet = 0, below = 0, behind = 0, front = 0, splash = 0, prev_feet = nil, prev_state = nil }
       return
     end
     if tick > 2 then finish(false, string.format("%s: feet put on the line %d but the flier state is %d after 2 frames (want DROWNED)", NAMES[kind], line, fs)) return end
   elseif phase == "fall" then
-    tick = tick + 1
+    tick = tick + 1; snd_watch()
     local fs = mem:read_u8(flow_addr + O_FSTATE)
     local feet = (g32(O_Y) + HALF_NOBAL) / 65536
     local vy = s32(g32(O_VY))
@@ -194,15 +270,21 @@ emu.register_frame_done(function() local ok_, err_ = pcall(function()
         sign_kinds = sign_kinds + 1; front_kinds = front_kinds + 1
       else
         if fall.flips ~= 0 then finish(false, string.format("%s: vy changed sign %d times, a liquid body only falls", NAMES[kind], fall.flips)) return end
+        if kind >= 2 and fall.splash < 8 then finish(false, string.format("%s: splash sprites live in only %d frames of the death", NAMES[kind], fall.splash)) return end
         if fall.behind < 3 then finish(false, string.format("%s: only %d samples with the body in a hero slot below the hazard slots", NAMES[kind], fall.behind)) return end
       end
+      do local bad = snd_check() if bad then finish(false, bad) return end end
       fall_kinds = fall_kinds + 1
       fall = nil
       local c = 0
       for _ in pairs(covered) do c = c + 1 end
       if c == P_KINDS then
         if overlap_kinds < P_KINDS - 1 then finish(false, "hero over strip checked for " .. overlap_kinds .. " kinds, want " .. (P_KINDS - 1)) return end
-        finish(true, "kill lines in the real ROM: " .. table.concat(lines, "; ") .. "; hero slots " .. HERO .. ".." .. (HERO + HERO_N - 1) .. " draw behind hazard slot " .. HAZ .. ", overlap seen for " .. overlap_kinds .. " kinds, kill_y right on the first PLAYING frame for " .. first_frames .. " plays; dead fall for " .. fall_kinds .. " kinds: GONE only at feet " .. REMOVE_FEET .. " (sprite off screen), liquid bodies in hero slots below hazard slots " .. HAZ .. ".." .. (HAZ + HAZ_N - 1) .. ", spike body in dead-body slots " .. DEAD .. ".." .. (DEAD + DEAD_N - 1) .. " after " .. sign_kinds .. " bounce with one vy sign change")
+        if popped_n < 2 then finish(false, "popped fall splash checked for " .. popped_n .. " liquid kinds, want 2") return end
+        local seen_n = 0
+        for _ in pairs(lay_seen) do seen_n = seen_n + 1 end
+        if seen_n < 2 then finish(false, "the rounds showed only one layout of the table") return end
+        finish(true, "popped flier splashes in " .. popped_n .. " liquid kinds; layouts rotate (" .. seen_n .. " layouts seen, each won round changes it; " .. st_changes .. " layout changes, the main loop lost at most " .. st_chg_max .. " frames to one); kill lines in the real ROM: " .. table.concat(lines, "; ") .. "; hero slots " .. HERO .. ".." .. (HERO + HERO_N - 1) .. " draw behind hazard slot " .. HAZ .. ", overlap seen for " .. overlap_kinds .. " kinds, kill_y right on the first PLAYING frame for " .. first_frames .. " plays; dead fall for " .. fall_kinds .. " kinds: GONE only at feet " .. REMOVE_FEET .. " (sprite off screen), liquid bodies in hero slots below hazard slots " .. HAZ .. ".." .. (HAZ + HAZ_N - 1) .. ", spike body in dead-body slots " .. DEAD .. ".." .. (DEAD + DEAD_N - 1) .. " after " .. sign_kinds .. " bounce with one vy sign change")
         return
       end
       if plays >= 8 then finish(false, "kinds covered " .. c .. " of " .. P_KINDS .. " after " .. plays .. " plays") return end
@@ -212,6 +294,13 @@ emu.register_frame_done(function() local ok_, err_ = pcall(function()
     -- DROWNED: the sprite is still being drawn, so it must be on screen
     if fall.prev_state == FL_DROWNED and feet - ART_H >= SCREEN_H then finish(false, string.format("%s: body still DROWNED with the sprite fully below the screen (feet %.1f)", NAMES[kind], feet)) return end
     fall.frames = fall.frames + 1
+    if kind < 2 then
+      if splash_live() then finish(false, NAMES[kind] .. ": a splash sprite is live for a non-liquid death") return end
+    else
+      if SPLASH_S + SPLASH_N > HAZ then finish(false, string.format("splash slots %d..%d not below hazard slot %d", SPLASH_S, SPLASH_S + SPLASH_N - 1, HAZ)) return end
+      if splash_live() then fall.splash = fall.splash + 1 end
+      if fall.frames > SPLASH_DONE and splash_live() then finish(false, string.format("%s: splash still live %d frames after the death", NAMES[kind], fall.frames)) return end
+    end
     fall.prev_feet, fall.prev_state = feet, fs
     if feet > fall.max_feet then fall.max_feet = feet end
     if vy ~= 0 then

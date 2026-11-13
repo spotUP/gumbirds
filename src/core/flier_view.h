@@ -17,6 +17,7 @@
 #define BRAWL_FLIER_VIEW_H
 
 #include "flier.h"
+#include "arcade.h" /* ARC_PUMP_STAGES */
 
 typedef struct {
     const uint8_t *first, *count, *loop; /* per clip: first sheet frame, frames, 1 if it loops */
@@ -36,6 +37,9 @@ typedef struct {
 void flier_anim_init(FlierAnim *a);
 /* One video frame for flier f. Returns the sheet frame to draw; *flip is 1 when it must be mirrored (facing left). */
 uint8_t flier_anim_step(FlierAnim *a, const Flier *f, const FlierClips *c, int *flip);
+
+/* Sheet frame a pumping rival shows: the inflate clip spread over arc_pump_progress (0 .. ARC_PUMP_STAGES - 1 inside the pump window). */
+uint8_t flier_pump_frame(const FlierClips *c, int progress);
 
 /* Blink while protected (invincible or spawn_inv): 1 when the flier is drawn on this frame. A protected ALIVE or PARACHUTE flier
  * is shown FLIER_BLINK_HALF_PERIOD frames, then hidden as many; FALLING and later, and an unprotected flier, are always shown.

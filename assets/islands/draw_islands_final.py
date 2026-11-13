@@ -21,8 +21,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 SOOT = os.path.join(HERE, '..', '2026-11-10-sootling-final')
 TRANSP = (255, 0, 255)
 LINE = 4                      # sheet row of the standing line = collision height
-WIDTHS = (64, 80, 96, 112)
-SEQ = {64: (0, 3), 80: (0, 2, 4), 96: (0, 1, 3, 4), 112: (0, 1, 2, 3, 4)}
+WIDTHS = (64, 80, 96, 112, 48)  # 48 last: indices and sheet rows of the other widths stay
+SEQ = {64: (0, 3), 80: (0, 2, 4), 96: (0, 1, 3, 4), 112: (0, 1, 2, 3, 4), 48: (0,)}
 FRAMES, MS = 8, 110
 KINDS = ('L', 0, 1, 2, 3, 4, 'R')
 

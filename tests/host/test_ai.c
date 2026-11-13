@@ -42,7 +42,7 @@ int main(void) {
 
     /* Think period: first think after the armed timer, then every AI_THINK_FRAMES +- jitter; counted from a.thinks. */
     rng_seed(&r, 5);
-    ai_init(&a, &r);
+    ai_init(&a, &r, 1);
     me = mk(100, 100, 2);
     t = mk(250, 100, 2);
     thinks = 0;
@@ -62,7 +62,7 @@ int main(void) {
 
     /* Chase steers toward a target on the right and flaps (target level: dir.y 0 < 0.5); dir held between thinks. */
     rng_seed(&r, 6);
-    ai_init(&a, &r);
+    ai_init(&a, &r, 1);
     for (i = 0; i < 60 && a.thinks == 0; i++) ai_step(&a, &r, &me, &t, &in);
     CHECK(a.state == AI_CHASE && in.dir == 1 && in.flap == 1);
     /* The flap decision runs every frame: still flapping a frame later, but never inside the cooldown or while the button is held. */
@@ -78,25 +78,25 @@ int main(void) {
     /* Target far below (dir.y ~ 1) and only slightly right: no flap, no steer (|dir.x| <= 0.25). */
     t = mk(104, 170, 2);
     rng_seed(&r, 6);
-    ai_init(&a, &r);
+    ai_init(&a, &r, 1);
     for (i = 0; i < 60 && a.thinks == 0; i++) ai_step(&a, &r, &me, &t, &in);
     CHECK(a.thinks == 1 && in.dir == 0 && in.flap == 0);
     /* Flee negates: target on the right and close, flier flees left. */
     t = mk(110, 100, 2);
     rng_seed(&r, 6);
-    ai_init(&a, &r);
+    ai_init(&a, &r, 1);
     for (i = 0; i < 60 && a.thinks == 0; i++) ai_step(&a, &r, &me, &t, &in);
     CHECK(a.state == AI_FLEE && in.dir == -1);
     /* FILL: balloon-less and far: idle, no flap, no steer. */
     me = mk(100, 100, 0);
     t = mk(250, 100, 2);
     rng_seed(&r, 6);
-    ai_init(&a, &r);
+    ai_init(&a, &r, 1);
     for (i = 0; i < 60 && a.thinks == 0; i++) ai_step(&a, &r, &me, &t, &in);
     CHECK(a.state == AI_FILL && in.dir == 0 && in.flap == 0);
     /* No target: idle. */
     rng_seed(&r, 6);
-    ai_init(&a, &r);
+    ai_init(&a, &r, 1);
     for (i = 0; i < 60 && a.thinks == 0; i++) ai_step(&a, &r, &me, 0, &in);
     CHECK(in.dir == 0 && in.flap == 0);
 
@@ -117,7 +117,7 @@ int main(void) {
             CHECK(ai_decide(&me, &rival[1]) == AI_FLEE);   /* 4 px away: flee, not the 380 px a linear distance gives */
             {
                 static Rng r; Ai a; FlierInput in;
-                rng_seed(&r, 1); ai_init(&a, &r); a.timer = 1;
+                rng_seed(&r, 1); ai_init(&a, &r, 1); a.timer = 1;
                 ai_step(&a, &r, &me, &rival[1], &in);
                 CHECK(in.dir == 1);   /* flee from a rival to the left across the seam: run right */
             }
@@ -219,6 +219,7 @@ int main(void) {
         uint32_t before, bounces;
         game_reset(&g, 3);
         game_step_arena(&g, 0);
+        g.pump[0].state = g.pump[1].state = ARC_PUMP_FLYING; /* start in flight: the spawn pump has its own tests */
         g.cpu[1].x = g.cpu[0].x; g.cpu[1].y = g.cpu[0].y - FL_PX(26);
         g.cpu[1].vy = FL_PX(1);
         before = g.stomps; bounces = g.bounces;
@@ -242,7 +243,7 @@ int main(void) {
         Rng r2; Ai a2; FlierInput ci;
         int top_seen = 0, hits0 = g_flier_solid_hits;
         rng_seed(&r2, 9);
-        ai_init(&a2, &r2);
+        ai_init(&a2, &r2, 1);
         for (i = 0; i < 600 && !top_seen; i++) {
             int32_t px = c.x, py = c.y;
             FlierSolid so[STAGE_SOLIDS_MAX];

@@ -29,7 +29,9 @@ SRCDIRS=assets src
 # the flag: gmake clean (or touch src/main.c) when switching.
 DEBUG_HEADER ?=
 CFLAGS=-I$(BUILDDIR) -std=c99 -fomit-frame-pointer -O2 -g -MMD -MP $(if $(DEBUG_HEADER),-DGUMBIRDS_DEBUG_HEADER)
-LDFLAGS=
+# Cartridge header eyecatcher mode (ngdevkit.ld rom_eye_catcher_mode: 0 BIOS draws it, 1 game, 2 none). 2 keeps UniBIOS from
+# drawing its eyecatcher text with tile codes that collide with the game's fix ROM (thoughts/spot/2026-11-12-u3-eyecatcher-hunt.md).
+LDFLAGS=-Wl,--defsym,rom_eye_catcher_mode=2
 Z80FLAGS=
 Z80LDFLAGS=
 
@@ -63,8 +65,8 @@ include emu.mk
 # 
 # Note: build rules (%.c -> %.o -> %.elf) are defined in Makefile.build
 ELF=$(BUILDDIR)/rom.elf
-CORE_SRCS=rng game hiscore nameentry flow obstacle_view bg_scroll flier_view vram_queue obj_pool sound_queue sound_events flier stage island_layout ai camera trip trip_gen trip_hit trip_rival score_table trip_view trip_pickup_fx banner
-$(ELF):	$(BUILDDIR)/src/main.o $(BUILDDIR)/gen/sootling_sprites.o $(BUILDDIR)/gen/hazard_sprites.o $(BUILDDIR)/gen/island_sprites.o $(BUILDDIR)/gen/tripstrip_sprites.o $(BUILDDIR)/gen/trippickup_sprites.o $(BUILDDIR)/gen/triphaz_sprites.o $(BUILDDIR)/gen/obs_sprites.o $(BUILDDIR)/gen/city_sprites.o $(BUILDDIR)/src/bg.o $(BUILDDIR)/src/gfx.o $(BUILDDIR)/src/hazard.o $(BUILDDIR)/src/island.o $(BUILDDIR)/src/trip_strip.o $(BUILDDIR)/src/trip_pickup.o $(BUILDDIR)/src/sound.o $(CORE_SRCS:%=$(BUILDDIR)/src/core/%.o)
+CORE_SRCS=rng game hiscore nameentry flow attract_overlay obstacle_view bg_scroll flier_view gum_view vram_queue obj_pool sound_queue sound_events flier stage island_layout ai camera trip trip_gen trip_hit trip_rival score_table trip_view trip_pickup_fx banner splash_view arcade arc_elements arc_view
+$(ELF):	$(BUILDDIR)/src/main.o $(BUILDDIR)/gen/sootling_sprites.o $(BUILDDIR)/gen/hazard_sprites.o $(BUILDDIR)/gen/island_sprites.o $(BUILDDIR)/gen/island_garden_sprites.o $(BUILDDIR)/gen/island_deck_sprites.o $(BUILDDIR)/gen/tripstrip_sprites.o $(BUILDDIR)/gen/trippickup_sprites.o $(BUILDDIR)/gen/triphaz_sprites.o $(BUILDDIR)/gen/gum_sprites.o $(BUILDDIR)/gen/splash_sprites.o $(BUILDDIR)/gen/arcade_sprites.o $(BUILDDIR)/gen/obs_sprites.o $(BUILDDIR)/gen/city_sprites.o $(BUILDDIR)/src/bg.o $(BUILDDIR)/src/gfx.o $(BUILDDIR)/src/hazard.o $(BUILDDIR)/src/island.o $(BUILDDIR)/src/trip_strip.o $(BUILDDIR)/src/trip_pickup.o $(BUILDDIR)/src/gum.o $(BUILDDIR)/src/logo.o $(BUILDDIR)/src/splash.o $(BUILDDIR)/src/sound.o $(CORE_SRCS:%=$(BUILDDIR)/src/core/%.o)
 $(PROM1): $(ELF)
 
 
@@ -77,12 +79,15 @@ $(PROM1): $(ELF)
 # tile index = sheet index, tile 255 blank (user decision 2026-11-10 replaced the ngdevkit ASCII font). The char to tile maps and the
 # five fix palettes come with it in build/gen/fix_font.h (src/gfx.c prints through the maps).
 # The Gum Trip gum meter tiles (assets/tripmeter, 13 tiles) are pasted into the font at tile 186; tripmeter.h holds the cell table.
+# The attract overlay icons (59 fix tiles) sit in the S-ROM right after the font (tile 0x400); the S-ROM rule below concatenates both.
+$(BUILDDIR)/gen/attract_icons.h $(BUILDDIR)/gen/attract_icons.fix: assets/attract/attract_icons.json assets/attract/attract_icons.png tools/build_attract_icons.py tools/sprite_pipeline.py thoughts/spot/drafts/2026-11-13-attract-overlay/draw_overlay.py
+	$(PYTHON) -I tools/build_attract_icons.py --out $(BUILDDIR)/gen/attract_icons.h --fix-base 0x400
 $(BUILDDIR)/gen/tripmeter.fix $(BUILDDIR)/gen/tripmeter.h: assets/tripmeter/tripmeter_sheet.png assets/tripmeter/tripmeter_sheet.json assets/font/fix_font.json tools/build_tripmeter_tiles.py tools/sprite_pipeline.py
 	$(PYTHON) -I tools/build_tripmeter_tiles.py --out $(BUILDDIR)/gen
 $(BUILDDIR)/gen/fix_font.fix $(BUILDDIR)/gen/fix_font.h: assets/font/fix_font_sheet.png assets/font/fix_font.json tools/build_fix_font.py tools/sprite_pipeline.py assets/tripmeter/tripmeter_sheet.png assets/font/pop_burst.png $(BUILDDIR)/gen/tripmeter.fix
 	$(PYTHON) -I tools/build_fix_font.py --out $(BUILDDIR)/gen --overlay assets/tripmeter/tripmeter_sheet.png@186 --overlay assets/font/pop_burst.png@75
-	dd if=$(BUILDDIR)/gen/fix_font.fix bs=32 skip=186 count=13 2>/dev/null | cmp -s - $(BUILDDIR)/gen/tripmeter.fix || { echo "[FAIL] fix_font.fix tiles 186..198 differ from tripmeter.fix"; exit 1; }
-$(SROM1): $(BUILDDIR)/gen/fix_font.fix
+	dd if=$(BUILDDIR)/gen/fix_font.fix bs=32 skip=954 count=13 2>/dev/null | cmp -s - $(BUILDDIR)/gen/tripmeter.fix || { echo "[FAIL] fix_font.fix tiles 954..966 differ from tripmeter.fix"; exit 1; }
+$(SROM1): $(BUILDDIR)/gen/fix_font.fix $(BUILDDIR)/gen/attract_icons.fix
 
 
 
@@ -95,7 +100,7 @@ $(SROM1): $(BUILDDIR)/gen/fix_font.fix
 # logo during the attract mode.
 # Note: build rules (%.gif -> %.c<1,2>) are defined in Makefile.build
 # Obstacle tiles come after the logo (256 tiles = OBS_TILE_BASE in src/vram_layout.h), city tiles after the obstacles (bases in src/vram_layout.h, from the generated headers); prerequisite order = cat order.
-CROM_SETS=assets/base-crom-logo gen/obs gen/city gen/sootling gen/hazard gen/island gen/tripstrip gen/trippickup gen/triphaz
+CROM_SETS=assets/base-crom-logo gen/obs gen/city gen/sootling gen/hazard gen/island gen/island_garden gen/island_deck gen/tripstrip gen/trippickup gen/triphaz gen/gum gen/logo gen/splash gen/arcade
 CROM_LAYOUT=$(BUILDDIR)/gen/crom-layout.stamp
 $(CROM1): $(CROM_SETS:%=$(BUILDDIR)/%.c1) $(CROM_LAYOUT)
 $(CROM2): $(CROM_SETS:%=$(BUILDDIR)/%.c2) $(CROM_LAYOUT)
@@ -137,6 +142,13 @@ $(BUILDDIR)/gen/island.c1 $(BUILDDIR)/gen/island.c2 $(BUILDDIR)/gen/island_sprit
 	$(PYTHON) -I tools/build_island_sprites.py --out $(BUILDDIR)/gen
 $(BUILDDIR)/gen/island_sprites.o: $(BUILDDIR)/gen/island_sprites.c
 	$(M68KGCC) $(NGCFLAGS) $(CFLAGS) -c $< -o $@
+# The garden and deck looks: same pipeline, one set each, placed directly after the roof set (24 tiles and one palette each).
+$(BUILDDIR)/gen/island_%.c1 $(BUILDDIR)/gen/island_%.c2 $(BUILDDIR)/gen/island_%_sprites.c $(BUILDDIR)/gen/island_%_sprites.h $(BUILDDIR)/gen/island_%_tables.h: assets/islands/island_%_sheet.png assets/islands/island_%_sheet.json tools/build_island_sprites.py tools/sprite_pipeline.py
+	$(PYTHON) -I tools/build_island_sprites.py --look $* --out $(BUILDDIR)/gen
+$(BUILDDIR)/gen/island_garden_sprites.o: $(BUILDDIR)/gen/island_garden_sprites.c
+	$(M68KGCC) $(NGCFLAGS) $(CFLAGS) -c $< -o $@
+$(BUILDDIR)/gen/island_deck_sprites.o: $(BUILDDIR)/gen/island_deck_sprites.c
+	$(M68KGCC) $(NGCFLAGS) $(CFLAGS) -c $< -o $@
 
 # Gum Trip kill strip sprite set (tools/build_tripstrip_sprites.py over tools/sprite_pipeline.py). Sheet imported from
 # thoughts/shared/drafts/2026-11-11-gum-trip-import/ and committed under assets/tripstrip/. C-ROM position: after the island set.
@@ -151,8 +163,25 @@ $(BUILDDIR)/gen/triphaz.c1 $(BUILDDIR)/gen/triphaz.c2 $(BUILDDIR)/gen/triphaz_sp
 	$(PYTHON) -I tools/build_triphaz_sprites.py --out $(BUILDDIR)/gen
 $(BUILDDIR)/gen/triphaz_sprites.o: $(BUILDDIR)/gen/triphaz_sprites.c
 	$(M68KGCC) $(NGCFLAGS) $(CFLAGS) -c $< -o $@
+$(BUILDDIR)/gen/gum.c1 $(BUILDDIR)/gen/gum.c2 $(BUILDDIR)/gen/gum_sprites.c $(BUILDDIR)/gen/gum_sprites.h $(BUILDDIR)/gen/gum_tables.h: assets/gum/gum_sheet.png assets/gum/gum_sheet.json tools/build_gum_sprites.py tools/sprite_pipeline.py
+	$(PYTHON) -I tools/build_gum_sprites.py --out $(BUILDDIR)/gen
+$(BUILDDIR)/gen/gum_sprites.o: $(BUILDDIR)/gen/gum_sprites.c
+	$(M68KGCC) $(NGCFLAGS) $(CFLAGS) -c $< -o $@
+# Splash of a flier in water or lava: both strips stacked into one sheet by the build script. C-ROM position: last, after the logo.
+$(BUILDDIR)/gen/splash.c1 $(BUILDDIR)/gen/splash.c2 $(BUILDDIR)/gen/splash_sprites.c $(BUILDDIR)/gen/splash_sprites.h $(BUILDDIR)/gen/splash_tables.h: assets/splash/splash_water_1x.png assets/splash/splash_lava_1x.png assets/splash/splash.json tools/build_splash_sprites.py tools/sprite_pipeline.py
+	$(PYTHON) -I tools/build_splash_sprites.py --out $(BUILDDIR)/gen
+$(BUILDDIR)/gen/splash_sprites.o: $(BUILDDIR)/gen/splash_sprites.c
+	$(M68KGCC) $(NGCFLAGS) $(CFLAGS) -c $< -o $@
+# Arcade stage elements (tools/build_arcade_sprites.py over assets/arcade/, made by tools/import_arcade_sheet.py). C-ROM position: last, after the splash.
+$(BUILDDIR)/gen/arcade.c1 $(BUILDDIR)/gen/arcade.c2 $(BUILDDIR)/gen/arcade_sprites.c $(BUILDDIR)/gen/arcade_sprites.h $(BUILDDIR)/gen/arcade_tables.h: assets/arcade/arcade_sheet.png assets/arcade/arcade_sheet.json tools/build_arcade_sprites.py tools/sprite_pipeline.py
+	$(PYTHON) -I tools/build_arcade_sprites.py --out $(BUILDDIR)/gen
+$(BUILDDIR)/gen/arcade_sprites.o: $(BUILDDIR)/gen/arcade_sprites.c
+	$(M68KGCC) $(NGCFLAGS) $(CFLAGS) -c $< -o $@
+# Title logo (tools/build_logo_sprites.py over assets/logo/): animated strips and free pieces, no .c file (macros only in logo_sprites.h). C-ROM position: after the gum set, so no earlier tile base moves.
+$(BUILDDIR)/gen/logo.c1 $(BUILDDIR)/gen/logo.c2 $(BUILDDIR)/gen/logo_sprites.h: assets/logo/logo_rim.json assets/logo/logo_rim_frames_1x.png assets/logo/logo_rim_pieces_1x.png assets/logo/logo_pieces.json tools/build_logo_sprites.py
+	$(PYTHON) -I tools/build_logo_sprites.py --out $(BUILDDIR)/gen
 
-$(BUILDDIR)/src/main.o $(BUILDDIR)/src/bg.o $(BUILDDIR)/src/gfx.o $(BUILDDIR)/src/hazard.o $(BUILDDIR)/src/island.o $(BUILDDIR)/src/trip_strip.o $(BUILDDIR)/src/trip_pickup.o $(BUILDDIR)/src/core/sprite_budget.o $(BUILDDIR)/src/core/island_layout.o $(BUILDDIR)/src/core/banner.o: $(BUILDDIR)/gen/fix_font.h $(BUILDDIR)/gen/tripmeter.h $(BUILDDIR)/gen/island_tables.h $(BUILDDIR)/gen/city_tables.h $(BUILDDIR)/gen/island_sprites.h $(BUILDDIR)/gen/tripstrip_sprites.h $(BUILDDIR)/gen/tripstrip_tables.h $(BUILDDIR)/gen/trippickup_sprites.h $(BUILDDIR)/gen/trippickup_tables.h $(BUILDDIR)/gen/triphaz_sprites.h $(BUILDDIR)/gen/triphaz_tables.h $(BUILDDIR)/gen/hazard_sprites.h $(BUILDDIR)/gen/obs_sprites.h $(BUILDDIR)/gen/city_sprites.h $(BUILDDIR)/gen/sootling_sprites.h src/core/flier_view.h src/vram_layout.h src/sprite_slots.h src/bg.h src/gfx.h src/hazard.h src/island.h src/core/island_layout.h src/core/vram_queue.h
+$(BUILDDIR)/src/main.o $(BUILDDIR)/src/bg.o $(BUILDDIR)/src/gfx.o $(BUILDDIR)/src/hazard.o $(BUILDDIR)/src/island.o $(BUILDDIR)/src/trip_strip.o $(BUILDDIR)/src/trip_pickup.o $(BUILDDIR)/src/gum.o $(BUILDDIR)/src/logo.o $(BUILDDIR)/src/splash.o $(BUILDDIR)/src/core/sprite_budget.o $(BUILDDIR)/src/core/island_layout.o $(BUILDDIR)/src/core/banner.o: $(BUILDDIR)/gen/fix_font.h $(BUILDDIR)/gen/attract_icons.h src/core/attract_overlay.h $(BUILDDIR)/gen/tripmeter.h $(BUILDDIR)/gen/island_tables.h $(BUILDDIR)/gen/city_tables.h $(BUILDDIR)/gen/island_sprites.h $(BUILDDIR)/gen/island_garden_sprites.h $(BUILDDIR)/gen/island_deck_sprites.h $(BUILDDIR)/gen/tripstrip_sprites.h $(BUILDDIR)/gen/tripstrip_tables.h $(BUILDDIR)/gen/trippickup_sprites.h $(BUILDDIR)/gen/trippickup_tables.h $(BUILDDIR)/gen/triphaz_sprites.h $(BUILDDIR)/gen/triphaz_tables.h $(BUILDDIR)/gen/gum_sprites.h $(BUILDDIR)/gen/gum_tables.h $(BUILDDIR)/gen/logo_sprites.h src/logo.h $(BUILDDIR)/gen/splash_sprites.h $(BUILDDIR)/gen/splash_tables.h $(BUILDDIR)/gen/arcade_sprites.h $(BUILDDIR)/gen/arcade_tables.h src/splash.h src/core/splash_view.h $(BUILDDIR)/gen/hazard_sprites.h $(BUILDDIR)/gen/obs_sprites.h $(BUILDDIR)/gen/city_sprites.h $(BUILDDIR)/gen/sootling_sprites.h src/core/flier_view.h src/core/gum_view.h src/vram_layout.h src/sprite_slots.h src/bg.h src/gfx.h src/hazard.h src/island.h src/core/island_layout.h src/core/vram_queue.h
 
 
 
@@ -165,7 +194,7 @@ $(BUILDDIR)/src/main.o $(BUILDDIR)/src/bg.o $(BUILDDIR)/src/gfx.o $(BUILDDIR)/sr
 # compiled, so build/snd_commands.h exists for the 68k and nss-deps.mk exists for the include below.
 SOUND_DIR=$(BUILDDIR)/sound
 SOUND_YAMLS=assets/sound/music-map.yaml assets/sound/sample-map.yaml
-SFX_NAMES=jump hit game_over coin
+SFX_NAMES=jump hit game_over coin die fall splosh spike pop
 SFX_WAVS=$(SFX_NAMES:%=$(SOUND_DIR)/sfx/%.wav)
 SOUND_DRIVER=$(SOUND_DIR)/driver.ihx
 
@@ -274,13 +303,17 @@ test-crom: cart
 	@for n in 1 2; do f=$(ROM)/$(GAMEROM)-c$$n.c$$n; cat $(CROM_SETS:%=$(BUILDDIR)/%.c$$n) > $(BUILDDIR)/crom-expect.bin; \
 	  head -c `wc -c < $(BUILDDIR)/crom-expect.bin` $$f | cmp -s - $(BUILDDIR)/crom-expect.bin || { echo "[FAIL] test-crom: $$f does not match its sets"; rm -f $(BUILDDIR)/crom-expect.bin; exit 1; }; done; \
 	rm -f $(BUILDDIR)/crom-expect.bin; echo "[OK] test-crom: C-ROMs match their sets"
-# The S-ROM must start with the generated font (FIXFONT_SROM_TILES tiles) and be SROMSIZE bytes (the rest zero).
+# The S-ROM must start with the generated font (FIXFONT_SROM_TILES tiles) and be SROMSIZE bytes (the rest zero); UniBIOS prints ASCII
+# codes (tile = code, 0x100 + code, 0x200 + code), so the glyphs of "A" on all three pages must be drawn and tile 0xFF blank.
 .PHONY: test-srom
 test-srom: cart
 	@f=$(ROM)/$(GAMEROM)-s1.s1; \
 	[ `wc -c < $$f` -eq $(SROMSIZE) ] || { echo "[FAIL] test-srom: $$f is not $(SROMSIZE) bytes"; exit 1; }; \
 	head -c `wc -c < $(BUILDDIR)/gen/fix_font.fix` $$f | cmp -s - $(BUILDDIR)/gen/fix_font.fix || { echo "[FAIL] test-srom: $$f does not start with fix_font.fix"; exit 1; }; \
-	echo "[OK] test-srom: S-ROM is the Gumdrop font, $(SROMSIZE) bytes"
+	blank() { dd if=$$f bs=32 skip=$$1 count=1 2>/dev/null | tr -d '\000' | wc -c | tr -d ' '; }; \
+	for t in 65 321 577; do [ `blank $$t` -ne 0 ] || { echo "[FAIL] test-srom: ASCII tile $$t (0x41 / 0x141 / 0x241) is blank, UniBIOS text needs it"; exit 1; }; done; \
+	[ `blank 255` -eq 0 ] || { echo "[FAIL] test-srom: tile 0xFF is not blank"; exit 1; }; \
+	echo "[OK] test-srom: S-ROM is the Gumdrop font at tile 0x300, ASCII pages 0..2 and blank 0xFF, $(SROMSIZE) bytes"
 # Compile-only check of the debug header build (DEBUG_HEADER=1): src/main.c with -DGUMBIRDS_DEBUG_HEADER into its own object dir,
 # so the normal objects are untouched and no gmake clean is needed. A compile error fails the target.
 test-debug-header: cart
@@ -292,6 +325,7 @@ test: cart
 	@$(MAKE) --no-print-directory test-crom
 	@$(MAKE) --no-print-directory test-srom
 	@$(MAKE) --no-print-directory test-flier
+	@$(MAKE) --no-print-directory test-arcade
 	@$(MAKE) --no-print-directory test-small-sootling
 	@$(MAKE) --no-print-directory test-reach
 	@$(MAKE) --no-print-directory test-vblank
@@ -303,6 +337,7 @@ test: cart
 	@$(MAKE) --no-print-directory test-hazard-kill
 	@$(MAKE) --no-print-directory test-soft-reset
 	@$(MAKE) --no-print-directory test-ring
+	@$(MAKE) --no-print-directory test-logo
 	@$(MAKE) --no-print-directory test-solid
 	@$(MAKE) --no-print-directory test-trip
 	@$(MAKE) --no-print-directory test-sound
@@ -327,6 +362,8 @@ test: cart
 test-flier: cart
 	@set -e; T=$$(mktemp -d $(BUILDDIR)/test-run.XXXXXX); \
 	BRAWL_PAIR_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flier_pair_calls"{print $$1}') \
+	BRAWL_SENT_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_sound_sent"{print $$1}') \
+	BRAWL_LAST_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_sound_last"{print $$1}') \
 	BRAWL_BLOCKED_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flier_pair_blocked"{print $$1}') \
 	BRAWL_CEIL_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flier_ceiling_hits"{print $$1}') \
 	BRAWL_CEILRIVAL_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flier_ceiling_rival_hits"{print $$1}') \
@@ -343,11 +380,65 @@ test-flier: cart
 	cat $$T/result.txt; \
 	if grep -q '^PASS' $$T/result.txt; then rm -rf $$T; echo "[OK] make test-flier passed"; else echo "[FAIL] make test-flier, log kept in $$T"; exit 1; fi
 
+# Arcade mode reachability (tests/mame/arcade_check.lua): coin, ARCADE on the title select, Start, stage 1, forced stage clear to stage 2
+# (island VRAM words change), forced deaths to the continue state, A to continue. Run by `make test-arcade` alone.
+test-arcade: cart
+	@set -e; T=$$(mktemp -d $(BUILDDIR)/test-run.XXXXXX); \
+	BRAWL_FLOW_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flow"{print $$1}') \
+	BRAWL_FRAME_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_frame_counter"{print $$1}') \
+	BRAWL_CAM_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_cam_px"{print $$1}') \
+	BRAWL_ARCADE_LAYOUT="$$($(M68KGCC) $(NGCFLAGS) -Ibuild -std=c99 -S -o - tests/mame/arcade_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
+	BRAWL_RESULT=$$T/result.txt \
+	SDL_VIDEODRIVER=dummy nice -n 19 $(MAME) -window -nomaximize -video none -sound none -nothrottle -seconds_to_run $(TEST_SECONDS) -noautosave -skip_gameinfo -hash $(ROM) -rp $(ROM) -nvram_directory $$T -autoboot_script tests/mame/arcade_check.lua neogeo -cart1 $(GAMEROM) > $$T/mame.log 2>&1 || true; \
+	if [ ! -f $$T/result.txt ]; then tail -n 15 $$T/mame.log; echo "[FAIL] no result from arcade Lua script"; exit 1; fi; \
+	cat $$T/result.txt; \
+	if grep -q '^PASS' $$T/result.txt; then rm -rf $$T; echo "[OK] make test-arcade passed"; else echo "[FAIL] make test-arcade, log kept in $$T"; exit 1; fi
+
+# Attract demos (tests/mame/attract_check.lua): no input for three attract cycles; the demo phases play arena, Gum Trip, arcade in turn,
+# the frame counter never stalls, a coin during the fourth demo goes to the title. About 100 s of emulated time.
+test-attract: cart
+	@set -e; T=$$(mktemp -d $(BUILDDIR)/test-run.XXXXXX); \
+	BRAWL_FLOW_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flow"{print $$1}') \
+	BRAWL_FRAME_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_frame_counter"{print $$1}') \
+	BRAWL_ATTRACT_LAYOUT="$$($(M68KGCC) $(NGCFLAGS) -Ibuild -std=c99 -S -o - tests/mame/attract_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
+	BRAWL_RESULT=$$T/result.txt \
+	SDL_VIDEODRIVER=dummy nice -n 19 $(MAME) -window -nomaximize -video none -sound none -nothrottle -seconds_to_run 160 -noautosave -skip_gameinfo -hash $(ROM) -rp $(ROM) -nvram_directory $$T -autoboot_script tests/mame/attract_check.lua neogeo -cart1 $(GAMEROM) > $$T/mame.log 2>&1 || true; \
+	if [ ! -f $$T/result.txt ]; then tail -n 15 $$T/mame.log; echo "[FAIL] no result from attract Lua script"; exit 1; fi; \
+	cat $$T/result.txt; grep -h "^BRAWL_TEST demo" $$T/mame.log || true; \
+	if grep -q '^PASS' $$T/result.txt; then rm -rf $$T; echo "[OK] make test-attract passed"; else echo "[FAIL] make test-attract, log kept in $$T"; exit 1; fi
+
+# Per-stage frame cost walk (ARCADE_WALK=1, ~2-4 min, not in `make test`): stages 1..12, 300 frames each, prints ARC_STAGE / ARC_TOP lines in mame.log.
+test-arcade-walk: cart
+	@set -e; T=$$(mktemp -d $(BUILDDIR)/test-run.XXXXXX); \
+	BRAWL_FLOW_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flow"{print $$1}') \
+	BRAWL_FRAME_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_frame_counter"{print $$1}') \
+	BRAWL_CAM_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_cam_px"{print $$1}') \
+	BRAWL_ARCADE_LAYOUT="$$($(M68KGCC) $(NGCFLAGS) -Ibuild -std=c99 -S -o - tests/mame/arcade_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
+	BRAWL_RESULT=$$T/result.txt ARCADE_WALK=1 \
+	SDL_VIDEODRIVER=dummy nice -n 19 $(MAME) -window -nomaximize -video none -sound none -nothrottle -seconds_to_run 900 -noautosave -skip_gameinfo -hash $(ROM) -rp $(ROM) -nvram_directory $$T -autoboot_script tests/mame/arcade_check.lua neogeo -cart1 $(GAMEROM) > $$T/mame.log 2>&1 || true; \
+	if [ ! -f $$T/result.txt ]; then tail -n 15 $$T/mame.log; echo "[FAIL] no result from arcade Lua script"; exit 1; fi; \
+	cat $$T/result.txt; \
+	if grep -q '^PASS' $$T/result.txt; then grep -h "^ARC_\|BRAWL_TEST" $$T/mame.log; rm -rf $$T; echo "[OK] make test-arcade-walk passed"; else echo "[FAIL] make test-arcade-walk, log kept in $$T"; exit 1; fi
+
+# Bonus stage cost (ARCADE_BONUS=1): clears stages 1..3, then measures the bonus stage with 8+ bubbles alive (logic end under 224); not in `make test`.
+test-arcade-bonus: cart
+	@set -e; T=$$(mktemp -d $(BUILDDIR)/test-run.XXXXXX); \
+	BRAWL_FLOW_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flow"{print $$1}') \
+	BRAWL_FRAME_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_frame_counter"{print $$1}') \
+	BRAWL_CAM_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_cam_px"{print $$1}') \
+	BRAWL_ARCADE_LAYOUT="$$($(M68KGCC) $(NGCFLAGS) -Ibuild -std=c99 -S -o - tests/mame/arcade_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
+	BRAWL_RESULT=$$T/result.txt ARCADE_BONUS=1 \
+	SDL_VIDEODRIVER=dummy nice -n 19 $(MAME) -window -nomaximize -video none -sound none -nothrottle -seconds_to_run 600 -noautosave -skip_gameinfo -hash $(ROM) -rp $(ROM) -nvram_directory $$T -autoboot_script tests/mame/arcade_check.lua neogeo -cart1 $(GAMEROM) > $$T/mame.log 2>&1 || true; \
+	if [ ! -f $$T/result.txt ]; then tail -n 15 $$T/mame.log; echo "[FAIL] no result from arcade Lua script"; exit 1; fi; \
+	cat $$T/result.txt; \
+	if grep -q '^PASS' $$T/result.txt; then cat $$T/result.txt; rm -rf $$T; echo "[OK] make test-arcade-bonus passed"; else echo "[FAIL] make test-arcade-bonus, log kept in $$T"; exit 1; fi
+
 # Small Sootling reachability (tests/mame/small_sootling_check.lua): the 24 x 32 sheet is what the real ROM draws for the
 # player (art size, tile count, SCB3 height, SCB1 tiles in range, frame-select sentinel, sprite top and x from the flier
 # position). Spec numbers are written in the Lua; a stale sheet fails. Run by make test; `make test-small-sootling` alone.
 test-small-sootling: cart
 	@set -e; T=$$(mktemp -d $(BUILDDIR)/test-run.XXXXXX); \
+	BRAWL_BLINK_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_blink_pool"{print $$1}') \
 	BRAWL_SOOT_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_soot_range"{print $$1}') \
 	BRAWL_CAM_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_cam_px"{print $$1}') \
 	BRAWL_FLOW_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flow"{print $$1}') \
@@ -369,7 +460,7 @@ test-small-sootling: cart
 REACH_SECONDS?=300
 REACH_BIOS_FLAGS?=-rp "$(UNIBIOS_DIR);$(ROM)" -bios unibios40
 test-reach: cart bios
-	@if [ ! -f "$(UNIBIOS)" ]; then echo "[FAIL] UNIBIOS file not found: $(UNIBIOS)"; exit 1; fi
+	@if [ ! -f "$(UNIBIOS)" ]; then echo "[SKIP] UNIBIOS file not found: $(UNIBIOS)"; exit 0; fi
 	@$(MAKE) --no-print-directory $(UNIBIOS_DIR)/neogeo.zip
 	@set -e; T=$$(mktemp -d $(BUILDDIR)/test-run.XXXXXX); \
 	for PH in 1 2; do \
@@ -399,9 +490,17 @@ test-vblank: cart
 	BRAWL_HIT_LAYOUT="$$($(M68KGCC) -std=c99 -S -o - tests/mame/hit_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
 	BRAWL_RESULT=$$T/result.txt \
 	SDL_VIDEODRIVER=dummy nice -n 19 $(MAME) -window -nomaximize -video none -sound none -nothrottle -seconds_to_run $(TEST_SECONDS) -noautosave -skip_gameinfo -hash $(ROM) -rp $(ROM) -nvram_directory $$T -autoboot_script tests/mame/vblank_check.lua neogeo -cart1 $(GAMEROM) > $$T/mame.log 2>&1 || true; \
-	if [ ! -f $$T/result.txt ]; then tail -n 15 $$T/mame.log; echo "[FAIL] no result from vblank Lua script"; exit 1; fi; \
-	cat $$T/result.txt; \
-	if ! grep -q 'FAIL' $$T/result.txt; then rm -rf $$T; echo "[OK] make test-vblank passed"; else echo "[FAIL] make test-vblank, log kept in $$T"; exit 1; fi
+	BRAWL_FLOW_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flow"{print $$1}') \
+	BRAWL_FRAME_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_frame_counter"{print $$1}') \
+	BRAWL_PALMAX_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_pal_words_frame_max"{print $$1}') \
+	BRAWL_VQ_LAYOUT="$$($(M68KGCC) $(NGCFLAGS) -Ibuild -std=c99 -S -o - tests/mame/vq_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
+	BRAWL_HIT_LAYOUT="$$($(M68KGCC) -std=c99 -S -o - tests/mame/hit_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
+	BRAWL_DEMO=1 BRAWL_RESULT=$$T/result-demo.txt \
+	BRAWL_ATTRACT_LAYOUT="$$($(M68KGCC) $(NGCFLAGS) -Ibuild -std=c99 -S -o - tests/mame/attract_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
+	SDL_VIDEODRIVER=dummy nice -n 19 $(MAME) -window -nomaximize -video none -sound none -nothrottle -seconds_to_run 160 -noautosave -skip_gameinfo -hash $(ROM) -rp $(ROM) -nvram_directory $$T -autoboot_script tests/mame/vblank_check.lua neogeo -cart1 $(GAMEROM) > $$T/mame-demo.log 2>&1 || true; \
+	if [ ! -f $$T/result.txt ] || [ ! -f $$T/result-demo.txt ]; then tail -n 15 $$T/mame.log $$T/mame-demo.log; echo "[FAIL] no result from vblank Lua script"; exit 1; fi; \
+	cat $$T/result.txt $$T/result-demo.txt; \
+	if ! grep -q 'FAIL' $$T/result.txt $$T/result-demo.txt; then rm -rf $$T; echo "[OK] make test-vblank passed"; else echo "[FAIL] make test-vblank, log kept in $$T"; exit 1; fi
 
 # Background scroll reachability (tests/mame/scroll_check.lua): coin, start, play with jumps and fire, restart after
 # game over; a Lua VRAM shadow asserts every PLAYING frame each of the five background planes shows the g_cam_px the
@@ -429,7 +528,7 @@ test-slots: cart
 	BRAWL_HIT_LAYOUT="$$($(M68KGCC) -std=c99 -S -o - tests/mame/hit_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
 	BRAWL_ISLAND_DRAWS_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_island_draws"{print $$1}') \
 	BRAWL_CAM_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_cam_px"{print $$1}') \
-	BRAWL_STAGE_PLATFORMS="$$(sed -n 's/^ *{ *\([0-9]*\), *\([0-9]*\), *\([0-9]*\), STAGE_PLATFORM_H.*/\1 \2 \3/p' src/core/stage.c | tr '\n' ' ')" \
+	BRAWL_STAGE_PLATFORMS="$$(sed -n 's/^#define R01_PLAT//p' src/core/stage.c | grep -o '[0-9][0-9]*' | tr '\n' ' ')" \
 	BRAWL_SLOT_LAYOUT="$$($(M68KGCC) $(NGCFLAGS) -Ibuild -std=c99 -S -o - tests/mame/slot_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
 	BRAWL_RESULT=$$T/result.txt \
 	SDL_VIDEODRIVER=dummy nice -n 19 $(MAME) -window -nomaximize -video none -sound none -nothrottle -seconds_to_run 30 -noautosave -skip_gameinfo -hash $(ROM) -rp $(ROM) -nvram_directory $$T -autoboot_script tests/mame/slot_order_check.lua neogeo -cart1 $(GAMEROM) > $$T/mame.log 2>&1 || true; \
@@ -473,11 +572,14 @@ test-hazard-kill: cart
 	BRAWL_FLOW_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flow"{print $$1}') \
 	BRAWL_FRAME_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_frame_counter"{print $$1}') \
 	BRAWL_KIND_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_hazard_kind"{print $$1}') \
+	BRAWL_STAGE_ADDR=$$($(NM) $(ELF) | awk '$$3=="stage_platforms"{print $$1}') \
 	BRAWL_RE_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_round_end_s"{print $$1}') \
+	BRAWL_SENT_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_sound_sent"{print $$1}') \
+	BRAWL_LAST_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_sound_last"{print $$1}') \
 	BRAWL_FLIER_LAYOUT="$$($(M68KGCC) -std=c99 -S -o - tests/mame/flier_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
 	BRAWL_KILL_LAYOUT="$$($(M68KGCC) $(NGCFLAGS) -Ibuild -std=c99 -S -o - tests/mame/hazard_kill_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
 	BRAWL_RESULT=$$T/result.txt \
-	SDL_VIDEODRIVER=dummy nice -n 19 $(MAME) -window -nomaximize -video none -sound none -nothrottle -seconds_to_run 400 -noautosave -skip_gameinfo -hash $(ROM) -rp $(ROM) -nvram_directory $$T -autoboot_script tests/mame/hazard_kill_check.lua neogeo -cart1 $(GAMEROM) > $$T/mame.log 2>&1 || true; \
+	SDL_VIDEODRIVER=dummy nice -n 19 $(MAME) -window -nomaximize -video none -sound none -nothrottle -seconds_to_run 900 -noautosave -skip_gameinfo -hash $(ROM) -rp $(ROM) -nvram_directory $$T -autoboot_script tests/mame/hazard_kill_check.lua neogeo -cart1 $(GAMEROM) > $$T/mame.log 2>&1 || true; \
 	if [ ! -f $$T/result.txt ]; then tail -n 15 $$T/mame.log; echo "[FAIL] no result from hazard kill Lua script"; exit 1; fi; \
 	cat $$T/result.txt; \
 	if grep -q '^PASS' $$T/result.txt; then rm -rf $$T; echo "[OK] make test-hazard-kill passed"; else echo "[FAIL] make test-hazard-kill, log kept in $$T"; exit 1; fi
@@ -539,17 +641,25 @@ test-sprite-peak: cart
 # Sound driver reachability (tests/mame/sound_check.lua): coin, start, jump, fire, idle to game over. Asserts the 68k
 # sentinels g_sound_sent/g_sound_last, the Z80 command port reads and the YM2610 key-on/FM writes agree for every
 # game sound event. Run by make test; `make test-sound` alone re-runs only this check.
+SOUND_LEGS?=nullbios unibios40
 test-sound: cart
 	@set -e; T=$$(mktemp -d $(BUILDDIR)/test-run.XXXXXX); \
+	for LEG in $(SOUND_LEGS); do \
+	if [ $$LEG = unibios40 ]; then \
+	if [ ! -f "$(UNIBIOS)" ]; then echo "[SKIP] test-sound UniBIOS leg: UNIBIOS file not found: $(UNIBIOS)"; continue; fi; \
+	$(MAKE) --no-print-directory bios $(UNIBIOS_DIR)/neogeo.zip; \
+	RP="$(UNIBIOS_DIR);$(ROM)"; BIOSFLAG="-bios unibios40"; else RP="$(ROM)"; BIOSFLAG=""; fi; \
+	BRAWL_LABEL=$$LEG \
 	BRAWL_FLOW_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flow"{print $$1}') \
 	BRAWL_STAGE_ADDR=$$($(NM) $(ELF) | awk '$$3=="stage_platforms"{print $$1}') \
 	BRAWL_HIT_LAYOUT="$$($(M68KGCC) -std=c99 -S -o - tests/mame/hit_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
 	BRAWL_FLIER_LAYOUT="$$($(M68KGCC) -std=c99 -S -o - tests/mame/flier_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
-	BRAWL_RESULT=$$T/result.txt \
-	SDL_VIDEODRIVER=dummy nice -n 19 $(MAME) -window -nomaximize -video none -sound none -nothrottle -seconds_to_run $(TEST_SECONDS) -noautosave -skip_gameinfo -hash $(ROM) -rp $(ROM) -nvram_directory $$T -autoboot_script tests/mame/sound_check.lua neogeo -cart1 $(GAMEROM) > $$T/mame.log 2>&1 || true; \
-	if [ ! -f $$T/result.txt ]; then tail -n 15 $$T/mame.log; echo "[FAIL] no result from sound Lua script"; exit 1; fi; \
-	cat $$T/result.txt; \
-	if ! grep -q 'FAIL' $$T/result.txt; then rm -rf $$T; echo "[OK] make test-sound passed"; else echo "[FAIL] make test-sound, log kept in $$T"; exit 1; fi
+	BRAWL_RESULT=$$T/result-$$LEG.txt \
+	SDL_VIDEODRIVER=dummy nice -n 19 $(MAME) -window -nomaximize -video none -sound none -nothrottle -seconds_to_run $(TEST_SECONDS) -noautosave -skip_gameinfo -hash $(ROM) -rp "$$RP" $$BIOSFLAG -nvram_directory $$T/nvram-$$LEG -autoboot_script tests/mame/sound_check.lua neogeo -cart1 $(GAMEROM) > $$T/mame-$$LEG.log 2>&1 || true; \
+	if [ ! -f $$T/result-$$LEG.txt ]; then tail -n 15 $$T/mame-$$LEG.log; echo "[FAIL] test-sound $$LEG: no result from Lua script"; exit 1; fi; \
+	echo "[$$LEG]"; cat $$T/result-$$LEG.txt; \
+	if grep -q 'FAIL' $$T/result-$$LEG.txt; then echo "[FAIL] make test-sound $$LEG, log kept in $$T"; exit 1; fi; \
+	done; rm -rf $$T; echo "[OK] make test-sound passed"
 
 # UniBIOS check (tests/mame/unibios_check.lua): palettes survive the real-BIOS coin re-entry.
 # Separate from make test, because it needs the UNIBIOS file from outside the repo.
@@ -562,10 +672,11 @@ test-unibios: cart bios
 	BRAWL_BG_PAL_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_bg_pal_first_entry"{print $$1}') \
 	BRAWL_BG_PAL_BYTES=$$($(NM) -S $(ELF) | awk '$$4=="city_palettes"{print $$2}') \
 	BRAWL_SOOT_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_soot_range"{print $$1}') \
+	BRAWL_COINCALLS_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_coin_calls"{print $$1}') \
 	BRAWL_FLOW_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flow"{print $$1}') \
 	BRAWL_REACH_LAYOUT="$$($(M68KGCC) -std=c99 -S -o - tests/mame/reach_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
 	BRAWL_RESULT=$$T/result.txt \
-	SDL_VIDEODRIVER=dummy nice -n 19 $(MAME) -window -nomaximize -video none -sound none -nothrottle -seconds_to_run 120 -noautosave -skip_gameinfo -hash $(ROM) -rp "$(UNIBIOS_DIR);$(ROM)" -bios unibios40 -nvram_directory $$T -autoboot_script tests/mame/unibios_check.lua neogeo -cart1 $(GAMEROM) > $$T/mame.log 2>&1 || true; \
+	SDL_VIDEODRIVER=dummy nice -n 19 $(MAME) -window -nomaximize -video none -sound none -nothrottle -seconds_to_run 400 -noautosave -skip_gameinfo -hash $(ROM) -rp "$(UNIBIOS_DIR);$(ROM)" -bios unibios40 -nvram_directory $$T -autoboot_script tests/mame/unibios_check.lua neogeo -cart1 $(GAMEROM) > $$T/mame.log 2>&1 || true; \
 	if [ ! -f $$T/result.txt ]; then tail -n 15 $$T/mame.log; echo "[FAIL] no result from Lua script"; exit 1; fi; \
 	cat $$T/result.txt; \
 	if grep -q '^PASS' $$T/result.txt; then rm -rf $$T; echo "[OK] make test-unibios passed"; else echo "[FAIL] make test-unibios, log kept in $$T"; exit 1; fi
@@ -699,7 +810,23 @@ test-left-column: cart
 	cat $$T/result.txt; \
 	if grep -q '^PASS' $$T/result.txt; then rm -rf $$T; else echo "[FAIL] make test-left-column ($$M), log kept in $$T"; exit 1; fi; done; echo "[OK] make test-left-column passed"
 
-.PHONY: run test test-crom test-srom test-debug-header test-camera test-sprite-peak test-left-column test-flier test-small-sootling test-reach test-vblank test-scroll test-slots test-hazard test-hazard-kill test-soft-reset test-ring test-solid test-trip test-score test-sound test-unibios
+# Title screen (tests/mame/logo_check.lua, UniBIOS 4.0 for coins): logo sprites active, PRESS START absent at 0 credits and present
+# after a coin, credit byte 0x10FE00, kill strips (slots shared with the logo) correct over title, Gum Trip, title, Gum Trip. `make test-logo` alone.
+test-logo: cart bios
+	@if [ ! -f "$(UNIBIOS)" ]; then echo "[SKIP] test-logo needs UNIBIOS (coins); not found: $(UNIBIOS)"; exit 0; fi
+	@$(MAKE) --no-print-directory $(UNIBIOS_DIR)/neogeo.zip
+	@set -e; T=$$(mktemp -d $(BUILDDIR)/test-run.XXXXXX); \
+	BRAWL_FLOW_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flow"{print $$1}') \
+	BRAWL_LOGODRAWS_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_logo_draws"{print $$1}') \
+	BRAWL_FIXFONT_H=$(BUILDDIR)/gen/fix_font.h \
+	BRAWL_LOGO_LAYOUT="$$($(M68KGCC) $(NGCFLAGS) -Ibuild -std=c99 -S -o - tests/mame/logo_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
+	BRAWL_RESULT=$$T/result.txt \
+	SDL_VIDEODRIVER=dummy nice -n 19 $(MAME) -window -nomaximize -video none -sound none -nothrottle -seconds_to_run 120 -noautosave -skip_gameinfo -hash $(ROM) -rp "$(UNIBIOS_DIR);$(ROM)" -bios unibios40 -nvram_directory $$T -autoboot_script tests/mame/logo_check.lua neogeo -cart1 $(GAMEROM) > $$T/mame.log 2>&1 || true; \
+	if [ ! -f $$T/result.txt ]; then tail -n 15 $$T/mame.log; echo "[FAIL] no result from logo Lua script"; exit 1; fi; \
+	cat $$T/result.txt; \
+	if grep -q '^PASS' $$T/result.txt; then rm -rf $$T; echo "[OK] make test-logo passed"; else echo "[FAIL] make test-logo, log kept in $$T"; exit 1; fi
+
+.PHONY: run test test-arcade test-arcade-walk test-arcade-bonus test-crom test-srom test-debug-header test-camera test-sprite-peak test-left-column test-flier test-small-sootling test-reach test-vblank test-scroll test-slots test-hazard test-hazard-kill test-soft-reset test-ring test-solid test-trip test-score test-sound test-unibios test-logo
 
 # Header dependencies from -MMD (build/**/*.d): a changed header rebuilds every object that includes it.
 -include $(shell find $(BUILDDIR) -name '*.d' 2>/dev/null)

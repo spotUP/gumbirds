@@ -23,9 +23,11 @@ typedef struct {
     uint16_t timer;   /* frames until the next think */
     int8_t dir;       /* held between thinks */
     uint32_t thinks;  /* think count (test sentinel) */
+    uint8_t think_cut;/* frames shaved off every think period by the arcade rank */
 } Ai;
 
-void ai_init(Ai *a, Rng *r);
+/* rank 1 is the arena AI; higher arcade ranks (arcade.h) think sooner. */
+void ai_init(Ai *a, Rng *r, int rank);
 /* Nearest live rival (state ALIVE or PARACHUTE) among the player and the computer fliers, by squared distance. NULL
  * when none. self is excluded by pointer. */
 const Flier *ai_nearest(const Flier *self, const Flier *player, const Flier *cpus, int cpu_count);

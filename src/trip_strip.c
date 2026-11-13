@@ -24,6 +24,7 @@ static u8 g_on;
 static u8 g_vis;            /* 1 while the strip sprites are shown (course ready); tiles are loaded ahead during the run-start hold */
 static TripStripRing g_ring;
 static u32 g_key[COLS];     /* world column + 1 loaded in the slot, 0 = hidden */
+static struct { u8 head, count, valid; u32 made; } g_scan; /* generator state at the last scan that left nothing pending */
 static s16 g_x[COLS];       /* last x sent per slot, or CAMERA_COL_HIDDEN */
 static u16 g_scb3[ALL];     /* SCB3 word per sprite (0 = hidden), written to the chip only while g_vis */
 static u16 g_scb4[ALL];     /* SCB4 word per sprite: floor slots first, then ceiling (a hidden column keeps its last x) */
@@ -36,7 +37,7 @@ void trip_strip_load_palettes(void) {
 static void hide_sprites(void) {
     for (u16 i = 0; i < ALL; i++) { gfx_word((u16)(ADDR_SCB3 + TRIP_STRIP_SPRITE + i), 0); g_scb3[i] = 0; }
     for (u8 s = 0; s < COLS; s++) { g_key[s] = 0; g_x[s] = CAMERA_COL_HIDDEN; }
-    g_vis = 0;
+    g_vis = 0; g_scan.valid = 0;
 }
 
 static void hide_all(void) {
@@ -75,17 +76,21 @@ static void load(u8 slot, int ceiling, u32 j, const TripChunk *ch) {
 void trip_strip_step(const TripGen *g, uint32_t scroll_px, int ready) {
     u32 j0;
     u8 moved = 0, loads = LOADS_PER_FRAME, pending = 0;
-    if (!g) { if (g_on) { hide_all(); g_on = 0; } return; }
+    u8 same;
+    if (!g) { if (g_on) { hide_all(); g_on = 0; } g_scan.valid = 0; return; }
     g_on = 1;
     if (!ready && g_vis) hide_all();
     j0 = scroll_px >> 4;
     if (trip_view_strip_advance(&g_ring, j0)) hide_sprites();
+    same = g_scan.valid && g->head == g_scan.head && g->count == g_scan.count && g->made == g_scan.made;
     for (int k = 0; k < COLS; k++) {
         u8 s = (u8)trip_view_strip_slot(&g_ring, k);
         u32 j = j0 + (u32)k;
         int sx = trip_view_screen_x(j << 4, scroll_px);
-        const TripChunk *ch = (sx > -16 && sx < TRIP_VIEW_SCREEN_W) ? trip_view_strip_chunk(g, j, 1) : 0;
-        u32 key = ch ? j + 1 : 0;
+        int on = sx > -16 && sx < TRIP_VIEW_SCREEN_W;
+        /* same chunks as the last full scan and the slot already holds this column: the lookup would answer "covered" again */
+        const TripChunk *ch = (on && !(same && g_key[s] == j + 1)) ? trip_view_strip_chunk(g, j, 1) : 0;
+        u32 key = (ch || (on && same && g_key[s] == j + 1)) ? j + 1 : 0;
         if (key != g_key[s]) {
             if (key && !loads) { /* over the frame budget: the slot stays hidden until a later frame loads it */
                 pending = 1; g_scb3[s] = g_scb3[COLS + s] = 0; g_key[s] = 0; g_x[s] = CAMERA_COL_HIDDEN;
@@ -102,6 +107,7 @@ void trip_strip_step(const TripGen *g, uint32_t scroll_px, int ready) {
         if (!key) { g_x[s] = CAMERA_COL_HIDDEN; continue; }
         if (sx != g_x[s]) { g_scb4[s] = g_scb4[COLS + s] = gfx_scb4_word(sx); g_x[s] = (s16)sx; moved = 1; }
     }
+    g_scan.head = g->head; g_scan.count = g->count; g_scan.made = g->made; g_scan.valid = !pending;
     if (ready && !g_vis && !pending) { /* every column in view is loaded: show them */
         g_vis = 1; moved = 1;
         gfx_scb_run((u16)(ADDR_SCB3 + TRIP_STRIP_SPRITE), 1, g_scb3, ALL);

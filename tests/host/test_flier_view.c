@@ -195,6 +195,20 @@ static void flap_tests(int b)
     }
 }
 
+/* The pump draws the inflate clip by progress: first frame at 0, last at ARC_PUMP_STAGES - 1, never backwards or outside the clip. */
+static void pump_frame_tests(void)
+{
+    int p, last = -1, fr;
+    const int first = k_first[SOOTLING_CLIP_INFLATE], n = k_count[SOOTLING_CLIP_INFLATE];
+    check(flier_pump_frame(&clips, 0) == first, "pump frame 0", flier_pump_frame(&clips, 0), first);
+    check(flier_pump_frame(&clips, ARC_PUMP_STAGES - 1) == first + n - 1, "pump frame last", flier_pump_frame(&clips, ARC_PUMP_STAGES - 1), first + n - 1);
+    for (p = 0; p <= ARC_PUMP_STAGES; p++) {
+        fr = flier_pump_frame(&clips, p);
+        check(fr >= last && fr >= first && fr < first + n, "pump frame monotonic in clip", fr, last);
+        last = fr;
+    }
+}
+
 int main(void)
 {
     Flier f;
@@ -305,6 +319,7 @@ int main(void)
     for (i = 0; i < 3; i++) ground_tests(i);
     flap_tests(2);
     flap_tests(1);
+    pump_frame_tests();
     printf(bad ? "FAIL flier_view (%d)\n" : "PASS flier_view\n", bad);
     return bad != 0;
 }

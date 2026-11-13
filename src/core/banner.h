@@ -12,12 +12,16 @@
 #define BANNER_W 22
 #define BANNER_H 8
 
+#define BANNER_LAST 1
+#define BANNER_STAGE 2
+#define BANNER_BONUS 4
+
 enum BannerWinner { BANNER_P1 = 0, BANNER_P2, BANNER_CPU, BANNER_DRAW };
 
 typedef struct {
     uint8_t winner;  /* BannerWinner */
     uint16_t round;  /* the round that starts next, shown as ROUND nn (1..99) */
-    uint8_t last;    /* 1: the last round of a match, MATCH OVER replaces ROUND nn */
+    uint8_t last;    /* BANNER_* flags: 0 = ROUND nn; BANNER_LAST: MATCH OVER replaces it; BANNER_STAGE / BANNER_BONUS: the 5 letter word is STAGE / BONUS (arcade) */
 } BannerCtx;
 
 /* Bit r (0..BANNER_H-1) set: some cell of panel row r can differ between frame - 1 and frame, for any BannerCtx.

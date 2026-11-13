@@ -8,6 +8,8 @@
 #include "trip_steer.h"
 #include "../../src/core/trip_hit.h"
 #include "../../src/core/flier_view.h"
+#include "../../src/core/gum_view.h"
+#include "../../src/core/splash_view.h"
 #include "gen/sootling_tables.h"
 
 static uint32_t h = 2166136261u;
@@ -77,6 +79,7 @@ static void flow_digest(void)
         if (f.dirty) { mix(0xD1u); f.dirty = 0; }
         mix(f.state); mix(f.timer); mix(f.game.score); mix(f.game.flier_steps); mix(f.game.flaps); mix((uint32_t)f.game.flier.x); mix((uint32_t)f.game.flier.y); mix((uint32_t)game_camera_px(&f.game)); mix((uint32_t)f.highlight);
         mix(f.reset_hold);
+        mix(f.ov.key); mix(f.demo_in);                  /* the attract overlay state (ATTRACT_HOLD_FRAMES) */
         if (f.state == FLOW_ATTRACT_TABLE && (f.timer == 100u || f.timer == 200u)) { /* which mode's table the screen shows (SCORE_TABLE_SWAP_FRAMES) */
             FlowView v;
             flow_view(&f, &v);
@@ -123,6 +126,30 @@ static void arena_digest(void)
         for (i = 0; i < g.cpu_count; i++) { mix((uint32_t)g.cpu[i].x); mix((uint32_t)g.cpu[i].y); mix(g.cpu[i].state); mix(g.cpu[i].balloons); mix(g.cpu[i].invincible); mix(g.ai[i].thinks); mix(g.ai[i].state); }
         mix((uint32_t)g.flier.x); mix(g.flier.balloons); mix(g.flier.invincible); mix((uint32_t)flier_view_visible(&g.flier, g.frame)); mix((uint32_t)game_camera_px(&g));
     }
+}
+
+/* Arcade part: a rank 2 stage with a flier left to fall, so the rank AI think period and the lives knob show; 600 frames per life.
+ * A second pass on stage 4 (a platform overhead of the rivals) keeps AI_OVERHEAD_PX visible. */
+static void arcade_pass(int stage)
+{
+    static Game g;
+    uint32_t f;
+    int i;
+    game_reset(&g, 5150);
+    game_set_mode(&g, GAME_MODE_ARCADE);
+    g.arc.stage = stage;
+    for (f = 1; f <= 3000u; f++) {
+        game_step(&g, (f % 5u) < 2u ? IN_A : 0);
+        mix(g.score); mix(g.lives.lives); mix(g.over); mix((uint32_t)g.flier.x); mix((uint32_t)g.flier.y);
+        for (i = 0; i < g.cpu_count; i++) { mix((uint32_t)g.cpu[i].x); mix(g.ai[i].thinks); mix(g.pump[i].state); }
+        if (g.over) { mix(f); game_reset(&g, 5150u + f); game_set_mode(&g, GAME_MODE_ARCADE); g.arc.stage = stage; }
+    }
+}
+
+static void arcade_digest(void)
+{
+    arcade_pass(7);
+    arcade_pass(4);
 }
 
 /* Spawn protection (FLIER_SPAWN_INVINCIBLE): the player idles for 700 frames after game_reset, then presses right, while the
@@ -300,6 +327,26 @@ static void flier_view_digest(void)
     }
 }
 
+/* Gum bubble knobs: timing (GUM_WOBBLE_FRAMES, GUM_POP_FRAMES) as sheet frames over a stretch of game frames, placement (GUM_BIRD_*) as the offsets of every bird frame. */
+static void gum_view_digest(void)
+{
+    uint32_t t;
+    for (t = 0; t < 200; t++) { mix(gum_view_frame(GUM_STATE_WOBBLE, t)); mix(gum_view_frame(GUM_STATE_POP, t)); mix((uint32_t)gum_view_pop_done(t)); }
+    for (t = 0; t < GUM_VIEW_BIRD_FRAMES; t++) { GumOffset o = gum_view_offset((uint8_t)t, 0), m = gum_view_offset((uint8_t)t, 1); mix((uint32_t)(o.dx + 128)); mix((uint32_t)(o.dy + 128)); mix((uint32_t)(m.dx + 128)); }
+}
+
+/* Splash knobs: sheet frame per game frame for both liquids, and when each one ends. */
+static void splash_view_digest(void)
+{
+    uint8_t k;
+    for (k = HZ_WATER; k <= HZ_LAVA; k++) {
+        Splash s = {0};
+        int t;
+        splash_step(&s, 1, k, 100);
+        for (t = 0; t < 80; t++) { mix(s.active); mix(splash_frame(&s)); splash_step(&s, 0, k, 0); }
+    }
+}
+
 int main(void)
 {
     trip_island_digest();
@@ -308,9 +355,12 @@ int main(void)
     rival_probe();
     ai_probe();
     arena_digest();
+    arcade_digest();
     spawn_digest();
     flier_physics_digest();
     flier_view_digest();
+    gum_view_digest();
+    splash_view_digest();
     printf("%08x\n", (unsigned)h);
     return 0;
 }

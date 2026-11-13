@@ -109,6 +109,7 @@ static void arena_one_cpu(Game *g)
     game_step_arena(g, 0);              /* starts the match: cpu_count slots filled */
     g->cpu_count = 1;
     g->cpu_alive = 1;
+    g->pump[0].state = ARC_PUMP_FLYING; /* the spawn pump (a still, harmless rival) has its own tests; these start in flight */
     g->flier.spawn_inv = 0;             /* spawn protection (BR-D5) would turn every computer pop of the player into a bounce; its own tests keep it */
 }
 
@@ -173,6 +174,7 @@ static void test_arena_score(void)
     game_reset(&g, 77);
     game_step_arena(&g, 0);
     g.cpu_count = 2;
+    g.pump[0].state = g.pump[1].state = ARC_PUMP_FLYING;
     g.cpu[1].x = g.cpu[0].x; g.cpu[1].y = g.cpu[0].y - FL_PX(26);
     g.cpu[1].vx = 0; g.cpu[1].vy = 0;
     g.flier.x = FL_PX(100); g.flier.y = FL_PX(100);    /* player away over the gap */
@@ -190,6 +192,7 @@ static void test_arena_cpu_no_pop(void)
     arena_one_cpu(&g);
     g.cpu_count = 2; g.cpu_alive = 2;
     g.cpu[1] = g.cpu[0];
+    g.pump[1] = g.pump[0];
     g.flier.x = FL_PX(300); g.flier.y = FL_PX(100);    /* player away, clear of every island (at x 100 the whole-flier island box shoves it 21 px into the pair) */
     g.cpu[0].x = FL_PX(120); g.cpu[0].y = FL_PX(100); g.cpu[0].vx = 0; g.cpu[0].vy = 0; g.cpu[0].on_ground = 0; g.cpu[0].invincible = 0;
     g.cpu[1].x = FL_PX(120); g.cpu[1].y = FL_PX(100 - 26); g.cpu[1].vx = 0; g.cpu[1].vy = FL_PX(1); g.cpu[1].on_ground = 0; g.cpu[1].invincible = 0;
@@ -325,7 +328,7 @@ static void test_arena_spawn_invincible(void)
     uint32_t before;
     game_reset(&g, 77);
     game_step_arena(&g, 0);
-    g.cpu_count = 1; g.cpu_alive = 1;
+    g.cpu_count = 1; g.cpu_alive = 1; g.pump[0].state = ARC_PUMP_FLYING;
     CHECK(g.flier.spawn_inv == FLIER_SPAWN_INVINCIBLE - 1);
     for (i = 0; i < 10; i++) {
         g.cpu[0].x = g.flier.x; g.cpu[0].y = g.flier.y - FL_PX(26); g.cpu[0].vx = 0; g.cpu[0].vy = FL_PX(1); g.cpu[0].on_ground = 0; g.cpu[0].invincible = 0;

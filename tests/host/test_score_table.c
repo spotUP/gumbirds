@@ -51,7 +51,7 @@ int main(void)
     CHECK(score_insert(&s, 1, "LOW", a) == -1);
     CHECK(score_insert(&s, 1, "LOW", 0) == -1);
     for (i = 0; i < HISCORE_ENTRIES; i++) CHECK(sc(&s, 1, i) == before[i]);
-    CHECK(!score_qualifies(&s, 2, 99999) && score_insert(&s, 2, "X", 99999) == -1);
+    CHECK(!score_qualifies(&s, 3, 99999) && score_insert(&s, 3, "X", 99999) == -1);
 
     /* modes never mix */
     score_tables_defaults(&s);
@@ -68,7 +68,7 @@ int main(void)
     CHECK(sc(&s, 1, 1) == 999999 && score_qualifies(&s, 1, 4000000000u));
 
     /* entry bounds */
-    CHECK(!score_entry(&s, 0, 10, nm, NULL) && !score_entry(&s, 2, 0, nm, NULL));
+    CHECK(!score_entry(&s, 0, 10, nm, NULL) && !score_entry(&s, 3, 0, nm, NULL));
 
     /* image round trip and size */
     CHECK(score_serialise(&s, img, SCORE_IMAGE_SIZE - 1) == 0);
@@ -107,6 +107,32 @@ int main(void)
         score_tables_defaults(&d);
         CHECK(memcmp(&s2.t[0], &h, sizeof h) == 0 && memcmp(&s2.t[1], &d.t[1], sizeof h) == 0);
     }
+
+    /* v2 image (250 bytes, two tables): loads as 3, third table gets defaults */
+    {
+        ScoreTables d;
+        uint8_t v2[250];
+        unsigned k;
+        score_tables_defaults(&d);
+        score_insert(&d, 0, "TWO", 99999);
+        score_insert(&d, 1, "TRP", 4444);
+        score_serialise(&d, img, sizeof img);
+        for (k = 0; k < 246; k++) v2[k] = img[k];
+        v2[4] = 0; v2[5] = 2;
+        { uint32_t h = 2166136261u; for (k = 0; k < 246; k++) { h ^= v2[k]; h *= 16777619u; }
+          v2[246] = (uint8_t)(h >> 24); v2[247] = (uint8_t)(h >> 16); v2[248] = (uint8_t)(h >> 8); v2[249] = (uint8_t)h; }
+        score_tables_defaults(&s2);
+        CHECK(score_load(&s2, v2, sizeof v2) == 3);
+        CHECK(sc(&s2, 0, 0) == 99999 && sc(&s2, 1, 0) == 4444);
+        score_tables_defaults(&d);
+        CHECK(memcmp(&s2.t[2], &d.t[2], sizeof d.t[2]) == 0);
+    }
+    /* v3: arcade score lands in table 3 only, round trips */
+    score_tables_defaults(&s);
+    CHECK(SCORE_MODES == 3 && score_insert(&s, 2, "ARC", 123456) == 0);
+    CHECK(sc(&s, 2, 0) == 123456 && sc(&s, 0, 0) != 123456 && sc(&s, 1, 0) != 123456);
+    CHECK(score_serialise(&s, img, sizeof img) == SCORE_IMAGE_SIZE);
+    CHECK(score_load(&s2, img, SCORE_IMAGE_SIZE) == 1 && memcmp(&s, &s2, sizeof s) == 0);
 
     /* shown mode */
     CHECK(score_shown_mode(FLOW_ATTRACT_TITLE, 0, 1, 5, 240) == 0);

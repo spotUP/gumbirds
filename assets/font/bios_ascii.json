@@ -1,0 +1,15 @@
+{
+ "sheet": "bios_ascii_8x8.png",
+ "cell": [
+  8,
+  8
+ ],
+ "columns": 16,
+ "rows": 6,
+ "first_code": 32,
+ "count": 95,
+ "ink": "opaque white",
+ "background": "transparent",
+ "note": "tile = ASCII code",
+ "generator": "thoughts/spot/drafts/2026-11-12-bios-font/draw_bios_font.py"
+}

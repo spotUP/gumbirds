@@ -11,6 +11,7 @@
 -- state offset), BRAWL_RESULT. Symbols from nm on build/rom.elf as in vblank_check.lua.
 local flow_addr = tonumber(os.getenv("BRAWL_FLOW_ADDR"), 16)
 local result    = os.getenv("BRAWL_RESULT")
+local leg       = os.getenv("BRAWL_LABEL") or "nullbios"   -- nullbios never calls the coin vector 0x134; UniBIOS does
 local lay = {}
 for v in (os.getenv("BRAWL_HIT_LAYOUT") or ""):gmatch("%d+") do lay[#lay + 1] = tonumber(v) end
 local O_STATE = lay[1]
@@ -20,15 +21,7 @@ local KEYON_WINDOW = 40      -- frames from a command read by the Z80 to the key
 local MUSIC_WINDOW = 90
 local MUSIC_MIN_WRITES = 20
 
-local function read_ids()
-  local base, ids = 4, {}
-  for line in io.lines("build/snd_commands.h") do
-    local n, off = line:match("#define (SND_[A-Z_]+) %(_SND_CMD_BASE_GENERATED %+ (%d+)%)")
-    if n then ids[n] = base + tonumber(off) end
-  end
-  return ids
-end
-local ids = read_ids()
+local ids = dofile("tests/mame/snd_ids.lua")
 -- A flap plays the jump sample (SE_FLAP in src/core/sound_events.c); the hit sound has no game event in the arena.
 local ID_MUSIC, ID_JUMP, ID_OVER, ID_COIN =
   ids.SND_MUSIC_INGAME, ids.SND_SFX_JUMP, ids.SND_SFX_GAME_OVER, ids.SND_SFX_COIN
@@ -48,7 +41,9 @@ local function read_masks()
   return m
 end
 local MASK = read_masks()
-local NAME = { [ID_MUSIC] = "music", [ID_JUMP] = "flap", [ID_OVER] = "game_over", [ID_COIN] = "coin", [2] = "stop", [3] = "reset" }
+local ID_DIE, ID_FALL, ID_SPLOSH, ID_SPIKE, ID_POP = ids.SND_SFX_DIE, ids.SND_SFX_FALL, ids.SND_SFX_SPLOSH, ids.SND_SFX_SPIKE, ids.SND_SFX_POP
+local NAME = { [ID_MUSIC] = "music", [ID_JUMP] = "flap", [ID_OVER] = "game_over", [ID_COIN] = "coin", [2] = "stop", [3] = "reset",
+  [ID_DIE or -1] = "die", [ID_FALL or -2] = "fall", [ID_SPLOSH or -3] = "splosh", [ID_SPIKE or -4] = "spike", [ID_POP or -5] = "pop" }
 
 local function sym_addrs()
   local gcc
@@ -140,6 +135,7 @@ end)
 local sent_log = {}            -- 68k commands seen via the sentinel: {frame, byte}
 local prev_sent = nil
 local phase, phase_at = "boot", 0
+local coin_at = 0
 local fc0
 
 local function evaluate()
@@ -147,10 +143,29 @@ local function evaluate()
   if #sent_log == 0 then finish(false, "68k sentinel g_sound_sent never moved (sound_play_sfx not reached)") return end
   local seen = {}
   for _, e in ipairs(sent_log) do seen[e[2]] = (seen[e[2]] or 0) + 1 end
-  for _, id in ipairs({ ID_COIN, ID_MUSIC, ID_JUMP, ID_OVER }) do
+  for _, id in ipairs({ ID_MUSIC, ID_JUMP, ID_OVER }) do
     if not seen[id] then finish(false, "68k never sent " .. NAME[id] .. " (id " .. id .. ")") return end
   end
   if not seen[2] then finish(false, "68k never sent stop_music at game over") return end
+  -- the player drowns in the round 1 water (flier_drive.lua): exactly one splosh. die/fall/spike need a stomp or a spike round, which this drive does not produce; if sent they are checked against the key-ons below like any sound.
+  if not (ID_DIE and ID_FALL and ID_SPLOSH and ID_SPIKE and MASK[ID_SPLOSH]) then finish(false, "die/fall/splosh/spike ids or masks missing") return end
+  if seen[ID_SPLOSH] ~= 1 then finish(false, "splosh sent " .. tostring(seen[ID_SPLOSH]) .. " times at the drowning, want exactly 1") return end
+  if not (ID_POP and MASK[ID_POP]) then finish(false, "pop id or mask missing") return end
+  -- the drive (drowning only) never bursts a bubble, so pop is not required to be sent; if it is, the key-on check below covers it.
+  -- coin sound belongs to the BIOS coin vector, not to Start (start_seq.lua: Start comes 40 frames after the coin)
+  local coin_f, music_f
+  for _, e in ipairs(sent_log) do
+    if e[2] == ID_COIN and not coin_f then coin_f = e[1] end
+    if e[2] == ID_MUSIC and not music_f then music_f = e[1] end
+  end
+  if leg == "nullbios" then
+    if seen[ID_COIN] then finish(false, string.format("coin sound sent %d times (first at frame %d) under nullbios: no coin vector call, Start must play none", seen[ID_COIN], coin_f)) return end
+  else
+    if not seen[ID_COIN] then finish(false, "68k never sent coin (id " .. ID_COIN .. ") under " .. leg) return end
+    if seen[ID_COIN] ~= 1 then finish(false, "coin sound sent " .. seen[ID_COIN] .. " times, want exactly 1") return end
+    if coin_f < coin_at or coin_f > coin_at + 39 then finish(false, string.format("coin sound at frame %d, want within [%d,%d] after the coin", coin_f, coin_at, coin_at + 39)) return end
+    if music_f < coin_at + 40 then finish(false, string.format("music at frame %d, before Start (coin at %d)", music_f, coin_at)) return end
+  end
   -- 2. Z80 received the same sequence: sent_log must be the tail of zcmds
   local off = #zcmds - #sent_log
   if off < 0 then
@@ -207,7 +222,7 @@ emu.register_frame_done(function()
   if phase == "boot" then
     local fc = mem:read_u32(A_FRAME)
     if fc ~= 0 then fc0 = fc0 or fc end
-    if fc0 and fc - fc0 >= 30 then phase = "coin"; phase_at = n; ss.begin(n) end
+    if fc0 and fc - fc0 >= 30 then phase = "coin"; phase_at = n; coin_at = n; ss.begin(n) end
   elseif phase == "coin" then
     if ss.step(n, state == FLOW_PLAYING) then phase = "settle"; phase_at = n end
   elseif phase == "settle" then

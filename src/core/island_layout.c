@@ -1,5 +1,6 @@
 #include "island_layout.h"
 #include "stage.h"
+#include "arcade.h"
 #include "gen/island_tables.h"
 
 static const unsigned char k_width[ISLAND_WIDTH_COUNT] = ISLAND_TABLE_WIDTH;
@@ -26,8 +27,13 @@ int island_anim_swaps(int anim) {
     return anim >= 0 && anim < (int)sizeof k_swap && k_swap[anim];
 }
 
+/* The bonus stage layout is a floor strip and nozzle tops drawn as their own art (main.c arcade_bonus_step): no island columns. */
+int island_platform_columns(int w) {
+    return stage_layout_index() == ARC_LAYOUT_BONUS ? 0 : island_columns(w);
+}
+
 int island_total_columns(void) {
     int n = 0;
-    for (int i = 0; i < STAGE_PLATFORM_COUNT; i++) n += island_columns(stage_platforms[i].w);
+    for (int i = 0; i < STAGE_PLATFORM_COUNT; i++) n += island_platform_columns(stage_platforms[i].w);
     return n;
 }
