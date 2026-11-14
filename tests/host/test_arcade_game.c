@@ -277,9 +277,9 @@ int main(void) {
             }
         printf("sim: element deaths %d, clears %d, clears with no stomp %d, stage 2 early element deaths %d\n", elem_deaths, clears, nostomp, early2);
         /* Design targets (thoughts/spot/2026-11-13-arc-avoid-design.md); avoidance off measured 826 deaths, 63 clears without a stomp. */
-        CHECK(elem_deaths <= 53);   // shortcut: target <=4, reached 53 (vent deaths at island-top height beside the vent); upgrade with a vertical escape
-        CHECK(nostomp <= 5);        // shortcut: target 0, reached 5
-        CHECK(early2 <= 3);         // shortcut: target 0, reached 3
+        CHECK(elem_deaths <= 13);   // shortcut: target <=4, reached 13 (fast rivals crossing a plume at launch time brake too late); upgrade with a vertical escape or a speed-scaled look
+        CHECK(nostomp <= 2);        // shortcut: target 0, reached 2
+        CHECK(early2 <= 0);         // target 0 reached
     }
 
     printf("test_arcade_game: %d checks, %d failures\n", checks, failures);
