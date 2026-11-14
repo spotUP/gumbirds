@@ -117,7 +117,9 @@ int arc_elements_avoid_dir(const ArcElements *a, int cx, int cy, int hw, int hh,
         if (dx < 0) dx = -dx;
         if (e->kind == ARC_EL_VENT) {
             if (e->timer < ARC_VENT_TELEGRAPH || e->timer >= ARC_VENT_LAUNCH + ARC_VENT_BURST_TICKS) continue;
-            if (!box_hit(cx, cy, hw + ARC_AVOID_LOOK, hh + ARC_AVOID_PAD, e->x, e->y - ARC_VENT_PLUME_H / 2, ARC_VENT_HALF_W, ARC_VENT_PLUME_H / 2)) continue;
+            int look = ARC_AVOID_LOOK;
+            if ((vx > 0) == (e->x > cx) && vx != 0) look += (int)(((vx < 0 ? -vx : vx) * ARC_AVOID_LOOK_TICKS) >> 16);   /* heading at it: reach grows with speed (braking distance) */
+            if (!box_hit(cx, cy, hw + look, hh + ARC_AVOID_PAD, e->x, e->y - ARC_VENT_PLUME_H / 2, ARC_VENT_HALF_W, ARC_VENT_PLUME_H / 2)) continue;
         } else if (e->kind == ARC_EL_GRABBER) {   /* any hand state: the hand patrols hidden, so stay off the water near it */
             int gx = cx - e->x;
             if (gx < 0) gx = -gx;
@@ -126,7 +128,18 @@ int arc_elements_avoid_dir(const ArcElements *a, int cx, int cy, int hw, int hh,
         if (best < 0 || dx < bd) { best = i; bd = dx; }   /* the nearest threat decides: two vents' look boxes meet between them */
     }
     if (best < 0) return 0;
-    return px >= a->el[best].x ? 1 : -1;   /* stage_overhead_edge_dir rule: right of centre (or dead centre) goes right */
+    {
+        const ArcElement *e = &a->el[best];
+        int side = px >= e->x ? 1 : -1, now = cx >= e->x ? 1 : -1;   /* stage_overhead_edge_dir rule: right of centre (or dead centre) goes right */
+        /* The projected side may lie across the plume: cross only if the far edge is reached at the current speed before launch,
+           else turn back (a fast rival heading at a vent was sent through it and died at launch). No divide: far << 16 vs speed * ticks. */
+        if (e->kind == ARC_EL_VENT && side != now) {
+            int32_t sp = vx < 0 ? -vx : vx, far = (int32_t)((cx - e->x) * now + ARC_VENT_HALF_W + hw + 1);
+            int left = e->timer < ARC_VENT_LAUNCH ? ARC_VENT_LAUNCH - e->timer : 0;
+            if ((far << 16) > sp * left) return now;
+        }
+        return side;
+    }
 }
 
 int arc_elements_bounce(const ArcElements *a, int cx, int cy, int hw, int hh, int32_t *vx, int32_t *vy) {
