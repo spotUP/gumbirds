@@ -1503,12 +1503,13 @@ static void game_loop(void) {
         g_round_end_s[0] = g_flow.game.round_end; g_round_end_s[1] = g_flow.game.round_timer;
         g_round_end_s[2] = g_flow.game.round_start; g_round_end_s[3] = game_flier_visible(&g_flow.game);
         if (coined) sound_play_sfx(SND_SFX_COIN);
-        if (view.game && view.state == FLOW_PLAYING && g_flow.game.res.events) { /* stand-in sounds: existing samples until the result cues exist */
+        if (view.game && view.state == FLOW_PLAYING && g_flow.game.res.events) { /* result screen sounds */
             u8 re = g_flow.game.res.events;
             g_flow.game.res.events = 0;
-            if (re & RES_EV_VANISH) sound_play_sfx(SND_SFX_POP);
-            if (re & RES_EV_TICK) sound_play_sfx(SND_SFX_JUMP);
-            if (re & (RES_EV_JINGLE | RES_EV_BONUS)) sound_play_sfx(SND_SFX_COIN);
+            if (re & RES_EV_VANISH) sound_play_pop();
+            if (re & RES_EV_TICK) sound_play_sfx(SND_SFX_TALLY_TICK);
+            if (re & RES_EV_JINGLE) sound_play_sfx(SND_SFX_PERFECT);
+            if (re & RES_EV_BONUS) sound_play_sfx(SND_SFX_TALLY_BONUS);
         }
         sound_frame(&view);
         sound_tick();

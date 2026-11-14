@@ -18,7 +18,9 @@ local ceil_addr = tonumber(os.getenv("BRAWL_CEIL_ADDR") or "", 16)   -- g_flier_
 local ceilrival_addr = tonumber(os.getenv("BRAWL_CEILRIVAL_ADDR") or "", 16)   -- of those, on the lowered computer flier line
 local sent_addr = tonumber(os.getenv("BRAWL_SENT_ADDR") or "", 16)   -- g_sound_sent / g_sound_last (sound.c): the 68k side of the sound latch, visible with -sound none
 local last_addr = tonumber(os.getenv("BRAWL_LAST_ADDR") or "", 16)
-local ID_POP = dofile("tests/mame/snd_ids.lua").SND_SFX_POP
+local ID_POP = dofile("tests/mame/snd_ids.lua").SND_SFX_POP_A
+local POP_IDS = {}   -- pops rotate through three variants (src/sound.c POPS)
+for k, id in pairs(dofile("tests/mame/snd_ids.lua")) do if k:match("^SND_SFX_POP_") then POP_IDS[id] = true end end
 local pop_prev, pop_f, pop_hit_n   -- side pop: last g_sound_sent seen, frame a pop command was sent, frame the score rose
 local lay = {}
 for v in (os.getenv("BRAWL_FLIER_LAYOUT") or ""):gmatch("%d+") do lay[#lay + 1] = tonumber(v) end
@@ -385,7 +387,7 @@ emu.register_frame_done(function() local ok_, err_ = pcall(function()
     end
     if side_armed and sent_addr and last_addr and ID_POP then
       local sent = mem:read_u16(sent_addr)
-      if pop_prev and sent ~= pop_prev and mem:read_u8(last_addr) == ID_POP then pop_f = pop_f or n end
+      if pop_prev and sent ~= pop_prev and POP_IDS[mem:read_u8(last_addr)] then pop_f = pop_f or n end
       pop_prev = sent
     end
     if side_armed and g32(O_SCORE) ~= side_score0 then
@@ -393,7 +395,7 @@ emu.register_frame_done(function() local ok_, err_ = pcall(function()
       if not (sent_addr and last_addr and ID_POP) then finish(false, "missing BRAWL_SENT_ADDR / BRAWL_LAST_ADDR / pop id") return end
       if not pop_f then
         if n - pop_hit_n < 6 then return end   -- the pop command goes out through the sound queue a frame or two after the burst
-        finish(false, "side pop: the balloon burst but the 68k never sent the pop command (id " .. ID_POP .. ") within 5 frames") return
+        finish(false, "side pop: the balloon burst but the 68k never sent a pop command (first id " .. ID_POP .. ") within 5 frames") return
       end
       local delta = g32(O_SCORE) - side_score0
       local want = K_POP + ((side_bal0 == 1 and c0state > 1) and K_DEFEAT or 0)

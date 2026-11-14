@@ -197,18 +197,19 @@ $(BUILDDIR)/src/main.o $(BUILDDIR)/src/bg.o $(BUILDDIR)/src/gfx.o $(BUILDDIR)/sr
 # Plan: thoughts/shared/plans/2026-11-09-sound-driver.md. Nothing under build/sound is committed.
 #   assets/sound/*.yaml            music and sample maps (soundtool.py)
 #   tools/make_standin_fur.py      stand-in music (no upstream asset copied, licence unclear)
-#   tools/make_sfx_placeholders.py placeholder SFX WAVs (replaced by real samples later)
+#   tools/make_sfx.py              sound effect WAVs (offline synthesis, needs numpy; about one minute)
 # Generation order: `gmake` runs the sound-gen target (CUSTOM_GENERATE_TARGETS) before anything is
 # compiled, so build/snd_commands.h exists for the 68k and nss-deps.mk exists for the include below.
 SOUND_DIR=$(BUILDDIR)/sound
 SOUND_YAMLS=assets/sound/music-map.yaml assets/sound/sample-map.yaml
-SFX_NAMES=jump hit coin die fall splosh spike pop
+SFX_NAMES=splosh spike sizzle vent_warn vent_burst grab_rise grab_bite grate flipper pop_a pop_b pop_c bubble_puff bump die life_lost chute perfect gum_low hit pump_a pump_b rival_launch defeat rival_warn flap_a flap_b flap_c fall coin start round_go banner_in tally_tick tally_bonus continue_tick continue_yes ne_move ne_confirm ne_done pickup pickup_streak
 SFX_WAVS=$(SFX_NAMES:%=$(SOUND_DIR)/sfx/%.wav)
 SOUND_DRIVER=$(SOUND_DIR)/driver.ihx
 
-$(SFX_WAVS): tools/make_sfx_placeholders.py
+# grouped target (&:): one run writes every WAV
+$(SFX_WAVS) &: tools/make_sfx.py
 	mkdir -p $(@D)
-	$(PYTHON) -I tools/make_sfx_placeholders.py $(SOUND_DIR)/sfx
+	$(PYTHON) -I tools/make_sfx.py $(SOUND_DIR)/sfx $(SFX_NAMES)
 SOUND_ASSETS=$(SFX_WAVS)
 
 # build.mk recipes read the maps through $^, so the generated assets are order-only prerequisites
