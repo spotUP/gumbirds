@@ -45,9 +45,12 @@ int main(void)
         memset(&v, 0, sizeof v);
         v.game = &g;
         se_init(&e);
+        v.state = FLOW_ATTRACT_TITLE;
+        CHECK(se_step(&e, &v) == SE_TITLE);                /* boot cues the title music */
+        CHECK(se_step(&e, &v) == 0);
         v.state = FLOW_ATTRACT_DEMO;
         g.flaps = 3;
-        CHECK(se_step(&e, &v) == 0);                       /* demo is silent */
+        CHECK(se_step(&e, &v) == 0);                       /* table and demo keep it, demo flaps are silent */
         v.state = FLOW_PLAYING; g.flaps = 0;
         CHECK(se_step(&e, &v) == SE_START);
         CHECK(se_step(&e, &v) == 0);
@@ -56,9 +59,14 @@ int main(void)
         CHECK(se_step(&e, &v) == 0);                       /* no new press edge */
         g.flaps = 2;
         CHECK(se_step(&e, &v) == SE_FLAP);
+        g.matches_won = 1;
+        CHECK(se_step(&e, &v) == SE_ROUND);
+        CHECK(se_step(&e, &v) == 0);
         v.state = FLOW_GAME_OVER;
         CHECK(se_step(&e, &v) == SE_GAME_OVER);
         CHECK(se_step(&e, &v) == 0);
+        v.state = FLOW_ATTRACT_TITLE;
+        CHECK(se_step(&e, &v) == SE_TITLE);                /* back from a run */
     }
     {   /* Gum Trip hit sound: SE_HIT once on each frame whose trip_events carries TRIP_EV_HIT, only while playing */
         SoundEvents e;
@@ -79,7 +87,15 @@ int main(void)
         CHECK(se_step(&e, &v) == 0);
         v.state = FLOW_ATTRACT_DEMO; g.trip_events = TRIP_EV_HIT;
         se_init(&e);
-        CHECK(se_step(&e, &v) == 0);                       /* demo is silent */
+        CHECK(se_step(&e, &v) == SE_TITLE);                /* demo keeps the title music: no hit sample, one title cue */
+        CHECK(se_step(&e, &v) == 0);
+        v.state = FLOW_PLAYING; g.matches_won = 0;
+        CHECK(se_step(&e, &v) == SE_START);
+        g.matches_won = 1;
+        CHECK(se_step(&e, &v) == SE_ROUND);                /* a round won while playing */
+        CHECK(se_step(&e, &v) == 0);
+        v.state = FLOW_ATTRACT_TITLE;
+        CHECK(se_step(&e, &v) == SE_TITLE);                /* back to the title */
     }
     {   /* death sounds: per flier edges. die = last balloon lost (not by the hazard), fall = fall starts, splosh/spike/sizzle = hazard line crossed */
         SoundEvents e;

@@ -196,17 +196,14 @@ $(BUILDDIR)/src/main.o $(BUILDDIR)/src/bg.o $(BUILDDIR)/src/gfx.o $(BUILDDIR)/sr
 # compiled, so build/snd_commands.h exists for the 68k and nss-deps.mk exists for the include below.
 SOUND_DIR=$(BUILDDIR)/sound
 SOUND_YAMLS=assets/sound/music-map.yaml assets/sound/sample-map.yaml
-SFX_NAMES=jump hit game_over coin die fall splosh spike pop
+SFX_NAMES=jump hit coin die fall splosh spike pop
 SFX_WAVS=$(SFX_NAMES:%=$(SOUND_DIR)/sfx/%.wav)
 SOUND_DRIVER=$(SOUND_DIR)/driver.ihx
 
-$(SOUND_DIR)/ingame.fur: tools/make_standin_fur.py
-	mkdir -p $(@D)
-	$(PYTHON) -I tools/make_standin_fur.py $@
 $(SFX_WAVS): tools/make_sfx_placeholders.py
 	mkdir -p $(@D)
 	$(PYTHON) -I tools/make_sfx_placeholders.py $(SOUND_DIR)/sfx
-SOUND_ASSETS=$(SOUND_DIR)/ingame.fur $(SFX_WAVS)
+SOUND_ASSETS=$(SFX_WAVS)
 
 # build.mk recipes read the maps through $^, so the generated assets are order-only prerequisites
 # (they exist before soundtool/vromtool run). After changing a generator script run `gmake generate`.
@@ -219,9 +216,20 @@ $(SOUND_DIR)/nss-deps.mk: $(SOUND_YAMLS)
 $(BUILDDIR)/src/sound/user_commands.rel: src/sound/user_commands.s $(Z80_SAMPLES_IN_VROM) $(Z80_SOUND_COMMANDS)
 	mkdir -p $(@D)
 	$(Z80SDAS) -g -l -p -u -I$(NGZ80INCLUDEDIR)/nullsound -I$(BUILDDIR) -o $@ $<
-$(SOUND_DRIVER): $(BUILDDIR)/src/sound/user_commands.rel
+# Patched SSG driver (noise period byte for furtool_noise.py): linked before nullsound.lib so the lib member is not pulled.
+SSG_NOISE_REL=$(BUILDDIR)/src/sound/nss-ssg.rel
+SSG_NOISE_LIB=$(SOUND_DIR)/nullsound-noise.lib
+$(SSG_NOISE_REL): tools/nullsound/nss-ssg.s
 	mkdir -p $(@D)
-	$(Z80SDLD) -m -b DATA=0xf800 -i $@ $(NGZ80LIBDIR)/nullsound.lib $^
+	$(Z80SDAS) -a -g -l -p -s -u -Itools/nullsound -I$(NGZ80INCLUDEDIR)/nullsound -o $@ $<
+# nullsound.lib is linked whole (concatenated objects), so the stock SSG module is cut out of a copy.
+$(SSG_NOISE_LIB): tools/patch_nullsound_lib.py
+	mkdir -p $(@D)
+	$(PYTHON) -I tools/patch_nullsound_lib.py $(NGZ80LIBDIR)/nullsound.lib $@
+$(SOUND_DRIVER): $(SSG_NOISE_REL) $(SSG_NOISE_LIB) $(BUILDDIR)/src/sound/user_commands.rel
+	mkdir -p $(@D)
+	$(Z80SDLD) -m -b DATA=0xf800 -i $@ $(SSG_NOISE_REL) $(SSG_NOISE_LIB) $(filter-out $(SSG_NOISE_REL) $(SSG_NOISE_LIB),$^)
+	grep -q "src/sound/nss-ssg.rel" $(@:.ihx=.map) || { echo "patched nss-ssg not linked"; exit 1; }
 $(MROM1): $(SOUND_DRIVER)
 $(BUILDDIR)/src/main.o $(BUILDDIR)/src/sound.o: $(SOUND_COMMANDS) src/sound.h src/core/sound_queue.h src/core/sound_events.h
 

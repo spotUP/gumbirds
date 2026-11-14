@@ -8,7 +8,7 @@ static void forget_fliers(SoundEvents *e)
 
 void se_init(SoundEvents *e)
 {
-    e->prev_state = FLOW_ATTRACT_TITLE; e->primed = 0; e->prev_flaps = 0; e->prev_gum = SE_UNSEEN_GUM;
+    e->prev_state = 0xff; e->prev_matches = 0; e->primed = 0; e->prev_flaps = 0; e->prev_gum = SE_UNSEEN_GUM;
     e->n_die = e->n_fall = e->n_splosh = e->n_spike = e->n_pop = 0;
     forget_fliers(e);
 }
@@ -74,6 +74,9 @@ uint16_t se_step(SoundEvents *e, const FlowView *v)
         if (v->game->trip_events & TRIP_EV_HIT) ev |= SE_HIT;
     }
     if (!playing && e->prev_state == FLOW_PLAYING && v->state == FLOW_GAME_OVER) ev |= SE_GAME_OVER;
+    if (v->state <= FLOW_ATTRACT_DEMO && e->prev_state > FLOW_ATTRACT_DEMO) ev |= SE_TITLE;
+    if (playing && e->primed && v->game->matches_won > e->prev_matches) ev |= SE_ROUND;
+    e->prev_matches = playing ? v->game->matches_won : 0;
     ev |= death_events(e, playing ? v->game : 0, playing);
     e->prev_state = (uint8_t)v->state;
     e->primed = playing;

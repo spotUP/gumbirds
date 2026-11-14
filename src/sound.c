@@ -11,6 +11,9 @@ volatile uint16_t g_sound_sent;
 volatile uint8_t g_sound_last;
 static SoundQueue g_queue;
 static SoundEvents g_events;
+/* Frames of round_clear (48 rows x speed 5, derived by hand from the .fur): then the arena loop restarts. */
+#define ROUND_CLEAR_FRAMES 240
+static uint16_t g_resume;
 
 void sound_init(void)
 {
@@ -29,7 +32,10 @@ void sound_frame(const FlowView *v)
 {
     uint16_t ev = se_step(&g_events, v);
     uint8_t n;
-    if (ev & SE_START) sound_music(SND_MUSIC_INGAME);
+    if (g_resume && !--g_resume) sound_music(SND_MUSIC_ARENA);
+    if (ev & SE_TITLE) sound_music(SND_MUSIC_TITLE);
+    if (ev & SE_START) { g_resume = 0; sound_music(SND_MUSIC_ARENA); }
+    if (ev & SE_ROUND) { sound_music(SND_MUSIC_ROUND_CLEAR); g_resume = ROUND_CLEAR_FRAMES; }
     if (ev & SE_FLAP) sound_play_sfx(SND_SFX_JUMP);
     if (ev & SE_HIT) sound_play_sfx(SND_SFX_HIT);
     if (ev & SE_SIZZLE) sound_play_sfx(SND_SFX_SIZZLE);
@@ -40,7 +46,7 @@ void sound_frame(const FlowView *v)
     for (n = 0; n < g_events.n_fall; n++) sound_play_sfx(SND_SFX_FALL);
     for (n = 0; n < g_events.n_splosh; n++) sound_play_sfx(SND_SFX_SPLOSH);
     for (n = 0; n < g_events.n_spike; n++) sound_play_sfx(SND_SFX_SPIKE);
-    if (ev & SE_GAME_OVER) { sound_stop(); sound_play_sfx(SND_SFX_GAME_OVER); }
+    if (ev & SE_GAME_OVER) { g_resume = 0; sound_music(SND_MUSIC_GAME_OVER); }
 }
 
 void sound_tick(void)
