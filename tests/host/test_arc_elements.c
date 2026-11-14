@@ -119,7 +119,12 @@ int main(void) {
     CHECK(arc_elements_avoid_dir(&a, 184 + ARC_VENT_HALF_W + 2 + ARC_AVOID_LOOK, 100, 2, 5, 0) == 1 && arc_elements_avoid_dir(&a, 184 + ARC_VENT_HALF_W + 2 + ARC_AVOID_LOOK + 1, 100, 2, 5, 0) == 0);
     CHECK(arc_elements_avoid_dir(&a, 184, 108 + 5 + ARC_AVOID_PAD + 1 + 24 + 40, 2, 5, 0) == 0);   /* far below */
     /* the side is judged ARC_AVOID_AHEAD ticks ahead: left of centre but crossing it fast keeps going right */
-    CHECK(arc_elements_avoid_dir(&a, 184 - 4, 100, 2, 5, 0x10000) == 1 && arc_elements_avoid_dir(&a, 184 - 40, 100, 2, 5, 0x10000) == -1);
+    CHECK(arc_elements_avoid_dir(&a, 184 - 40, 100, 2, 5, 0x10000) == -1);
+    CHECK(arc_elements_avoid_dir(&a, 184 - 4, 100, 2, 5, 0x10000) == -1);   /* at launch there is no time to cross: turn back */
+    a.el[0].timer = ARC_VENT_TELEGRAPH;   /* 72 ticks left: 17 px at 1 px/tick crosses in time */
+    CHECK(arc_elements_avoid_dir(&a, 184 - 4, 100, 2, 5, 0x10000) == 1);
+    /* heading at the vent widens the look by ARC_AVOID_LOOK_TICKS of |vx| */
+    CHECK(arc_elements_avoid_dir(&a, 184 - 17 - ARC_AVOID_LOOK, 100, 2, 5, 0) == 0 && arc_elements_avoid_dir(&a, 184 - 17 - ARC_AVOID_LOOK, 100, 2, 5, 0x10000) == -1);
     arc_elements_init(&a, 3);   /* N03: hand at x 112, water 188 */
     CHECK(arc_elements_avoid_dir(&a, 120, 175, 2, 5, 0) == 1 && arc_elements_avoid_dir(&a, 105, 175, 2, 5, 0) == -1);
     CHECK(arc_elements_avoid_dir(&a, 120, 100, 2, 5, 0) == 0 && arc_elements_avoid_dir(&a, 112 + 40, 175, 2, 5, 0) == 0);
