@@ -647,6 +647,7 @@ static void bonus_static_place(void) {
 
 static void arcade_bonus_step(const Game *g) {
     ArcSprite blocks[ARC_BONUS_LIVE_MAX];
+    static u16 bub3[ARC_BONUS_LIVE_MAX], bub4[ARC_BONUS_LIVE_MAX]; /* head SCB3 / SCB4 per bubble slot, sent as two strided runs (as pool_show) */
     int n = 0;
     if (!g && !g_bonus_dirty) return;
     if (!g) { /* the bonus is over: park the bubble, nozzle, puff and floor slots (two runs, once) */
@@ -664,6 +665,7 @@ static void arcade_bonus_step(const Game *g) {
     n = arc_view_bonus_build(&g->bonus, blocks);
     for (int i = 0; i < ARC_BONUS_LIVE_MAX; i++) {
         u16 slot = (u16)(ARC_BONUS_SPRITE + 2 * i);
+        bub3[i] = 0;
         if (i < n) {
             const ArcSprite *b = &blocks[i];
             const TrippickupFrame *f = &trippickup_frames[trippickup_anims[TRIPPICKUP_ANIM_PICKUP_IDLE].first_frame + b->frame];
@@ -672,13 +674,15 @@ static void arcade_bonus_step(const Game *g) {
                 const u16 *tl = &trippickup_tile_index[f->tile_offset];
                 if (g_bonus_bub_tiles[i] != tl) { gfx_sprite_strips(slot, 2, 2, tl, TRIPPICKUP_TILE_BASE, (u16)(TRIPPICKUP_PAL_SLOT << 8)); g_bonus_bub_tiles[i] = tl; }
                 if (!(g_bonus_bub_on & (1u << i))) { gfx_sprite_chain(slot, 2); g_bonus_bub_on |= 1u << i; } /* the chain words go out once, then 2 words a frame */
-                gfx_word((u16)(ADDR_SCB3 + slot), gfx_scb3_word(2, b->y));
-                gfx_word((u16)(ADDR_SCB4 + slot), gfx_scb4_word(sx));
+                bub3[i] = gfx_scb3_word(2, b->y);
+                bub4[i] = gfx_scb4_word(sx);
                 continue;
             }
         }
         if (g_bonus_bub_on & (1u << i)) { obs_hide_slot(slot); obs_hide_slot(slot + 1); g_bonus_bub_on &= ~(1u << i); g_bonus_bub_tiles[i] = 0; }
     }
+    gfx_scb_run((u16)(ADDR_SCB3 + ARC_BONUS_SPRITE), 2, bub3, ARC_BONUS_LIVE_MAX);
+    gfx_scb_run((u16)(ADDR_SCB4 + ARC_BONUS_SPRITE), 2, bub4, ARC_BONUS_LIVE_MAX);
     bonus_static_place();
     for (int k = 0; k < ARC_NOZZLE_COUNT; k++) {
         int top = arc_nozzle_top(k), x = arc_nozzle_x(k), p = g->bonus.puff[k];
@@ -1516,7 +1520,7 @@ static void game_loop(void) {
             u8 trip_game = (view.state == FLOW_PLAYING || view.state == FLOW_GAME_OVER) && view.game && view.game->mode == GAME_MODE_TRIP;
             hazard_step((view.state == FLOW_PLAYING || view.state == FLOW_GAME_OVER) && !trip_game, g_cam_px); /* the hazard strip is the arena's floor; Gum Trip has its own */
             /* arcade only: elements kill, so they must be seen (worst scanline with them is checked in tests/host/test_sprite_budget.c) */
-            arcade_elems_step(view.state == FLOW_PLAYING && view.game && view.game->mode == GAME_MODE_ARCADE ? view.game : 0);
+            arcade_elems_step(view.state == FLOW_PLAYING && view.game && view.game->mode == GAME_MODE_ARCADE && view.game->arc.state != ARC_BONUS ? view.game : 0); /* the bonus shows no stage elements: hidden once on entry */
             arcade_bonus_step(view.state == FLOW_PLAYING && view.game && view.game->mode == GAME_MODE_ARCADE && view.game->arc.state == ARC_BONUS && !view.game->res.active ? view.game : 0);
             island_step(view.state == FLOW_PLAYING && !trip, g_cam_px); /* arena islands are not drawn in Gum Trip */
             /* the course (islands, kill strips, pickups) stays through Game Over like the planes and the hazard anim: all leave at the title */
