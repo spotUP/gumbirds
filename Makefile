@@ -226,9 +226,10 @@ $(SSG_NOISE_REL): tools/nullsound/nss-ssg.s
 $(SSG_NOISE_LIB): tools/patch_nullsound_lib.py
 	mkdir -p $(@D)
 	$(PYTHON) -I tools/patch_nullsound_lib.py $(NGZ80LIBDIR)/nullsound.lib $@
+# link order matters: the lib declares the CODE area first (at 0); with nss-ssg.rel first the struct area landed at 0 and CODE at 0xff99
 $(SOUND_DRIVER): $(SSG_NOISE_REL) $(SSG_NOISE_LIB) $(BUILDDIR)/src/sound/user_commands.rel
 	mkdir -p $(@D)
-	$(Z80SDLD) -m -b DATA=0xf800 -i $@ $(SSG_NOISE_REL) $(SSG_NOISE_LIB) $(filter-out $(SSG_NOISE_REL) $(SSG_NOISE_LIB),$^)
+	$(Z80SDLD) -m -b DATA=0xf800 -i $@ $(SSG_NOISE_LIB) $(SSG_NOISE_REL) $(filter-out $(SSG_NOISE_REL) $(SSG_NOISE_LIB),$^)
 	grep -q "src/sound/nss-ssg.rel" $(@:.ihx=.map) || { echo "patched nss-ssg not linked"; exit 1; }
 $(MROM1): $(SOUND_DRIVER)
 $(BUILDDIR)/src/main.o $(BUILDDIR)/src/sound.o: $(SOUND_COMMANDS) src/sound.h src/core/sound_queue.h src/core/sound_events.h

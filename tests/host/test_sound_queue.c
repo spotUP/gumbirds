@@ -89,7 +89,7 @@ int main(void)
         se_init(&e);
         CHECK(se_step(&e, &v) == SE_TITLE);                /* demo keeps the title music: no hit sample, one title cue */
         CHECK(se_step(&e, &v) == 0);
-        v.state = FLOW_PLAYING; g.matches_won = 0;
+        v.state = FLOW_PLAYING; g.matches_won = 0; g.trip_events = 0;
         CHECK(se_step(&e, &v) == SE_START);
         g.matches_won = 1;
         CHECK(se_step(&e, &v) == SE_ROUND);                /* a round won while playing */

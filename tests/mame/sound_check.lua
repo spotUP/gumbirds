@@ -167,6 +167,14 @@ local function evaluate()
     if music_f < coin_at + 40 then finish(false, string.format("music at frame %d, before Start (coin at %d)", music_f, coin_at)) return end
   end
   -- 2. Z80 received the same sequence: sent_log must be the tail of zcmds
+  -- UniBIOS sends its own reset (3) on coin re-entry; drop a Z80 reset the 68k did not send (within 3 frames) so the tail compare sees only game commands
+  local kept = {}
+  for _, z in ipairs(zcmds) do
+    local ours = z[2] ~= 3
+    for _, e in ipairs(sent_log) do if e[2] == 3 and math.abs(e[1] - z[1]) <= 3 then ours = true end end
+    if ours or z[1] < (sent_log[1] and sent_log[1][1] or 0) then kept[#kept + 1] = z end
+  end
+  zcmds = kept
   local off = #zcmds - #sent_log
   if off < 0 then
     local zs, ss = {}, {}
