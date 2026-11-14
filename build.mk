@@ -157,21 +157,21 @@ $(BUILDDIR)/%.c1 $(BUILDDIR)/%.c2: %.gif
 	$(TILETOOL) --sprite -c $< -o $(@:%.c2=%.c1) $(@:%.c1=%.c2)
 
 $(CROM1): | $(ROM)
-	echo $(filter-out %.stamp,$^) | xargs -r cat > $@ && $(TRUNCATE) -s $(CROMSIZE) $@
+	echo $(filter-out %.stamp,$^) | xargs -r cat > $@ && { [ $$(wc -c < $@) -le $(CROMSIZE) ] || { echo "[ERROR] $@ is $$(wc -c < $@) bytes, over $(CROMSIZE)"; rm -f $@; exit 1; }; } && $(TRUNCATE) -s $(CROMSIZE) $@
 $(CROM2): | $(ROM)
-	echo $(filter-out %.stamp,$^) | xargs -r cat > $@ && $(TRUNCATE) -s $(CROMSIZE) $@
+	echo $(filter-out %.stamp,$^) | xargs -r cat > $@ && { [ $$(wc -c < $@) -le $(CROMSIZE) ] || { echo "[ERROR] $@ is $$(wc -c < $@) bytes, over $(CROMSIZE)"; rm -f $@; exit 1; }; } && $(TRUNCATE) -s $(CROMSIZE) $@
 $(CROM3): | $(ROM)
-	echo $(filter-out %.stamp,$^) | xargs -r cat > $@ && $(TRUNCATE) -s $(CROMSIZE) $@
+	echo $(filter-out %.stamp,$^) | xargs -r cat > $@ && { [ $$(wc -c < $@) -le $(CROMSIZE) ] || { echo "[ERROR] $@ is $$(wc -c < $@) bytes, over $(CROMSIZE)"; rm -f $@; exit 1; }; } && $(TRUNCATE) -s $(CROMSIZE) $@
 $(CROM4): | $(ROM)
-	echo $(filter-out %.stamp,$^) | xargs -r cat > $@ && $(TRUNCATE) -s $(CROMSIZE) $@
+	echo $(filter-out %.stamp,$^) | xargs -r cat > $@ && { [ $$(wc -c < $@) -le $(CROMSIZE) ] || { echo "[ERROR] $@ is $$(wc -c < $@) bytes, over $(CROMSIZE)"; rm -f $@; exit 1; }; } && $(TRUNCATE) -s $(CROMSIZE) $@
 $(CROM5): | $(ROM)
-	echo $^ | xargs -r cat > $@ && $(TRUNCATE) -s $(CROM5SIZE) $@
+	echo $^ | xargs -r cat > $@ && { [ $$(wc -c < $@) -le $(CROM5SIZE) ] || { echo "[ERROR] $@ is $$(wc -c < $@) bytes, over $(CROM5SIZE)"; rm -f $@; exit 1; }; } && $(TRUNCATE) -s $(CROM5SIZE) $@
 $(CROM6): | $(ROM)
-	echo $^ | xargs -r cat > $@ && $(TRUNCATE) -s $(CROM6SIZE) $@
+	echo $^ | xargs -r cat > $@ && { [ $$(wc -c < $@) -le $(CROM6SIZE) ] || { echo "[ERROR] $@ is $$(wc -c < $@) bytes, over $(CROM6SIZE)"; rm -f $@; exit 1; }; } && $(TRUNCATE) -s $(CROM6SIZE) $@
 $(CROM7): | $(ROM)
-	echo $^ | xargs -r cat > $@ && $(TRUNCATE) -s $(CROM7SIZE) $@
+	echo $^ | xargs -r cat > $@ && { [ $$(wc -c < $@) -le $(CROM7SIZE) ] || { echo "[ERROR] $@ is $$(wc -c < $@) bytes, over $(CROM7SIZE)"; rm -f $@; exit 1; }; } && $(TRUNCATE) -s $(CROM7SIZE) $@
 $(CROM8): | $(ROM)
-	echo $^ | xargs -r cat > $@ && $(TRUNCATE) -s $(CROM8SIZE) $@
+	echo $^ | xargs -r cat > $@ && { [ $$(wc -c < $@) -le $(CROM8SIZE) ] || { echo "[ERROR] $@ is $$(wc -c < $@) bytes, over $(CROM8SIZE)"; rm -f $@; exit 1; }; } && $(TRUNCATE) -s $(CROM8SIZE) $@
 
 
 # -----------------------------------
