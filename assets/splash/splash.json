@@ -23,7 +23,7 @@
    "file": "splash_gum_1x.png",
    "ticks_per_frame": 4,
    "palette": "the Gum Trip strip palette (assets/tripstrip/tripstrip_sheet.json palettes.gum), same 10 colours in the same index order; pass it as meta palettes.gum so the splat palette equals the strip palette. Draw script: assets/splash/gum_splat_src/draw_gum_splat_B3.py",
-   "note": "cell top = Gum Trip floor surface screen line - 42; floor line to be set by the wiring (see thoughts/spot/2026-11-13-gum-splat-wire.md)"
+   "note": "cell top = the dying flier feet line in Gum Trip (Game.trip_splat_y, latched at the death) - 42; no fixed screen line, the floor strip height changes per chunk"
   }
  }
 }

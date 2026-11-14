@@ -339,7 +339,7 @@ static void gum_view_digest(void)
 static void splash_view_digest(void)
 {
     uint8_t k;
-    for (k = HZ_WATER; k <= HZ_LAVA; k++) {
+    for (k = HZ_WATER; k <= SPLASH_KIND_GUM; k++) { /* past HZ_LAVA: the kinds that start none, then the gum splat */
         Splash s = {0};
         int t;
         splash_step(&s, 1, k, 100);

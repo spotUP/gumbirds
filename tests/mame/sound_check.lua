@@ -23,8 +23,9 @@ local MUSIC_MIN_WRITES = 20
 
 local ids = dofile("tests/mame/snd_ids.lua")
 -- A flap plays the jump sample (SE_FLAP in src/core/sound_events.c); the hit sound has no game event in the arena.
-local ID_MUSIC, ID_JUMP, ID_OVER, ID_COIN =
-  ids.SND_MUSIC_INGAME, ids.SND_SFX_JUMP, ids.SND_SFX_GAME_OVER, ids.SND_SFX_COIN
+local ID_MUSIC, ID_JUMP, ID_OVER, ID_COIN, ID_TITLE =
+  ids.SND_MUSIC_ARENA, ids.SND_SFX_JUMP, ids.SND_MUSIC_GAME_OVER, ids.SND_SFX_COIN, ids.SND_MUSIC_TITLE
+local IS_MUSIC = { [ID_MUSIC] = true, [ID_OVER] = true, [ID_TITLE] = true }
 -- ADPCM-A key-on bit per SFX, read from the driver's own generated table (build/snd_commands.inc, line
 -- ".db 0xNN ; channel (bit)" after "sfx_<name>_data:"). soundtool's yaml channel is 1-based (bit = 1 << (channel-1)).
 local function read_masks()
@@ -42,7 +43,7 @@ local function read_masks()
 end
 local MASK = read_masks()
 local ID_DIE, ID_FALL, ID_SPLOSH, ID_SPIKE, ID_POP = ids.SND_SFX_DIE, ids.SND_SFX_FALL, ids.SND_SFX_SPLOSH, ids.SND_SFX_SPIKE, ids.SND_SFX_POP
-local NAME = { [ID_MUSIC] = "music", [ID_JUMP] = "flap", [ID_OVER] = "game_over", [ID_COIN] = "coin", [2] = "stop", [3] = "reset",
+local NAME = { [ID_MUSIC] = "music", [ID_JUMP] = "flap", [ID_OVER] = "game_over_music", [ID_TITLE] = "title_music", [ID_COIN] = "coin", [2] = "stop", [3] = "reset",
   [ID_DIE or -1] = "die", [ID_FALL or -2] = "fall", [ID_SPLOSH or -3] = "splosh", [ID_SPIKE or -4] = "spike", [ID_POP or -5] = "pop" }
 
 local function sym_addrs()
@@ -143,10 +144,9 @@ local function evaluate()
   if #sent_log == 0 then finish(false, "68k sentinel g_sound_sent never moved (sound_play_sfx not reached)") return end
   local seen = {}
   for _, e in ipairs(sent_log) do seen[e[2]] = (seen[e[2]] or 0) + 1 end
-  for _, id in ipairs({ ID_MUSIC, ID_JUMP, ID_OVER }) do
+  for _, id in ipairs({ ID_TITLE, ID_MUSIC, ID_JUMP, ID_OVER }) do
     if not seen[id] then finish(false, "68k never sent " .. NAME[id] .. " (id " .. id .. ")") return end
   end
-  if not seen[2] then finish(false, "68k never sent stop_music at game over") return end
   -- the player drowns in the round 1 water (flier_drive.lua): exactly one splosh. die/fall/spike need a stomp or a spike round, which this drive does not produce; if sent they are checked against the key-ons below like any sound.
   if not (ID_DIE and ID_FALL and ID_SPLOSH and ID_SPIKE and MASK[ID_SPLOSH]) then finish(false, "die/fall/splosh/spike ids or masks missing") return end
   if seen[ID_SPLOSH] ~= 1 then finish(false, "splosh sent " .. tostring(seen[ID_SPLOSH]) .. " times at the drowning, want exactly 1") return end
@@ -167,6 +167,14 @@ local function evaluate()
     if music_f < coin_at + 40 then finish(false, string.format("music at frame %d, before Start (coin at %d)", music_f, coin_at)) return end
   end
   -- 2. Z80 received the same sequence: sent_log must be the tail of zcmds
+  -- UniBIOS sends its own reset (3) on coin re-entry; drop a Z80 reset the 68k did not send (within 3 frames) so the tail compare sees only game commands
+  local kept = {}
+  for _, z in ipairs(zcmds) do
+    local ours = z[2] ~= 3
+    for _, e in ipairs(sent_log) do if e[2] == 3 and math.abs(e[1] - z[1]) <= 3 then ours = true end end
+    if ours or z[1] < (sent_log[1] and sent_log[1][1] or 0) then kept[#kept + 1] = z end
+  end
+  zcmds = kept
   local off = #zcmds - #sent_log
   if off < 0 then
     local zs, ss = {}, {}
@@ -193,7 +201,7 @@ local function evaluate()
         if k[1] >= zf and k[1] <= zf + KEYON_WINDOW and (k[2] & MASK[id]) ~= 0 then ok = true break end
       end
       if not ok then finish(false, string.format("no ADPCM-A key-on mask 0x%02x within %d frames of %s (Z80 frame %d) RAWB %s", MASK[id], KEYON_WINDOW, NAME[id], zf, table.concat(rawb, " "))) return end
-    elseif id == ID_MUSIC then
+    elseif IS_MUSIC[id] then
       local cnt = 0
       for _, f in ipairs(porta_writes) do if f >= zf and f <= zf + MUSIC_WINDOW then cnt = cnt + 1 end end
       if cnt < MUSIC_MIN_WRITES then finish(false, string.format("only %d FM/SSG writes within %d frames of music start", cnt, MUSIC_WINDOW)) return end
@@ -209,7 +217,7 @@ emu.register_frame_done(function()
   n = n + 1
   if n > WATCHDOG then finish(false, "watchdog in phase " .. phase) return end
   if not (coin and start and rbtn and abtn) then finish(false, "missing input field") return end
-  if not (A_SENT and A_LAST and A_FRAME and O_STATE and ID_COIN and MASK[ID_JUMP] and MASK[ID_OVER] and MASK[ID_COIN]) then finish(false, "missing symbol, layout or ids") return end
+  if not (A_SENT and A_LAST and A_FRAME and O_STATE and ID_COIN and MASK[ID_JUMP] and MASK[ID_COIN]) then finish(false, "missing symbol, layout or ids") return end
   local sent = mem:read_u16(A_SENT)
   if prev_sent == nil then prev_sent = sent end
   -- the sentinel moves at most once per frame (sound_tick); log each step with the byte written

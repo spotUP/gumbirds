@@ -166,8 +166,8 @@ static inline void vq_pop(VramQueue *q) {
  * and a word inside a run 3.5 us. The cost is set on enqueue (op->cost). */
 #define VQ_US_OP 18u          /* word op: 216 cycles (18.0 us), measured in MAME on the first Gum Trip frame */
 #define VQ_US_PAL 20u         /* palette op: about 20 us, measured in MAME */
-#define VQ_US_STRIP 22u       /* strip op overhead: about 230 cycles (19 us) */
-#define VQ_US_ROW 5u          /* strip row, two data writes: 56 cycles (4.7 us) */
+#define VQ_US_STRIP 26u       /* strip op overhead: measured in MAME (test-hazard round restart, 48 strips) 24.3 us from 1 and 2 row strips (28.8 and 33.3 avg, 34.8 max), was 22 and under-counted 48 strips by about 130 us */
+#define VQ_US_ROW 5u          /* strip row, two data writes: measured 4.5 us */
 #define VQ_US_RUN 22u         /* run op overhead (address and stride set, stride restore): about 230 cycles (19 us) */
 #define VQ_US_RUN_WORD 4u     /* run word: 42 cycles (3.5 us) */
 #define VQ_US_RAMP 22u        /* ramp op overhead: same address set and stride restore as a run */

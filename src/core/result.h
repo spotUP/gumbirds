@@ -19,7 +19,7 @@
 #define RES_SHOW_TOTAL 4
 
 #define RES_DIRTY_POPPED 1  /* the popped / each line */
-#define RES_DIRTY_CAGE 2
+#define RES_DIRTY_CAGE 2     /* unused: the cage is sprites now */
 #define RES_DIRTY_MACHINE 4
 #define RES_DIRTY_SCORE 8
 #define RES_DIRTY_TICKET 16
@@ -37,10 +37,22 @@ typedef struct {
     uint32_t bonus;        /* perfect bonus, 0 when not perfect */
     uint32_t total_left;   /* tally still to add; shown as the total */
     uint32_t score_shown;
+    /* Moving parts (sprites, main.c draw_result_fx). All of it follows the fields above; none of it changes the timing. */
+    uint16_t t;            /* frames since the start */
+    uint8_t pop[RES_SLOTS]; /* per bubble: 0 whole, 1..6 popping, 7 gone */
+    uint8_t pop_cur;       /* bubbles popped so far (pop order: resp_order, top of the pile first) */
+    uint16_t pop_acc;      /* tally points not yet paid for with a popped bubble */
+    uint8_t digit[5];      /* decimal digits of total_left, most significant first */
+    uint8_t wheel[5];      /* counter wheel positions, 16 per digit, 0..159 */
+    uint8_t crank;         /* crank frame 0..7, one step per tally tick */
+    uint8_t ticket_out;    /* pixels the ticket has slid out, 0..40 */
+    uint8_t lines;         /* ticket text lines printed: 1 PERFECT, 2 the line under it */
 } Result;
 
 void res_start(Result *r, int caught, int number, int perfect, uint32_t score);
 /* One frame. Returns RES_EV_* bits; *add gets the points to add to the score this frame (multiple of 100, usually 0). */
 uint8_t res_step(Result *r, uint32_t *add);
+/* Bubble i this frame: 0 hidden, else 1 + sprite frame (0 whole, 1..3 pop); *x, *y = centre in cage window pixels. */
+uint8_t res_bubble(const Result *r, int i, int *x, int *y);
 
 #endif

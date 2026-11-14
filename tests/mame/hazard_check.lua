@@ -62,7 +62,7 @@ local to_end_in_vblank = function()
 end
 -- Round-restart frame budget (open question Q3, hazard.c hide_banks/start): from rs.win() to 60 frames after the next round's strip starts, per frame the logic
 -- end line (frame counter tap as in trip_check.lua), the model g_last_us, the measured span of the VRAM data writes (first to last, emulated us) and the words written.
--- Asserts: logic end < 224 and g_last_us <= GFX_FLUSH_BUDGET_US on every frame, at least Q3_MIN_FRAMES frames. The span is reported only. Env: BRAWL_FRAME_ADDR, BRAWL_LASTUS_ADDR, BRAWL_RE_ADDR.
+-- Asserts: logic end < 224 and g_last_us <= GFX_FLUSH_BUDGET_US on every frame, at least Q3_MIN_FRAMES frames. The measured write span (first to last VRAM data write) is asserted <= 2000 too. Env: BRAWL_FRAME_ADDR, BRAWL_LASTUS_ADDR, BRAWL_RE_ADDR.
 -- shortcut: trip_check.lua PF is entangled with its per-bucket bins, so this is a small separate copy of the same tap pattern; share when a third user appears.
 local Q3_MIN_FRAMES, FLUSH_BUDGET_US = 100, 2000
 local q3 = { on = false, end_n = nil, frames = 0, flush_open = false, words = 0, t0 = nil, t1 = nil, regs = {}, from = 0, fail = nil,
@@ -76,7 +76,7 @@ local function q3_regs() local t = {} for k, v in pairs(q3.regs) do t[#t + 1] = 
 local function q3_state() return string.format("round_end %d timer %d start %d", mem:read_u16(q3_re), mem:read_u16(q3_re + 2), mem:read_u16(q3_re + 4)) end
 local function q3_note(key, v, at)
   local m = q3.max[key]
-  if v > m.v then m.v, m.at, m.st = v, at, q3_state() end
+  if v > m.v then m.v, m.at, m.st = v, at, q3_state() .. " [" .. q3_regs() .. "]" end
 end
 local function q3_write(a)
   local t = manager.machine.time:as_double()
@@ -92,6 +92,7 @@ local function q3_tap()
     local model, span = mem:read_u16(q3_lastus), (q3.t1 - q3.t0) * 1e6
     q3.frames = q3.frames + 1
     q3_note("model", model, at); q3_note("span", span, at); q3_note("words", q3.words, at)
+    if span > FLUSH_BUDGET_US and not q3.fail then q3.fail = string.format("VRAM write span %.0f us > %d at frame +%d (%s), g_last_us %d, VRAM words: %s", span, FLUSH_BUDGET_US, at, q3_state(), model, q3_regs()) end
     if model > FLUSH_BUDGET_US and not q3.fail then q3.fail = string.format("g_last_us %d > %d at frame +%d (%s), VRAM words: %s", model, FLUSH_BUDGET_US, at, q3_state(), q3_regs()) end
   end
   q3_note("l", l, at)
@@ -182,7 +183,7 @@ emu.register_frame_done(function()
         if trip_strip_vis > 0 then failed = true; lines[#lines + 1] = string.format("FAIL arena: %d Gum Trip kill strip or pickup sprites visible (want 0)", trip_strip_vis) end
         local q3m = q3.max
         local q3line = string.format("Q3 round restart: %d frames measured; max logic end %.1f (+%d, %s), max g_last_us %d (+%d, %s), max write span %.0f us (+%d, %s)%s, max words %d (+%d, %s)",
-          q3.frames, q3m.l.v, q3m.l.at or -1, q3m.l.st or "-", q3m.model.v, q3m.model.at or -1, q3m.model.st or "-", q3m.span.v, q3m.span.at or -1, q3m.span.st or "-", q3m.span.v > FLUSH_BUDGET_US and " EXCEEDS 2000" or "", q3m.words.v, q3m.words.at or -1, q3m.words.st or "-")
+          q3.frames, q3m.l.v, q3m.l.at or -1, q3m.l.st or "-", q3m.model.v, q3m.model.at or -1, q3m.model.st or "-", q3m.span.v, q3m.span.at or -1, q3m.span.st or "-", "", q3m.words.v, q3m.words.at or -1, q3m.words.st or "-")
         if q3.fail then failed = true; lines[#lines + 1] = "FAIL " .. q3.fail
         elseif q3.frames < Q3_MIN_FRAMES then failed = true; lines[#lines + 1] = string.format("FAIL Q3: only %d frames measured (want >= %d; probe off? BRAWL_FRAME_ADDR / BRAWL_LASTUS_ADDR)", q3.frames, Q3_MIN_FRAMES) end
         lines[#lines + 1] = q3line

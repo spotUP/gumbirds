@@ -66,7 +66,7 @@ include emu.mk
 # Note: build rules (%.c -> %.o -> %.elf) are defined in Makefile.build
 ELF=$(BUILDDIR)/rom.elf
 CORE_SRCS=rng game hiscore nameentry flow attract_overlay obstacle_view bg_scroll flier_view gum_view vram_queue obj_pool sound_queue sound_events flier stage island_layout ai camera trip trip_gen trip_hit trip_rival score_table trip_view trip_pickup_fx banner splash_view arcade arc_elements arc_view result result_view
-$(ELF):	$(BUILDDIR)/src/main.o $(BUILDDIR)/gen/sootling_sprites.o $(BUILDDIR)/gen/hazard_sprites.o $(BUILDDIR)/gen/island_sprites.o $(BUILDDIR)/gen/island_garden_sprites.o $(BUILDDIR)/gen/island_deck_sprites.o $(BUILDDIR)/gen/tripstrip_sprites.o $(BUILDDIR)/gen/trippickup_sprites.o $(BUILDDIR)/gen/triphaz_sprites.o $(BUILDDIR)/gen/gum_sprites.o $(BUILDDIR)/gen/splash_sprites.o $(BUILDDIR)/gen/arcade_sprites.o $(BUILDDIR)/gen/obs_sprites.o $(BUILDDIR)/gen/city_sprites.o $(BUILDDIR)/src/bg.o $(BUILDDIR)/src/gfx.o $(BUILDDIR)/src/hazard.o $(BUILDDIR)/src/island.o $(BUILDDIR)/src/trip_strip.o $(BUILDDIR)/src/trip_pickup.o $(BUILDDIR)/src/gum.o $(BUILDDIR)/src/logo.o $(BUILDDIR)/src/splash.o $(BUILDDIR)/src/sound.o $(CORE_SRCS:%=$(BUILDDIR)/src/core/%.o)
+$(ELF):	$(BUILDDIR)/src/main.o $(BUILDDIR)/gen/sootling_sprites.o $(BUILDDIR)/gen/hazard_sprites.o $(BUILDDIR)/gen/island_sprites.o $(BUILDDIR)/gen/island_garden_sprites.o $(BUILDDIR)/gen/island_deck_sprites.o $(BUILDDIR)/gen/tripstrip_sprites.o $(BUILDDIR)/gen/trippickup_sprites.o $(BUILDDIR)/gen/triphaz_sprites.o $(BUILDDIR)/gen/gum_sprites.o $(BUILDDIR)/gen/splash_sprites.o $(BUILDDIR)/gen/arcade_sprites.o $(BUILDDIR)/gen/resfx_sprites.o $(BUILDDIR)/gen/obs_sprites.o $(BUILDDIR)/gen/city_sprites.o $(BUILDDIR)/src/bg.o $(BUILDDIR)/src/gfx.o $(BUILDDIR)/src/hazard.o $(BUILDDIR)/src/island.o $(BUILDDIR)/src/trip_strip.o $(BUILDDIR)/src/trip_pickup.o $(BUILDDIR)/src/gum.o $(BUILDDIR)/src/logo.o $(BUILDDIR)/src/splash.o $(BUILDDIR)/src/sound.o $(CORE_SRCS:%=$(BUILDDIR)/src/core/%.o)
 $(PROM1): $(ELF)
 
 
@@ -80,14 +80,14 @@ $(PROM1): $(ELF)
 # five fix palettes come with it in build/gen/fix_font.h (src/gfx.c prints through the maps).
 # The Gum Trip gum meter tiles (assets/tripmeter, 13 tiles) are pasted into the font at tile 186; tripmeter.h holds the cell table.
 # The attract overlay icons (59 fix tiles) sit in the S-ROM right after the font (tile 0x400); the S-ROM rule below concatenates both.
-$(BUILDDIR)/gen/attract_icons.h $(BUILDDIR)/gen/attract_icons.fix: assets/attract/attract_icons.json assets/attract/attract_icons.png tools/build_attract_icons.py tools/sprite_pipeline.py thoughts/spot/drafts/2026-11-13-attract-overlay/draw_overlay.py
+$(BUILDDIR)/gen/attract_icons.h $(BUILDDIR)/gen/attract_icons.fix: assets/attract/attract_icons.json assets/attract/attract_icons.png tools/build_attract_icons.py tools/sprite_pipeline.py tools/attract_layout.py
 	$(PYTHON) -I tools/build_attract_icons.py --out $(BUILDDIR)/gen/attract_icons.h --fix-base 0x400
 $(BUILDDIR)/gen/tripmeter.fix $(BUILDDIR)/gen/tripmeter.h: assets/tripmeter/tripmeter_sheet.png assets/tripmeter/tripmeter_sheet.json assets/font/fix_font.json tools/build_tripmeter_tiles.py tools/sprite_pipeline.py
 	$(PYTHON) -I tools/build_tripmeter_tiles.py --out $(BUILDDIR)/gen
-$(BUILDDIR)/gen/fix_font.fix $(BUILDDIR)/gen/fix_font.h: assets/font/fix_font_sheet.png assets/font/fix_font.json tools/build_fix_font.py tools/sprite_pipeline.py assets/tripmeter/tripmeter_sheet.png assets/font/pop_burst.png assets/result/result_tiles.png assets/result/result_palettes.json $(BUILDDIR)/gen/tripmeter.fix
-	$(PYTHON) -I tools/build_fix_font.py --out $(BUILDDIR)/gen --overlay assets/tripmeter/tripmeter_sheet.png@186 --overlay assets/font/pop_burst.png@75 --overlay assets/result/result_tiles.png@199 --extra-pal assets/result/result_palettes.json
+$(BUILDDIR)/gen/fix_font.fix $(BUILDDIR)/gen/fix_font.h: assets/font/fix_font_sheet.png assets/font/fix_font.json tools/build_fix_font.py tools/sprite_pipeline.py assets/tripmeter/tripmeter_sheet.png assets/font/pop_burst.png assets/result/result_palettes.json $(BUILDDIR)/gen/tripmeter.fix
+	$(PYTHON) -I tools/build_fix_font.py --out $(BUILDDIR)/gen --overlay assets/tripmeter/tripmeter_sheet.png@186 --overlay assets/font/pop_burst.png@75 --extra-pal assets/result/result_palettes.json
 	dd if=$(BUILDDIR)/gen/fix_font.fix bs=32 skip=954 count=13 2>/dev/null | cmp -s - $(BUILDDIR)/gen/tripmeter.fix || { echo "[FAIL] fix_font.fix tiles 954..966 differ from tripmeter.fix"; exit 1; }
-$(SROM1): $(BUILDDIR)/gen/fix_font.fix $(BUILDDIR)/gen/attract_icons.fix
+$(SROM1): $(BUILDDIR)/gen/fix_font.fix $(BUILDDIR)/gen/attract_icons.fix $(BUILDDIR)/gen/result_scene.fix
 
 
 
@@ -100,7 +100,7 @@ $(SROM1): $(BUILDDIR)/gen/fix_font.fix $(BUILDDIR)/gen/attract_icons.fix
 # logo during the attract mode.
 # Note: build rules (%.gif -> %.c<1,2>) are defined in Makefile.build
 # Obstacle tiles come after the logo (256 tiles = OBS_TILE_BASE in src/vram_layout.h), city tiles after the obstacles (bases in src/vram_layout.h, from the generated headers); prerequisite order = cat order.
-CROM_SETS=assets/base-crom-logo gen/obs gen/city gen/sootling gen/hazard gen/island gen/island_garden gen/island_deck gen/tripstrip gen/trippickup gen/triphaz gen/gum gen/logo gen/splash gen/arcade
+CROM_SETS=assets/base-crom-logo gen/obs gen/city gen/sootling gen/hazard gen/island gen/island_garden gen/island_deck gen/tripstrip gen/trippickup gen/triphaz gen/gum gen/logo gen/splash gen/arcade gen/resfx
 CROM_LAYOUT=$(BUILDDIR)/gen/crom-layout.stamp
 $(CROM1): $(CROM_SETS:%=$(BUILDDIR)/%.c1) $(CROM_LAYOUT)
 $(CROM2): $(CROM_SETS:%=$(BUILDDIR)/%.c2) $(CROM_LAYOUT)
@@ -170,7 +170,7 @@ $(BUILDDIR)/gen/gum.c1 $(BUILDDIR)/gen/gum.c2 $(BUILDDIR)/gen/gum_sprites.c $(BU
 $(BUILDDIR)/gen/gum_sprites.o: $(BUILDDIR)/gen/gum_sprites.c
 	$(M68KGCC) $(NGCFLAGS) $(CFLAGS) -c $< -o $@
 # Splash of a flier in water or lava: both strips stacked into one sheet by the build script. C-ROM position: last, after the logo.
-$(BUILDDIR)/gen/splash.c1 $(BUILDDIR)/gen/splash.c2 $(BUILDDIR)/gen/splash_sprites.c $(BUILDDIR)/gen/splash_sprites.h $(BUILDDIR)/gen/splash_tables.h: assets/splash/splash_water_1x.png assets/splash/splash_lava_1x.png assets/splash/splash.json tools/build_splash_sprites.py tools/sprite_pipeline.py
+$(BUILDDIR)/gen/splash.c1 $(BUILDDIR)/gen/splash.c2 $(BUILDDIR)/gen/splash_sprites.c $(BUILDDIR)/gen/splash_sprites.h $(BUILDDIR)/gen/splash_tables.h: assets/splash/splash_water_1x.png assets/splash/splash_lava_1x.png assets/splash/splash_gum_1x.png assets/splash/splash.json tools/build_splash_sprites.py tools/sprite_pipeline.py
 	$(PYTHON) -I tools/build_splash_sprites.py --out $(BUILDDIR)/gen
 $(BUILDDIR)/gen/splash_sprites.o: $(BUILDDIR)/gen/splash_sprites.c
 	$(M68KGCC) $(NGCFLAGS) $(CFLAGS) -c $< -o $@
@@ -179,11 +179,17 @@ $(BUILDDIR)/gen/arcade.c1 $(BUILDDIR)/gen/arcade.c2 $(BUILDDIR)/gen/arcade_sprit
 	$(PYTHON) -I tools/build_arcade_sprites.py --out $(BUILDDIR)/gen
 $(BUILDDIR)/gen/arcade_sprites.o: $(BUILDDIR)/gen/arcade_sprites.c
 	$(M68KGCC) $(NGCFLAGS) $(CFLAGS) -c $< -o $@
+# Bonus result screen (tools/build_result_art.py paints all of it): the still scene for the S-ROM (after the attract icons), the baked bubble
+# paths, and the moving parts as the resfx sprite set. C-ROM position: last, after the arcade set.
+$(BUILDDIR)/gen/resfx.c1 $(BUILDDIR)/gen/resfx.c2 $(BUILDDIR)/gen/resfx_sprites.c $(BUILDDIR)/gen/resfx_sprites.h $(BUILDDIR)/gen/resfx_tables.h $(BUILDDIR)/gen/result_scene.fix $(BUILDDIR)/gen/result_scene.h $(BUILDDIR)/gen/result_paths.h: assets/result/result_palettes.json tools/build_result_art.py tools/build_attract_icons.py tools/sprite_pipeline.py
+	$(PYTHON) -I tools/build_result_art.py --out $(BUILDDIR)/gen
+$(BUILDDIR)/gen/resfx_sprites.o: $(BUILDDIR)/gen/resfx_sprites.c
+	$(M68KGCC) $(NGCFLAGS) $(CFLAGS) -c $< -o $@
 # Title logo (tools/build_logo_sprites.py over assets/logo/): animated strips and free pieces, no .c file (macros only in logo_sprites.h). C-ROM position: after the gum set, so no earlier tile base moves.
 $(BUILDDIR)/gen/logo.c1 $(BUILDDIR)/gen/logo.c2 $(BUILDDIR)/gen/logo_sprites.h: assets/logo/logo_rim.json assets/logo/logo_rim_frames_1x.png assets/logo/logo_rim_pieces_1x.png assets/logo/logo_pieces.json tools/build_logo_sprites.py
 	$(PYTHON) -I tools/build_logo_sprites.py --out $(BUILDDIR)/gen
 
-$(BUILDDIR)/src/main.o $(BUILDDIR)/src/bg.o $(BUILDDIR)/src/gfx.o $(BUILDDIR)/src/hazard.o $(BUILDDIR)/src/island.o $(BUILDDIR)/src/trip_strip.o $(BUILDDIR)/src/trip_pickup.o $(BUILDDIR)/src/gum.o $(BUILDDIR)/src/logo.o $(BUILDDIR)/src/splash.o $(BUILDDIR)/src/core/sprite_budget.o $(BUILDDIR)/src/core/island_layout.o $(BUILDDIR)/src/core/banner.o $(BUILDDIR)/src/core/result_view.o: $(BUILDDIR)/gen/fix_font.h $(BUILDDIR)/gen/attract_icons.h src/core/attract_overlay.h $(BUILDDIR)/gen/tripmeter.h $(BUILDDIR)/gen/island_tables.h $(BUILDDIR)/gen/city_tables.h $(BUILDDIR)/gen/island_sprites.h $(BUILDDIR)/gen/island_garden_sprites.h $(BUILDDIR)/gen/island_deck_sprites.h $(BUILDDIR)/gen/tripstrip_sprites.h $(BUILDDIR)/gen/tripstrip_tables.h $(BUILDDIR)/gen/trippickup_sprites.h $(BUILDDIR)/gen/trippickup_tables.h $(BUILDDIR)/gen/triphaz_sprites.h $(BUILDDIR)/gen/triphaz_tables.h $(BUILDDIR)/gen/gum_sprites.h $(BUILDDIR)/gen/gum_tables.h $(BUILDDIR)/gen/logo_sprites.h src/logo.h $(BUILDDIR)/gen/splash_sprites.h $(BUILDDIR)/gen/splash_tables.h $(BUILDDIR)/gen/arcade_sprites.h $(BUILDDIR)/gen/arcade_tables.h src/splash.h src/core/splash_view.h $(BUILDDIR)/gen/hazard_sprites.h $(BUILDDIR)/gen/obs_sprites.h $(BUILDDIR)/gen/city_sprites.h $(BUILDDIR)/gen/sootling_sprites.h src/core/flier_view.h src/core/gum_view.h src/vram_layout.h src/sprite_slots.h src/bg.h src/gfx.h src/hazard.h src/island.h src/core/island_layout.h src/core/vram_queue.h
+$(BUILDDIR)/src/main.o $(BUILDDIR)/src/bg.o $(BUILDDIR)/src/gfx.o $(BUILDDIR)/src/hazard.o $(BUILDDIR)/src/island.o $(BUILDDIR)/src/trip_strip.o $(BUILDDIR)/src/trip_pickup.o $(BUILDDIR)/src/gum.o $(BUILDDIR)/src/logo.o $(BUILDDIR)/src/splash.o $(BUILDDIR)/src/core/sprite_budget.o $(BUILDDIR)/src/core/island_layout.o $(BUILDDIR)/src/core/banner.o $(BUILDDIR)/src/core/result_view.o $(BUILDDIR)/src/core/result.o: $(BUILDDIR)/gen/result_scene.h $(BUILDDIR)/gen/result_paths.h $(BUILDDIR)/gen/resfx_sprites.h $(BUILDDIR)/gen/fix_font.h $(BUILDDIR)/gen/attract_icons.h src/core/attract_overlay.h $(BUILDDIR)/gen/tripmeter.h $(BUILDDIR)/gen/island_tables.h $(BUILDDIR)/gen/city_tables.h $(BUILDDIR)/gen/island_sprites.h $(BUILDDIR)/gen/island_garden_sprites.h $(BUILDDIR)/gen/island_deck_sprites.h $(BUILDDIR)/gen/tripstrip_sprites.h $(BUILDDIR)/gen/tripstrip_tables.h $(BUILDDIR)/gen/trippickup_sprites.h $(BUILDDIR)/gen/trippickup_tables.h $(BUILDDIR)/gen/triphaz_sprites.h $(BUILDDIR)/gen/triphaz_tables.h $(BUILDDIR)/gen/gum_sprites.h $(BUILDDIR)/gen/gum_tables.h $(BUILDDIR)/gen/logo_sprites.h src/logo.h $(BUILDDIR)/gen/splash_sprites.h $(BUILDDIR)/gen/splash_tables.h $(BUILDDIR)/gen/arcade_sprites.h $(BUILDDIR)/gen/arcade_tables.h src/splash.h src/core/splash_view.h $(BUILDDIR)/gen/hazard_sprites.h $(BUILDDIR)/gen/obs_sprites.h $(BUILDDIR)/gen/city_sprites.h $(BUILDDIR)/gen/sootling_sprites.h src/core/flier_view.h src/core/gum_view.h src/vram_layout.h src/sprite_slots.h src/bg.h src/gfx.h src/hazard.h src/island.h src/core/island_layout.h src/core/vram_queue.h
 
 
 
@@ -196,32 +202,43 @@ $(BUILDDIR)/src/main.o $(BUILDDIR)/src/bg.o $(BUILDDIR)/src/gfx.o $(BUILDDIR)/sr
 # compiled, so build/snd_commands.h exists for the 68k and nss-deps.mk exists for the include below.
 SOUND_DIR=$(BUILDDIR)/sound
 SOUND_YAMLS=assets/sound/music-map.yaml assets/sound/sample-map.yaml
-SFX_NAMES=jump hit game_over coin die fall splosh spike pop
+SFX_NAMES=jump hit coin die fall splosh spike pop
 SFX_WAVS=$(SFX_NAMES:%=$(SOUND_DIR)/sfx/%.wav)
 SOUND_DRIVER=$(SOUND_DIR)/driver.ihx
 
-$(SOUND_DIR)/ingame.fur: tools/make_standin_fur.py
-	mkdir -p $(@D)
-	$(PYTHON) -I tools/make_standin_fur.py $@
 $(SFX_WAVS): tools/make_sfx_placeholders.py
 	mkdir -p $(@D)
 	$(PYTHON) -I tools/make_sfx_placeholders.py $(SOUND_DIR)/sfx
-SOUND_ASSETS=$(SOUND_DIR)/ingame.fur $(SFX_WAVS)
+SOUND_ASSETS=$(SFX_WAVS)
 
 # build.mk recipes read the maps through $^, so the generated assets are order-only prerequisites
 # (they exist before soundtool/vromtool run). After changing a generator script run `gmake generate`.
 $(VROM1) $(Z80_SAMPLES_IN_VROM) $(Z80_SOUND_COMMANDS) $(SOUND_COMMANDS): $(SOUND_YAMLS) | $(SOUND_ASSETS)
+# On a fresh clone this first runs while config.mk is still being generated (SOUNDTOOL empty; -include ignores the error).
+# Write via a temp file so a failed run leaves no empty nss-deps.mk hiding the nss_<name> rules; the restarted make rebuilds it.
 $(SOUND_DIR)/nss-deps.mk: $(SOUND_YAMLS)
 	mkdir -p $(@D)
-	$(SOUNDTOOL) -m -s $^ > $@
+	$(SOUNDTOOL) -m -s $^ > $@.tmp && mv $@.tmp $@
 -include $(SOUND_DIR)/nss-deps.mk
 
 $(BUILDDIR)/src/sound/user_commands.rel: src/sound/user_commands.s $(Z80_SAMPLES_IN_VROM) $(Z80_SOUND_COMMANDS)
 	mkdir -p $(@D)
 	$(Z80SDAS) -g -l -p -u -I$(NGZ80INCLUDEDIR)/nullsound -I$(BUILDDIR) -o $@ $<
-$(SOUND_DRIVER): $(BUILDDIR)/src/sound/user_commands.rel
+# Patched SSG driver (noise period byte for furtool_noise.py): linked before nullsound.lib so the lib member is not pulled.
+SSG_NOISE_REL=$(BUILDDIR)/src/sound/nss-ssg.rel
+SSG_NOISE_LIB=$(SOUND_DIR)/nullsound-noise.lib
+$(SSG_NOISE_REL): tools/nullsound/nss-ssg.s
 	mkdir -p $(@D)
-	$(Z80SDLD) -m -b DATA=0xf800 -i $@ $(NGZ80LIBDIR)/nullsound.lib $^
+	$(Z80SDAS) -a -g -l -p -s -u -Itools/nullsound -I$(NGZ80INCLUDEDIR)/nullsound -o $@ $<
+# nullsound.lib is linked whole (concatenated objects), so the stock SSG module is cut out of a copy.
+$(SSG_NOISE_LIB): tools/patch_nullsound_lib.py
+	mkdir -p $(@D)
+	$(PYTHON) -I tools/patch_nullsound_lib.py $(NGZ80LIBDIR)/nullsound.lib $@
+# link order matters: the lib declares the CODE area first (at 0); with nss-ssg.rel first the struct area landed at 0 and CODE at 0xff99
+$(SOUND_DRIVER): $(SSG_NOISE_REL) $(SSG_NOISE_LIB) $(BUILDDIR)/src/sound/user_commands.rel
+	mkdir -p $(@D)
+	$(Z80SDLD) -m -b DATA=0xf800 -i $@ $(SSG_NOISE_LIB) $(SSG_NOISE_REL) $(filter-out $(SSG_NOISE_REL) $(SSG_NOISE_LIB),$^)
+	grep -q "src/sound/nss-ssg.rel" $(@:.ihx=.map) || { echo "patched nss-ssg not linked"; exit 1; }
 $(MROM1): $(SOUND_DRIVER)
 $(BUILDDIR)/src/main.o $(BUILDDIR)/src/sound.o: $(SOUND_COMMANDS) src/sound.h src/core/sound_queue.h src/core/sound_events.h
 
@@ -422,6 +439,7 @@ test-arcade-walk: cart
 	cat $$T/result.txt; \
 	if grep -q '^PASS' $$T/result.txt; then grep -h "^ARC_\|BRAWL_TEST" $$T/mame.log; rm -rf $$T; echo "[OK] make test-arcade-walk passed"; else echo "[FAIL] make test-arcade-walk, log kept in $$T"; exit 1; fi
 
+# RESULT_DUMP=<absolute directory> also writes every second result screen frame there as res_NNN.png.
 # Bonus stage cost (ARCADE_BONUS=1): clears stages 1..3, then measures the bonus stage with 8+ bubbles alive (logic end under 224); not in `make test`.
 test-arcade-bonus: cart
 	@set -e; T=$$(mktemp -d $(BUILDDIR)/test-run.XXXXXX); \
@@ -430,7 +448,7 @@ test-arcade-bonus: cart
 	BRAWL_CAM_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_cam_px"{print $$1}') \
 	BRAWL_ARCADE_LAYOUT="$$($(M68KGCC) $(NGCFLAGS) -Ibuild -std=c99 -S -o - tests/mame/arcade_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
 	BRAWL_RESULT=$$T/result.txt ARCADE_BONUS=1 \
-	SDL_VIDEODRIVER=dummy nice -n 19 $(MAME) -window -nomaximize -video none -sound none -nothrottle -seconds_to_run 600 -noautosave -skip_gameinfo -hash $(ROM) -rp $(ROM) -nvram_directory $$T -autoboot_script tests/mame/arcade_check.lua neogeo -cart1 $(GAMEROM) > $$T/mame.log 2>&1 || true; \
+	SDL_VIDEODRIVER=dummy nice -n 19 $(MAME) -window -nomaximize -video none -sound none -nothrottle -seconds_to_run 600 -noautosave -skip_gameinfo -hash $(ROM) -rp $(ROM) -nvram_directory $$T $(if $(RESULT_DUMP),-snapshot_directory $(RESULT_DUMP)) -autoboot_script tests/mame/arcade_check.lua neogeo -cart1 $(GAMEROM) > $$T/mame.log 2>&1 || true; \
 	if [ ! -f $$T/result.txt ]; then tail -n 15 $$T/mame.log; echo "[FAIL] no result from arcade Lua script"; exit 1; fi; \
 	cat $$T/result.txt; \
 	if grep -q '^PASS' $$T/result.txt; then cat $$T/result.txt; rm -rf $$T; echo "[OK] make test-arcade-bonus passed"; else echo "[FAIL] make test-arcade-bonus, log kept in $$T"; exit 1; fi

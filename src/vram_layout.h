@@ -20,6 +20,7 @@
 #include "gen/logo_sprites.h"
 #include "gen/splash_sprites.h"
 #include "gen/arcade_sprites.h"
+#include "gen/resfx_sprites.h"
 
 /* The ngdevkit logo tile block that opens the C-ROM (assets/base-crom-logo); the title logo (gen/logo_sprites.h, LOGO_TILE_COUNT) sits last. */
 #define BASE_LOGO_TILE_COUNT 256
@@ -70,6 +71,8 @@ _Static_assert((SPLASH_TILE_BASE & 7) == 0, "splash tile base is not 8-aligned")
    and moved this base: it is chained, never a literal. */
 #define ARCADE_TILE_BASE (SPLASH_TILE_BASE + SPLASH_TILE_COUNT)
 _Static_assert((ARCADE_TILE_BASE & 7) == 0, "arcade tile base is not 8-aligned");
+#define RESFX_TILE_BASE (ARCADE_TILE_BASE + ARCADE_TILE_COUNT) /* bonus result screen sprites (tools/build_result_art.py) */
+_Static_assert((RESFX_TILE_BASE & 7) == 0, "result sprite tile base is not 8-aligned");
 
 #define FIX_PAL_COUNT FIXFONT_PAL_COUNT /* fix palettes 0..4: white, pink, lime, gold, dim (build/gen/fix_font.h) */
 #define OBS_PAL_SLOT FIX_PAL_COUNT
@@ -87,6 +90,7 @@ _Static_assert((ARCADE_TILE_BASE & 7) == 0, "arcade tile base is not 8-aligned")
 #define ARCADE_PAL_SLOT (SPLASH_PAL_SLOT + SPLASH_PALETTE_COUNT) /* palette p = arcade palette p (ARCADE_ANIM_* order: storm, player, computer, roof) */
 #define ATTRACT_PAL_SLOT (ARCADE_PAL_SLOT + ARCADE_PALETTE_COUNT) /* one palette: the attract overlay icons (build/gen/attract_icons.h) */
 #define ATTRACT_FIX_BASE 0x400 /* first fix tile of the overlay icons: right after the 1024-tile font in the S-ROM (tools/build_attract_icons.py --fix-base) */
-_Static_assert(ATTRACT_PAL_SLOT + 1 <= 256, "palette slots exceed the 256 the hardware has");
+#define RESFX_PAL_SLOT (ATTRACT_PAL_SLOT + 1) /* palette p = resfx palette p (RESFX_ANIM_* order: bubble, wheel, crank, glass, ticket) */
+_Static_assert(RESFX_PAL_SLOT + RESFX_PALETTE_COUNT <= 256, "palette slots exceed the 256 the hardware has");
 
 #endif
