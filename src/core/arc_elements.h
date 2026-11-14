@@ -59,7 +59,8 @@ typedef struct {
 /* ---- rival avoidance (src/core/game.c steers a rival away from an element that would hurt it) ---- */
 #define ARC_VENT_TELEGRAPH 144  /* art: telegraph 144..215 */
 #define ARC_AVOID_PAD 8         /* VETO: px added to each kill box half extent for rival avoidance */
-#define ARC_AVOID_LOOK 130      /* VETO: sideways px a rival looks ahead of a vent plume; rivals fly up to 1.7 px/frame and a reversal costs about 3 flaps, so 40 left 42 vent deaths in the sim, 130 leaves 13 */
+#define ARC_AVOID_LOOK 120      /* VETO: sideways px a rival looks ahead of a vent plume; rivals fly up to 1.7 px/frame and a reversal costs about 3 flaps (AVOID-3: 40 left 42 vent deaths in the sim, 120 with the speed term and the cross rule 12) */
+#define ARC_AVOID_LOOK_TICKS 10 /* VETO: ticks of |vx| added to ARC_AVOID_LOOK while heading at the vent (speed-scaled reach) */
 #define ARC_AVOID_AHEAD 16      /* VETO: ticks of current vx added to the flier x before picking the escape side (damps overshoot) */
 #define ARC_AVOID_REACH (ARC_VENT_HALF_W + 2 + ARC_AVOID_PAD)   /* 20: vent half width + flier half width (2) + pad; the spawn rule uses it */
 
@@ -75,8 +76,8 @@ void arc_elements_init(ArcElements *a, int stage_index);
 void arc_elements_step(ArcElements *a);
 void arc_elements_note_low(ArcElements *a, int cx, int cy);
 /* Rival steering: -1 / +1 = the way out of the nearest threatening element (vent telegraphing or bursting, grabber hand while the box
-   is low over the water near it), 0 = none. Threat boxes are arc_elements_kill's grown by ARC_AVOID_PAD (vent: ARC_AVOID_LOOK sideways);
-   nearest and side are judged at x + vx * ARC_AVOID_AHEAD (vx 16.16). */
+   is low over the water near it), 0 = none. Threat boxes are arc_elements_kill's grown by ARC_AVOID_PAD (vent: ARC_AVOID_LOOK sideways, plus ARC_AVOID_LOOK_TICKS of |vx| when heading at it);
+   nearest and side are judged at x + vx * ARC_AVOID_AHEAD (vx 16.16); a side across a vent plume is kept only if it is cleared before launch. */
 int arc_elements_avoid_dir(const ArcElements *a, int cx, int cy, int hw, int hh, int32_t vx);
 
 /* A flier box is centre (cx, cy) and half extents (hw, hh) in whole pixels. Edges inclusive (trip_hit.h convention). */
