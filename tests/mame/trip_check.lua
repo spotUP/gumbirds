@@ -149,7 +149,7 @@ function PF.ok()
 end
 function PF.report()
   if not PF.on then return "; TRIP_FLUSH off (BRAWL_LASTUS_ADDR / BRAWL_VQ_LAYOUT missing)" end
-  local o = { string.format("; TRIP_FLUSH measured %d skipped %d late %d, first Trip frame trip_strip/scb words %s (want < %d), max span %.0f us (want <= %d), smallest nonzero gap between write times %.3f us, spans not a multiple of 64 us: %d, flushes with span > model*1.03+70: %d (worst excess %.0f us)", PF.measured, PF.skipped, PF.late, tostring(PF.first_ts), PF_FIRST_TS_LIMIT, PF.max and PF.max.span or -1, PF_SPAN_LIMIT, (PF.dmin or 0) * 1e6, PF.off64, PF.over, PF.worst) }
+  local o = { string.format("; logic end max %.1f at %s", PF.le_max or -1, tostring(PF.le_at)), string.format("; TRIP_FLUSH measured %d skipped %d late %d, first Trip frame trip_strip/scb words %s (want < %d), max span %.0f us (want <= %d), smallest nonzero gap between write times %.3f us, spans not a multiple of 64 us: %d, flushes with span > model*1.03+70: %d (worst excess %.0f us)", PF.measured, PF.skipped, PF.late, tostring(PF.first_ts), PF_FIRST_TS_LIMIT, PF.max and PF.max.span or -1, PF_SPAN_LIMIT, (PF.dmin or 0) * 1e6, PF.off64, PF.over, PF.worst) }
   for b = 0, 3 do local x = PF.bins[b]; if x then
     o[#o + 1] = string.format("; TRIP_FLUSH steps&3=%d: count %d, span mean %.0f max %.0f us, model mean %.0f max %d us, words max %d, mean words per bucket: %s", b, x.n, x.span / x.n, x.smax, x.model / x.n, x.mmax, x.wmax, PF.row(x.bsum, x.n))
   end end
@@ -688,6 +688,7 @@ end
 emu.register_frame_done(function() local ok_, err_ = pcall(function()
   n = n + 1; PF.n = n
   local fl = frame_l; frame_l = 0
+  if counting and fl > (PF.le_max or -1) then PF.le_max = fl; PF.le_at = string.format("frame %d phase %s state %d playing %d", n, phase, mem:read_u8(flow_addr + O_STATE), playing) end   -- where the logic end max sits (any phase)
   if not VB_LEN_S then VB_LEN_S = screen:time_until_vblank_end():as_double() end
   if words > max_words and counting then max_words = words end
   words = 0

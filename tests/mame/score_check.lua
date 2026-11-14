@@ -8,7 +8,7 @@
 --     (c) a Gum Trip run (input death, Trip.bonus written: exemption in play_run) ends in the trip table only; the arena table is unchanged;
 --         a later arena run lands in the arena table only; each save bumps g_hiscore_saves by 1.
 --     (d) fix layer: no caption on name entry rows 13/14; save reminder keeps row 13 text and shows the caption on row 14 (the highlighted table is drawn below it); the title after it shows the caption on row 14 too (highlight kept).
---     (e) the 250-byte backup RAM image: 'ROOF', version 2, arena table at 6, trip table at 126, FNV-1a at 246.
+--     (e) the 370-byte backup RAM image: 'ROOF', version 3, arena table at 6, trip table at 126, arcade table at 246, FNV-1a at 366.
 --   Phase 2 (fresh boot, same nvram): image and flow tables hold both entries at the same rows, g_hiscore_saves is 0.
 -- Env (hex addresses from nm): BRAWL_FLOW_ADDR, BRAWL_FRAME_ADDR, BRAWL_HISCORE_ADDR, BRAWL_SAVES_ADDR,
 --   BRAWL_TABLEDRAWS_ADDR (g_table_mode_draws, u32[2]); BRAWL_SCORE_LAYOUT (score_probe.c output);
@@ -94,19 +94,22 @@ tap_vram = mem:install_write_tap(0x3c0000, 0x3c000f, "score_vram", function(offs
   elseif r == 2 then vram[vaddr] = data; if vaddr >= 0x7000 and vaddr < 0x7500 then fixw = fixw + 1; fixlast = data end; vaddr = (vaddr + vmod) & 0xffff end
 end)
 -- fixfont_map comes from the generated header (no ELF symbol; static const)
-local fmap = {}
+local fmap, bmap = {}, {}
 do
   local fh = io.open(font_h, "r")
   if fh then
     local txt = fh:read("*a"); fh:close()
     local body = txt:match("fixfont_map%s*%[[^%]]*%]%s*=%s*{(.-)}")
     if body then for tok in body:gmatch("[%w]+") do fmap[#fmap + 1] = tonumber(tok) end end
+    local bbody = txt:match("fixfont_map_backed%s*%[[^%]]*%]%s*=%s*{(.-)}")   -- gfx_text_backed glyphs (title plate and mode select)
+    if bbody then for tok in bbody:gmatch("[%w]+") do bmap[#bmap + 1] = tonumber(tok) end end
   end
 end
 local function cell(x, y) return (vram[0x7000 + x * 32 + y] or -1) & 0x0fff end
-local function text_at(x, y, s)
+local function text_at(x, y, s, map)
+  map = map or fmap
   for i = 1, #s do
-    if cell(x + i - 1, y) ~= fmap[s:byte(i) + 1] then return false end
+    if cell(x + i - 1, y) ~= map[s:byte(i) + 1] then return false end
   end
   return true
 end
@@ -147,8 +150,8 @@ local function image_row(mode, row)
 end
 local function image_checks(tag)
   check(str(hs_addr, 4) == "ROOF", tag .. ": image magic is " .. str(hs_addr, 4))
-  check(mem:read_u16(hs_addr + 4) == 2, tag .. ": image version " .. mem:read_u16(hs_addr + 4))
-  check(IMAGE_SIZE == 250, tag .. ": SCORE_IMAGE_SIZE " .. IMAGE_SIZE)
+  check(mem:read_u16(hs_addr + 4) == 3, tag .. ": image version " .. mem:read_u16(hs_addr + 4))
+  check(IMAGE_SIZE == 370, tag .. ": SCORE_IMAGE_SIZE " .. IMAGE_SIZE)
   check(mem:read_u32(hs_addr + IMAGE_SIZE - 4) == fnv(hs_addr, IMAGE_SIZE - 4), tag .. ": image checksum mismatch")
   for m = 0, 1 do
     for r = 0, 9 do
@@ -231,13 +234,15 @@ local function phase1()
   for r = 0, 8 do check(tscore(0, r) > tscore(0, r + 1) and tname(0, r) ~= string.rep(" ", 8), "arena default row " .. r) end
   check(#fmap == 256, "fixfont_map parsed " .. #fmap .. " entries from " .. font_h)
   local saves0 = mem:read_u32(saves_addr)
-  -- (d) title: mode select rows 14/15, no caption, PRESS START row 13
+  -- (d) title: mode select at x 17 on rows 23/24/25 (src/main.c TITLE_SELECT_ROW), drawn only while open; A without a
+  -- credit opens it (src/core/flow.c FLOW_ATTRACT_TITLE); no score caption on those rows
   check(g8(O_STATE) == S_TITLE, "boot did not reach the title (state " .. g8(O_STATE) .. ")")
-  -- state 0 is also the pre-boot value: wait until the title draw has reached the fix layer (the UniBIOS screens come first)
-  until_(function() return text_at(17, 14, "ARENA") end, 900, function() return "title mode select drawn (fix writes " .. fixw .. ", last 0x" .. string.format("%x", fixlast) .. ") rows 12..16 [" .. dump_row(12) .. "|" .. dump_row(13) .. "|" .. dump_row(14) .. "|" .. dump_row(15) .. "|" .. dump_row(16) .. "]" end)
-  check(text_at(17, 14, "ARENA") and text_at(17, 15, "GUM TRIP"), string.format("title mode select not on fix rows 14/15 at x 17 (cells row 14 x17..19: 0x%x 0x%x 0x%x, row 15 x17: 0x%x; want A=0x%x G=0x%x)",
-    cell(17, 14), cell(18, 14), cell(19, 14), cell(17, 15), fmap[66] or -1, fmap[72] or -1))
-  check(caption_at(14) == nil, "caption drawn on title row 14")
+  -- state 0 is also the pre-boot value: keep pressing A until the open select has reached the fix layer (the UniBIOS screens come first)
+  until_(function() if text_at(17, 23, "ARENA", bmap) then return true end press(abtn); return text_at(17, 23, "ARENA", bmap) end, 900, function() return "title mode select drawn (fix writes " .. fixw .. ", last 0x" .. string.format("%x", fixlast) .. ") rows 22..25 [" .. dump_row(22) .. "|" .. dump_row(23) .. "|" .. dump_row(24) .. "|" .. dump_row(25) .. "]" end)
+  check(text_at(17, 23, "ARENA", bmap) and text_at(17, 24, "GUM TRIP", bmap) and text_at(17, 25, "ARCADE", bmap), string.format("title mode select not on fix rows 23/24/25 at x 17 (cells row 23 x17..19: 0x%x 0x%x 0x%x, row 24 x17: 0x%x, row 25 x17: 0x%x; want A=0x%x G=0x%x A=0x%x)",
+    cell(17, 23), cell(18, 23), cell(19, 23), cell(17, 24), cell(17, 25), bmap[66] or -1, bmap[72] or -1, bmap[66] or -1))
+  check(#bmap == 256, "fixfont_map_backed parsed " .. #bmap .. " entries")
+  check(caption_at(23) == nil and caption_at(24) == nil and caption_at(25) == nil, "caption drawn on title rows 23..25")
   press(dbtn)
   until_(function() return g8(O_MODE) == 1 end, 30, "Down selects Gum Trip")
   -- (b) let the title time out into the attract table; both captions and both draw counters must show up

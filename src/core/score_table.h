@@ -9,11 +9,12 @@
  * Backup RAM image v3 (v2 = first two tables, 250 bytes, still loads), big endian (explicit, like hiscore.h):
  *   offset  size  field
  *      0     4    magic 'R' 'O' 'O' 'F' (HISCORE_MAGIC, same as v1)
- *      4     2    version (2)
+ *      4     2    version (3)
  *      6   120    arena table: 10 x (8 name bytes + u32 score)
  *    126   120    trip table, same layout
- *    246     4    checksum: FNV-1a 32 bit over bytes 0..245
- * Total SCORE_IMAGE_SIZE = 250 bytes. A v1 image (130 bytes) loads as the arena table with
+ *    246   120    arcade table, same layout
+ *    366     4    checksum: FNV-1a 32 bit over bytes 0..365
+ * Total SCORE_IMAGE_SIZE = 370 bytes. A v1 image (130 bytes) loads as the arena table with
  * the trip defaults.
  */
 #ifndef BRAWL_SCORE_TABLE_H
