@@ -161,7 +161,7 @@ void flow_step(Flow *f, uint8_t input, uint8_t start_pressed, uint32_t frame_cou
         } else {
             f->demo_in = demo_input(f);
             attract_overlay_step(&f->ov, f->demo_in);
-            game_step(&f->game, f->demo_in);
+            if (!game_begin(&f->game)) game_step(&f->game, f->demo_in); /* match setup gets its own frame (arcade stage entry overran) */
             /* The demo never scores into the table: it only ever returns to the title. */
             if (f->game.over || f->timer >= ATTRACT_DEMO_FRAMES) {
                 f->demo = 0;

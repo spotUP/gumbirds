@@ -88,6 +88,14 @@ void game_step(Game *g, uint8_t input)
     }
 }
 
+static void match_start(Game *g);
+int game_begin(Game *g)
+{
+    if (g->mode == GAME_MODE_TRIP || g->over || g->cpu_count) return 0;
+    match_start(g);
+    return 1;
+}
+
 /* Fighter i: 0 is the player, 1..cpu_count the computer fliers. */
 static Flier *fighter(Game *g, int i)
 {

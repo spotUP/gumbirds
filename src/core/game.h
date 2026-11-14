@@ -110,6 +110,9 @@ void game_step_arena(Game *g, uint8_t input);
 void game_set_mode(Game *g, uint8_t mode);
 /* The one per-frame entry the flow calls in play: dispatches on g->mode to game_step_arena or game_step_trip. */
 void game_step(Game *g, uint8_t input);
+/* Attract demo: builds a pending arena or arcade match (match_start: stage, elements, rivals) without stepping it and returns 1;
+ * else 0. The demo has no ROUND banner freeze to carry that frame, so the flow steps the game from the next frame. */
+int game_begin(Game *g);
 /* Gum Trip step: A flaps, left/right steer. Order per frame: trip_hit_floor_y, flier_step (no wrap, island floor),
  * trip_step (scroll carry, clamp, gum), tripgen_advance (trip px), trip_collide (pickups, hazards, strips; bits in
  * trip_events); then distance, score and over are taken from the trip. */

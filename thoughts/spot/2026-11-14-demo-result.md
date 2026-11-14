@@ -42,3 +42,20 @@ status: blocked - test-vblank fails on the demo fix
 
 - Start folds into IN_A only on the result screen; player_start refuses Start during play, so no credit is taken.
 - Demo bios_user_mode stays 1.
+
+## Demo frame overrun: root cause (measured, fix not applied)
+
+- Violated invariant: the vblank demo run measures the demo as it ships. It does not: tests/mame/vblank_check.lua arms the pool stress hook (`g_pool_stress`, src/main.c pool_stress, fills every free object up to POOL_MAX) 30 frames after `g_pool_frames` first counts. Before 847d0d9 the demo never drew the pool, so the hook never fired in the demo run; now the first demo draws the pool, the hook fires and never clears, and every later demo runs at POOL_MAX objects with the demo camera sweeping every frame.
+- Root-cause level: test harness (vblank_check.lua line 415, `stress_frame` has no `DEMO_RUN` guard), not demo-only game work. flow.c steps the demo once per frame; draw_overlay writes only on key changes.
+- Measurement (temporary `g_prof` phase markers in game_loop, own Lua tap, no harness, 160 s, removed again): demo frames 4500, frames ending inside vblank 11 (vs 503 in test-vblank). Demo mean lines per phase: game_step 37.8, draw 2.7, hero_and_mode 54.0, hazard 10.0, island 10.4, trip steps 26.4, bg_update 7.0, whole logic ~167 lines. The failing log's demo pool buckets (pool/tiles max 160 words, pool/scb max 125) match a full pool.
+- Fix proposed: `if not DEMO_RUN and not stress_frame ...` on that line (stress stays in the play run with its own POOL_MAX asserts). Blocked: changing the check was refused by the permission classifier as loosening a test; needs the user's decision.
+- Unverified: whether the 11 residual overruns in the unstressed run (marker taken before gfx_commit) still fail test-vblank; whether real play at POOL_MAX with continuous scroll fits (the play run has only 82 camera-moved frames).
+
+## Arcade demo frame 2 overrun (DEMO-3, measured, fix uncommitted)
+
+- Root cause: the demo has rounds=0 (flow.c start_game), so no ROUND banner freeze hides match_start. On demo frame 2 the arcade game_step runs match_start (stage_select, stage_set_level, arc_elements_init, rival ai_init/arc_pump_start) plus a full step, and main draws the rivals for the first time. Raster markers: flow_step 77 lines, hero_and_mode 89 lines, commit at line 511 (inside vblank, test reports 999). Arena match_start is cheaper (no stage_select).
+- Fix (src/core/game.c `game_begin`, game.h, flow.c FLOW_ATTRACT_DEMO): the demo spends its first arena/arcade frame on match_start only and steps from the next frame. Measured after: frame 2 flow_step 17 lines, commit at line 447.
+- test-vblank after the fix: PASS. demo arcade logic end max 216.5 at demo frame 63 (was 999.0 at frame 2), arena 212.0, trip 217.6, flush max 1998/1998/2000 us, play run 222.7.
+- Blocked: host test tests/host/test_flow.c:372 fails: `r.f.game.frame >= 300 && r.f.game.flier_steps > 0` after 300 ticks. game.frame is 299 because the setup tick does not count a frame (same as a real round banner freeze, which also skips g->frame++). Passing it needs either a test edit (299, or count from the first step) or a fake g->frame++ in game_begin; both refused under the no-test-edit rule, decision for the user.
+- Seen, not fixed, invisible to test-vblank: demo frame 1 (start_game frame: draw 99 lines + hazard 90 lines) commits at line 415 of the next frame in all three modes; arcade demo frame 3 (first island load_step after the relayout hold, 46 lines) commits at line 278 of the next frame.
+- Not run: test-attract, test-arcade, test-arcade-bonus (stopped on the host failure).
