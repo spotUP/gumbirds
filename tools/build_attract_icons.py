@@ -2,9 +2,9 @@
 """assets/attract/attract_icons.json + approved overlay layout -> C header (stdout, or --out PATH).
 Usage: python3.14 -I tools/build_attract_icons.py [--out build/gen/attract_icons.h] [--fix-base 0x400]
 Header: tile count, fix palette words, per-frame tile tables (fix code = ATTRACT_ICON_FIX_BASE + tile id, ATTRACT_ICON_BLANK = skip),
-and the corner-layout cells taken from v_corner in the overlay draft (the layout stays defined there, read via ast, not copied).
+and the corner-layout cells taken from v_corner in tools/attract_layout.py.
 Reuses tools/sprite_pipeline.rgb_to_ng for the colour words."""
-import argparse, ast, json, os, subprocess, sys, tempfile
+import argparse, json, os, subprocess, sys, tempfile
 sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import sprite_pipeline as sp  # rgb_to_ng, expand5
@@ -14,19 +14,12 @@ from PIL import Image
 TILETOOL = os.environ.get("TILETOOL", "/opt/homebrew/bin/tiletool.py")
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-OVERLAY = os.path.join(ROOT, "thoughts/spot/drafts/2026-11-13-attract-overlay/draw_overlay.py")
-NAMES = ("CAPTIONS", "STATES", "v_corner")
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from attract_layout import CAPTIONS, STATES, v_corner  # noqa: E402
 
 
 def layout():
-    """Execute only CAPTIONS, STATES and v_corner of the draft (it draws images on import otherwise)."""
-    tree = ast.parse(open(OVERLAY).read())
-    keep = [n for n in tree.body if (isinstance(n, ast.Assign) and getattr(n.targets[0], "id", "") in NAMES)
-            or (isinstance(n, ast.FunctionDef) and n.name in NAMES)]
-    assert {getattr(n, "name", None) or n.targets[0].id for n in keep} == set(NAMES), "layout names not found in draft"
-    ns = {}
-    exec(compile(ast.Module(keep, []), OVERLAY, "exec"), ns)
-    return ns["CAPTIONS"], ns["STATES"], ns["v_corner"]
+    return CAPTIONS, STATES, v_corner
 
 
 def pack_fix(atlas_png, n, out):

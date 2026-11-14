@@ -80,7 +80,7 @@ $(PROM1): $(ELF)
 # five fix palettes come with it in build/gen/fix_font.h (src/gfx.c prints through the maps).
 # The Gum Trip gum meter tiles (assets/tripmeter, 13 tiles) are pasted into the font at tile 186; tripmeter.h holds the cell table.
 # The attract overlay icons (59 fix tiles) sit in the S-ROM right after the font (tile 0x400); the S-ROM rule below concatenates both.
-$(BUILDDIR)/gen/attract_icons.h $(BUILDDIR)/gen/attract_icons.fix: assets/attract/attract_icons.json assets/attract/attract_icons.png tools/build_attract_icons.py tools/sprite_pipeline.py thoughts/spot/drafts/2026-11-13-attract-overlay/draw_overlay.py
+$(BUILDDIR)/gen/attract_icons.h $(BUILDDIR)/gen/attract_icons.fix: assets/attract/attract_icons.json assets/attract/attract_icons.png tools/build_attract_icons.py tools/sprite_pipeline.py tools/attract_layout.py
 	$(PYTHON) -I tools/build_attract_icons.py --out $(BUILDDIR)/gen/attract_icons.h --fix-base 0x400
 $(BUILDDIR)/gen/tripmeter.fix $(BUILDDIR)/gen/tripmeter.h: assets/tripmeter/tripmeter_sheet.png assets/tripmeter/tripmeter_sheet.json assets/font/fix_font.json tools/build_tripmeter_tiles.py tools/sprite_pipeline.py
 	$(PYTHON) -I tools/build_tripmeter_tiles.py --out $(BUILDDIR)/gen
@@ -217,9 +217,11 @@ SOUND_ASSETS=$(SOUND_DIR)/ingame.fur $(SFX_WAVS)
 # build.mk recipes read the maps through $^, so the generated assets are order-only prerequisites
 # (they exist before soundtool/vromtool run). After changing a generator script run `gmake generate`.
 $(VROM1) $(Z80_SAMPLES_IN_VROM) $(Z80_SOUND_COMMANDS) $(SOUND_COMMANDS): $(SOUND_YAMLS) | $(SOUND_ASSETS)
+# On a fresh clone this first runs while config.mk is still being generated (SOUNDTOOL empty; -include ignores the error).
+# Write via a temp file so a failed run leaves no empty nss-deps.mk hiding the nss_<name> rules; the restarted make rebuilds it.
 $(SOUND_DIR)/nss-deps.mk: $(SOUND_YAMLS)
 	mkdir -p $(@D)
-	$(SOUNDTOOL) -m -s $^ > $@
+	$(SOUNDTOOL) -m -s $^ > $@.tmp && mv $@.tmp $@
 -include $(SOUND_DIR)/nss-deps.mk
 
 $(BUILDDIR)/src/sound/user_commands.rel: src/sound/user_commands.s $(Z80_SAMPLES_IN_VROM) $(Z80_SOUND_COMMANDS)
