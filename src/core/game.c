@@ -472,7 +472,7 @@ void game_step_arena(Game *g, uint8_t input)
                     ci.dir = (int8_t)away;   /* a burst kills, an island underside only bumps: overrides the overhead-edge steer in ai.c */
                     /* Air steering only acts on a flap and the AI flaps only toward a target above, so a rival drifted into the plume
                        at constant vx: flap on every allowed press while threatened (sideways thrust away, and lift above the plume). */
-                    if (!c->on_ground && c->flap_cd == 0 && !c->flap_prev) ci.flap = 1;
+                    if (c->flap_cd == 0 && !c->flap_prev) ci.flap = 1;   /* grounded too: the jump lifts a rival standing beside the vent */
                 }
             }
         } else {
