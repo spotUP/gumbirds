@@ -170,7 +170,7 @@ $(BUILDDIR)/gen/gum.c1 $(BUILDDIR)/gen/gum.c2 $(BUILDDIR)/gen/gum_sprites.c $(BU
 $(BUILDDIR)/gen/gum_sprites.o: $(BUILDDIR)/gen/gum_sprites.c
 	$(M68KGCC) $(NGCFLAGS) $(CFLAGS) -c $< -o $@
 # Splash of a flier in water or lava: both strips stacked into one sheet by the build script. C-ROM position: last, after the logo.
-$(BUILDDIR)/gen/splash.c1 $(BUILDDIR)/gen/splash.c2 $(BUILDDIR)/gen/splash_sprites.c $(BUILDDIR)/gen/splash_sprites.h $(BUILDDIR)/gen/splash_tables.h: assets/splash/splash_water_1x.png assets/splash/splash_lava_1x.png assets/splash/splash.json tools/build_splash_sprites.py tools/sprite_pipeline.py
+$(BUILDDIR)/gen/splash.c1 $(BUILDDIR)/gen/splash.c2 $(BUILDDIR)/gen/splash_sprites.c $(BUILDDIR)/gen/splash_sprites.h $(BUILDDIR)/gen/splash_tables.h: assets/splash/splash_water_1x.png assets/splash/splash_lava_1x.png assets/splash/splash_gum_1x.png assets/splash/splash.json tools/build_splash_sprites.py tools/sprite_pipeline.py
 	$(PYTHON) -I tools/build_splash_sprites.py --out $(BUILDDIR)/gen
 $(BUILDDIR)/gen/splash_sprites.o: $(BUILDDIR)/gen/splash_sprites.c
 	$(M68KGCC) $(NGCFLAGS) $(CFLAGS) -c $< -o $@

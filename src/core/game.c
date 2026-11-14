@@ -622,8 +622,10 @@ void game_step_trip(Game *g, uint8_t input)
 {
     FlierInput in;
     uint32_t step;
+    int was_alive;
     if (g->over) {
         g->trip_events = 0; /* no stale TRIP_EV_HIT for the sound edge */
+        g->trip_splat = 0;
         return;
     }
     if (!tripgen_covers(&g->trip_gen, g->trip.px)) {
@@ -640,6 +642,7 @@ void game_step_trip(Game *g, uint8_t input)
         g->flaps++;
     }
     g->flier.no_wrap = 1;
+    was_alive = g->flier.state < FLIER_FALLING;
     {
         int32_t px = g->flier.x, py = g->flier.y;
         FlierSolid so[TRIP_SOLIDS_MAX];
@@ -655,10 +658,15 @@ void game_step_trip(Game *g, uint8_t input)
      * (a push into the rock is a wall touch). TRIP_EV_HIT from a wall kill plays the hit sound like a hazard hit. */
     {
         unsigned ev = trip_hit_hero_walls(&g->trip, &g->trip_gen, &g->flier);
+        unsigned floor_kill = ev;   /* only the bottom rock returns TRIP_EV_HIT here */
         ev |= trip_collide(&g->trip, &g->trip_gen, &g->flier);
         trip_hit_haz_bounce(&g->trip, &g->trip_gen, &g->flier);
-        ev |= trip_hit_hero_walls(&g->trip, &g->trip_gen, &g->flier);
+        floor_kill |= trip_hit_hero_walls(&g->trip, &g->trip_gen, &g->flier);
+        ev |= floor_kill;
         g->trip_events = (uint8_t)ev;
+        /* a death at the floor: the bottom rock, or the kill line reached alive (DROWNED); a mid-air gum death falls on and makes no splat */
+        g->trip_splat = (uint8_t)(was_alive && g->flier.state >= FLIER_FALLING && (floor_kill || g->flier.state == FLIER_DROWNED));
+        g->trip_splat_y = (int16_t)((g->flier.y + flier_half_h(&g->flier)) >> 16);
     }
     g->trip_rival_events = (uint8_t)trip_rivals_step(&g->trip_rivals, &g->trip, &g->trip_gen, &g->flier);
     camera_scroll(&g->camera, step);

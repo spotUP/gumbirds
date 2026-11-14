@@ -9,5 +9,5 @@ extern volatile u16 g_splash_draws;  /* frames the splash was placed: the test's
 void splash_load_palettes(void);
 /* Per frame. active 0 (not playing) hides it. start 1: a flier crossed a liquid line of hazard kind at world x (restarts a running splash).
  * cam_px is the wrapped camera x. */
-void splash_update(int active, int start, uint8_t kind, int32_t x, int cam_px);
+void splash_update(int active, int start, uint8_t kind, int32_t x, int floor_y, int cam_px);
 #endif
