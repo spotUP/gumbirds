@@ -369,7 +369,8 @@ static void test_cycle_and_demo(void)
     rig_until(&r, FLOW_ATTRACT_DEMO, 0, 100000);
     rig_ticks(&r, 0, 300);
     CHECK(r.f.state == FLOW_ATTRACT_DEMO || r.f.state == FLOW_ATTRACT_TITLE);
-    if (r.f.state == FLOW_ATTRACT_DEMO) CHECK(r.f.game.frame >= 300 && r.f.game.flier_steps > 0);
+    /* the first demo tick builds the match (game_begin) without a step, like a round banner freeze: 299 stepped frames */
+    if (r.f.state == FLOW_ATTRACT_DEMO) CHECK(r.f.game.frame >= 299 && r.f.game.flier_steps > 0);
 
     /* the demo flier survives the whole demo window: 12 demos from different start frames (the seed is the frame counter) each
      * end with it alive. The demo pilot cannot dodge computer fliers, so this guards DEMO_HOVER_Y / DEMO_SWEEP_FRAMES. */

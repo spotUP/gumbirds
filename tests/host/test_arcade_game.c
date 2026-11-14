@@ -184,7 +184,7 @@ int main(void) {
         CHECK(stage_floor_y(FL_PX(20), FL_PX(100)) == FL_PX(ARC_FLOOR_Y) && stage_floor_y(FL_PX(ARENA_W - 20), FL_PX(100)) == FL_PX(ARC_FLOOR_Y));
         for (i = 0; i < ARC_NOZZLE_COUNT; i++)
             CHECK(stage_floor_y(FL_PX(arc_nozzle_x(i) + 16), FL_PX(arc_nozzle_top(i) - 30)) == FL_PX(arc_nozzle_top(i)));
-        for (f = 0; f < 4000 && b.arc.state == ARC_BONUS; f++) game_step(&b, 0);
+        for (f = 0; f < 4000 && b.arc.state == ARC_BONUS; f++) game_step(&b, b.res.active && (f & 8) ? IN_A : 0); /* the result screen waits for A */
         CHECK(b.arc.state == ARC_PLAY && b.arc.stage == 4);
         /* rounds mode: the next stage's layout is selected when the pan ends */
         for (f = 0; f < 2000 && stage_layout_index() == ARC_LAYOUT_BONUS; f++) game_step(&b, 0);

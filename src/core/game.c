@@ -90,6 +90,14 @@ void game_step(Game *g, uint8_t input)
     }
 }
 
+static void match_start(Game *g);
+int game_begin(Game *g)
+{
+    if (g->mode == GAME_MODE_TRIP || g->over || g->cpu_count) return 0;
+    match_start(g);
+    return 1;
+}
+
 /* Fighter i: 0 is the player, 1..cpu_count the computer fliers. */
 static Flier *fighter(Game *g, int i)
 {
@@ -375,7 +383,7 @@ static void arc_enter_stage(Game *g)
 
 /* Arcade between stages: the CLEAR frames, the BONUS banner hold, the bonus stage (the player flies, its box catches bubbles).
  * Returns 1 when the frame is spent. The next stage starts like a round end: spawn, then the pan (real game) or match_start. */
-static int arc_interlude(Game *g, uint8_t input)
+static int arc_interlude(Game *g, uint8_t input, uint8_t a_edge)
 {
     FlierInput in;
     if (g->mode != GAME_MODE_ARCADE || g->arc.state == ARC_PLAY) {
@@ -400,7 +408,7 @@ static int arc_interlude(Game *g, uint8_t input)
         return 1; /* the bonus announcement: everything frozen */
     } else if (g->res.active) {
         uint32_t add;
-        g->res.events = res_step(&g->res, &add);
+        g->res.events = res_step(&g->res, &add, a_edge); /* main.c folds a Start press into A on this screen */
         if (add) {
             score_add(g, add);
             g->res.score_shown = g->score;
@@ -450,7 +458,7 @@ void game_step_arena(Game *g, uint8_t input)
     if (g->cpu_count == 0) {
         match_start(g);
     }
-    if (arc_interlude(g, input) || round_phase_step(g)) {
+    if (arc_interlude(g, input, a_edge) || round_phase_step(g)) {
         return;
     }
     g->frame++;

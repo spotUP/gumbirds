@@ -412,7 +412,8 @@ emu.register_frame_done(function()
   else
     prev_fc = nil
   end
-  if not stress_frame and A_PFRAMES and counting and mem:read_u16(A_PFRAMES) > 0 then stress_frame = n + 30 end
+  -- demo runs measure the shipped demo; pool stress belongs to the play run only
+  if not DEMO_RUN and not stress_frame and A_PFRAMES and counting and mem:read_u16(A_PFRAMES) > 0 then stress_frame = n + 30 end
   if n == stress_frame and A_STRESS then
     pool_frames_before = mem:read_u16(A_PFRAMES)
     mem:write_u16(A_BACKLOG, 0)

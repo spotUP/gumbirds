@@ -2,7 +2,7 @@
 #include "arcade.h"
 #include "gen/result_paths.h"
 
-enum { P_POPPED, P_EACH, P_VANISH, P_TOTAL, P_HOLD, P_TALLY, P_POST, P_END };
+enum { P_POPPED, P_EACH, P_VANISH, P_TOTAL, P_HOLD, P_TALLY, P_POST, P_WAIT };
 
 /* total_left as 5 digits, by subtraction (a 32-bit divide is a libgcc call on the 68000). */
 static void set_digits(Result *r)
@@ -85,7 +85,7 @@ uint8_t res_bubble(const Result *r, int i, int *x, int *y)
     return r->pop[i] ? (uint8_t)(2 + ((r->pop[i] - 1) >> 1)) : 1;
 }
 
-static uint8_t res_phase(Result *r, uint32_t *add)
+static uint8_t res_phase(Result *r, uint32_t *add, uint8_t press)
 {
     uint8_t ev = 0;
     *add = 0;
@@ -145,24 +145,23 @@ static uint8_t res_phase(Result *r, uint32_t *add)
             ev |= RES_EV_BONUS;
             r->wait = 20;
         } else {
-            r->active = 0;
-            return ev;
+            r->wait = 1;
         }
         break;
-    default:
-        r->active = 0;
+    default: /* P_WAIT: the totals stay up until the player presses */
+        if (press) r->active = 0;
         return ev;
     }
     r->phase++;
     return ev;
 }
 
-uint8_t res_step(Result *r, uint32_t *add)
+uint8_t res_step(Result *r, uint32_t *add, uint8_t press)
 {
     uint8_t ev;
     *add = 0;
     if (!r->active) return 0;
-    ev = res_phase(r, add);
+    ev = res_phase(r, add, press);
     res_animate(r, ev, *add);
     return ev;
 }

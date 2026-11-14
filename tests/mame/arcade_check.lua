@@ -27,6 +27,11 @@ local res_logic, res_line, res_dump = 0, 0, os.getenv("RESULT_DUMP")
 local res_over, res_over_list = 0, {} -- result frames at or past 224 (first 12 listed in the failure)
 local res_count = dofile(((debug and debug.getinfo and debug.getinfo(1, "S").source:match("^@(.*)/[^/]*$")) or "tests/mame") .. "/sprite_line_count.lua")
 local res_frames, res_score0, res_score1 = 0, nil, nil -- result screen frames seen in the bonus stage and the score at its first and last frame
+-- The result screen holds until a press: no input until RES_HOLD_FRAMES (past the longest sequence, about 500), then A; it must still be up then and end soon after
+local RES_HOLD_FRAMES, res_trace = 700, os.getenv("RES_TRACE")
+-- The SCORE row (fix row 19, cols 19..26, 8 zero-padded digits) must show the score of this or the previous frame once filled
+local res_row = {bad = 0, prev = nil, note = nil}
+local res_trace_f = res_trace and res_trace ~= "" and io.open(res_trace, "w") or nil
 local mem    = manager.machine.devices[":maincpu"].spaces["program"]
 local screen = manager.machine.screens[":screen"]
 local ports  = manager.machine.ioport.ports
@@ -194,12 +199,30 @@ emu.register_frame_done(function()
           if fc_line >= 224 then res_over = res_over + 1; if #res_over_list < 12 then res_over_list[#res_over_list + 1] = res_frames end end
           if res_frames % 4 == 1 then local c = res_count.count(vram, 1, 381); for y = 0, 223 do if c[y] > res_line then res_line = c[y] end end end
           if res_dump and res_dump ~= "" and res_frames % 2 == 1 then screen:snapshot(string.format("res_%03d.png", res_frames)) end
-          res_score1 = g(O_SCORE); if not res_score0 then res_score0 = res_score1 end end
+          res_score1 = g(O_SCORE); if not res_score0 then res_score0 = res_score1 end
+          if res_frames >= 30 then -- col 19 is always the digit 0 (score < 10^7): decode the row against it
+            local z, v = (vram[0x7000 + 19 * 32 + 19] or 0) & 0xfff, 0
+            for c = 19, 26 do local d = ((vram[0x7000 + c * 32 + 19] or 0) & 0xfff) - z; if d < 0 or d > 9 then v = -1 break end; v = v * 10 + d end
+            if v ~= res_score1 and v ~= res_row.prev then res_row.bad = res_row.bad + 1; res_row.note = res_row.note or string.format("frame %d shows %d, score %d", res_frames, v, res_score1) end
+          end
+          res_row.prev = res_score1
+          if res_trace_f then -- per frame: score, wheel SCB1 tile + SCB3 of sprites 349..353, fix cells rows 4, 13, 19, 23
+            local t = {string.format("%d %d", res_frames, res_score1)}
+            for w = 349, 353 do t[#t + 1] = string.format("w%04x/%04x", vram[w * 64] or 0, vram[0x8200 + w] or 0) end
+            for _, rc in ipairs({{4, 10, 29}, {13, 25, 32}, {19, 19, 26}, {23, 20, 24}}) do
+              local cs = {}
+              for c = rc[2], rc[3] do cs[#cs + 1] = string.format("%04x", vram[0x7000 + c * 32 + rc[1]] or 0) end
+              t[#t + 1] = "r" .. rc[1] .. ":" .. table.concat(cs, ",")
+            end
+            res_trace_f:write(table.concat(t, " "), "\n")
+          end end
         if nl > bon_nlive_max then bon_nlive_max = nl end
         if nl >= BONUS_LIVE_MAX then bon_busy = bon_busy + 1; if fc_line >= 224 then bon_over = bon_over + 1; if not bon_over_note then bon_over_note = string.format('frame %d nlive %d bonus frame %d', n, nl, bon_frames) end elseif fc_line > bon_logic then bon_logic = fc_line end end
         bon_prev = nl
         -- fly left and right with flaps so the camera scrolls (the floor and nozzles must be placed again)
-        rgt:set_value((bon_frames % 240) < 120 and 1 or 0); lft:set_value((bon_frames % 240) >= 120 and 1 or 0); abtn:set_value((bon_frames % 14) < 3 and 1 or 0)
+        if b(O_RES) == 1 then -- hands off until the hold check, then one A press
+          rgt:set_value(0); lft:set_value(0); abtn:set_value(res_frames > RES_HOLD_FRAMES and res_frames <= RES_HOLD_FRAMES + 3 and 1 or 0)
+        else rgt:set_value((bon_frames % 240) < 120 and 1 or 0); lft:set_value((bon_frames % 240) >= 120 and 1 or 0); abtn:set_value((bon_frames % 14) < 3 and 1 or 0) end
         do local t = bon_by[nl] or {0, 0, 0}; t[1] = t[1] + 1; t[2] = t[2] + (fc_line >= 224 and 1 or 0); if fc_line < 224 and fc_line > t[3] then t[3] = fc_line end; bon_by[nl] = t end
       end
       bon_wait = 0
@@ -211,7 +234,9 @@ emu.register_frame_done(function()
       elseif bon_busy < 50 then why = "only " .. bon_busy .. " frames with 8+ bubbles"
       elseif res_logic >= 224 then why = string.format("result screen logic end %.1f, limit 224, %d of %d frames over, first frames %s", res_logic, res_over, res_frames, table.concat(res_over_list, ","))
       elseif res_line > 90 then why = "result screen has " .. res_line .. " sprites on one line, SB_LIMIT is 90"
-      elseif res_frames < 193 then why = "result screen ran " .. res_frames .. " frames, the shortest sequence is 193"
+      elseif res_frames <= RES_HOLD_FRAMES then why = "result screen exited without a press after " .. res_frames .. " frames (it must wait for A or Start)"
+      elseif res_frames > RES_HOLD_FRAMES + 30 then why = "result screen ignored the A press (" .. res_frames .. " frames)"
+      elseif res_row.bad > 0 then why = "result SCORE row wrong on " .. res_row.bad .. " frames, first " .. res_row.note
       elseif (res_score1 - res_score0) % 100 ~= 0 then why = "result screen added " .. (res_score1 - res_score0) .. " points, not a multiple of 100" end
       finish(why == nil, why or string.format("bonus stage: %d frames, max %d bubbles alive, %d frames with a full pool, max logic end %.1f of 224 (%d over), result screen %d frames adding %d points, max logic end %.1f, max %d sprites on one line", bon_frames, bon_nlive_max, bon_busy, bon_logic, bon_over, res_frames, res_score1 - res_score0, res_logic, res_line))
       return
