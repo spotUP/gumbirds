@@ -6,6 +6,7 @@ SSG style clocked noise, pitch sweeps, then a baked-in master chain (shelf EQ, s
 room) and a low-pass under 8 kHz before the resample from 55500 Hz to 18500 Hz. Output is deterministic (fixed seeds).
 Usage: make_sfx.py OUT_DIR [-v] [name ...]   (no names: every effect; -v prints length and ADPCM bytes per effect)"""
 import os
+import random
 import sys
 import wave
 
@@ -165,12 +166,6 @@ def phrase(patch, notes, gain=1.0):
     return [(at, patch(note, ln), gain) for at, note, ln in notes]
 
 
-def flap(f0, delay, nlen):
-    thump = fm2(curve(110, (0, f0), (60, f0 * 0.64)), 95, idx=1.3, mdec=30)
-    puff = hp(noise(110, curve(110, (0, 5200), (80, 2400)), 11), 900.0) * env(n_(110), 4, nlen)
-    return master(mix(110, (0, thump, 1.0), (delay, puff, 0.55)), drive=1.4, rm=22, wet=0.12)
-
-
 def pop(f0, wet, double):
     burst = noise(40, 9000, 21) * env(n_(40), 0.3, 25)
     drop = fm2(curve(140, (0, f0), (60, 300)), 85, idx=0.7, mdec=25)
@@ -201,13 +196,6 @@ def fall():
     return master(mix(700, (0, fm2(f, 250, idx=0.35, hold=450, a=8), 1), (40, fm2(f * 0.5, 250, idx=0.3, hold=410, a=8), 0.3)), drive=1.3, rm=35, wet=0.12)
 
 
-def splosh():
-    thump = fm2(curve(250, (0, 120), (200, 50)), 220, idx=1.0, mdec=80)
-    swell = lp(noise(520, curve(520, (0, 3200), (450, 800)), 51), 2500) * env(n_(520), 30, 440)
-    drops = [(at, fm2(curve(60, (0, f), (45, f * 1.35)), 55, idx=0.5), g) for at, f, g in ((120, 900, 0.35), (200, 1500, 0.3), (300, 1200, 0.25))]
-    return master(mix(520, (0, thump, 1), (0, swell, 0.8), *drops), drive=1.6, low=0.6, rm=80, wet=0.2)
-
-
 def sizzle():
     n, g = n_(520), n_(1.5)
     steps = n // g + 1
@@ -223,12 +211,6 @@ def spike():
     p2 = fm2(curve(180, (0, 3100)), 110, idx=1.5, mdec=14, ratio=1.41)
     tick = noise(8, 12000, 71) * env(n_(8), 0.2, 5)
     return master(mix(180, (0, p1, 0.8), (0, p2, 0.5), (0, tick, 0.7)), drive=1.6, thr=0.25, ratio=5, rm=25, wet=0.1)
-
-
-def coin():
-    sparkle = ssg(curve(340, (0, hz("E7"))), env(n_(340), 1, 200))
-    x = echo(mix(420, (0, bell("B5", 90, 120), 0.9), (80, bell("E6", 340, 330), 1.0), (80, sparkle, 0.12)), 95, 0.22)
-    return master(x, drive=1.3, rm=35, wet=0.12, high=0.2)
 
 
 def game_over():
@@ -390,12 +372,34 @@ def ne_done():
     return master(echo(mix(900, *notes), 120, 0.3), drive=1.4, rm=80)
 
 
+# Old placeholder takes (owner verdict 2026-11-14), ported unchanged from tools/make_sfx_placeholders.py at bd4aa43^.
+# Plain square / white noise with a linear fade at the old levels, so they skip the master chain and the peak check.
+def _square(f0, f1, seconds, volume=0.5):
+    n, phase, out = int(RATE * seconds), 0.0, []
+    for i in range(n):
+        phase += (f0 + (f1 - f0) * i / n) / RATE
+        out.append(int(32767 * volume * (1.0 - i / n) * (1.0 if (phase % 1.0) < 0.5 else -1.0)))
+    return out
+
+
+def _old_noise(seconds, volume=0.5):
+    rng, n = random.Random(1), int(RATE * seconds)
+    return [int(32767 * volume * (1.0 - i / n) * rng.uniform(-1, 1)) for i in range(n)]
+
+
+OLD = {   # int16 sample lists, written as is
+    "jump": lambda: _square(300, 700, 0.18),
+    "splosh": lambda: _old_noise(0.40, 0.6),
+    "coin": lambda: _square(988, 988, 0.08) + _square(1319, 1319, 0.30),
+}
+
+
 # name: (length ms, renderer). game_over and stage_clear are preview only: those events play the music jingles.
 SOUNDS = {
-    "flap_a": (110, lambda: flap(220, 0, 30)), "flap_b": (110, lambda: flap(240, 5, 30)), "flap_c": (110, lambda: flap(200, 0, 20)),
+    "flap_a": (180, OLD["jump"]), "flap_b": (180, OLD["jump"]), "flap_c": (180, OLD["jump"]),   # one sound, three slots: the 3-way rotation stays in the engine
     "pop_a": (140, lambda: pop(1800, 0.15, 0)), "pop_b": (140, lambda: pop(2200, 0.3, 0)), "pop_c": (140, lambda: pop(1500, 0.15, 1)),
-    "hit": (260, hit), "die": (420, die), "fall": (700, fall), "splosh": (520, splosh), "sizzle": (520, sizzle), "spike": (180, spike),
-    "coin": (420, coin), "game_over": (2200, game_over), "start": (700, start), "round_go": (600, round_go), "banner_in": (500, banner_in),
+    "hit": (260, hit), "die": (420, die), "fall": (700, fall), "splosh": (400, OLD["splosh"]), "sizzle": (520, sizzle), "spike": (180, spike),
+    "coin": (380, OLD["coin"]), "game_over": (2200, game_over), "start": (700, start), "round_go": (600, round_go), "banner_in": (500, banner_in),
     "pump_a": (160, lambda: pump(300, 520)), "pump_b": (160, lambda: pump(420, 700)), "rival_launch": (300, rival_launch),
     "bump": (150, bump), "chute": (260, chute), "defeat": (300, defeat), "vent_warn": (600, vent_warn), "vent_burst": (650, vent_burst),
     "flipper": (220, flipper), "grab_rise": (450, grab_rise), "grab_bite": (300, grab_bite), "grate": (600, grate),
@@ -419,14 +423,17 @@ def main():
     for name in names:
         ms, fn = SOUNDS[name]
         y = fn()
+        old = isinstance(y, list)
+        if old:
+            y = np.array(y) / 32767.0
         # self-check: the length is the planned one, the level is sane, nothing blew up
         assert abs(len(y) - RATE * ms / 1000.0) <= 2, (name, len(y))
-        assert np.all(np.isfinite(y)) and 0.89 < np.max(np.abs(y)) <= 0.9001, name
+        assert np.all(np.isfinite(y)) and (old or 0.89 < np.max(np.abs(y)) <= 0.9001), name
         with wave.open(os.path.join(out_dir, name + ".wav"), "wb") as w:
             w.setnchannels(1)
             w.setsampwidth(2)
             w.setframerate(RATE)
-            w.writeframes((y * 32767).astype("<i2").tobytes())
+            w.writeframes(np.round(y * 32767).astype("<i2").tobytes())
         total += adpcm_bytes(len(y))
         if "-v" in sys.argv:
             print("%-14s %5d ms %6d bytes" % (name, ms, adpcm_bytes(len(y))))
