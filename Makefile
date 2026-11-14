@@ -211,9 +211,11 @@ SOUND_ASSETS=$(SOUND_DIR)/ingame.fur $(SFX_WAVS)
 # build.mk recipes read the maps through $^, so the generated assets are order-only prerequisites
 # (they exist before soundtool/vromtool run). After changing a generator script run `gmake generate`.
 $(VROM1) $(Z80_SAMPLES_IN_VROM) $(Z80_SOUND_COMMANDS) $(SOUND_COMMANDS): $(SOUND_YAMLS) | $(SOUND_ASSETS)
+# On a fresh clone this first runs while config.mk is still being generated (SOUNDTOOL empty; -include ignores the error).
+# Write via a temp file so a failed run leaves no empty nss-deps.mk hiding the nss_<name> rules; the restarted make rebuilds it.
 $(SOUND_DIR)/nss-deps.mk: $(SOUND_YAMLS)
 	mkdir -p $(@D)
-	$(SOUNDTOOL) -m -s $^ > $@
+	$(SOUNDTOOL) -m -s $^ > $@.tmp && mv $@.tmp $@
 -include $(SOUND_DIR)/nss-deps.mk
 
 $(BUILDDIR)/src/sound/user_commands.rel: src/sound/user_commands.s $(Z80_SAMPLES_IN_VROM) $(Z80_SOUND_COMMANDS)
