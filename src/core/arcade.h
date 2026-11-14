@@ -18,12 +18,11 @@
 #define ARC_GUM_MAX 2
 #define ARC_RANK_MAX 3
 #define ARC_BONUS_BUBBLES 20
-/* Pool of live bubbles; a spawn is skipped when all are live. The reference has 10 slots, but at its pace no more than 8 are ever alive:
- * a 9th needs 8 spawn gaps of 40+ frames (320) while the longest rise (lowest nozzle top to 16 px past the top at 0.5 px/frame) is
- * 312 frames, so 8 slots play exactly the same. tests/host/test_arcade.c checks the bound; 10 live measured logic end 219..222 with
- * missed frames (make test-arcade-bonus stress fill), 8 live max 214. */
-#define ARC_BONUS_LIVE_MAX 8
-#define ARC_BONUS_SPAWN_MIN 40        /* spawn timer reload = MIN + (random & MASK) frames: 40..103 (reference) */
+/* Pool of live bubbles; a spawn is skipped (and waits one more reload) while all are live. The reference pace (8 slots, gap 40..103)
+ * was too dense to catch every bubble; owner pick 2026-11-14: at most 4 alive and gap 70..133. A rise takes up to 312 frames, so
+ * 4 slots at the minimum gap (280) can fill and skip; tests/host/test_arcade.c checks the bound. */
+#define ARC_BONUS_LIVE_MAX 4
+#define ARC_BONUS_SPAWN_MIN 70        /* spawn timer reload = MIN + (random & MASK) frames: 70..133 */
 #define ARC_BONUS_SPAWN_MASK 63
 #define ARC_BONUS_PUFF_FRAMES 16      /* frames the nozzle mouth puffs when a bubble leaves (4 art frames, 4 each) */
 #define ARC_BONUS_STRAIGHT 40         /* px a bubble rises straight above its nozzle top before it starts to sway */

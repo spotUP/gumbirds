@@ -131,7 +131,7 @@ int main(void) {
         }
         CHECK(ARC_BONUS_WORLD_W == ARENA_W);
     }
-    /* Nozzle bonus: at most 10 alive, 20 in all, spawn gap 40..103, straight rise 40 px then sway up to 16 px, ends on a frame wrap after all 20 are gone. */
+    /* Nozzle bonus: at most ARC_BONUS_LIVE_MAX alive, 20 in all, spawn gap 70..133 (longer after a skip), straight rise 40 px then sway up to 16 px, ends on a frame wrap after all 20 are gone. */
     {
         int s, num, peak = 0, spawned = 0, sway_seen = 0, gap_min = 1000, gap_max = 0, col_seen[ARC_NOZZLE_COUNT] = { 0 };
         for (s = 0; s < 30; s++) for (num = 1; num <= 6; num++) {
@@ -162,19 +162,10 @@ int main(void) {
             }
             CHECK(a.over && !a.perfect && a.spawned == ARC_BONUS_BUBBLES && a.nlive == 0 && (a.frame & 255) == 0);
         }
-        CHECK(peak >= 6 && peak <= ARC_BONUS_LIVE_MAX && sway_seen && spawned == 30 * 6 * ARC_BONUS_BUBBLES);
-        CHECK(gap_min >= 40 && gap_max <= 103); /* skipped spawns (pool full) only lengthen a gap, never below 40 */
+        CHECK(peak == ARC_BONUS_LIVE_MAX && sway_seen && spawned == 30 * 6 * ARC_BONUS_BUBBLES);
+        CHECK(gap_min >= ARC_BONUS_SPAWN_MIN && gap_max >= gap_min); /* skipped spawns (pool full) only lengthen a gap, never below the minimum */
         CHECK(col_seen[0] && col_seen[1] && col_seen[2] && col_seen[3]);
-        CHECK(ARC_BONUS_BUBBLES == 20 && ARC_BONUS_LIVE_MAX == 8);
-        /* the 8 slot pool never skips a spawn: every bubble is gone before LIVE_MAX more spawns can follow it at the minimum gap */
-        for (i = 0; i < ARC_NOZZLE_COUNT; i++) {
-            int num;
-            for (num = 1; num <= 6; num++) {
-                int32_t y16 = (int32_t)arc_nozzle_top(i) * 65536; int f = 0;
-                while ((int)(y16 >> 16) + ARC_BONUS_BOX > 0) { y16 -= arc_bonus_speed16(num); f++; }
-                CHECK(f < ARC_BONUS_LIVE_MAX * ARC_BONUS_SPAWN_MIN);
-            }
-        }
+        CHECK(ARC_BONUS_BUBBLES == 20 && ARC_BONUS_LIVE_MAX == 4 && ARC_BONUS_SPAWN_MIN == 70 && ARC_BONUS_SPAWN_MASK == 63);
         CHECK(arc_nozzle_x(0) == 48 && arc_nozzle_x(1) == 120 && arc_nozzle_x(2) == 240 && arc_nozzle_x(3) == 312);
         for (i = 0; i < ARC_NOZZLE_COUNT; i++) CHECK(arc_nozzle_x(i) >= 0 && arc_nozzle_x(i) + ARC_NOZZLE_W <= ARENA_W && arc_nozzle_top(i) > 0 && (i == 0 || arc_nozzle_x(i) >= arc_nozzle_x(i - 1) + ARC_NOZZLE_W));
     }
