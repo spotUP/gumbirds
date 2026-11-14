@@ -1,6 +1,7 @@
 -- Headless attract check (make test-attract). Real ROM, no input for three attract cycles (title, table, demo):
 --   T1. the game mode during the demo phases is arena, Gum Trip, arcade in turn, and Flow.demo is 1 in each;
 --   T3. in every demo the caption, lever, A and Start cells hold the overlay tiles, the captions differ per mode, the action word changes, and 20 frames after the demo no overlay icon is left;
+--   T4. the world plays under the overlay: the hero sprite (HERO_SPRITE 257) shows on most demo frames and moves (SCB3/SCB4 change);
 --   T2. g_frame_counter never stalls for 30 screen frames and the title highlight (Flow.mode) never changes;
 -- Env: BRAWL_FLOW_ADDR, BRAWL_FRAME_ADDR (hex), BRAWL_ATTRACT_LAYOUT (attract_probe.c output), BRAWL_RESULT.
 local flow_addr  = tonumber(os.getenv("BRAWL_FLOW_ADDR"), 16)
@@ -30,6 +31,8 @@ local function overlay_icons()
   return n
 end
 local caps, words, exit_at = {}, {}, nil
+local HERO = 257   -- src/sprite_slots.h HERO_SPRITE
+local hero_on, hero_pos, hero_last = 0, 0, nil
 
 local done = false
 local function finish(ok, msg)
@@ -72,6 +75,10 @@ emu.register_frame_done(function()
       for k = 1, seen - 1 do if caps[k] == caps[seen] and seen <= 3 then finish(false, "T3 demos " .. k .. " and " .. seen .. " show the same caption tile") return end end
     end
     words[tile(1, 23) * 256 + tile(2, 23)] = true
+    local s3, s4 = vram[0x8200 + HERO] or 0, vram[0x8400 + HERO] or 0
+    if (s3 & 0x3f) > 0 then hero_on = hero_on + 1 end
+    if hero_last and hero_last ~= s3 * 65536 + s4 then hero_pos = hero_pos + 1 end
+    hero_last = s3 * 65536 + s4
     if not in_demo then
       in_demo, demo_n = true, 1
       seen = seen + 1
@@ -88,5 +95,7 @@ emu.register_frame_done(function()
     local nw = 0; for _ in pairs(words) do nw = nw + 1 end
     if nw < 2 then finish(false, "T3 action word never changed in demo " .. seen) return end
     words = {}
+    if hero_on * 2 < demo_n or hero_pos < 20 then finish(false, string.format("T4 demo %d: no world under the overlay (hero shown %d of %d frames, moved %d times)", seen, hero_on, demo_n, hero_pos)) return end
+    hero_on, hero_pos, hero_last = 0, 0, nil
   end
 end)

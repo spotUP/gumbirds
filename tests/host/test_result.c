@@ -20,7 +20,7 @@ static int run(int caught, int number, int perfect, uint32_t start, uint32_t *ad
     *added = 0;
     res_start(&r, caught, number, perfect, start);
     while (r.active && f < 2000) {
-        uint8_t ev = res_step(&r, &add);
+        uint8_t ev = res_step(&r, &add, 1);
         f++;
         for (i = 0; i < 4; i++) if ((ev & (1 << i)) && ev_frame[i] < 0) ev_frame[i] = f;
         if (add) { if (!first_add) first_add = f; *added += add; CHECK(add % 100 == 0); }
@@ -53,16 +53,32 @@ int main(void)
     /* exact timeline: caught 0: 20 + 20 + 2 + 20 + 120, one tally frame, wait 10 (the 120 hold also runs without a ticket) */
     f = run(0, 1, 0, 0, &added, ev, &first);
     CHECK(added == 0);
-    CHECK(f == 20 + 20 + 2 + 20 + 120 + 1 + 10);
+    CHECK(f == 20 + 20 + 2 + 20 + 120 + 1 + 10 + 1);  /* + 1: the hold for the press (held from the start here) */
     f = run(20, 1, 1, 0, &added, ev, &first);  /* 20 * 300 = 6000: 60 steps of 2 frames */
     CHECK(f == 333 && ev[2] == 62 && ev[3] == 313);  /* jingle at 62, 60 tally steps from 183, bonus at 313, end 20 frames later */
     CHECK(added == 6000 + 10000);
+    /* the result screen waits for a press after the tally: no press keeps it up, a press ends it on that frame */
+    {
+        static const int sets[2][2] = { { 7, 0 }, { 20, 1 } };
+        int si;
+        for (si = 0; si < 2; si++) {
+            Result r;
+            uint32_t add, sum = 0;
+            int frames = 0;
+            res_start(&r, sets[si][0], 2, sets[si][1], 0);
+            while (r.active && frames < 5000) { res_step(&r, &add, 0); sum += add; frames++; }
+            CHECK(r.active);                     /* still up after 5000 frames without a press */
+            CHECK(r.total_left == 0 && r.score_shown == sum && sum == (uint32_t)sets[si][0] * 500u + (sets[si][1] ? 15000u : 0u));
+            res_step(&r, &add, 1);
+            CHECK(!r.active && add == 0);       /* the press ends it, nothing more added */
+        }
+    }
     /* score added once: total_left plus the sum of adds equals the total at every frame */
     {
         Result r;
         uint32_t add, sum = 0;
         res_start(&r, 5, 2, 0, 0);
-        while (r.active) { res_step(&r, &add); sum += add; CHECK(sum + r.total_left == 2500u); }
+        while (r.active) { res_step(&r, &add, 1); sum += add; CHECK(sum + r.total_left == 2500u); }
         CHECK(sum == 2500u);
     }
     /* view: every cell opaque, dirty bookkeeping */
@@ -80,7 +96,7 @@ int main(void)
                        || (c >= 33 && c <= 36 && row >= 12 && row <= 15) || (c >= 8 && c <= 31 && row >= 21 && row <= 25);
                 if (((v & 0xfff) == FIXFONT_BLANK && !win) || (v >> 12) >= FIXFONT_PAL_COUNT) CHECK(0);
             }
-            res_step(&r, &add);
+            res_step(&r, &add, 1);
         }
         /* the cell function changes only inside the regions of the dirty bits */
         res_start(&r, 7, 1, 0, 0);
@@ -90,7 +106,7 @@ int main(void)
             for (frames = 0; frames < 800 && r.active; frames++) {
                 for (row = 0; row < RESV_H; row++) for (c = 0; c < RESV_W; c++) before[row][c] = result_cell(&r, c, row);
                 r.dirty = 0;
-                res_step(&r, &add);
+                res_step(&r, &add, 1);
                 for (row = 0; row < RESV_H; row++) for (c = 0; c < RESV_W; c++) {
                     if (result_cell(&r, c, row) == before[row][c]) continue;
                     for (d = 1; d <= RES_DIRTY_TICKET; d = (uint8_t)(d << 1)) {
@@ -115,7 +131,7 @@ int main(void)
             for (i = 0; i < RES_SLOTS; i++) seen[i] = 0;
             res_start(&r, n, 2, perfect, 0);
             while (r.active) {
-                uint8_t ev = res_step(&r, &add);
+                uint8_t ev = res_step(&r, &add, 1);
                 if (ev & RES_EV_TICK) ticks++;
                 for (i = 0; i < RES_SLOTS; i++) {
                     uint8_t fr = res_bubble(&r, i, &x, &y);
@@ -151,7 +167,7 @@ int main(void)
             uint32_t add;
             int k;
             res_start(&r, 20, 5, 1, 0);
-            while (r.t < 160) res_step(&r, &add);
+            while (r.t < 160) res_step(&r, &add, 1);
             for (k = 0; k < 5; k++) CHECK(r.wheel[k] == r.digit[k] * 16);
             CHECK(r.digit[0] * 10000u + r.digit[1] * 1000u + r.digit[2] * 100u + r.digit[3] * 10u + r.digit[4] == r.total_left);
         }

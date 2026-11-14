@@ -753,9 +753,12 @@ static void edge_marker(const Game *g, int cam_px) {
     }
 }
 
+/* The world (hero, pool, strips, islands, gum) draws in play and in the attract demo: the demo is the same game under the overlay. */
+static u8 world_shown(const FlowView *v) { return (v->state == FLOW_PLAYING || v->state == FLOW_ATTRACT_DEMO) && v->game; }
+
 static void hero_and_mode(const FlowView *v) {
-    if (v->state == FLOW_PLAYING && v->game) {
-        bios_user_mode = 2;
+    if (world_shown(v)) {
+        bios_user_mode = (v->state == FLOW_PLAYING || g_start_pending) ? 2 : 1; /* the demo is attract: mode 1 (see below) */
         g_cam_px = (u16)game_camera_px(v->game);
         g_cam_unwrapped = camera_unwrapped_px(&v->game->camera);
         edge_marker(v->game, game_flier_cam_px(v->game));
@@ -1476,12 +1479,13 @@ static void game_loop(void) {
         __asm__ volatile ("move.w #0x2000,%%sr" ::: "memory");
         if (coined && !start) flow_coin(&g_flow);
         if (a_edge && !start && g_flow.state <= FLOW_ATTRACT_DEMO && bios_user_mode == 1 && (in & FLOW_RESET_COMBO) != FLOW_RESET_COMBO && take_credit()) start = 1;
+        if (g_flow.state == FLOW_PLAYING && g_flow.game.res.active && (bios_statchange & 1)) in |= IN_A; /* Start also ends the result screen */
         flow_step(&g_flow, in, start, g_frame_counter);
         {
             /* hazard kind per round: a new game starts at round 0; a new round (not during the banner HOLD) swaps the strip */
             static int s_round = 0;
             static u8 s_was_playing = 0;
-            u8 playing = g_flow.state == FLOW_PLAYING && (g_flow.game.mode == GAME_MODE_ARENA || g_flow.game.mode == GAME_MODE_ARCADE); /* a new arcade stage swaps the strip like a new round */
+            u8 playing = (g_flow.state == FLOW_PLAYING || g_flow.state == FLOW_ATTRACT_DEMO) && (g_flow.game.mode == GAME_MODE_ARENA || g_flow.game.mode == GAME_MODE_ARCADE); /* a new arcade stage swaps the strip like a new round */
             int rnd = game_round_number(&g_flow.game);
             if (playing && !s_was_playing) { hazard_game_restart(); s_round = rnd; }
             else if (playing && rnd != s_round && g_flow.game.round_end != RE_HOLD) { hazard_round_restart(); s_round = rnd; }
@@ -1516,24 +1520,25 @@ static void game_loop(void) {
         if (view.state == FLOW_PLAYING && view.game && view.game->res.active) goto world_done;
         hero_and_mode(&view);
         {
-            u8 trip = view.state == FLOW_PLAYING && view.game && view.game->mode == GAME_MODE_TRIP;
-            u8 trip_game = (view.state == FLOW_PLAYING || view.state == FLOW_GAME_OVER) && view.game && view.game->mode == GAME_MODE_TRIP;
-            hazard_step((view.state == FLOW_PLAYING || view.state == FLOW_GAME_OVER) && !trip_game, g_cam_px); /* the hazard strip is the arena's floor; Gum Trip has its own */
+            u8 world = world_shown(&view);
+            u8 trip = world && view.game->mode == GAME_MODE_TRIP;
+            u8 trip_game = (world || view.state == FLOW_GAME_OVER) && view.game && view.game->mode == GAME_MODE_TRIP;
+            hazard_step((world || view.state == FLOW_GAME_OVER) && !trip_game, g_cam_px); /* the hazard strip is the arena's floor; Gum Trip has its own */
             /* arcade only: elements kill, so they must be seen (worst scanline with them is checked in tests/host/test_sprite_budget.c) */
-            arcade_elems_step(view.state == FLOW_PLAYING && view.game && view.game->mode == GAME_MODE_ARCADE && view.game->arc.state != ARC_BONUS ? view.game : 0); /* the bonus shows no stage elements: hidden once on entry */
-            arcade_bonus_step(view.state == FLOW_PLAYING && view.game && view.game->mode == GAME_MODE_ARCADE && view.game->arc.state == ARC_BONUS && !view.game->res.active ? view.game : 0);
-            island_step(view.state == FLOW_PLAYING && !trip, g_cam_px); /* arena islands are not drawn in Gum Trip */
+            arcade_elems_step(world && view.game->mode == GAME_MODE_ARCADE && view.game->arc.state != ARC_BONUS ? view.game : 0); /* the bonus shows no stage elements: hidden once on entry */
+            arcade_bonus_step(world && view.game->mode == GAME_MODE_ARCADE && view.game->arc.state == ARC_BONUS && !view.game->res.active ? view.game : 0);
+            island_step(world && !trip, g_cam_px); /* arena islands are not drawn in Gum Trip */
             /* the course (islands, kill strips, pickups) stays through Game Over like the planes and the hazard anim: all leave at the title */
             island_trip_step(trip_game ? &view.game->trip_gen : 0, trip_game ? view.game->trip.px : 0, trip_game && game_trip_ready(view.game));
             trip_strip_step(trip_game ? &view.game->trip_gen : 0, trip_game ? view.game->trip.px : 0, trip_game && game_trip_ready(view.game));
             trip_pickup_step(trip_game ? &view.game->trip_gen : 0, trip_game ? view.game->trip.px : 0, trip_game ? view.game->trip.steps : 0, trip_game && game_trip_ready(view.game));
             /* Arena: the bubble is always full size (no gum value, no pop); Gum Trip: its gum meter. */
-            u8 arena = view.state == FLOW_PLAYING && view.game && (view.game->mode == GAME_MODE_ARENA || view.game->mode == GAME_MODE_ARCADE);
+            u8 arena = world && (view.game->mode == GAME_MODE_ARENA || view.game->mode == GAME_MODE_ARCADE);
             gum_step(arena || (trip && game_trip_ready(view.game)), trip ? view.game->trip.gum : GUM_MAX, (trip || arena) ? view.game->frame : 0, g_gum_pose.drawn, g_gum_pose.frame, g_gum_pose.flip, g_gum_pose.cx, g_gum_pose.top);
             {   /* the splash starts from the same crossing that plays the splosh sound; it keeps running through Game Over */
                 const SoundEvents *se = sound_events();
                 const Game *sg = view.game;   /* Gum Trip: its own floor death starts the gum splat (the splosh edge needs a water or lava kind) */
-                splash_update(splash_enabled((view.state == FLOW_PLAYING || view.state == FLOW_GAME_OVER) && sg, trip_game),
+                splash_update(splash_enabled((world || view.state == FLOW_GAME_OVER) && sg, trip_game),
                               trip_game ? sg->trip_splat : se->n_splosh > 0, trip_game ? SPLASH_KIND_GUM : sg ? sg->hazard_kind : 0,
                               trip_game ? sg->flier.x >> 16 : se->splosh_x, trip_game ? sg->trip_splat_y : 0, g_cam_px);
             }

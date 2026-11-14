@@ -1,7 +1,8 @@
 /* Arcade bonus stage result screen: state and timing only (pure, host-testable). Order after the stage ends, in frames:
  * wait 20, popped count; wait 20, points each; balloons vanish (event), wait 2, total; wait 20; perfect: ticket and jingle;
  * wait 120; tally (100 points per 2 frames, the total counts down while the score rises, one tick event per step); wait 10;
- * perfect: bonus added at once (event), wait 20; done. Spec: thoughts/spot/2026-11-13-bonus-ref.md section 6.
+ * perfect: bonus added at once (event), wait 20; then the screen holds until the player presses (A or Start), no timeout:
+ * the attract demo never reaches a bonus stage. Spec: thoughts/spot/2026-11-13-bonus-ref.md section 6.
  * The score is added only by the tally and the perfect bonus, through the points res_step returns. Drawing: result_view.h. */
 #ifndef CORE_RESULT_H
 #define CORE_RESULT_H
@@ -50,8 +51,9 @@ typedef struct {
 } Result;
 
 void res_start(Result *r, int caught, int number, int perfect, uint32_t score);
-/* One frame. Returns RES_EV_* bits; *add gets the points to add to the score this frame (multiple of 100, usually 0). */
-uint8_t res_step(Result *r, uint32_t *add);
+/* One frame. Returns RES_EV_* bits; *add gets the points to add to the score this frame (multiple of 100, usually 0).
+ * press: a new A or Start press this frame (an edge, so a button held from the tally does not skip the hold). */
+uint8_t res_step(Result *r, uint32_t *add, uint8_t press);
 /* Bubble i this frame: 0 hidden, else 1 + sprite frame (0 whole, 1..3 pop); *x, *y = centre in cage window pixels. */
 uint8_t res_bubble(const Result *r, int i, int *x, int *y);
 
