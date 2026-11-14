@@ -1432,7 +1432,10 @@ static void game_loop(void) {
             gum_step(arena || (trip && game_trip_ready(view.game)), trip ? view.game->trip.gum : GUM_MAX, (trip || arena) ? view.game->frame : 0, g_gum_pose.drawn, g_gum_pose.frame, g_gum_pose.flip, g_gum_pose.cx, g_gum_pose.top);
             {   /* the splash starts from the same crossing that plays the splosh sound; it keeps running through Game Over */
                 const SoundEvents *se = sound_events();
-                splash_update(splash_enabled((view.state == FLOW_PLAYING || view.state == FLOW_GAME_OVER) && view.game, trip_game), se->n_splosh > 0, view.game ? view.game->hazard_kind : 0, se->splosh_x, g_cam_px);
+                const Game *sg = view.game;   /* Gum Trip: its own floor death starts the gum splat (the splosh edge needs a water or lava kind) */
+                splash_update(splash_enabled((view.state == FLOW_PLAYING || view.state == FLOW_GAME_OVER) && sg, trip_game),
+                              trip_game ? sg->trip_splat : se->n_splosh > 0, trip_game ? SPLASH_KIND_GUM : sg ? sg->hazard_kind : 0,
+                              trip_game ? sg->flier.x >> 16 : se->splosh_x, trip_game ? sg->trip_splat_y : 0, g_cam_px);
             }
             logo_step(view.state == FLOW_ATTRACT_TITLE);
             title_soot_step(view.state == FLOW_ATTRACT_TITLE);

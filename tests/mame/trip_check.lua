@@ -53,7 +53,7 @@ local STRIPDRAWS_ADDR = tonumber(os.getenv("BRAWL_STRIPDRAWS_ADDR"), 16)   -- g_
 local MAX_HOLD = 3
 local MODE_TRIP = 1
 local MIN_PLAYING = 400
-SPLASH_T = { live = 0 }   -- Gum Trip floor death splash check (phase done)
+SPLASH_T = { live = 0 }   -- Gum Trip floor death gum splat check (phase done)
 local MAX_MISSED = 0
 local mem    = manager.machine.devices[":maincpu"].spaces["program"]
 local screen = manager.machine.screens[":screen"]
@@ -828,7 +828,7 @@ emu.register_frame_done(function() local ok_, err_ = pcall(function()
     if playing >= MIN_PLAYING + 100 and ((hz_vis >= 60 and HZ.rv.pop_ok ~= nil) or playing >= 1700) then phase = "done" end
   end
   if phase == "done" and not SPLASH_T.over then
-    -- Gum Trip has no liquid: a flier dying at the floor must not start the arena splash (SPLASH_SPRITE 113..115, src/main.c splash_enabled)
+    -- Gum Trip floor death starts the gum splat in SPLASH_SPRITE 113..115 (src/main.c: Game.trip_splat), 12 frames x 4 ticks, then hidden again
     if SPLASH_T.k == nil then
       if state ~= 3 then finish(false, "trip splash check: not PLAYING when the floor death was due") return end
       mem:write_u32(flow_addr + O_FY, 215 * 65536); mem:write_u32(flow_addr + flay[9], 0)   -- below the lowest kill line (HAZARD_KILL_WATER 208)
@@ -837,8 +837,10 @@ emu.register_frame_done(function() local ok_, err_ = pcall(function()
     SPLASH_T.k = SPLASH_T.k + 1
     if SPLASH_T.k >= 4 and mem:read_u8(flow_addr + flay[10]) ~= 3 and SPLASH_T.k < 8 then finish(false, "trip splash check: flier not DROWNED after the poke below the kill line") return end
     for s_ = 113, 115 do if ((vram[0x8200 + s_] or 0) & 0x3f) ~= 0 then SPLASH_T.live = SPLASH_T.live + 1 end end
-    if SPLASH_T.k >= 40 then
-      if SPLASH_T.live ~= 0 then finish(false, string.format("a splash sprite was live in %d slot-frames after a Gum Trip floor death (want 0, no liquid)", SPLASH_T.live)) return end
+    if SPLASH_T.k == 70 then SPLASH_T.late = SPLASH_T.live end
+    if SPLASH_T.k >= 75 then
+      if SPLASH_T.live == 0 then finish(false, "no gum splat sprite went live after a Gum Trip floor death (want a splat in SPLASH_SPRITE 113..115)") return end
+      if SPLASH_T.live ~= SPLASH_T.late then finish(false, string.format("the gum splat was still live after 70 frames (live at 70: %d, at 75: %d; want hidden after 12 x 4 ticks)", SPLASH_T.late, SPLASH_T.live)) return end
       SPLASH_T.over = true
     end
     return

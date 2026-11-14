@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Splash sprite set: assets/splash/splash_{water,lava}_1x.png (+ splash.json) -> build/gen/splash.c1/.c2, splash_sprites.h/.c.
 Usage: $PYTHON -I tools/build_splash_sprites.py [--out build/gen] [--no-verify]
-Stacks the two 576 x 48 strips into one sheet (water y 0, lava y 48) and hands it to tools/sprite_pipeline.py: animations water, lava."""
+Stacks the two 576 x 48 strips into one sheet (water y 0, lava y 48, gum y 96) and hands it to tools/sprite_pipeline.py: animations water, lava, gum."""
 import json, os, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import sprite_pipeline
@@ -10,7 +10,7 @@ from PIL import Image
 def compose(out):
     meta = json.load(open("assets/splash/splash.json"))
     fw, fh, n = meta["frame_w"], meta["frame_h"], meta["frames"]
-    names = ["water", "lava"]
+    names = ["water", "lava", "gum"]
     sheet = Image.new("RGBA", (fw * n, fh * len(names)), (0, 0, 0, 0))
     anims = {}
     for row, name in enumerate(names):
@@ -22,7 +22,9 @@ def compose(out):
     os.makedirs(out, exist_ok=True)
     sp, mp = os.path.join(out, "splash_sheet.png"), os.path.join(out, "splash_sheet.json")
     sheet.save(sp)
-    json.dump({"animations": anims}, open(mp, "w"))
+    # the gum splat uses the Gum Trip strip palette in its index order (entry i = colour i+1)
+    strip = json.load(open("assets/tripstrip/tripstrip_sheet.json"))
+    json.dump({"animations": anims, "palettes": {"gum": strip["palettes"]["gum"]}}, open(mp, "w"))
     return sp, mp
 
 if __name__ == "__main__":

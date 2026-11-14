@@ -329,6 +329,9 @@
 #ifndef SPLASH_TICKS
 #define SPLASH_TICKS 3
 #endif
+#ifndef SPLASH_GUM_TICKS
+#define SPLASH_GUM_TICKS 4
+#endif
 #ifndef SPLASH_LAVA_TICKS
 #define SPLASH_LAVA_TICKS 4
 #endif
