@@ -545,8 +545,9 @@ static void pool_show(void) {
 }
 
 /* Arcade stage elements (src/core/arc_view.h): vent, spark, flipper, grabber, hatch, in the ARC_ELEM_SPRITE columns. Which frame and where
- * is core logic (arc_view_build); here the blocks become strips. Slots are filled front to back; the rest are hidden every frame
- * (gfx_word drops unchanged words), which also covers a mode, stage or state change and the arena. */
+ * is core logic (arc_view_build); here the blocks become strips. Slots are filled from the top of the range down: a higher sprite draws
+ * in front, so the bodies (built first) draw over the sparks and still win the slots when the range runs out. The rest are hidden every
+ * frame (gfx_word drops unchanged words), which also covers a mode, stage or state change and the arena. */
 _Static_assert(ARCADE_VENT_ART_W == 32 && ARCADE_SPARK_ART_W == 16 && ARCADE_FLIPPER_ART_W == 40 && ARCADE_GRABBER_ART_W == 40 && ARCADE_GRABBER_ART_H == 44,
                "arcade art sizes differ from ARC_VIEW_W/H in core/arc_view.h");
 _Static_assert(ARCADE_VENT_FRAMES == ARCADE_PIECE_BODY_A_COUNT && ARCADE_SPARK_FRAMES == ARCADE_PIECE_SPARK_A_COUNT && ARCADE_FLIPPER_FRAMES == ARCADE_PIECE_FLIPPER_A_COUNT &&
@@ -568,12 +569,12 @@ static void arcade_elems_step(const Game *g) {
         const ArcadeFrame *f = &arcade_frames[arcade_anims[k_arc_anim[b->piece]].first_frame + k_arc_first[b->piece] + b->frame];
         int w = f->tiles_w * 16, sx = camera_screen_x(b->x - f->pad_left, g_cam_px, w);
         if (used + f->tiles_w > ARC_ELEM_COUNT || !camera_visible(sx, w)) continue;
-        u16 slot = (u16)(ARC_ELEM_SPRITE + used);
+        u16 slot = (u16)(ARC_ELEM_SPRITE + ARC_ELEM_COUNT - used - f->tiles_w);
         gfx_sprite_strips(slot, f->tiles_w, f->tiles_h, &arcade_tile_index[f->tile_offset], ARCADE_TILE_BASE, (u16)((ARCADE_PAL_SLOT + f->palette) << 8));
         gfx_sprite_place(slot, f->tiles_w, f->tiles_h, sx, b->y - f->pad_top);
         used += f->tiles_w;
     }
-    for (int i = used; i < ARC_ELEM_COUNT; i++) obs_hide_slot(ARC_ELEM_SPRITE + i);
+    for (int i = 0; i < ARC_ELEM_COUNT - used; i++) obs_hide_slot(ARC_ELEM_SPRITE + i);
 }
 
 /* Bonus stage: bubbles (Gum Trip pickup art, 2 sprite columns each) in the first slots of the shared strip range, in the order of the live
