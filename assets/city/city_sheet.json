@@ -60,7 +60,13 @@
   "MIDB_BOTTOM": 176,
   "NEAR_COLS": 24,
   "NEAR_TOP": 128,
-  "NEAR_BOTTOM": 224
+  "NEAR_BOTTOM": 224,
+  "BACKDROP_R5": 3,
+  "BACKDROP_G5": 2,
+  "BACKDROP_B5": 7,
+  "TRIP_R5": 14,
+  "TRIP_G5": 10,
+  "TRIP_B5": 20
  },
  "tables": {
   "plane_k": [

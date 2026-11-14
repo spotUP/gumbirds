@@ -22,7 +22,14 @@ SCREEN_W = 320
 # tile columns: the plane is width / 16 sprites, one per column. Cloud and airship sheets keep their own drift, no factor
 # applies, and they are not built yet (BG-2); they are not listed.
 PLANES = [("sky", 0, 0), ("far", 4, 48), ("midA", 8, 80), ("midB", 12, 112), ("near", 16, 128)]
-MOODS = {"moon": {"prefix": "plane_moon_"}}
+# Per mood: the sheet it writes (assets/<sheet>/<sheet>_sheet.*, built by tools/build_<sheet>_sprites.py; the moon keeps the
+# historic name city), the backdrop colour (palette entry 4095, shown where no plane is opaque) and the Gum Trip backdrop
+# (the sky plane colour, shown while far and near are hidden). Both are emitted as 5-bit defines for src/bg.c.
+MOODS = {
+    "moon": {"prefix": "plane_moon_", "sheet": "city", "backdrop": "#1a1238", "trip": (115, 82, 165)},
+    # dusk: the top-left sky pixel and the most common sky colour of plane_dusk_sky_1x.png
+    "dusk": {"prefix": "plane_dusk_", "sheet": "dusk", "backdrop": "#211042", "trip": (90, 33, 90)},
+}
 # Planes whose cover a plane must NOT count: Gum Trip hides near (BG_TRIP_HIDDEN_MASK in src/core/bg_scroll.h), so mid B must not lose
 # tiles to near. Sky does lose tiles to far (and to the other planes in front) where they are opaque across their whole width.
 NO_COVER = {"midB": {"near"}}
@@ -120,16 +127,22 @@ def main():
         anims[name] = [{"x": 0, "y": y, "w": im.size[0], "h": im.size[1]}]
         y += im.size[1]
     cols = [column_rows(i) for i in imgs]  # plane order, so the flat index is the sprite slot (src/sprite_slots.h)
-    out = os.path.join(ROOT, "assets/city")
-    sheet.save(os.path.join(out, "city_sheet.png"))
+    mood = MOODS[a.mood]
+    out = os.path.join(ROOT, "assets", mood["sheet"])
+    os.makedirs(out, exist_ok=True)
+    sheet.save(os.path.join(out, "%s_sheet.png" % mood["sheet"]))
     defines = {}
     for (n, _, top), i in zip(PLANES, imgs):
         defines["%s_COLS" % n.upper()] = i.size[0] // 16
         defines["%s_TOP" % n.upper()] = top
         defines["%s_BOTTOM" % n.upper()] = top + i.size[1]
+    for key in ("backdrop", "trip"):
+        c = mood[key] if key == "trip" else tuple(int(mood[key][n:n + 2], 16) for n in (1, 3, 5))
+        for ch, v in zip("RGB", snap5(c)):
+            defines["%s_%s5" % (key.upper(), ch)] = v >> 3
     meta = {
-        "source": "tools/import_bg_sheet.py %s from %s/plane_%s_*_1x.png (looping parallax planes, frame 0)" % (a.mood, os.path.relpath(a.drafts, ROOT), a.mood),
-        "backdrop": "#1a1238",
+        "source": "tools/import_bg_sheet.py %s from %s/plane_%s_*_1x.png (looping parallax planes, frame 0)" % (a.mood, "thoughts/shared/drafts/" + os.path.basename(os.path.normpath(a.drafts)), a.mood),
+        "backdrop": mood["backdrop"],
         "palette_policy": "merge",
         "tile_palettes": True,
         "animations": anims,
@@ -145,7 +158,7 @@ def main():
             "col_rows": [n for plane in cols for _, n in plane],
         },
     }
-    json.dump(meta, open(os.path.join(out, "city_sheet.json"), "w"), indent=1)
+    json.dump(meta, open(os.path.join(out, "%s_sheet.json" % mood["sheet"]), "w"), indent=1)
     print("imported mood %s: %s" % (a.mood, ", ".join("%s %dx%d" % (n, *i.size) for (n, _, _), i in zip(PLANES, imgs))))
 
 

@@ -387,6 +387,27 @@ static void test_cycle_and_demo(void)
     /* a real run that dies still saves nothing without a rank (table full of big scores) */
 }
 
+/* DUSK-1: every pass through the attract title shows another mood than the pass before, and every mood shows. */
+static void test_attract_moods(void)
+{
+    Rig r;
+    int seen[GAME_MOOD_COUNT] = { 0 }, last, pass, m;
+    memset(&r, 0, sizeof r);
+    flow_init(&r.f, NULL, 0);
+    CHECK(r.f.state == FLOW_ATTRACT_TITLE && r.f.game.mood < GAME_MOOD_COUNT);
+    last = r.f.game.mood;
+    seen[last] = 1;
+    for (pass = 0; pass < 8; pass++) {
+        rig_until(&r, FLOW_ATTRACT_TABLE, 0, 100000);
+        rig_until(&r, FLOW_ATTRACT_TITLE, 0, 100000);
+        CHECK(r.f.game.mood < GAME_MOOD_COUNT && r.f.game.mood != last);
+        last = r.f.game.mood;
+        seen[last] = 1;
+    }
+    for (m = 0; m < GAME_MOOD_COUNT; m++) CHECK(seen[m]);
+    printf("attract moods: %d passes, every title another mood\n", pass);
+}
+
 /* ATTRACT-DEMOS1: each pass through the demo phase plays the next mode (arena, Gum Trip, arcade, arena ...). The order of the attract
  * phases stays title, table, demo. The demo never moves the mode highlighted on the title and leaves no run state behind. */
 static void test_demo_modes(void)
@@ -779,6 +800,7 @@ static void test_name_entry_start(void)
 int main(void)
 {
     test_nameentry();
+    test_attract_moods();
     test_nameentry_stuck_button();
     test_full_flow();
     test_cycle_and_demo();

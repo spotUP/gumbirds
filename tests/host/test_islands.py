@@ -31,7 +31,7 @@ def mood_table(sheet_json):
     table = src[src.index("SPRITE_BUDGET_MOODS[]"):]
     table = table[:table.index("};")]
     built = re.findall(r'\{\s*"(\w+)",\s*1\s*,', table)
-    check(built == [meta["mood"]], "island sheet mood %r is the built mood in SPRITE_BUDGET_MOODS %r" % (meta["mood"], built))
+    check(meta["mood"] in built, "island sheet mood %r is a built mood in SPRITE_BUDGET_MOODS %r" % (meta["mood"], built))
     check(imp.LOOKS.get(meta["mood"]) == meta["look"], "island sheet look %r is the importer look of mood %r" % (meta["look"], meta["mood"]))
 
 

@@ -39,6 +39,9 @@ typedef enum {
     OB_BOT
 } ObstacleType;
 
+/* Background moods that are built (src/bg.c draws them): moon, dusk. Storm comes later and only raises the count. */
+enum { GAME_MOOD_MOON, GAME_MOOD_DUSK, GAME_MOOD_COUNT };
+
 /* Play mode, chosen on the title (flow.h Flow.mode) and set by game_set_mode after game_reset. */
 typedef enum {
     GAME_MODE_ARENA = 0,
@@ -58,6 +61,7 @@ typedef struct {
     uint32_t distance;   /* 8.8 pixels travelled */
     uint32_t score;      /* total score: stomps, drowned and defeated computer fliers, match bonuses */
     uint8_t mode;        /* GameMode; ARENA after game_reset */
+    uint8_t mood;        /* background mood (GAME_MOOD_*) the screen shows; game_reset keeps it, game_next_mood changes it */
     uint8_t over;        /* 1 when the player flier is DROWNED or GONE */
 
     /* Arena slice: the flier replaces the runner hero in play. flier_steps counts flier_step calls (test sentinel). */
@@ -99,6 +103,10 @@ typedef struct {
 } Game;
 
 void game_reset(Game *g, uint32_t seed);
+/* Next background mood: never the current one. Every match start calls it (arena match or round, arcade stage); the attract title
+ * calls it when the demo did not (flow.c). With two moods it alternates; with more it draws the step from g->rng, so a fixed seed
+ * fixes the order (two moods take no random value, so the match sequence of a seed is unchanged). */
+void game_next_mood(Game *g);
 /* Sets the hazard kind and the kill line of the player and every computer flier. The one entry for the kind: call it after
  * game_reset (which clears it to spikes) and whenever the drawn kind changes; rematches keep it. */
 void game_set_hazard(Game *g, uint8_t kind);
