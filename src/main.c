@@ -13,6 +13,7 @@
 #include "core/flow.h"
 #include "core/banner.h"
 #include "core/result_view.h"
+#include "gen/result_scene.h"
 #include "core/obstacle_view.h"
 #include "core/obj_pool.h"
 #include "core/flier_view.h"
@@ -140,6 +141,8 @@ static u16 g_banner_shadow[BANNER_W * BANNER_H]; /* cell last sent: only changed
 static u16 g_res_shadow[RESV_W * RESV_H];
 static u8 g_res_up, g_res_col, g_res_row, g_res_pend;
 static u16 g_res_filled;
+/* Result screen sprites behind the windows of the fix scene (draw_result_fx): setup stage, frames loaded (0xFF none), sky cycle steps. */
+static u8 g_resfx_stage, g_resfx_bub[RES_SLOTS], g_resfx_wheel[5], g_resfx_crank, g_resfx_sky, g_resfx_star;
 static int g_rs_num;
 /* Fix layer cell of the off screen marker last drawn (col 0xFF: none). */
 static u8 g_edge_col = 0xFF, g_edge_row;
@@ -1015,6 +1018,9 @@ static void draw_overlay(const FlowView *v) {
 }
 
 /* Writes the result screen cells that differ from what was sent: the first frames fill all cells, then one dirty region per frame. */
+_Static_assert(RES_SPRITE_END <= SPRITE_SLOT_END, "result sprites leave the fixed slot ranges");
+static void draw_result_fx(const Result *r);
+
 static void draw_result(const Game *g) {
     Result *r = &g_flow.game.res; /* the dirty bits are drawing bookkeeping the core only sets */
     u8 col, row, n = 0, bit;
@@ -1024,7 +1030,13 @@ static void draw_result(const Game *g) {
         g_res_filled = 0;
         g_res_pend = 0;
         for (u16 i = 0; i < RESV_W * RESV_H; i++) g_res_shadow[i] = 0xFFFF;
+        g_resfx_stage = 0;
+        g_resfx_crank = 0xFF;
+        for (u8 i = 0; i < RES_SLOTS; i++) g_resfx_bub[i] = 0xFF;
+        for (u8 i = 0; i < 5; i++) g_resfx_wheel[i] = 0xFF;
     }
+    /* The effects wait for the fill: both at once fill the VRAM queue and gfx_drain stalls the frame past vblank. */
+    if (g_res_filled == RESV_W * RESV_H) draw_result_fx(r);
     g_res_pend |= r->dirty;
     r->dirty = 0;
     if (g_res_filled < RESV_W * RESV_H) {
@@ -1055,12 +1067,93 @@ static void draw_result(const Game *g) {
     }
 }
 
+static void resfx_load_palettes(void) {
+    for (u8 p = 0; p < RESFX_PALETTE_COUNT; p++)
+        for (u8 i = 0; i < 16; i++) gfx_pal((u16)((RESFX_PAL_SLOT + p) * 16 + i), resfx_palettes[p][i]);
+}
+
+static void resfx_frame(u16 slot, u8 anim, u8 k) {
+    const ResfxFrame *f = &resfx_frames[resfx_anims[anim].first_frame + k];
+    gfx_sprite_strips(slot, f->tiles_w, f->tiles_h, &resfx_tile_index[f->tile_offset], RESFX_TILE_BASE, (u16)((RESFX_PAL_SLOT + f->palette) << 8));
+}
+
+static void resfx_hide(void) {
+    for (u16 s = RES_GLASS_SPRITE; s < RES_SPRITE_END; s++) gfx_word((u16)(ADDR_SCB3 + s), 0);
+}
+
+/* The moving parts of the result screen: cage glass, falling bubbles, counter wheels, crank, ticket, and the sky colours.
+ * The sprites are set up over four frames (the bonus stage parks these slots first), then only words that change are sent. */
+static void draw_result_fx(const Result *r) {
+    int x, y;
+    u8 i, ph = (u8)(r->t & 7);
+    if (r->t < 3) return;
+    switch (g_resfx_stage) {
+    case 0:
+        resfx_hide();
+        resfx_frame(RES_GLASS_SPRITE, RESFX_ANIM_GLASS, 0);
+        gfx_sprite_place(RES_GLASS_SPRITE, 6, 5, RESULT_CAGE_X, RESULT_CAGE_Y);
+        g_resfx_stage++;
+        return;
+    case 1:
+        gfx_sprite_unchained(RES_BUBBLE_SPRITE, RES_SLOTS);
+        gfx_sprite_unchained(RES_WHEEL_SPRITE, 5);
+        for (i = 0; i < 5; i++) gfx_word((u16)(ADDR_SCB4 + RES_WHEEL_SPRITE + i), gfx_scb4_word(RESULT_WHEEL_X + 16 * i));
+        g_resfx_stage++;
+        return;
+    case 2:
+        resfx_frame(RES_TICKET_SPRITE, RESFX_ANIM_TICKET, 0);
+        g_resfx_stage++;
+        return;
+    case 3:
+        gfx_sprite_place(RES_TICKET_SPRITE, 12, 5, RESULT_TICKET_X, RESULT_TICKET_Y - RESULT_TICKET_H);
+        gfx_sprite_place(RES_CRANK_SPRITE, 2, 2, RESULT_CRANK_X, RESULT_CRANK_Y);
+        g_resfx_stage++;
+        break;
+    default:
+        break;
+    }
+    for (i = 0; i < r->caught; i++) {
+        u16 slot = (u16)(RES_BUBBLE_SPRITE + i);
+        u8 fr = res_bubble(r, i, &x, &y);
+        if (!fr) { gfx_word((u16)(ADDR_SCB3 + slot), 0); continue; }
+        if (g_resfx_bub[i] != fr) { g_resfx_bub[i] = fr; resfx_frame(slot, RESFX_ANIM_BUBBLE, (u8)(fr - 1)); }
+        gfx_word((u16)(ADDR_SCB3 + slot), gfx_scb3_word(1, RESULT_CAGE_Y + y - 8));
+        gfx_word((u16)(ADDR_SCB4 + slot), gfx_scb4_word(RESULT_CAGE_X + x - 8));
+    }
+    for (i = 0; i < 5; i++) { /* wheel frame k shows digit k over k + 1: the position scrolls it up through the window */
+        u8 v = r->wheel[i], fr = (u8)(v >> 4);
+        if (g_resfx_wheel[i] != fr) { g_resfx_wheel[i] = fr; resfx_frame((u16)(RES_WHEEL_SPRITE + i), RESFX_ANIM_WHEEL, fr); }
+        gfx_word((u16)(ADDR_SCB3 + RES_WHEEL_SPRITE + i), gfx_scb3_word(2, RESULT_WHEEL_Y - (v & 15)));
+    }
+    if (g_resfx_crank != r->crank) { g_resfx_crank = r->crank; resfx_frame(RES_CRANK_SPRITE, RESFX_ANIM_CRANK, r->crank); }
+    gfx_word((u16)(ADDR_SCB3 + RES_TICKET_SPRITE), gfx_scb3_word(5, RESULT_TICKET_Y - RESULT_TICKET_H + r->ticket_out));
+    /* Living sky: the stripe colours (entries 1..12 of the three sky palettes) move one place every 8 frames, one palette a
+     * frame (12 palette words); the star colours (13..15) change places every 16 frames. */
+    if (ph < 3) {
+        u16 base = (u16)((FIXFONT_PAL_RES_SKY0 + ph) * 16);
+        u8 k = g_resfx_sky;
+        if (!ph) { if (++g_resfx_sky == 12) g_resfx_sky = 0; k = g_resfx_sky; }
+        for (i = 0; i < 12; i++) {
+            gfx_pal((u16)(base + 1 + i), fixfont_palettes[FIXFONT_PAL_RES_SKY0 + ph][1 + k]);
+            if (++k == 12) k = 0;
+        }
+    } else if ((r->t & 15) == 4) {
+        if (++g_resfx_star == 3) g_resfx_star = 0;
+        for (i = 0; i < 9; i++) {
+            u8 p = (u8)(i >= 6 ? 2 : i >= 3 ? 1 : 0), e = (u8)(i - 3 * p), k = (u8)(e + g_resfx_star);
+            if (k >= 3) k = (u8)(k - 3);
+            gfx_pal((u16)((FIXFONT_PAL_RES_SKY0 + p) * 16 + 13 + e), fixfont_palettes[FIXFONT_PAL_RES_SKY0 + p][13 + k]);
+        }
+    }
+}
+
 static void draw(const FlowView *v) {
     char buf[3];
     /* The header only changes with the state: send it after the clear. The fix shadow (vq_fix_put) keeps it, and a
      * hardware reset of the fix layer goes through video_init, which forces this branch (g_draw_state = -1). */
     if (g_res_up && !(v->state == FLOW_PLAYING && v->game && v->game->res.active)) {
         g_res_up = 0;
+        resfx_hide();
         g_draw_state = -1; /* the result screen is over: clear the fix layer, the HUD comes back */
     }
     if ((int)v->state != g_draw_state) {
@@ -1290,6 +1383,7 @@ static void video_init(void) {
     trip_pickup_load_palettes();
     gum_load_palettes();
     splash_load_palettes();
+    resfx_load_palettes();
     logo_load_palettes();
     logo_reset();
     title_soot_reset();
@@ -1414,6 +1508,8 @@ static void game_loop(void) {
         sound_frame(&view);
         sound_tick();
         draw(&view);
+        /* The result screen's fix scene covers the world: its steps wait, so the fill frames keep their budget. */
+        if (view.state == FLOW_PLAYING && view.game && view.game->res.active) goto world_done;
         hero_and_mode(&view);
         {
             u8 trip = view.state == FLOW_PLAYING && view.game && view.game->mode == GAME_MODE_TRIP;
@@ -1440,6 +1536,7 @@ static void game_loop(void) {
             bg_trip_planes(trip_game); /* Gum Trip drops the far and near background planes; arena and title show them */
         }
         bg_update(g_cam_unwrapped); /* the planes loop on the unwrapped camera (arena and Gum Trip alike) */
+    world_done:
         gfx_commit();
         g_frame_counter++;
         gfx_wait_vblank(); /* the vblank callback flushes the queue: the only VRAM and palette writes of the frame */

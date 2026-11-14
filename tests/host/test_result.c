@@ -1,10 +1,11 @@
-/* Result screen (src/core/result.c, result_view.c): sequence timing, events, score total added once, every cell opaque, dirty regions. */
+/* Result screen (src/core/result.c, result_view.c): sequence timing, events, score total added once, cells opaque outside the sprite windows, dirty regions, moving parts. */
 #include <stdio.h>
 #include <stdint.h>
 #include "../../src/core/result.h"
 #include "../../src/core/result_view.h"
 #include "../../src/core/arcade.h"
 #include "gen/fix_font.h"
+#include "gen/result_paths.h"
 
 static int checks, failures;
 #define CHECK(c) do { checks++; if (!(c)) { failures++; if (failures <= 10) printf("FAIL %s:%d: %s\n", __FILE__, __LINE__, #c); } } while (0)
@@ -74,7 +75,10 @@ int main(void)
         for (frames = 0; frames < 800 && r.active; frames++) {
             for (row = 0; row < RESV_H; row++) for (c = 0; c < RESV_W; c++) {
                 uint16_t v = result_cell(&r, c, row);
-                if ((v & 0xfff) == FIXFONT_BLANK || (v >> 12) >= FIXFONT_PAL_COUNT) CHECK(0);
+                /* blank only where a sprite window is: cage, counter, crank, ticket (cells col0,row0..col1,row1) */
+                int win = (c >= 3 && c <= 14 && row >= 6 && row <= 15) || (c >= 26 && c <= 35 && row >= 9 && row <= 10)
+                       || (c >= 33 && c <= 36 && row >= 12 && row <= 15) || (c >= 8 && c <= 31 && row >= 21 && row <= 25);
+                if (((v & 0xfff) == FIXFONT_BLANK && !win) || (v >> 12) >= FIXFONT_PAL_COUNT) CHECK(0);
             }
             res_step(&r, &add);
         }
@@ -98,6 +102,58 @@ int main(void)
                 }
             }
             CHECK(bad == 0);
+        }
+    }
+    /* moving parts: bubble paths, pops, wheels, crank, ticket */
+    {
+        static const int set[] = { 0, 1, 7, 20 };
+        int si, i, j;
+        for (si = 0; si < 4; si++) {
+            Result r;
+            uint32_t add;
+            int n = set[si], perfect = n == 20, ticks = 0, x, y, px[RES_SLOTS], py[RES_SLOTS], seen[RES_SLOTS], jump = 0, out = 0, k;
+            for (i = 0; i < RES_SLOTS; i++) seen[i] = 0;
+            res_start(&r, n, 2, perfect, 0);
+            while (r.active) {
+                uint8_t ev = res_step(&r, &add);
+                if (ev & RES_EV_TICK) ticks++;
+                for (i = 0; i < RES_SLOTS; i++) {
+                    uint8_t fr = res_bubble(&r, i, &x, &y);
+                    if (i >= n) CHECK(fr == 0);
+                    if (!fr) continue;
+                    CHECK(fr <= 4);
+                    if (seen[i]) { int dx = x - px[i], dy = y - py[i]; if (dx * dx + dy * dy > 81) jump++; }
+                    seen[i] = 1; px[i] = x; py[i] = y;
+                    if (x - RESP_RADIUS < 0 || y + RESP_RADIUS > RESP_CAGE_H) out++;  /* never through the left wall or the floor */
+                }
+                if (r.t == RESP_REST_FRAME + 20) {  /* the pile rests before the tally: inside the cage, no two bubbles overlap */
+                    for (i = 0; i < n; i++) {
+                        CHECK(res_bubble(&r, i, &x, &y) == 1);
+                        CHECK(x >= RESP_RADIUS && x <= RESP_CAGE_W - RESP_RADIUS && y >= RESP_RADIUS && y <= RESP_CAGE_H - RESP_RADIUS);
+                        for (j = 0; j < i; j++) {
+                            int dx = x - px[j], dy = y - py[j];
+                            CHECK(dx * dx + dy * dy >= (2 * RESP_RADIUS - 2) * (2 * RESP_RADIUS - 2));
+                        }
+                    }
+                }
+                if (r.show & RES_SHOW_TOTAL) for (k = 0; k < 5; k++) CHECK(r.wheel[k] < 160);
+            }
+            CHECK(jump == 0 && out == 0);
+            CHECK(r.pop_cur == n);
+            for (i = 0; i < RES_SLOTS; i++) CHECK(res_bubble(&r, i, &x, &y) == 0 && (i >= n || r.pop[i] == 7));
+            for (k = 0; k < 5; k++) CHECK(r.wheel[k] == 0 && r.digit[k] == 0);  /* the counter ends on 00000 */
+            CHECK(r.crank == (ticks & 7));
+            CHECK(r.ticket_out == (perfect ? 40 : 0) && r.lines == (perfect ? 2 : 0));
+        }
+        /* wheels reach the total while it is held */
+        {
+            Result r;
+            uint32_t add;
+            int k;
+            res_start(&r, 20, 5, 1, 0);
+            while (r.t < 160) res_step(&r, &add);
+            for (k = 0; k < 5; k++) CHECK(r.wheel[k] == r.digit[k] * 16);
+            CHECK(r.digit[0] * 10000u + r.digit[1] * 1000u + r.digit[2] * 100u + r.digit[3] * 10u + r.digit[4] == r.total_left);
         }
     }
     printf("test_result: %d checks, %d failures\n", checks, failures);

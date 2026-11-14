@@ -166,8 +166,12 @@ tap_vram = mem:install_write_tap(0x3c0000, 0x3c000f, "tripvram", function(offset
   if (offset & 0xf) == 2 or (offset & 0xf) == 3 then words = words + 1 end
 end)
 tap_fc = mem:install_write_tap(frame_addr, frame_addr + 3, "tripfc", function(offset, data, mask)
-  if not counting or (offset & 2) == 0 then return end   -- the u32 frame counter is two bus writes: count the second (low word) only
-  local l = in_vblank() and 999 or (224 - screen:time_until_vblank_start():as_double() / LINE_S)
+  if (offset & 2) == 0 then return end   -- the u32 frame counter is two bus writes: count the second (low word) only
+  if not counting then PF.fc_fn = screen:frame_number(); return end
+  -- inside vblank is an overrun only when a vblank passed since the last write (a short frame can end in the vblank it started in)
+  local fn = screen:frame_number()
+  local l = in_vblank() and ((PF.fc_fn and fn - PF.fc_fn <= 1) and 0 or 999) or (224 - screen:time_until_vblank_start():as_double() / LINE_S)
+  PF.fc_fn = fn
   if PF.on then PF.close(l == 999); PF.steps = mem:read_u32(flow_addr + O_STEPS) end
   if l > logic_end then logic_end = l end
   if l > frame_l then frame_l = l end

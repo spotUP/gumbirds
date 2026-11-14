@@ -83,6 +83,15 @@
 #define TRIP_PICKUP_SPRITE 367 /* Gum Trip pickups: 2 sprite columns per ring slot, 5 slots (step V3) */
 #define TRIP_PICKUP_COUNT 10
 #define SPRITE_SLOT_END 377
+/* Bonus result screen (draw_result_fx in main.c), shown through the windows of the fix scene. They reuse the strip slots after the
+ * bonus stage parks its own (ARC_BONUS_SPRITE) and are hidden when the result ends. Order = depth: glass at the back, bubbles on it.
+ * The crank takes the first pickup slot too: pickups exist only in Gum Trip, which rewrites its slots on entry. */
+#define RES_GLASS_SPRITE TRIP_STRIP_SPRITE      /* 6 columns x 5 tiles */
+#define RES_BUBBLE_SPRITE (RES_GLASS_SPRITE + 6) /* 20 bubbles, one column each */
+#define RES_WHEEL_SPRITE (RES_BUBBLE_SPRITE + 20) /* 5 counter wheels, 1 column x 2 tiles */
+#define RES_TICKET_SPRITE (RES_WHEEL_SPRITE + 5)  /* 12 columns x 5 tiles */
+#define RES_CRANK_SPRITE (RES_TICKET_SPRITE + 12) /* 2 columns x 2 tiles */
+#define RES_SPRITE_END (RES_CRANK_SPRITE + 2)
 /* Dead bodies in front of the spike art (dead flier hazard hunt, DF3): the last 4 hardware sprites, above every other
  * range, so a body that bounced on the spikes draws over the strip. 2 sprite columns per body, so 2 bodies; a third
  * simultaneous spike death stays in its normal slot (behind the spikes). Only the arena uses them (the Gum Trip kill
