@@ -19,6 +19,8 @@
 #define SE_SPLOSH    0x40   /* a live flier crossed the kill line of water or lava: plays splosh */
 #define SE_SPIKE     0x80   /* a live flier crossed the spike kill line: plays spike */
 #define SE_SIZZLE    0x100  /* a live flier crossed the fire kill line: plays sizzle (the mask is 16 bits: the low byte is full) */
+#define SE_TITLE     0x200  /* the flow entered the title/table/demo screens (also the first frame): title music */
+#define SE_ROUND     0x400  /* matches_won rose while playing: round clear jingle */
 
 /* Fliers watched: the player, the arena computer fliers, the Gum Trip rivals (sharing the cpu slots' space is not needed: one mode at a time). */
 #define SE_WATCHED (1 + STAGE_SPAWN_COUNT + TRIP_RIVAL_MAX)
@@ -27,6 +29,7 @@
 
 typedef struct {
     uint8_t prev_state, primed;
+    uint32_t prev_matches;              /* Game.matches_won last frame while playing */
     uint32_t prev_flaps;
     uint8_t seen_state[SE_WATCHED];     /* last FlierState per watched flier, SE_UNSEEN when it was not live last frame */
     uint8_t seen_balloons[SE_WATCHED];
