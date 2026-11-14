@@ -68,6 +68,75 @@ int main(void)
         v.state = FLOW_ATTRACT_TITLE;
         CHECK(se_step(&e, &v) == SE_TITLE);                /* back from a run */
     }
+    {   /* fall of a balloon-less walker (never FLIER_FALLING), and the cue edges */
+        SoundEvents e;
+        Game g;
+        FlowView v;
+        NameEntry n;
+        memset(&e, 0, sizeof e);
+        memset(&g, 0, sizeof g);
+        memset(&v, 0, sizeof v);
+        memset(&n, 0, sizeof n);
+        v.game = &g; v.state = FLOW_PLAYING;
+        g.flier.on_ground = 1;
+        se_init(&e); se_step(&e, &v); se_step(&e, &v);
+        g.flier.on_ground = 0; g.flier.vy = SE_DROP_VY - 1;
+        CHECK(se_step(&e, &v) == 0);                       /* a hop: slower than the drop speed, silent */
+        g.flier.vy = SE_DROP_VY;
+        CHECK(se_step(&e, &v) == SE_FALL && e.n_fall == 1);
+        CHECK(se_step(&e, &v) == 0);                       /* once per drop */
+        g.flier.on_ground = 1; g.flier.vy = 0;
+        CHECK(se_step(&e, &v) == 0);
+        g.flier.on_ground = 0; g.flier.vy = SE_DROP_VY;
+        CHECK(se_step(&e, &v) == SE_FALL);                 /* landing re-arms it */
+        g.flier.on_ground = 1; g.flier.vy = 0; g.flier.balloons = 1;
+        se_step(&e, &v);
+        g.flier.on_ground = 0; g.flier.vy = SE_DROP_VY;
+        CHECK(se_step(&e, &v) == 0);                       /* with a balloon it floats: no fall sound */
+
+        g.flier.on_ground = 1; g.flier.vy = 0;
+        se_step(&e, &v);
+        g.bounces = 1;
+        se_step(&e, &v); CHECK(e.cues == 1ul << SC_BUMP);
+        se_step(&e, &v); CHECK(e.cues == 0);
+        g.round_start = RS_ROUND;
+        se_step(&e, &v); CHECK(e.cues == 1ul << SC_BANNER);
+        g.round_start = RS_GO;
+        se_step(&e, &v); CHECK(e.cues == 1ul << SC_GO);
+        g.round_start = RS_NONE;
+        se_step(&e, &v); CHECK(e.cues == 0);
+
+        memset(&g, 0, sizeof g);                           /* Gum Trip: pickup, streak pickup, gum low */
+        g.mode = GAME_MODE_TRIP; g.trip.gum = GUM_MAX;
+        se_init(&e); se_step(&e, &v); se_step(&e, &v);
+        g.trip_events = TRIP_EV_PICKUP; g.trip.streak = 1;
+        se_step(&e, &v); CHECK(e.cues == 1ul << SC_PICKUP);
+        g.trip.streak = SE_STREAK_MIN;
+        se_step(&e, &v); CHECK(e.cues == 1ul << SC_PICKUP_STREAK);
+        g.trip_events = 0; g.trip.gum = SE_GUM_LOW - 1;
+        se_step(&e, &v); CHECK(e.cues == 1ul << SC_GUM_LOW);
+        se_step(&e, &v); CHECK(e.cues == 0);               /* once per crossing */
+
+        memset(&g, 0, sizeof g);                           /* arcade vent: one warning per timer step, none on a frozen timer */
+        g.mode = GAME_MODE_ARCADE; g.elems.n = 1; g.elems.el[0].kind = ARC_EL_VENT; g.elems.el[0].timer = ARC_VENT_TELEGRAPH - 1;
+        g.flier.state = FLIER_GONE;
+        se_init(&e); se_step(&e, &v); se_step(&e, &v);
+        g.elems.el[0].timer = ARC_VENT_TELEGRAPH;
+        se_step(&e, &v); CHECK(e.cues == 1ul << SC_VENT_WARN);
+        se_step(&e, &v); CHECK(e.cues == 0);
+        g.elems.el[0].timer = ARC_VENT_LAUNCH;
+        se_step(&e, &v); CHECK(e.cues == 1ul << SC_VENT_BURST);
+
+        v.state = FLOW_NAME_ENTRY; v.entry = &n;           /* name entry: move, confirm, done */
+        se_step(&e, &v); CHECK(e.cues == 0);
+        n.sym[0] = 1;
+        se_step(&e, &v); CHECK(e.cues == 1ul << SC_NE_MOVE);
+        n.pos = 1;
+        se_step(&e, &v); CHECK(e.cues == 1ul << SC_NE_CONFIRM);
+        n.done = 1;
+        se_step(&e, &v); CHECK(e.cues == 1ul << SC_NE_DONE);
+        se_step(&e, &v); CHECK(e.cues == 0);
+    }
     {   /* Gum Trip hit sound: SE_HIT once on each frame whose trip_events carries TRIP_EV_HIT, only while playing */
         SoundEvents e;
         Game g;

@@ -22,9 +22,9 @@ local MUSIC_WINDOW = 90
 local MUSIC_MIN_WRITES = 20
 
 local ids = dofile("tests/mame/snd_ids.lua")
--- A flap plays the jump sample (SE_FLAP in src/core/sound_events.c); the hit sound has no game event in the arena.
+-- A flap plays a flap variant, the first one is flap_a (SE_FLAP in src/core/sound_events.c); the hit sound has no game event in the arena.
 local ID_MUSIC, ID_JUMP, ID_OVER, ID_COIN, ID_TITLE =
-  ids.SND_MUSIC_ARENA, ids.SND_SFX_JUMP, ids.SND_MUSIC_GAME_OVER, ids.SND_SFX_COIN, ids.SND_MUSIC_TITLE
+  ids.SND_MUSIC_ARENA, ids.SND_SFX_FLAP_A, ids.SND_MUSIC_GAME_OVER, ids.SND_SFX_COIN, ids.SND_MUSIC_TITLE
 local IS_MUSIC = { [ID_MUSIC] = true, [ID_OVER] = true, [ID_TITLE] = true }
 -- ADPCM-A key-on bit per SFX, read from the driver's own generated table (build/snd_commands.inc, line
 -- ".db 0xNN ; channel (bit)" after "sfx_<name>_data:"). soundtool's yaml channel is 1-based (bit = 1 << (channel-1)).
@@ -42,9 +42,10 @@ local function read_masks()
   return m
 end
 local MASK = read_masks()
-local ID_DIE, ID_FALL, ID_SPLOSH, ID_SPIKE, ID_POP = ids.SND_SFX_DIE, ids.SND_SFX_FALL, ids.SND_SFX_SPLOSH, ids.SND_SFX_SPIKE, ids.SND_SFX_POP
+local ID_DIE, ID_FALL, ID_SPLOSH, ID_SPIKE, ID_POP = ids.SND_SFX_DIE, ids.SND_SFX_FALL, ids.SND_SFX_SPLOSH, ids.SND_SFX_SPIKE, ids.SND_SFX_POP_A
 local NAME = { [ID_MUSIC] = "music", [ID_JUMP] = "flap", [ID_OVER] = "game_over_music", [ID_TITLE] = "title_music", [ID_COIN] = "coin", [2] = "stop", [3] = "reset",
   [ID_DIE or -1] = "die", [ID_FALL or -2] = "fall", [ID_SPLOSH or -3] = "splosh", [ID_SPIKE or -4] = "spike", [ID_POP or -5] = "pop" }
+for k, id in pairs(ids) do NAME[id] = NAME[id] or k:lower() end   -- every other sample by its own name
 
 local function sym_addrs()
   local gcc

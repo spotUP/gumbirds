@@ -11,6 +11,7 @@
 
 void sound_init(void);                  /* queue reset_driver (command 3) */
 void sound_play_sfx(uint8_t id);        /* id = SND_SFX_* */
+void sound_play_pop(void);              /* a bubble or balloon burst: the next of the three pop variants */
 void sound_music(uint8_t id);           /* id = SND_MUSIC_*, restarts */
 void sound_stop(void);                  /* stop_music (command 2) */
 void sound_frame(const FlowView *v);    /* game events -> sound calls, once per frame */
