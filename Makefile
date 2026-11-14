@@ -80,7 +80,7 @@ $(PROM1): $(ELF)
 # five fix palettes come with it in build/gen/fix_font.h (src/gfx.c prints through the maps).
 # The Gum Trip gum meter tiles (assets/tripmeter, 13 tiles) are pasted into the font at tile 186; tripmeter.h holds the cell table.
 # The attract overlay icons (59 fix tiles) sit in the S-ROM right after the font (tile 0x400); the S-ROM rule below concatenates both.
-$(BUILDDIR)/gen/attract_icons.h $(BUILDDIR)/gen/attract_icons.fix: assets/attract/attract_icons.json assets/attract/attract_icons.png tools/build_attract_icons.py tools/sprite_pipeline.py thoughts/spot/drafts/2026-11-13-attract-overlay/draw_overlay.py
+$(BUILDDIR)/gen/attract_icons.h $(BUILDDIR)/gen/attract_icons.fix: assets/attract/attract_icons.json assets/attract/attract_icons.png tools/build_attract_icons.py tools/sprite_pipeline.py tools/attract_layout.py
 	$(PYTHON) -I tools/build_attract_icons.py --out $(BUILDDIR)/gen/attract_icons.h --fix-base 0x400
 $(BUILDDIR)/gen/tripmeter.fix $(BUILDDIR)/gen/tripmeter.h: assets/tripmeter/tripmeter_sheet.png assets/tripmeter/tripmeter_sheet.json assets/font/fix_font.json tools/build_tripmeter_tiles.py tools/sprite_pipeline.py
 	$(PYTHON) -I tools/build_tripmeter_tiles.py --out $(BUILDDIR)/gen
