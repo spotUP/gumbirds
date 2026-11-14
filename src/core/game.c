@@ -383,6 +383,17 @@ static int arc_interlude(Game *g, uint8_t input)
         }
     } else if (round_phase_step(g)) {
         return 1; /* the bonus announcement: everything frozen */
+    } else if (g->res.active) {
+        uint32_t add;
+        g->res.events = res_step(&g->res, &add);
+        if (add) {
+            score_add(g, add);
+            g->res.score_shown = g->score;
+        }
+        if (!g->res.active) {
+            arc_bonus_done(&g->arc);
+            arc_enter_stage(g);
+        }
     } else {
         int cx = (int)(g->flier.x >> 16), cy = (int)(g->flier.y >> 16);
         in.flap = (input & IN_A) ? 1 : 0;
@@ -392,12 +403,7 @@ static int arc_interlude(Game *g, uint8_t input)
         if (g->flier.state == FLIER_GONE) {
             player_spawn(g); /* a bonus stage costs no life */
         }
-        if (g->bonus.over) {
-            /* stand-in: result screen tally replaces this */
-            score_add(g, (uint32_t)g->bonus.caught * (uint32_t)arc_bonus_value(g->bonus.number) + (g->bonus.perfect ? (uint32_t)arc_bonus_perfect(g->bonus.number) : 0u));
-            arc_bonus_done(&g->arc);
-            arc_enter_stage(g);
-        }
+        if (g->bonus.over) res_start(&g->res, g->bonus.caught, g->bonus.number, g->bonus.perfect, g->score); /* the result screen adds the score */
     }
     camera_follow(g);
     return 1;

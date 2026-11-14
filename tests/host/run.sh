@@ -7,7 +7,7 @@ ROOT=$(cd "$HERE/../.." && pwd)
 OUT=${BRAWL_TEST_OUT:-$ROOT/build/test-host}
 mkdir -p "$OUT"
 CC="nice -n 19 clang -I $ROOT/build -std=c99 -Wall -Wextra -Werror -pedantic"
-SRC="$ROOT/src/core/rng.c $ROOT/src/core/game.c $ROOT/src/core/hiscore.c $ROOT/src/core/nameentry.c $ROOT/src/core/flow.c $ROOT/src/core/obstacle_view.c $ROOT/src/core/bg_scroll.c $ROOT/src/core/vram_queue.c $ROOT/src/core/obj_pool.c $ROOT/src/core/sound_queue.c $ROOT/src/core/sound_events.c $ROOT/src/core/flier.c $ROOT/src/core/stage.c $ROOT/src/core/island_layout.c $ROOT/src/core/ai.c $ROOT/src/core/flier_view.c $ROOT/src/core/sprite_budget.c $ROOT/src/core/camera.c $ROOT/src/core/trip.c $ROOT/src/core/trip_gen.c $ROOT/src/core/trip_hit.c $ROOT/src/core/trip_rival.c $ROOT/src/core/score_table.c $ROOT/src/core/trip_view.c $ROOT/src/core/trip_pickup_fx.c $ROOT/src/core/banner.c $ROOT/src/core/gum_view.c $ROOT/src/core/splash_view.c $ROOT/src/core/arcade.c $ROOT/src/core/arc_elements.c $ROOT/src/core/arc_view.c $ROOT/src/core/attract_overlay.c"
+SRC="$ROOT/src/core/rng.c $ROOT/src/core/game.c $ROOT/src/core/hiscore.c $ROOT/src/core/nameentry.c $ROOT/src/core/flow.c $ROOT/src/core/obstacle_view.c $ROOT/src/core/bg_scroll.c $ROOT/src/core/vram_queue.c $ROOT/src/core/obj_pool.c $ROOT/src/core/sound_queue.c $ROOT/src/core/sound_events.c $ROOT/src/core/flier.c $ROOT/src/core/stage.c $ROOT/src/core/island_layout.c $ROOT/src/core/ai.c $ROOT/src/core/flier_view.c $ROOT/src/core/sprite_budget.c $ROOT/src/core/camera.c $ROOT/src/core/trip.c $ROOT/src/core/trip_gen.c $ROOT/src/core/trip_hit.c $ROOT/src/core/trip_rival.c $ROOT/src/core/score_table.c $ROOT/src/core/trip_view.c $ROOT/src/core/trip_pickup_fx.c $ROOT/src/core/banner.c $ROOT/src/core/gum_view.c $ROOT/src/core/splash_view.c $ROOT/src/core/arcade.c $ROOT/src/core/arc_elements.c $ROOT/src/core/arc_view.c $ROOT/src/core/result.c $ROOT/src/core/result_view.c $ROOT/src/core/attract_overlay.c"
 fail=0
 # test_flier_view reads the generated Sootling tables
 (cd "$ROOT" && gmake -s build/gen/sootling_tables.h build/gen/city_tables.h build/gen/island_tables.h build/gen/fix_font.h >"$OUT/gen.log" 2>&1) || { echo "[ERROR] gen sootling_tables.h failed"; tail -n 5 "$OUT/gen.log"; exit 1; }
@@ -81,6 +81,9 @@ tail -n 1 "$OUT/test_camera_seam.log"; grep FAIL "$OUT/test_camera_seam.log" | h
 $CC -o "$OUT/test_banner" "$HERE/test_banner.c" $SRC >"$OUT/build.log" 2>&1 || { echo "[ERROR] test_banner build failed"; tail -n 20 "$OUT/build.log"; exit 1; }
 nice -n 19 "$OUT/test_banner" >"$OUT/test_banner.log" 2>&1 || fail=1
 tail -n 1 "$OUT/test_banner.log"; grep FAIL "$OUT/test_banner.log" | head -n 10
+$CC -o "$OUT/test_result" "$HERE/test_result.c" $SRC >"$OUT/build.log" 2>&1 || { echo "[ERROR] test_result build failed"; tail -n 20 "$OUT/build.log"; exit 1; }
+nice -n 19 "$OUT/test_result" >"$OUT/test_result.log" 2>&1 || fail=1
+tail -n 1 "$OUT/test_result.log"; grep FAIL "$OUT/test_result.log" | head -n 10
 $CC -o "$OUT/test_camera_column" "$HERE/test_camera_column.c" $SRC >"$OUT/build.log" 2>&1 || { echo "[ERROR] test_camera_column build failed"; tail -n 20 "$OUT/build.log"; exit 1; }
 nice -n 19 "$OUT/test_camera_column" >"$OUT/test_camera_column.log" 2>&1 || fail=1
 tail -n 1 "$OUT/test_camera_column.log"; grep FAIL "$OUT/test_camera_column.log" | head -n 10

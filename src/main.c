@@ -12,6 +12,7 @@
 #include "core/flier.h"
 #include "core/flow.h"
 #include "core/banner.h"
+#include "core/result_view.h"
 #include "core/obstacle_view.h"
 #include "core/obj_pool.h"
 #include "core/flier_view.h"
@@ -134,6 +135,11 @@ static u8 g_banner_up; /* the round clear banner is on the fix layer */
 static u8 g_banner_pending; /* rows still to draw: the panel opens a few rows per frame to stay inside vblank */
 static int g_banner_last; /* banner frame drawn last */
 static u16 g_banner_shadow[BANNER_W * BANNER_H]; /* cell last sent: only changed cells cost vblank time */
+/* Result screen (core/result_view.h): the fix layer is redrawn once (RES_FILL_PER_FRAME cells a frame), then one dirty region a frame. */
+#define RES_FILL_PER_FRAME 80
+static u16 g_res_shadow[RESV_W * RESV_H];
+static u8 g_res_up, g_res_col, g_res_row, g_res_pend;
+static u16 g_res_filled;
 static int g_rs_num;
 /* Fix layer cell of the off screen marker last drawn (col 0xFF: none). */
 static u8 g_edge_col = 0xFF, g_edge_row;
@@ -1008,10 +1014,55 @@ static void draw_overlay(const FlowView *v) {
     }
 }
 
+/* Writes the result screen cells that differ from what was sent: the first frames fill all cells, then one dirty region per frame. */
+static void draw_result(const Game *g) {
+    Result *r = &g_flow.game.res; /* the dirty bits are drawing bookkeeping the core only sets */
+    u8 col, row, n = 0, bit;
+    if (!g_res_up) {
+        g_res_up = 1;
+        g_res_col = g_res_row = 0;
+        g_res_filled = 0;
+        g_res_pend = 0;
+        for (u16 i = 0; i < RESV_W * RESV_H; i++) g_res_shadow[i] = 0xFFFF;
+    }
+    g_res_pend |= r->dirty;
+    r->dirty = 0;
+    if (g_res_filled < RESV_W * RESV_H) {
+        while (n < RES_FILL_PER_FRAME && g_res_row < RESV_H) {
+            u16 c = result_cell(&g->res, g_res_col, g_res_row);
+            g_res_shadow[g_res_filled++] = c;
+            gfx_fix_tile(g_res_col, g_res_row, (u8)(c >> 12), (u16)(c & 0xFFF));
+            n++;
+            if (++g_res_col == RESV_W) { g_res_col = 0; g_res_row++; }
+        }
+        return;
+    }
+    for (bit = 1; bit <= RES_DIRTY_TICKET; bit = (u8)(bit << 1)) {
+        u8 r0, r1, c0, c1;
+        if (!(g_res_pend & bit)) continue;
+        g_res_pend &= (u8)~bit;
+        result_region(bit, &r0, &r1, &c0, &c1);
+        for (row = r0; row <= r1; row++) {
+            for (col = c0; col <= c1; col++) {
+                u16 c = result_cell(&g->res, col, row);
+                u16 *sh = &g_res_shadow[row * RESV_W + col];
+                if (c == *sh) continue;
+                *sh = c;
+                gfx_fix_tile(col, row, (u8)(c >> 12), (u16)(c & 0xFFF));
+            }
+        }
+        break;
+    }
+}
+
 static void draw(const FlowView *v) {
     char buf[3];
     /* The header only changes with the state: send it after the clear. The fix shadow (vq_fix_put) keeps it, and a
      * hardware reset of the fix layer goes through video_init, which forces this branch (g_draw_state = -1). */
+    if (g_res_up && !(v->state == FLOW_PLAYING && v->game && v->game->res.active)) {
+        g_res_up = 0;
+        g_draw_state = -1; /* the result screen is over: clear the fix layer, the HUD comes back */
+    }
     if ((int)v->state != g_draw_state) {
         gfx_cls();
         title_reset();
@@ -1037,6 +1088,10 @@ static void draw(const FlowView *v) {
     case FLOW_ATTRACT_DEMO:
     case FLOW_PLAYING:
     case FLOW_GAME_OVER:
+        if (v->state == FLOW_PLAYING && v->game && v->game->res.active) {
+            draw_result(v->game);
+            break;
+        }
         /* Per-frame HUD: resend only when score or lives moved (or first frame of the state with a game). */
         if (v->game && (!g_hud_game || v->game->score != g_hud_score || v->game->flier.balloons != g_hud_lives)) {
             g_hud_game = 1;
@@ -1349,6 +1404,13 @@ static void game_loop(void) {
         g_round_end_s[0] = g_flow.game.round_end; g_round_end_s[1] = g_flow.game.round_timer;
         g_round_end_s[2] = g_flow.game.round_start; g_round_end_s[3] = game_flier_visible(&g_flow.game);
         if (coined) sound_play_sfx(SND_SFX_COIN);
+        if (view.game && view.state == FLOW_PLAYING && g_flow.game.res.events) { /* stand-in sounds: existing samples until the result cues exist */
+            u8 re = g_flow.game.res.events;
+            g_flow.game.res.events = 0;
+            if (re & RES_EV_VANISH) sound_play_sfx(SND_SFX_POP);
+            if (re & RES_EV_TICK) sound_play_sfx(SND_SFX_JUMP);
+            if (re & (RES_EV_JINGLE | RES_EV_BONUS)) sound_play_sfx(SND_SFX_COIN);
+        }
         sound_frame(&view);
         sound_tick();
         draw(&view);
@@ -1359,7 +1421,7 @@ static void game_loop(void) {
             hazard_step((view.state == FLOW_PLAYING || view.state == FLOW_GAME_OVER) && !trip_game, g_cam_px); /* the hazard strip is the arena's floor; Gum Trip has its own */
             /* arcade only: elements kill, so they must be seen (worst scanline with them is checked in tests/host/test_sprite_budget.c) */
             arcade_elems_step(view.state == FLOW_PLAYING && view.game && view.game->mode == GAME_MODE_ARCADE ? view.game : 0);
-            arcade_bonus_step(view.state == FLOW_PLAYING && view.game && view.game->mode == GAME_MODE_ARCADE && view.game->arc.state == ARC_BONUS ? view.game : 0);
+            arcade_bonus_step(view.state == FLOW_PLAYING && view.game && view.game->mode == GAME_MODE_ARCADE && view.game->arc.state == ARC_BONUS && !view.game->res.active ? view.game : 0);
             island_step(view.state == FLOW_PLAYING && !trip, g_cam_px); /* arena islands are not drawn in Gum Trip */
             /* the course (islands, kill strips, pickups) stays through Game Over like the planes and the hazard anim: all leave at the title */
             island_trip_step(trip_game ? &view.game->trip_gen : 0, trip_game ? view.game->trip.px : 0, trip_game && game_trip_ready(view.game));

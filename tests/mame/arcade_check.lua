@@ -20,7 +20,8 @@ local O_FLOW, O_MODE, O_STAGE, O_ASTATE, O_LIVES, O_LSTATE, O_COUNT, O_NCPU, O_C
 local K = { playing = L[15], arcade = L[16], play = L[17], clear = L[18], life_play = L[19], life_cont = L[20], lives = L[21],
   clear_frames = L[22], cont_frames = L[23], gone = L[24], isl = L[25], isl_n = L[26], game_over = L[27], life_end = L[28],
   isl_tile = L[29], isl_tiles = L[30], isl_pal = L[31], bonus = L[33] }
-local O_NLIVE, O_BTIMER, BONUS_LIVE_MAX = L[32], L[34], L[35]
+local O_NLIVE, O_BTIMER, BONUS_LIVE_MAX, O_RES = L[32], L[34], L[35], L[36]
+local res_frames, res_score0, res_score1 = 0, nil, nil -- result screen frames seen in the bonus stage and the score at its first and last frame
 local mem    = manager.machine.devices[":maincpu"].spaces["program"]
 local screen = manager.machine.screens[":screen"]
 local ports  = manager.machine.ioport.ports
@@ -179,6 +180,7 @@ emu.register_frame_done(function()
         -- timer due while the pool has room: the pool fills to ARC_BONUS_LIVE_MAX and the logic end is measured at the real worst case
         if nl < BONUS_LIVE_MAX then mem:write_u16(flow_addr + O_BTIMER, 1) end
         bon_frames = bon_frames + 1
+        if b(O_RES) == 1 then res_frames = res_frames + 1; res_score1 = g(O_SCORE); if not res_score0 then res_score0 = res_score1 end end
         if nl > bon_nlive_max then bon_nlive_max = nl end
         if nl >= 8 then bon_busy = bon_busy + 1; if fc_line >= 224 then bon_over = bon_over + 1; if not bon_over_note then bon_over_note = string.format('frame %d nlive %d bonus frame %d', n, nl, bon_frames) end elseif fc_line > bon_logic then bon_logic = fc_line end end
         bon_prev = nl
@@ -192,8 +194,10 @@ emu.register_frame_done(function()
       for k = 0, 10 do local t = bon_by[k]; if t then print(string.format('BON_NL %d frames %d over %d max %.1f', k, t[1], t[2], t[3])) end end
       if bon_nlive_max < BONUS_LIVE_MAX then why = "bonus never had " .. BONUS_LIVE_MAX .. " bubbles alive (max " .. bon_nlive_max .. ")"
       elseif bon_over > 0 then why = "bonus logic end past 224 on " .. bon_over .. " of " .. bon_busy .. " busy frames, first " .. bon_over_note
-      elseif bon_busy < 50 then why = "only " .. bon_busy .. " frames with 8+ bubbles" end
-      finish(why == nil, why or string.format("bonus stage: %d frames, max %d bubbles alive, %d frames with 8+ alive, max logic end %.1f of 224 (%d over)", bon_frames, bon_nlive_max, bon_busy, bon_logic, bon_over))
+      elseif bon_busy < 50 then why = "only " .. bon_busy .. " frames with 8+ bubbles"
+      elseif res_frames < 193 then why = "result screen ran " .. res_frames .. " frames, the shortest sequence is 193"
+      elseif (res_score1 - res_score0) % 100 ~= 0 then why = "result screen added " .. (res_score1 - res_score0) .. " points, not a multiple of 100" end
+      finish(why == nil, why or string.format("bonus stage: %d frames, max %d bubbles alive, %d frames with 8+ alive, max logic end %.1f of 224 (%d over), result screen %d frames adding %d points", bon_frames, bon_nlive_max, bon_busy, bon_logic, bon_over, res_frames, res_score1 - res_score0))
       return
     elseif bon_wait > 12000 then finish(false, "bonus stage never reached: " .. state()) return
     else for i = 0, b(O_NCPU) - 1 do mem:write_u8(flow_addr + O_C0STATE + i * SZ_FLIER, K.gone) end end
