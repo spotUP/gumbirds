@@ -3,15 +3,19 @@
 #include "bg_scroll.h"
 #include "stage.h"
 #include "gen/city_tables.h"
+#include "gen/dusk_tables.h"
 #include "gen/island_tables.h"
 #include "gen/logo_sprites.h"
 
 /* Per sprite slot of the planes (plane order: table index = slot - BG_SKY_SPRITE): first tile row and tile rows drawn. */
 static const unsigned char COL_ROW0[] = CITY_TABLE_COL_ROW0;
 static const unsigned char COL_ROWS[] = CITY_TABLE_COL_ROWS;
+static const unsigned char DUSK_COL_ROW0[] = DUSK_TABLE_COL_ROW0; /* dusk counts its own rows (identical today, src/bg.c asserts the layout) */
+static const unsigned char DUSK_COL_ROWS[] = DUSK_TABLE_COL_ROWS;
 static const unsigned char PLANE_TOP[] = CITY_TABLE_PLANE_TOP;
 /* C99 build (host tests): a compile-time check as a constant division, zero when the sizes differ. */
-enum { SB_CHECK_TABLE = 1 / (sizeof COL_ROWS == BG_SPRITE_TOTAL && sizeof COL_ROW0 == BG_SPRITE_TOTAL) }; /* one table row per background sprite */
+enum { SB_CHECK_TABLE = 1 / (sizeof COL_ROWS == BG_SPRITE_TOTAL && sizeof COL_ROW0 == BG_SPRITE_TOTAL &&
+                             sizeof DUSK_COL_ROWS == BG_SPRITE_TOTAL && sizeof DUSK_COL_ROW0 == BG_SPRITE_TOTAL) }; /* one table row per background sprite */
 
 /* y ranges and counts per line: the drawn art (the parallax planes: counts and y ranges in src/sprite_slots.h,
  * checked against the sheet in src/bg.c). Plane entries (SB_COLUMNS) count column by column from the generated table. */
@@ -38,9 +42,9 @@ const SpriteBudgetEntry SPRITE_BUDGET[] = {
 const int SPRITE_BUDGET_COUNT = (int)(sizeof SPRITE_BUDGET / sizeof SPRITE_BUDGET[0]);
 
 const SpriteBudgetMood SPRITE_BUDGET_MOODS[] = {
-    { "moon",  1, 0 },   /* clear night: built, no rain */
-    { "dusk",  0, 0 },   /* not built (BG-2) */
-    { "storm", 0, 1 },   /* not built (BG-2): the only mood with rain columns */
+    { "moon",  1, 0, COL_ROW0, COL_ROWS },           /* clear night: built, no rain (GAME_MOOD_MOON) */
+    { "dusk",  1, 0, DUSK_COL_ROW0, DUSK_COL_ROWS }, /* built (DUSK-1, GAME_MOOD_DUSK) */
+    { "storm", 0, 1, 0, 0 },                         /* not built (BG-2): the only mood with rain columns */
 };
 const int SPRITE_BUDGET_MOOD_COUNT = (int)(sizeof SPRITE_BUDGET_MOODS / sizeof SPRITE_BUDGET_MOODS[0]);
 
@@ -49,13 +53,13 @@ static const unsigned char PLANE_FIRST[] = { BG_SKY_SPRITE, BG_FAR_SPRITE, BG_MI
 enum { SB_CHECK_PLANES = 1 / (sizeof PLANE_FIRST == sizeof PLANE_TOP) }; /* one slot range per plane */
 
 /* Columns of the plane entry that cover screen line y; none for a plane Gum Trip hides. */
-static int columns_on_line(const SpriteBudgetEntry *e, int y, int trip) {
+static int columns_on_line(const SpriteBudgetMood *mood, const SpriteBudgetEntry *e, int y, int trip) {
     int plane = 0, n = 0;
     while (PLANE_FIRST[plane] != e->first) plane++;
     if (trip && (BG_TRIP_HIDDEN_MASK >> plane & 1)) return 0;
     for (int c = 0; c < e->count; c++) {
-        int slot = e->first + c - BG_SKY_SPRITE, top = PLANE_TOP[plane] + 16 * COL_ROW0[slot];
-        if (COL_ROWS[slot] && y >= top && y < top + 16 * COL_ROWS[slot]) n++;
+        int slot = e->first + c - BG_SKY_SPRITE, top = PLANE_TOP[plane] + 16 * mood->col_row0[slot];
+        if (mood->col_rows[slot] && y >= top && y < top + 16 * mood->col_rows[slot]) n++;
     }
     return n;
 }
@@ -70,15 +74,16 @@ static int platform_columns_on_line(int y) {
     return n;
 }
 
-int sprite_budget_line(int y, int rain, int trip) {
-    int total = 0;
+int sprite_budget_line(int m, int y, int trip) {
+    const SpriteBudgetMood *mood = &SPRITE_BUDGET_MOODS[m];
+    int total = 0, rain = mood->rain;
     for (int i = 0; i < SPRITE_BUDGET_COUNT; i++) {
         const SpriteBudgetEntry *e = &SPRITE_BUDGET[i];
         if (y < e->y0 || y >= e->y1) continue;
         if (e->mood == SB_NOT_RAIN && rain) continue;
         if (e->mood == SB_RAIN_ONLY && !rain) continue;
         if (e->mood == SB_TRIP_ONLY && !trip) continue;
-        total += e->mood == SB_COLUMNS ? columns_on_line(e, y, trip) : e->mood == SB_ISLANDS && !trip ? platform_columns_on_line(y) : e->per_line;
+        total += e->mood == SB_COLUMNS ? columns_on_line(mood, e, y, trip) : e->mood == SB_ISLANDS && !trip ? platform_columns_on_line(y) : e->per_line;
     }
     return total;
 }
@@ -116,11 +121,11 @@ int sprite_budget_logo_worst(void) {
     return worst;
 }
 
-/* Title: the moon planes (outside Gum Trip), the logo's worst frame, two title Sootlings (2 columns each, y 108..180 with the bob) and the gum bubble's 2 sprites kept on every line. Nothing from play is shown. */
-int sprite_budget_title_line(int y) {
+/* Title: mood m's planes (outside Gum Trip), the logo's worst frame, two title Sootlings (2 columns each, y 108..180 with the bob) and the gum bubble's 2 sprites kept on every line. Nothing from play is shown. */
+int sprite_budget_title_line(int m, int y) {
     int total = 2 + logo_on_line(y);
     for (int i = 0; i < SPRITE_BUDGET_COUNT; i++)
-        if (SPRITE_BUDGET[i].mood == SB_COLUMNS && y >= SPRITE_BUDGET[i].y0 && y < SPRITE_BUDGET[i].y1) total += columns_on_line(&SPRITE_BUDGET[i], y, 0);
+        if (SPRITE_BUDGET[i].mood == SB_COLUMNS && y >= SPRITE_BUDGET[i].y0 && y < SPRITE_BUDGET[i].y1) total += columns_on_line(&SPRITE_BUDGET_MOODS[m], &SPRITE_BUDGET[i], y, 0);
     if (y >= 108 && y < 180) total += 4;
     return total;
 }

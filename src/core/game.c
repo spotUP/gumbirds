@@ -46,7 +46,9 @@ void game_set_hazard(Game *g, uint8_t kind)
 
 void game_reset(Game *g, uint32_t seed)
 {
+    uint8_t mood = g->mood < GAME_MOOD_COUNT ? g->mood : GAME_MOOD_MOON; /* boot: the Game holds no valid mood yet */
     zero(g, sizeof(*g));
+    g->mood = mood;
     rng_seed(&g->rng, seed);
     camera_init(&g->camera);
     trip_init(&g->trip);
@@ -120,6 +122,18 @@ static void pump_defeat(Game *g, Flier *v, ArcPump *p)
     score_add(g, g->mode == GAME_MODE_ARCADE ? win : SCORE_CPU_DEFEAT);
 }
 
+void game_next_mood(Game *g)
+{
+    uint32_t m = (uint32_t)g->mood + 1;
+    if (GAME_MOOD_COUNT > 2) {
+        m += rng_range(&g->rng, GAME_MOOD_COUNT - 1);
+    }
+    if (m >= GAME_MOOD_COUNT) { /* m < 2 * GAME_MOOD_COUNT: one subtract wraps, no % */
+        m -= GAME_MOOD_COUNT;
+    }
+    g->mood = (uint8_t)m;
+}
+
 static void match_start(Game *g)
 {
     int arcade = g->mode == GAME_MODE_ARCADE;
@@ -138,6 +152,7 @@ static void match_start(Game *g)
         stage_select((int)(g->matches_won % (uint32_t)stage_layout_count())); /* round start: the pan has ended, the screen is frozen under ROUND nn */
         stage_set_level((int)g->matches_won);
     }
+    game_next_mood(g);
     g->cpu_count = (uint8_t)n;
     g->cpu_alive = (uint8_t)n;
     for (i = 0; i < STAGE_SPAWN_COUNT; i++) {

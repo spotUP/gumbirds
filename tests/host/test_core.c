@@ -407,6 +407,31 @@ static void test_arena_art_boxes(void)
     CHECK(g.stomps == before + 1);
 }
 
+/* DUSK-1: game_next_mood never repeats, reaches every mood, and a match start (the rematch after a win) moves to the next mood. */
+static void test_moods(void)
+{
+    static Game g;
+    int seen[GAME_MOOD_COUNT] = { 0 }, i, m;
+    uint8_t before;
+    game_reset(&g, 77);
+    CHECK(g.mood < GAME_MOOD_COUNT);
+    for (i = 0; i < 40; i++) {
+        before = g.mood;
+        game_next_mood(&g);
+        CHECK(g.mood < GAME_MOOD_COUNT && g.mood != before);
+        seen[g.mood] = 1;
+    }
+    for (m = 0; m < GAME_MOOD_COUNT; m++) CHECK(seen[m]);
+    before = g.mood;
+    game_reset(&g, 78);
+    CHECK(g.mood == before); /* game_reset keeps the mood */
+    arena_one_cpu(&g);
+    before = g.mood;
+    win_round(&g);
+    game_step_arena(&g, 0);
+    CHECK(g.mood != before && g.mood < GAME_MOOD_COUNT);
+}
+
 int main(int argc, char **argv)
 {
     (void)argv;
@@ -424,6 +449,7 @@ int main(int argc, char **argv)
     test_arena_cpu_no_pop();
     test_arena_platform_block();
     test_arena_spawn_invincible();
+    test_moods();
     printf("test_core: %d checks, %d failures\n", checks, failures);
     return failures ? 1 : 0;
 }

@@ -9,6 +9,10 @@
  * (bg_ramp + gfx_scb_ramp, VQ_RAMP): the frame logic does O(1) work per moving plane and the vblank flush generates the
  * words. A camera step is one op per moving plane (four: the sky never moves), a still camera sends none.
  * The plane sizes, tops and factors come from assets/city/city_sheet.json through tools/import_bg_sheet.py.
+ * Moods (GAME_MOOD_*): moon (city_*) and dusk (dusk_*) share the plane layout (same columns, rows and tops: checked below and
+ * in tests/host/test_bg.c) and differ in tiles, palettes and backdrop. Both palette sets stay loaded (CITY_PAL_SLOT,
+ * DUSK_PAL_SLOT), so a mood change sends no palette words but the backdrop: bg_set_mood hides every column (one SCB3 run),
+ * bg_update rewrites BG_MOOD_COLS_PER_FRAME strips per frame, then shows the columns again (one run).
  */
 #include <ngdevkit/neogeo.h>
 #include <ngdevkit/ng-video.h>
@@ -17,6 +21,9 @@
 #include "core/bg_scroll.h"
 #include "sprite_slots.h"
 #include "vram_layout.h"
+#include "gen/city_tables.h"
+#include "gen/dusk_tables.h"
+#include "core/game.h"
 
 volatile s16 g_bg_plane_x[BG_PLANE_COUNT];
 volatile u32 g_bg_x_writes;
@@ -26,11 +33,23 @@ static s32 g_last_u;
 static u8 g_last_valid;
 /* First palette RAM entry of the city palettes; read by tests/mame/unibios_check.lua through nm. */
 const u16 g_bg_pal_first_entry = CITY_PAL_SLOT * 16;
+/* First palette RAM entry of the dusk palettes; read by tests/mame/mood_check.lua through nm. */
+const u16 g_bg_dusk_pal_first_entry = DUSK_PAL_SLOT * 16;
+volatile u8 g_bg_mood;
+volatile u8 g_bg_mood_busy;
+volatile u16 g_bg_mood_changes;
 
 /* Palette word (DRGB, dark bit 0) from 5 bit channels, same layout as tools/sprite_pipeline.py rgb_to_ng. */
 #define NG_RGB5(r, g, b) ((u16)((((r) & 1) << 14) | (((g) & 1) << 13) | (((b) & 1) << 12) | (((r) >> 1) << 8) | (((g) >> 1) << 4) | ((b) >> 1)))
-#define BG_BACKDROP NG_RGB5(3, 2, 7)       /* #1a1238, "backdrop" in assets/city/city_sheet.json */
-#define BG_TRIP_BACKDROP NG_RGB5(14, 10, 20) /* Gum Trip only: the sky plane colour (115,82,165) = snap5 of the sky pixels (tools/import_bg_sheet.py) */
+/* Per mood: the backdrop ("backdrop" in the sheet json) and the Gum Trip backdrop (the sky plane colour), from tools/import_bg_sheet.py MOODS. */
+static const u16 BACKDROP[GAME_MOOD_COUNT] = { NG_RGB5(CITY_BACKDROP_R5, CITY_BACKDROP_G5, CITY_BACKDROP_B5),
+                                              NG_RGB5(DUSK_BACKDROP_R5, DUSK_BACKDROP_G5, DUSK_BACKDROP_B5) };
+static const u16 TRIP_BACKDROP[GAME_MOOD_COUNT] = { NG_RGB5(CITY_TRIP_R5, CITY_TRIP_G5, CITY_TRIP_B5),
+                                                   NG_RGB5(DUSK_TRIP_R5, DUSK_TRIP_G5, DUSK_TRIP_B5) };
+_Static_assert(GAME_MOOD_COUNT == 2, "one tile set per built mood: moon, dusk");
+_Static_assert(sizeof dusk_tile_index == sizeof city_tile_index, "dusk planes cut like the moon planes");
+_Static_assert(DUSK_ANIM_SKY == CITY_ANIM_SKY && DUSK_ANIM_FAR == CITY_ANIM_FAR && DUSK_ANIM_MIDA == CITY_ANIM_MIDA &&
+               DUSK_ANIM_MIDB == CITY_ANIM_MIDB && DUSK_ANIM_NEAR == CITY_ANIM_NEAR, "same plane order in both moods");
 
 static const u8 PLANE_ANIM[BG_PLANE_COUNT] = { CITY_ANIM_SKY, CITY_ANIM_FAR, CITY_ANIM_MIDA, CITY_ANIM_MIDB, CITY_ANIM_NEAR };
 static const u8 PLANE_FIRST[BG_PLANE_COUNT] = { BG_SKY_SPRITE, BG_FAR_SPRITE, BG_MIDA_SPRITE, BG_MIDB_SPRITE, BG_NEAR_SPRITE };
@@ -48,7 +67,9 @@ _Static_assert(CITY_SKY_COLS <= BG_MAX_COLS && CITY_FAR_COLS <= BG_MAX_COLS && C
  * every plane, consecutive slots in plane order, ending at BG_SPRITE_END below the object pool. */
 #define CHECK_PLANE(N, n) \
     _Static_assert(BG_##N##_COUNT == CITY_##N##_COLS && BG_##N##_Y0 == CITY_##N##_TOP && BG_##N##_Y1 == CITY_##N##_BOTTOM, \
-                   "src/sprite_slots.h " #n " plane differs from assets/city/city_sheet.json")
+                   "src/sprite_slots.h " #n " plane differs from assets/city/city_sheet.json"); \
+    _Static_assert(DUSK_##N##_COLS == CITY_##N##_COLS && DUSK_##N##_TOP == CITY_##N##_TOP && DUSK_##N##_BOTTOM == CITY_##N##_BOTTOM, \
+                   #n " plane: dusk differs from the moon")
 CHECK_PLANE(SKY, sky);
 CHECK_PLANE(FAR, far);
 CHECK_PLANE(MIDA, mid A);
@@ -63,54 +84,102 @@ _Static_assert(BG_NEAR_SPRITE + BG_NEAR_COUNT == BG_SPRITE_END, "near sprite ran
 _Static_assert(BG_SPRITE_END <= POOL_SPRITE_BASE, "background sprites overlap the object pool");
 _Static_assert(CITY_ANIM_COUNT == BG_PLANE_COUNT, "one animation per plane");
 
-/* {tile, attribute} of every entry of city_tile_index, built once: the attribute carries the tile's own palette. */
-static u16 g_pairs[sizeof city_tile_index / sizeof city_tile_index[0]][2];
+#define BG_TILE_REFS (sizeof city_tile_index / sizeof city_tile_index[0])
+/* {tile, attribute} of every tile_index entry per mood, built once: the attribute carries the tile's own palette. The queue
+ * reads the pairs at flush time, so they stay here for good. */
+static u16 g_pairs[GAME_MOOD_COUNT][BG_TILE_REFS][2];
+static const u16 TILE_BASE[GAME_MOOD_COUNT] = { CITY_TILE_BASE, DUSK_TILE_BASE };
+/* Mood change: g_want is the mood asked for, g_step the next column to rewrite while g_bg_mood_busy. */
+static u8 g_want, g_step;
+static u8 g_hidden; /* planes bg_trip_planes hides (BG_TRIP_HIDDEN_MASK bits) */
+static u16 g_scb3_show[BG_SPRITE_TOTAL], g_scb3_out[BG_SPRITE_TOTAL];
+static const u16 g_scb3_zero[BG_SPRITE_TOTAL];
+#define BG_MOOD_COLS_PER_FRAME 8 /* strips per frame while the mood changes: at most 8 x 7 rows of tile pairs */
 
 void bg_load_palettes(void) {
     for (int p = 0; p < CITY_PALETTE_COUNT; p++)
         for (int i = 0; i < 16; i++)
             gfx_pal((CITY_PAL_SLOT + p) * 16 + i, city_palettes[p][i]);
+    for (int p = 0; p < DUSK_PALETTE_COUNT; p++)
+        for (int i = 0; i < 16; i++)
+            gfx_pal((DUSK_PAL_SLOT + p) * 16 + i, dusk_palettes[p][i]);
     /* The backdrop is the LAST palette RAM entry, not entry 0 (verified by snapshot, plan B2). */
-    gfx_pal(4095, BG_BACKDROP);
+    gfx_pal(4095, BACKDROP[g_bg_mood]);
+}
+
+/* Strip of the column in sprite `slot`, mood m: the tiles of its drawn rows (none for a 0 row column). */
+static void column_strip(u8 m, u8 slot) {
+    u8 i = (u8)(slot - BG_SKY_SPRITE), n = COL_ROWS[i], p = 0;
+    const CityFrame *f;
+    if (!n) return;
+    while (p + 1 < BG_PLANE_COUNT && slot >= PLANE_FIRST[p + 1]) p++;
+    f = &city_frames[city_anims[PLANE_ANIM[p]].first_frame]; /* geometry is the same in both moods (asserts above) */
+    gfx_strip_attr(slot, g_pairs[m][f->tile_offset + (slot - PLANE_FIRST[p]) * f->tiles_h + COL_ROW0[i]], TILE_BASE[m], n);
 }
 
 void bg_init(void) {
-    for (u16 i = 0; i < sizeof city_tile_index / sizeof city_tile_index[0]; i++) {
-        g_pairs[i][0] = city_tile_index[i];
-        g_pairs[i][1] = (u16)((CITY_PAL_SLOT + city_tile_pal[i]) << 8);
+    for (u16 i = 0; i < BG_TILE_REFS; i++) {
+        g_pairs[GAME_MOOD_MOON][i][0] = city_tile_index[i];
+        g_pairs[GAME_MOOD_MOON][i][1] = (u16)((CITY_PAL_SLOT + city_tile_pal[i]) << 8);
+        g_pairs[GAME_MOOD_DUSK][i][0] = dusk_tile_index[i];
+        g_pairs[GAME_MOOD_DUSK][i][1] = (u16)((DUSK_PAL_SLOT + dusk_tile_pal[i]) << 8);
     }
     for (u8 p = 0; p < BG_PLANE_COUNT; p++) {
-        const CityFrame *f = &city_frames[city_anims[PLANE_ANIM[p]].first_frame];
-        u8 first = PLANE_FIRST[p], rows = (u8)f->tiles_h;
-        for (u8 c = 0; c < f->tiles_w; c++) {
-            u8 slot = (u8)(first + c), n = COL_ROWS[slot - BG_SKY_SPRITE];
+        for (u8 c = 0; c < PLANE_COLS[p]; c++) {
+            u8 slot = (u8)(PLANE_FIRST[p] + c), i = (u8)(slot - BG_SKY_SPRITE), n = COL_ROWS[i];
+            g_scb3_show[i] = n ? gfx_scb3_word(n, (u16)(PLANE_TOP[p] + 16 * COL_ROW0[i])) : 0; /* 0 rows: height 0 hides the sprite */
             gfx_word((u16)(ADDR_SCB2 + slot), 0xFFF);
-            if (!n) { gfx_word((u16)(ADDR_SCB3 + slot), 0); continue; } /* nothing to draw: height 0 hides the sprite */
-            gfx_strip_attr(slot, g_pairs[f->tile_offset + c * rows + COL_ROW0[slot - BG_SKY_SPRITE]], CITY_TILE_BASE, n);
-            gfx_word((u16)(ADDR_SCB3 + slot), gfx_scb3_word(n, (u16)(PLANE_TOP[p] + 16 * COL_ROW0[slot - BG_SKY_SPRITE])));
+            column_strip(g_bg_mood, slot);
+            gfx_word((u16)(ADDR_SCB3 + slot), g_scb3_show[i]);
         }
         g_bg_plane_x[p] = 0x7FFF; /* no x written yet: the next bg_update sends all planes */
         g_last_valid = 0;
     }
+    g_want = g_bg_mood;
+    g_bg_mood_busy = 0;
+}
+
+void bg_set_mood(u8 mood) {
+    if (mood >= GAME_MOOD_COUNT || mood == g_want) return;
+    g_want = mood;
+    g_step = 0; /* a change already in flight starts its strips again for the new mood */
+    if (g_bg_mood_busy) return;
+    g_bg_mood_busy = 1;
+    gfx_scb_run((u16)(ADDR_SCB3 + BG_SKY_SPRITE), 1, g_scb3_zero, BG_SPRITE_TOTAL);
+    gfx_pal(4095, (g_hidden ? TRIP_BACKDROP : BACKDROP)[mood]);
+}
+
+/* One frame of a mood change: BG_MOOD_COLS_PER_FRAME strips, then the show run (planes Gum Trip hides stay at height 0). */
+static void mood_step(void) {
+    u8 end = (u8)(g_step + BG_MOOD_COLS_PER_FRAME);
+    if (end > BG_SPRITE_TOTAL) end = BG_SPRITE_TOTAL;
+    for (; g_step < end; g_step++) column_strip(g_want, (u8)(BG_SKY_SPRITE + g_step));
+    if (g_step < BG_SPRITE_TOTAL) return;
+    for (u8 p = 0; p < BG_PLANE_COUNT; p++)
+        for (u8 c = 0; c < PLANE_COLS[p]; c++) {
+            u8 i = (u8)(PLANE_FIRST[p] + c - BG_SKY_SPRITE);
+            g_scb3_out[i] = (g_hidden & (1u << p)) ? 0 : g_scb3_show[i];
+        }
+    gfx_scb_run((u16)(ADDR_SCB3 + BG_SKY_SPRITE), 1, g_scb3_out, BG_SPRITE_TOTAL);
+    g_bg_mood = g_want;
+    g_bg_mood_busy = 0;
+    g_bg_mood_changes++;
 }
 
 /* Gum Trip drops the planes in BG_TRIP_HIDDEN_MASK (far, near): hide = SCB3 height 0 for each of their columns, show = bg_init's word.
  * Trip also swaps the backdrop (palette RAM entry 4095) to the sky colour, so the tiles the importer blanked (sky behind far, mid B behind
  * near) show sky instead of dark. Written on a change only, so a hidden plane costs no per-line sprites and no VRAM writes per frame. */
 void bg_trip_planes(u8 trip) {
-    static u8 hidden = 0;
-    u8 want = trip ? BG_TRIP_HIDDEN_MASK : 0, diff = (u8)(want ^ hidden);
+    u8 want = trip ? BG_TRIP_HIDDEN_MASK : 0, diff = (u8)(want ^ g_hidden);
     if (!diff) return;
-    hidden = want;
-    gfx_pal(4095, trip ? BG_TRIP_BACKDROP : BG_BACKDROP);
+    g_hidden = want;
+    gfx_pal(4095, (trip ? TRIP_BACKDROP : BACKDROP)[g_want]);
+    if (g_bg_mood_busy) return; /* every column is hidden now; the show run at the end of the mood change reads g_hidden */
     for (u8 p = 0; p < BG_PLANE_COUNT; p++) {
-        const CityFrame *f;
         if (!(diff & (1u << p))) continue;
-        f = &city_frames[city_anims[PLANE_ANIM[p]].first_frame];
-        for (u8 c = 0; c < f->tiles_w; c++) {
-            u8 slot = (u8)(PLANE_FIRST[p] + c), n = COL_ROWS[slot - BG_SKY_SPRITE];
-            if (!n) continue;
-            gfx_word((u16)(ADDR_SCB3 + slot), (want & (1u << p)) ? 0 : gfx_scb3_word(n, (u16)(PLANE_TOP[p] + 16 * COL_ROW0[slot - BG_SKY_SPRITE])));
+        for (u8 c = 0; c < PLANE_COLS[p]; c++) {
+            u8 slot = (u8)(PLANE_FIRST[p] + c), i = (u8)(slot - BG_SKY_SPRITE);
+            if (COL_ROWS[i]) gfx_word((u16)(ADDR_SCB3 + slot), (want & (1u << p)) ? 0 : g_scb3_show[i]);
         }
     }
 }
@@ -119,6 +188,7 @@ void bg_trip_planes(u8 trip) {
  * plane, no libgcc call). The SCB4 words of a plane go out only when its offset changed. */
 void bg_update(s32 unwrapped_px) {
     BgRamp ramp;
+    if (g_bg_mood_busy) mood_step();
     if (g_last_valid && unwrapped_px == g_last_u) return;
     g_last_u = unwrapped_px;
     g_last_valid = 1;

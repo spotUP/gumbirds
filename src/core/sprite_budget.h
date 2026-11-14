@@ -29,12 +29,13 @@ typedef struct {
 extern const SpriteBudgetEntry SPRITE_BUDGET[];
 extern const int SPRITE_BUDGET_COUNT;
 /* Moods: the game ships one at a time. A mood that is not built yet has no art to count, so tests must not pass it. */
-typedef struct { const char *name; uint8_t built, rain; } SpriteBudgetMood;
+/* col_row0 / col_rows: the mood's plane table (first tile row, rows drawn per background sprite); null when not built. Index = GAME_MOOD_*. */
+typedef struct { const char *name; uint8_t built, rain; const unsigned char *col_row0, *col_rows; } SpriteBudgetMood;
 extern const SpriteBudgetMood SPRITE_BUDGET_MOODS[];
 extern const int SPRITE_BUDGET_MOOD_COUNT;
-/* Sprites on screen line y in the rain mood (rain != 0) or the other moods, in Gum Trip (trip != 0) or the arena; includes the gameplay reserve. */
-int sprite_budget_line(int y, int rain, int trip);
+/* Sprites on screen line y in built mood m (SPRITE_BUDGET_MOODS index; rain columns only in a rain mood), in Gum Trip (trip != 0) or the arena; includes the gameplay reserve. */
+int sprite_budget_line(int m, int y, int trip);
 /* Title screen: sprites on line y (planes, logo worst frame, title Sootlings, bubble). sprite_budget_logo_worst is the logo alone, recomputed from the generated tables. */
-int sprite_budget_title_line(int y);
+int sprite_budget_title_line(int m, int y);
 int sprite_budget_logo_worst(void);
 #endif

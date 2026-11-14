@@ -89,7 +89,7 @@ static void test_lines(void) {
         for (int trip = 0; trip < 2; trip++) {
             int worst = 0, line0 = 0;
             for (int y = 0; y < SB_LINES; y++) {
-                int n = sprite_budget_line(y, mood->rain, trip);
+                int n = sprite_budget_line(m, y, trip);
                 if (n > worst) { worst = n; line0 = y; }
                 CHECK(n <= SB_LIMIT);
             }
@@ -101,10 +101,10 @@ static void test_lines(void) {
             if (!trip && !mood->rain) {
                 CHECK(worst == 86);
                 CHECK(line0 == 112);
-                CHECK(sprite_budget_line(119, mood->rain, 0) == 86);
-                CHECK(sprite_budget_line(120, mood->rain, 0) == 79);
-                CHECK(sprite_budget_line(128, mood->rain, 0) == 81);
-                CHECK(sprite_budget_line(143, mood->rain, 0) == 81);
+                CHECK(sprite_budget_line(m, 119, 0) == 86);
+                CHECK(sprite_budget_line(m, 120, 0) == 79);
+                CHECK(sprite_budget_line(m, 128, 0) == 81);
+                CHECK(sprite_budget_line(m, 143, 0) == 81);
             }
         }
     }
@@ -122,7 +122,7 @@ static void test_layouts(void) {
         for (int m = 0; m < SPRITE_BUDGET_MOOD_COUNT; m++) {
             if (!SPRITE_BUDGET_MOODS[m].built) continue;
             for (int y = 0; y < SB_LINES; y++) {
-                int n = sprite_budget_line(y, SPRITE_BUDGET_MOODS[m].rain, 0);
+                int n = sprite_budget_line(m, y, 0);
                 if (n > worst) { worst = n; line0 = y; }
                 CHECK(n <= SB_LIMIT);
             }
@@ -137,12 +137,15 @@ static void test_layouts(void) {
 /* The title screen: planes, the logo (worst frame) and the two title Sootlings; no gameplay, islands, hazard or spray there. */
 static void test_title(void) {
     int worst = 0, line0 = 0;
-    for (int y = 0; y < SB_LINES; y++) {
-        int n = sprite_budget_title_line(y);
-        if (n > worst) { worst = n; line0 = y; }
-        CHECK(n <= SB_LIMIT);
+    for (int m = 0; m < SPRITE_BUDGET_MOOD_COUNT; m++) {
+        if (!SPRITE_BUDGET_MOODS[m].built) continue;
+        for (int y = 0; y < SB_LINES; y++) {
+            int n = sprite_budget_title_line(m, y);
+            if (n > worst) { worst = n; line0 = y; }
+            CHECK(n <= SB_LIMIT);
+        }
     }
-    printf("title: worst sprites per line %d at line %d (limit %d), logo alone %d\n", worst, line0, SB_LIMIT, sprite_budget_logo_worst());
+    printf("title (every built mood): worst sprites per line %d at line %d (limit %d), logo alone %d\n", worst, line0, SB_LIMIT, sprite_budget_logo_worst());
     CHECK(sprite_budget_logo_worst() == LOGO_WORST_LINE); /* the importer's own count, recomputed from the tables */
     CHECK(sprite_budget_logo_worst() <= LOGO_COUNT);
     CHECK(worst >= LOGO_WORST_LINE);
@@ -163,7 +166,7 @@ static void test_arcade_elements(void) {
         for (int t = 0; t < 700; t++, arc_elements_step(&a)) {
             int n = arc_view_build(&a, (unsigned)t, s);
             for (int y = 0; y < SB_LINES; y++) {
-                int c = sprite_budget_line(y, 0, 0) + arc_view_line(s, n, y);
+                int c = sprite_budget_line(0, y, 0) + arc_view_line(s, n, y);
                 if (c > sw) sw = c;
             }
         }

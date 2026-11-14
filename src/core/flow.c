@@ -2,6 +2,12 @@
 
 static void enter(Flow *f, FlowState s)
 {
+    if (s == FLOW_ATTRACT_TITLE) { /* each attract loop shows the next mood: a demo match changed it already, a Gum Trip demo did not */
+        if (f->game.mood == f->title_mood) {
+            game_next_mood(&f->game);
+        }
+        f->title_mood = f->game.mood;
+    }
     f->state = (uint8_t)s;
     f->timer = 0;
     f->reset_hold = 0;
@@ -51,6 +57,7 @@ void flow_init(Flow *f, const uint8_t *image, size_t len)
         score_tables_defaults(&f->tables);
     }
     game_reset(&f->game, 1);
+    f->title_mood = 0xFF; /* no title shown yet: the first one keeps the boot mood */
     nameentry_init(&f->entry);
     enter(f, FLOW_ATTRACT_TITLE);
 }

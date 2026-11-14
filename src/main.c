@@ -1544,6 +1544,7 @@ static void game_loop(void) {
             hazard_trip_anim(trip_game);
             bg_trip_planes(trip_game); /* Gum Trip drops the far and near background planes; arena and title show them */
         }
+        bg_set_mood(g_flow.game.mood); /* game.c picks the mood per match and per attract loop; no-op when unchanged */
         bg_update(g_cam_unwrapped); /* the planes loop on the unwrapped camera (arena and Gum Trip alike) */
     world_done:
         gfx_commit();

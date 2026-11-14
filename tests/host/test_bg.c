@@ -1,3 +1,4 @@
+#include <string.h>
 /* Host tests for the parallax background math (src/core/bg_scroll.c) against the generated plane tables. */
 #include <stdio.h>
 #include <stdint.h>
@@ -5,6 +6,7 @@
 #include "../../src/core/camera.h"
 #include "../../src/core/vram_queue.h"
 #include "gen/city_tables.h"
+#include "gen/dusk_tables.h"
 
 static int failures, checks;
 static VramQueue q;
@@ -13,6 +15,9 @@ static VramQueue q;
 static const unsigned char K[] = CITY_TABLE_PLANE_K;
 static const unsigned char COLS[] = CITY_TABLE_PLANE_COLS;
 static const unsigned char TOP[] = CITY_TABLE_PLANE_TOP;
+/* DUSK-1: the dusk sheet is cut like the moon sheet; src/bg.c draws both with one geometry and swaps only tiles and palettes. */
+static const unsigned char CR0[] = CITY_TABLE_COL_ROW0, CRN[] = CITY_TABLE_COL_ROWS, DR0[] = DUSK_TABLE_COL_ROW0, DRN[] = DUSK_TABLE_COL_ROWS;
+static const unsigned char DK[] = DUSK_TABLE_PLANE_K, DCOLS[] = DUSK_TABLE_PLANE_COLS, DTOP[] = DUSK_TABLE_PLANE_TOP;
 
 /* 64 bit reference of the plane offset: floor(u * k / 16) mod period. */
 static uint32_t ref_off(uint32_t u, uint32_t k, uint32_t period) { return (uint32_t)((((uint64_t)u * k) >> 4) % period); }
@@ -22,6 +27,8 @@ int main(void)
     unsigned p, u, c;
     const unsigned top = 2 * CAM_LAP_PERIOD_PX + 383;
     CHECK(sizeof K == BG_PLANE_COUNT && sizeof COLS == BG_PLANE_COUNT && sizeof TOP == BG_PLANE_COUNT);
+    CHECK(sizeof DR0 == sizeof CR0 && memcmp(DR0, CR0, sizeof CR0) == 0 && sizeof DRN == sizeof CRN && memcmp(DRN, CRN, sizeof CRN) == 0);
+    CHECK(memcmp(DK, K, sizeof K) == 0 && memcmp(DCOLS, COLS, sizeof COLS) == 0 && memcmp(DTOP, TOP, sizeof TOP) == 0);
     /* sky fixed, near at world speed, the others in between and in order */
     CHECK(K[0] == 0 && K[BG_PLANE_COUNT - 1] == BG_K_ONE);
     for (p = 1; p < BG_PLANE_COUNT; p++) CHECK(K[p] > K[p - 1] && TOP[p] >= TOP[p - 1]);
