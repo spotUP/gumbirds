@@ -1029,6 +1029,18 @@ _Static_assert(ATTRACT_CAP1_COL >= OV_COL_MIN && ATTRACT_START_COL + 2 - 1 <= OV
 _Static_assert(ATTRACT_FIX_BASE >= FIXFONT_SROM_TILES && ATTRACT_FIX_BASE + ATTRACT_ICON_TILES <= 0x1000, "overlay icon tiles overlap the font or leave the 12-bit fix code range");
 static u8 g_ov_stage;  /* 0: captions, 1: Start icon, 2: running */
 static u8 g_ov_key = AO_NONE;
+/* Parts of the first key still to draw (2: lever and button, 1: button): on demo frame 3 the key, the island ring and the pickups
+ * together ran logic past vblank (thoughts/spot/reports/demo-start.md), so the first key comes one part per frame. */
+static u8 g_ov_part;
+static void ov_frame(u8 col, u8 row, u8 frame);
+
+static u8 ov_key_state(u8 key) { return key == AO_FLAP ? 0 : 1; }
+static void ov_key_lever(u8 key) {
+    u8 lever = attract_states[ov_key_state(key)].lever;
+    if (key == AO_STEER_LEFT) lever = ATTRACT_FRAME_STICK_LEFT;
+    ov_frame(ATTRACT_LEVER_COL, ATTRACT_LEVER_ROW, lever);
+}
+static void ov_key_button(u8 key) { ov_frame(ATTRACT_BUTTON_COL, ATTRACT_BUTTON_ROW, attract_states[ov_key_state(key)].a); }
 
 static void ov_frame(u8 col, u8 row, u8 frame) {
     const attract_frame_t *fr = &attract_frames[frame];
@@ -1050,14 +1062,16 @@ static void draw_overlay(const FlowView *v) {
     } else if (g_ov_stage == 1) {
         ov_frame(ATTRACT_START_COL, ATTRACT_START_ROW, attract_states[0].start);
         g_ov_stage = 2;
+    } else if (g_ov_part) {
+        if (g_ov_part == 2) ov_key_lever(g_ov_key); else ov_key_button(g_ov_key);
+        g_ov_part--;
     } else if (v->ov_key != AO_NONE && v->ov_key != g_ov_key) {
-        const u8 st = v->ov_key == AO_FLAP ? 0 : 1;
-        u8 lever = attract_states[st].lever;
-        if (v->ov_key == AO_STEER_LEFT) lever = ATTRACT_FRAME_STICK_LEFT;
+        const u8 first = g_ov_key == AO_NONE;
         g_ov_key = v->ov_key;
-        text(ATTRACT_ACTION_COL, ATTRACT_ACTION_ROW, FIXFONT_PAL_GOLD, st == 0 ? "FLAP " : "STEER");
-        ov_frame(ATTRACT_LEVER_COL, ATTRACT_LEVER_ROW, lever);
-        ov_frame(ATTRACT_BUTTON_COL, ATTRACT_BUTTON_ROW, attract_states[st].a);
+        text(ATTRACT_ACTION_COL, ATTRACT_ACTION_ROW, FIXFONT_PAL_GOLD, ov_key_state(g_ov_key) == 0 ? "FLAP " : "STEER");
+        if (first) { g_ov_part = 2; return; }
+        ov_key_lever(g_ov_key);
+        ov_key_button(g_ov_key);
     }
 }
 
@@ -1208,7 +1222,7 @@ static void draw(const FlowView *v) {
         title_reset();
         g_draw_state = (int)v->state;
         g_hud_game = 0;
-        g_ov_stage = 0; g_ov_key = AO_NONE;
+        g_ov_stage = 0; g_ov_key = AO_NONE; g_ov_part = 0;
         g_rs_drawn = RS_NONE; g_rs_num = 0; g_banner_up = 0; g_cont_key = 0xFF;
         g_meter_step = METER_NONE;
 #ifdef GUMBIRDS_DEBUG_HEADER /* gmake DEBUG_HEADER=1; the normal build leaves the top rows to the HUD */
