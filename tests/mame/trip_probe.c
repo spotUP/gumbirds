@@ -19,6 +19,7 @@
 #include "gen/triphaz_tables.h"
 #include "gen/tripmeter.h"
 #include "../../src/vram_layout.h"
+#include "../../src/core/splash_view.h"
 #define G(m) (offsetof(Flow, game) + offsetof(Game, m))
 #define T(m) (offsetof(Flow, game) + offsetof(Game, trip) + offsetof(Trip, m))
 unsigned int probe[] = {
@@ -54,4 +55,9 @@ unsigned int probe[] = {
     FLIER_HALF_H16_BALLOON, FLIER_HALF_H16_NOBAL, FLIER_HALF_W, FLIER_FALLING,
     /* top edge: FLIER_CEILING_FEET_Y (83), FLIER_RIVAL_CEILING_DROP (84) */
     FLIER_CEILING_FEET_Y, FLIER_RIVAL_CEILING_DROP,
+    /* cave curves (tests/mame/trip_cave_check.lua): TripChunk.in_top (85), .in_bottom (86), .out_top (87), .out_bottom (88), .in_known (89), .out_known (90) */
+    offsetof(TripChunk, in_top), offsetof(TripChunk, in_bottom), offsetof(TripChunk, out_top), offsetof(TripChunk, out_bottom),
+    offsetof(TripChunk, in_known), offsetof(TripChunk, out_known),
+    /* death splat (tests/mame/trip_splat_check.lua): Game.trip_splat (91), Game.trip_splat_y (92), SPLASH_SURFACE_ROW (93), SPLASH_SPRITE (94), SPLASH_COUNT (95) */
+    G(trip_splat), G(trip_splat_y), SPLASH_SURFACE_ROW, SPLASH_SPRITE, SPLASH_COUNT,
 };

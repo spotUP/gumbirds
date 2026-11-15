@@ -680,19 +680,32 @@ void game_step_trip(Game *g, uint8_t input)
     step = g->trip.speed; /* the step trip_step scrolls by this frame */
     trip_step(&g->trip, &g->flier);
     tripgen_advance(&g->trip_gen, g->trip.px);
-    /* Walls first (hero: bottom rock kills, top rock bounces without gum loss), so the strip hit test below never sees the hero
-     * inside the rock; then the hazard hit (gum loss, cooldown), the push-out and bounce off the hazard, and the walls again
-     * (a push into the rock is a wall touch). TRIP_EV_HIT from a wall kill plays the hit sound like a hazard hit. */
+    /* Walls first (hero: the bottom and the top rock both kill), so the strip hit test below never sees the hero inside the
+     * rock; then the hazard hit (gum loss, cooldown), the push-out and bounce off the hazard, and the walls again (a push into
+     * the rock is a wall touch). A wall kill plays the hit sound like a hazard hit (TRIP_EV_HIT); only the bottom rock is a
+     * floor death: a roof death splats when the falling body reaches the floor line (trip_roof_fall); a mid-air gum death
+     * makes no splat. */
     {
-        unsigned ev = trip_hit_hero_walls(&g->trip, &g->trip_gen, &g->flier);
-        unsigned floor_kill = ev;   /* only the bottom rock returns TRIP_EV_HIT here */
+        unsigned side = trip_hit_hero_walls(&g->trip, &g->trip_gen, &g->flier);
+        unsigned ev = side ? TRIP_EV_HIT : 0u;
+        int floor_kill = side == TRIP_WALL_BOTTOM, roof_kill = side == TRIP_WALL_TOP;
+        int32_t lo, hi;
         ev |= trip_collide(&g->trip, &g->trip_gen, &g->flier);
         trip_hit_haz_bounce(&g->trip, &g->trip_gen, &g->flier);
-        floor_kill |= trip_hit_hero_walls(&g->trip, &g->trip_gen, &g->flier);
-        ev |= floor_kill;
+        side = trip_hit_hero_walls(&g->trip, &g->trip_gen, &g->flier);
+        if (side) ev |= TRIP_EV_HIT;
+        floor_kill |= side == TRIP_WALL_BOTTOM;
+        roof_kill |= side == TRIP_WALL_TOP;
         g->trip_events = (uint8_t)ev;
         /* a death at the floor: the bottom rock, or the kill line reached alive (DROWNED); a mid-air gum death falls on and makes no splat */
         g->trip_splat = (uint8_t)(was_alive && g->flier.state >= FLIER_FALLING && (floor_kill || g->flier.state == FLIER_DROWNED));
+        if (was_alive && g->flier.state == FLIER_FALLING && roof_kill && !floor_kill) {
+            g->trip_roof_fall = 1;   /* a roof death splats later, where the falling body reaches the floor line (owner 2026-11-15) */
+        } else if (g->trip_roof_fall) {
+            /* the floor line is the floor-death line (window hi): the first frame below it is the landing, splat placed as a floor death */
+            if (g->flier.state != FLIER_FALLING) g->trip_roof_fall = 0;
+            else if (trip_hit_window(&g->trip, &g->trip_gen, &g->flier, &lo, &hi) && g->flier.y > hi) g->trip_splat = 1, g->trip_roof_fall = 0;
+        }
         g->trip_splat_y = (int16_t)((g->flier.y + flier_half_h(&g->flier)) >> 16);
     }
     g->trip_rival_events = (uint8_t)trip_rivals_step(&g->trip_rivals, &g->trip, &g->trip_gen, &g->flier);

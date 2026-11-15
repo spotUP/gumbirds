@@ -385,6 +385,56 @@ int main(void) {
         CHECK(hit_by_haz >= 1);                     /* the hit came from a hazard box, not only a strip */
     }
 
+    /* SPLAT-Y / ROOF-SPLAT: the gum splat (Game.trip_splat) starts once per death, on the floor. No input: the hero sinks onto
+     * the bottom rock and the splat starts on the death frame, on its feet line, low on screen. Flap every 4th frame: the hero
+     * rises into the roof rock, which kills (TRIP_EV_HIT) with no splat on the kill frame; the splat starts on the frame the
+     * falling body first passes the floor-death line (trip_hit_window hi, owner 2026-11-15), placed like a floor death. */
+    for (int flap = 0; flap < 2; flap++) {
+        static Game g;
+        int f, splats = 0, died = 0, land_f = -1, kill_f = -1;
+        game_reset(&g, 2024);
+        game_set_mode(&g, GAME_MODE_TRIP);
+        for (f = 0; f < 3000 && !g.over; f++) {
+            int was_alive = g.flier.state < FLIER_FALLING;
+            int32_t lo, hi, y0 = g.flier.y;
+            game_step(&g, (uint8_t)(flap && !died && (f & 3) == 0 ? IN_A : 0));
+            splats += g.trip_splat;
+            if (was_alive && g.flier.state >= FLIER_FALLING) {
+                died = 1;
+                kill_f = f;
+                CHECK(g.trip_events & TRIP_EV_HIT);   /* a wall kill on both runs */
+                if (flap) CHECK(g.flier.y < ((int32_t)TRIP_START_Y << 16) && !g.trip_splat);
+                else CHECK(g.trip_splat && g.trip_splat_y > TRIP_START_Y && g.trip_splat_y == (g.flier.y + flier_half_h(&g.flier)) >> 16);
+            } else if (flap && died && land_f < 0 && trip_hit_window(&g.trip, &g.trip_gen, &g.flier, &lo, &hi) && g.flier.y > hi) {
+                land_f = f;   /* the landing frame: the body is below the floor line for the first time */
+                CHECK(y0 <= hi && g.flier.state == FLIER_FALLING);
+                CHECK(g.trip_splat && g.trip_splat_y > TRIP_START_Y && g.trip_splat_y == (g.flier.y + flier_half_h(&g.flier)) >> 16);
+            } else if (g.trip_splat) {
+                CHECK(0);     /* a splat on any other frame */
+            }
+        }
+        CHECK(died && g.over);
+        CHECK(splats == 1);
+        CHECK(flap ? land_f > kill_f : land_f < 0);
+    }
+
+    /* The kill line reached alive (DROWNED) is a floor death too: the splat starts on that frame, on the feet line. The kill
+     * line is moved up just above the feet, so this step reaches it before any rock. */
+    {
+        static Game g;
+        int f;
+        game_reset(&g, 2024);
+        game_set_mode(&g, GAME_MODE_TRIP);
+        for (f = 0; f < 3000 && !game_trip_ready(&g); f++) game_step(&g, 0);
+        for (f = 0; f < 5; f++) { game_step(&g, 0); CHECK(!g.trip_splat); }
+        CHECK(g.flier.state == FLIER_ALIVE);
+        g.flier.kill_y = g.flier.y + flier_half_h(&g.flier) - FL_PX(4);   /* above the feet: reached this step whatever vy is */
+        game_step(&g, 0);
+        CHECK(g.flier.state == FLIER_DROWNED && !(g.trip_events & TRIP_EV_HIT));
+        CHECK(g.trip_splat && g.trip_splat_y == (g.flier.y + flier_half_h(&g.flier)) >> 16);
+        game_step(&g, 0);
+        CHECK(!g.trip_splat);
+    }
     printf("DIGEST %u\n", (unsigned)digest);
     printf("trip: %d checks, %d failures\n", checks, failures);
     return failures ? 1 : 0;

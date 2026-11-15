@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
+#include "../../src/core/trip_cave.h"
 #include "../../src/core/trip_hit.h"
 
 static int checks, failures;
@@ -101,6 +102,21 @@ static void test_strips(void) {
     CHECK(!(trip_collide(&t, &g, &f) & TRIP_EV_HIT));
     fresh(&t, &f, 0, 20); t.px = TRIP_CHUNK_PX + 1;              /* box 191..195 touches the last column 191 */
     CHECK(trip_collide(&t, &g, &f) & TRIP_EV_HIT);
+}
+
+/* Eased curves (2026-11-15): the rock edge follows the drawn curve per 16 px column. Inside the visible rock dies, just outside
+ * lives, where the flat window rule would say the other thing. Box half height 6, half width 2 (one column). */
+static void test_curve(void) {
+    TripGen g; Trip t; Flier f;
+    one_chunk(&g); g.ring[0].win_top = 40; g.ring[0].win_bottom = 140;
+    g.ring[0].in_known = 1; g.ring[0].in_top = 40; g.ring[0].in_bottom = 172;     /* floor rises 32 px into this chunk: S32 */
+    g.ring[0].out_known = 1; g.ring[0].out_top = 24; g.ring[0].out_bottom = 140;  /* roof rises 16 px into the next: S16 mirrored */
+    CHECK(trip_cave_edge(&g.ring[0], 1, 0) == 150 && trip_cave_edge(&g.ring[0], 10, 1) == 36);
+    fresh(&t, &f, 24, 143); CHECK(!(trip_collide(&t, &g, &f) & TRIP_EV_HIT));    /* box bottom 149, curve rock from 150 */
+    fresh(&t, &f, 24, 144); CHECK(trip_collide(&t, &g, &f) & TRIP_EV_HIT);
+    fresh(&t, &f, 168, 42); CHECK(!(trip_collide(&t, &g, &f) & TRIP_EV_HIT));   /* box top 36, curve rock down to 35 */
+    fresh(&t, &f, 168, 41); CHECK(trip_collide(&t, &g, &f) & TRIP_EV_HIT);
+    fresh(&t, &f, 100, 45); CHECK(trip_collide(&t, &g, &f) & TRIP_EV_HIT);      /* flat column between: window rule */
 }
 
 static void test_pickup_once(void) {
@@ -269,7 +285,9 @@ static void test_long_run(uint32_t seed, uint32_t *tot_pick, uint32_t *tot_hit, 
             ll wx0 = (ll)t.px + fx - FLIER_HALF_W, wx1 = (ll)t.px + fx + FLIER_HALF_W;
             ll cx0 = c->wx, cx1 = (ll)c->wx + TRIP_CHUNK_PX - 1;
             if (wx1 >= cx0 && wx0 <= cx1) {
-                if (fy - fh <= c->win_top - 1 || fy + fh >= c->win_bottom) exp_strip = 1;
+                int top = -32768, bot = 32767;   /* rock edges of the 16 px columns the box covers (curves included) */
+                trip_cave_span(c, (int)(wx0 - cx0), (int)(wx1 - cx0), &top, &bot);
+                if (fy - fh <= top - 1 || fy + fh >= bot) exp_strip = 1;
             }
             for (k = 0; k < c->n_haz; k++) {
                 ll hx = (ll)c->wx + c->haz[k].x;
@@ -465,8 +483,11 @@ static void test_window_long(uint32_t seed) {
         for (i = 0; i < g.count; i++, s = (s + 1) % TRIP_GEN_RING) {
             const TripChunk *c = &g.ring[s];
             long wx0 = (long)t.px + fx - FLIER_HALF_W, wx1 = (long)t.px + fx + FLIER_HALF_W;
-            if (wx1 >= (long)c->wx && wx0 <= (long)c->wx + TRIP_CHUNK_PX - 1)
-                if (fy - fh <= c->win_top - 1 || fy + fh >= c->win_bottom) bad++;
+            if (wx1 >= (long)c->wx && wx0 <= (long)c->wx + TRIP_CHUNK_PX - 1) {
+                int top = -32768, bot = 32767;
+                trip_cave_span(c, (int)(wx0 - (long)c->wx), (int)(wx1 - (long)c->wx), &top, &bot);
+                if (fy - fh <= top - 1 || fy + fh >= bot) bad++;
+            }
         }
     }
     CHECK(empty == 0);
@@ -479,6 +500,7 @@ int main(void) {
     test_haz_edges();
     test_sweep();
     test_strips();
+    test_curve();
     test_pickup_once();
     test_invincible();
     test_landing();

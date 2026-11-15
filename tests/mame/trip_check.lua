@@ -9,8 +9,8 @@
 --   T5. zero PLAYING frames without a game step (g_frame_counter advances by 1 and Trip.steps by 1), main loop parked at vblank;
 --   T6. the frame logic ends before the visible lines end (write of g_frame_counter, lines after vblank end < 224);
 --   T7. (step V2) kill strips: the visible strip sprites (slots TRIP_STRIP_SPRITE.., 22 floor then 22 ceiling) are exactly the 16 px
---       world columns on screen at the scroll, at x = 16 j - px, floor from win_bottom to the screen bottom, ceiling up to win_top,
---       their tiles are tripstrip tiles (rim animated, fill not, palette TRIPSTRIP_PAL_SLOT, flips by column), all hidden in the
+--       world columns on screen at the scroll, at x = 16 j - px, floor from its column's cave piece top to the screen bottom,
+--       ceiling up to its piece bottom, their tiles follow the cave art (tests/mame/trip_cave_check.lua), all hidden in the
 --       run-start hold, the LSPC auto-animation speed register reads 5 ticks, and the draw counter g_trip_strip_draws advances.
 -- Reports the max VRAM data words per frame. Ends PASS/FAIL with the numbers.
 -- Env: BRAWL_FLOW_ADDR, BRAWL_FRAME_ADDR, BRAWL_CAM_ADDR, BRAWL_CAM_SIZE (hex), BRAWL_FLIER_LAYOUT, BRAWL_TRIP_LAYOUT, BRAWL_RIVAL_LAYOUT, BRAWL_RESULT.
@@ -53,7 +53,6 @@ local STRIPDRAWS_ADDR = tonumber(os.getenv("BRAWL_STRIPDRAWS_ADDR"), 16)   -- g_
 local MAX_HOLD = 3
 local MODE_TRIP = 1
 local MIN_PLAYING = 400
-SPLASH_T = { live = 0 }   -- Gum Trip floor death gum splat check (phase done)
 local MAX_MISSED = 0
 local mem    = manager.machine.devices[":maincpu"].spaces["program"]
 local screen = manager.machine.screens[":screen"]
@@ -197,6 +196,8 @@ local draws0, arena0, draws1, arena1
 local want_prev, strip_prev, strip_prev_px
 local strip0, strip1
 local function s16(v) return v >= 0x8000 and v - 0x10000 or v end
+dofile(debug.getinfo(1, "S").source:sub(2):gsub("[^/]*$", "") .. "trip_cave_check.lua"); CAVE.init(tlay, mem, s16, CHUNK_PX)
+dofile(debug.getinfo(1, "S").source:sub(2):gsub("[^/]*$", "") .. "trip_splat_check.lua"); SPLAT.init(mem, flow_addr, flay, tlay, vram, abtn)
 -- Expected state of the island sprite slots (0..ISLAND_COUNT-1) from the core state in RAM: a table slot -> {x, y} for every
 -- generated island column that is on screen at scroll px, nothing for the others.
 local function island_expect(px)
@@ -219,18 +220,22 @@ local function island_expect(px)
 end
 
 -- Kill strip expectation (an independent restatement of the spec, not the core code): for every 16 px world column j inside a live
--- chunk and on screen (x = 16 j - px in -15..319): floor rows (224 - win_bottom + 15) // 16 from y win_bottom, ceiling rows
--- (win_top + 15) // 16 ending at y win_top. Keyed "side x y rows", counted as a multiset.
+-- chunk and on screen (x = 16 j - px in -15..319), with its cave piece (CAVE.piece, top y0, kind rows): floor rows
+-- (224 - y0 + 15) // 16 from y y0, ceiling rows (e + 15) // 16 ending at the piece bottom e. Keyed "side x y rows", a multiset.
 local function strip_expect(px)
   local want, n = {}, 0
   if mem:read_u32(flow_addr + R_NEXTWX) < px + SCREEN_W then return want, px end
   local head, count = mem:read_u8(flow_addr + R_HEAD), mem:read_u8(flow_addr + R_COUNT)
   for k = 0, count - 1 do
     local base = flow_addr + R_RING + ((head + k) % RING) * R_CSIZE
-    local wx, wt, wb = mem:read_u32(base + C_WX), s16(mem:read_u16(base + C_WTOP)), s16(mem:read_u16(base + C_WBOT))
+    local wx = mem:read_u32(base + C_WX)
     for j = wx // 16, (wx + CHUNK_PX) // 16 - 1 do
       local x = 16 * j - px
+      CAVE.cols[j] = { base, j - wx // 16 }
       if x > -16 and x < SCREEN_W then
+        local wb = select(3, CAVE.piece(base, j - wx // 16, false))
+        local kt, _, yt = CAVE.piece(base, j - wx // 16, true)
+        local wt = yt + 16 * (kt == 0 and 1 or kt + 1)
         local fr = wb < S_BOTTOM and math.min(14, (S_BOTTOM - math.max(wb, 0) + 15) // 16) or 0
         local cr = wt > 0 and math.min(14, (wt + 15) // 16) or 0
         if fr > 0 then local key = string.format("F %d %d %d", x, wb, fr); want[key] = (want[key] or 0) + 1 end
@@ -327,7 +332,9 @@ end
 -- Gum meter (HUD row 6, fix cells 2..6, replaces the Balloons row in Gum Trip): the five cells in the fix layer must be the table
 -- entries for the step of the gum value of the previous sample (the draw of a frame is flushed before the next sample), the cells where
 -- the Balloons text and number used to be must stay blank, and g_meter_draws must have moved once per observed step change.
-LN.meter = { checked = 0, bad = 0, first = nil, blank_bad = 0, changes = 0, steps = {}, last = nil, draws0 = nil, draws1 = 0, prev_gum = nil }
+-- gfx_commit leaves fix cells dirty when the logic frame ends past VQ_FIX_LINE_END (vram_queue.h): on the first sample after a
+-- step change the cells may still show the step before it (counted as late, printed); a second late sample is bad.
+LN.meter = { checked = 0, bad = 0, late = 0, was_late = false, first = nil, blank_bad = 0, changes = 0, steps = {}, last = nil, draws0 = nil, draws1 = 0, prev_gum = nil }
 function LN.meter_sample(playing)
   local M = LN.meter
   local gum = mem:read_u16(flow_addr + tlay[69])
@@ -335,14 +342,17 @@ function LN.meter_sample(playing)
     local g = M.prev_gum
     if g > 1024 then g = 1024 end
     local step = (g + 127) // 128                       -- independent of trip_view_meter_step: spec "ceil(gum / 128), 1024 = 8"
-    local bad
+    local bad, old
     for c = 0, tlay[71] - 1 do
       local want = (tlay[72] << 12) | mem:read_u16(METERTAB_ADDR + (step * tlay[71] + c) * 2)
       local got = vram[0x7000 + (2 + c) * 32 + 6]
       if got ~= want then bad = bad or string.format("cell %d at frame %d: got 0x%04x want 0x%04x (gum %d step %d)", c, playing, got or -1, want, g, step) end
+      if M.last and got ~= ((tlay[72] << 12) | mem:read_u16(METERTAB_ADDR + (M.last * tlay[71] + c) * 2)) then old = false end
     end
     M.checked = M.checked + 1
-    if bad then M.bad = M.bad + 1; M.first = M.first or bad end
+    local late = bad and M.last and M.last ~= step and old == nil and not M.was_late
+    if late then M.late = M.late + 1; step = M.last elseif bad then M.bad = M.bad + 1; M.first = M.first or bad end
+    M.was_late = late or false
     for c = 7, 11 do if ((vram[0x7000 + c * 32 + 6] or 255) & 0xfff) ~= 255 then M.blank_bad = M.blank_bad + 1 end end
     if M.last and step ~= M.last then M.changes = M.changes + 1 end
     M.last = step
@@ -358,8 +368,8 @@ function LN.meter_result()
   for _ in pairs(M.steps) do n = n + 1 end
   local dr = (M.draws1 - (M.draws0 or 0)) % 65536
   local ok = M.bad == 0 and M.blank_bad == 0 and M.checked >= 400 and n >= 3 and M.changes >= 2 and dr >= M.changes
-  return ok, string.format("; gum meter: frames checked %d (want >= 400), bad %d (want 0; first: %s), Balloons cells not blank %d (want 0), steps seen %d (want >= 3), step changes %d (want >= 2), draws %d (want >= changes)",
-    M.checked, M.bad, tostring(M.first), M.blank_bad, n, M.changes, dr)
+  return ok, string.format("; gum meter: frames checked %d (want >= 400), bad %d (want 0; first: %s), late by one frame %d (printed), Balloons cells not blank %d (want 0), steps seen %d (want >= 3), step changes %d (want >= 2), draws %d (want >= changes)",
+    M.checked, M.bad, tostring(M.first), M.late, M.blank_bad, n, M.changes, dr)
 end
 function LN.message(kinds)
   local parts = {}
@@ -639,8 +649,6 @@ end
 
 local strip_checked, strip_vis, strip_bad, strip_first, strip_hold_vis, tile_bad, tile_first, speed_bad, speed_first = 0, 0, 0, nil, 0, 0, nil, 0, nil
 STRIP_X = { bad = 0, ok = 0 }  -- global: the main chunk is at the 200 local limit;  -- visible strip sprites off / on the world column grid
-local rim_group = {}   -- rim role (A: j&3 is 0 or 3, B: 1 or 2) -> tile group (tile & ~7) seen first, later ones must match
-local fill_tile = nil
 local strip_started, strip_settle = false, 0   -- frames between the course being ready and the first visible strip column
 local MAX_SETTLE = 4
 -- Compares the strip sprites in the VRAM shadow with the expectation; also checks each visible sprite's tiles.
@@ -660,24 +668,7 @@ local function strip_compare(want, wpx)
       strip_vis = strip_vis + 1
       local j = (x + wpx) // 16
       if (x + wpx) & 15 ~= 0 then STRIP_X.bad = STRIP_X.bad + 1 else STRIP_X.ok = STRIP_X.ok + 1 end   -- a visible column sits on a 16 px world grid at the current scroll
-      local m = j & 3
-      local role = (m == 0 or m == 3) and "A" or "B"
-      for r = 0, rows - 1 do
-        local tile, attr = vram[(S_SPRITE + i) * 64 + r * 2] or 0, vram[(S_SPRITE + i) * 64 + r * 2 + 1] or 0
-        local is_rim = (not ceiling and r == 0) or (ceiling and r == rows - 1)
-        local bad = tile < S_BASE or tile >= S_BASE + S_TILES or (attr >> 8) ~= S_PAL or ((attr >> 1) & 1) ~= (ceiling and 1 or 0)
-        if is_rim then
-          bad = bad or (attr & 0x08) == 0 or (attr & 1) ~= (m & 1)
-          local grp = tile & ~7
-          if rim_group[role] == nil then rim_group[role] = grp end
-          bad = bad or rim_group[role] ~= grp
-        else
-          bad = bad or (attr & 0x08) ~= 0
-          fill_tile = fill_tile or tile
-          bad = bad or tile ~= fill_tile
-        end
-        if bad then tile_bad = tile_bad + 1; tile_first = tile_first or string.format("sprite %d row %d tile %d attr 0x%04x", i, r, tile, attr) end
-      end
+      CAVE.tiles(vram, S_SPRITE + i, rows, ceiling, j)
     end
   end
   if next(got) == nil and not strip_started and next(want) ~= nil then strip_settle = strip_settle + 1; return end   -- still loading after the course became ready
@@ -831,22 +822,11 @@ emu.register_frame_done(function() local ok_, err_ = pcall(function()
     -- hazards only start after TRIP_DENSITY_START_PX (600) of distance, so play on until 60 hazard sightings are compared (or 1700 frames)
     if playing >= MIN_PLAYING + 100 and ((hz_vis >= 60 and HZ.rv.pop_ok ~= nil) or playing >= 1700) then phase = "done" end
   end
-  if phase == "done" and not SPLASH_T.over then
-    -- Gum Trip floor death starts the gum splat in SPLASH_SPRITE 113..115 (src/main.c: Game.trip_splat), 12 frames x 4 ticks, then hidden again
-    if SPLASH_T.k == nil then
-      if state ~= 3 then finish(false, "trip splash check: not PLAYING when the floor death was due") return end
-      mem:write_u32(flow_addr + O_FY, 215 * 65536); mem:write_u32(flow_addr + flay[9], 0)   -- below the lowest kill line (HAZARD_KILL_WATER 208)
-      SPLASH_T.k = 0
-    end
-    SPLASH_T.k = SPLASH_T.k + 1
-    if SPLASH_T.k >= 4 and mem:read_u8(flow_addr + flay[10]) ~= 3 and SPLASH_T.k < 8 then finish(false, "trip splash check: flier not DROWNED after the poke below the kill line") return end
-    for s_ = 113, 115 do if ((vram[0x8200 + s_] or 0) & 0x3f) ~= 0 then SPLASH_T.live = SPLASH_T.live + 1 end end
-    if SPLASH_T.k == 70 then SPLASH_T.late = SPLASH_T.live end
-    if SPLASH_T.k >= 75 then
-      if SPLASH_T.live == 0 then finish(false, "no gum splat sprite went live after a Gum Trip floor death (want a splat in SPLASH_SPRITE 113..115)") return end
-      if SPLASH_T.live ~= SPLASH_T.late then finish(false, string.format("the gum splat was still live after 70 frames (live at 70: %d, at 75: %d; want hidden after 12 x 4 ticks)", SPLASH_T.late, SPLASH_T.live)) return end
-      SPLASH_T.over = true
-    end
+  if phase == "done" and not SPLAT.over then
+    -- Gum Trip death splat (tests/mame/trip_splat_check.lua): a floor or roof death shows the splat on the floor
+    if SPLAT.k == nil and state ~= 3 then finish(false, "trip splat check: not PLAYING when the death was due") return end
+    SPLAT.err = SPLAT.step()
+    if SPLAT.err then finish(false, SPLAT.err) return end
     return
   end
   if phase == "done" then
@@ -873,17 +853,17 @@ emu.register_frame_done(function() local ok_, err_ = pcall(function()
     print("TRIP_LINES " .. ln_msg)
     local mt_ok, mt_msg = LN.meter_result()
     local rv_ok, rv_msg = HZ.rv.result()
-    local function finish(ok, msg) base_finish(ok and pk_ok and hz_ok and mt_ok and rv_ok and PF.ok(), msg .. pk_msg .. hz_msg .. mt_msg .. rv_msg .. ln_msg .. PF.report()) end
+    local function finish(ok, msg) base_finish(ok and pk_ok and hz_ok and mt_ok and rv_ok and PF.ok(), msg .. pk_msg .. hz_msg .. mt_msg .. rv_msg .. ln_msg .. SPLAT.msg .. PF.report()) end
     local travel_ok = math.abs(cam_total - dist_total / 65536) <= 1.5
     local ok = mode_bad == 0 and grow_bad == 0 and ramp_bad == 0 and cam_bad == 0 and max_still <= 1 and travel_ok
       and off_screen == 0 and missed <= MAX_MISSED and steps_bad == 0 and logic_end < 224 and playing >= MIN_PLAYING
       and hold_bad == 0 and hold_frames >= 1 and hold_frames <= MAX_HOLD
-      and strip_bad == 0 and STRIP_X.bad == 0 and STRIP_X.ok > 0 and strip_settle <= MAX_SETTLE and strip_checked >= 400 and strip_vis >= 4000 and tile_bad == 0 and strip_hold_vis == 0 and speed_bad == 0 and (strip1 - strip0) % 65536 >= 100 and isl_bad == 0 and isl_vis >= 20 and (draws1 - draws0) % 65536 >= 100 and arena1 == arena0
+      and strip_bad == 0 and STRIP_X.bad == 0 and STRIP_X.ok > 0 and strip_settle <= MAX_SETTLE and strip_checked >= 400 and strip_vis >= 4000 and tile_bad + CAVE.bad == 0 and CAVE.flat_rows > 1000 and CAVE.curve_cols > 0 and strip_hold_vis == 0 and speed_bad == 0 and (strip1 - strip0) % 65536 >= 100 and isl_bad == 0 and isl_vis >= 20 and (draws1 - draws0) % 65536 >= 100 and arena1 == arena0
     finish(ok, string.format("trip: PLAYING frames %d, mode not TRIP %d (want 0), distance growth outside speed %d (want 0, first: %s), first growth %s (want %d..%d) or a falling growth: %d of %d bad (want 0), camera step >1: %d (first: %s), longest still camera run %d (want <= 1), camera travel %d vs distance %.1f px, flier screen x %d..%d (want 0..%d), off screen %d (first: %s), frames without a game step %d (want %d), Trip.steps off %d (want 0), logic end max %.1f lines after vblank end (want < 224; hold max %.1f at %s; first %d frames after ready max %.1f at %s; steady max %.1f at %s), hold frames %d (want 1..%d, nothing moved but one chunk built: bad %d, want 0), max VRAM data words per frame %d, vblank %.0f lines, island slots checked %d (generated island columns expected on screen: %d, want >= 20), bad %d (want 0; first: %s), g_island_trip_draws +%d (want >= 100), g_island_draws +%d (arena island code, want 0), kill strips: frames compared %d, frames from ready to the first visible column %d (want <= %d), visible strip columns seen %d (want >= 4000), frames whose columns differ from the spec %d (want 0; first: %s), tile errors %d (want 0; first: %s), strip sprites visible in the hold %d (want 0), auto-animation speed errors %d (want 0; first: %s; register reads %s, want %d), g_trip_strip_draws +%d (want >= 100)",
       playing, mode_bad, grow_bad, tostring(first_grow), tostring(first_g), SPEED_MIN, SPEED_MIN + 64, ramp_bad, ramp_checked, cam_bad, tostring(first_cam), max_still,
       cam_total, dist_total / 65536, min_sx, max_sx, SCREEN_W - 1, off_screen, tostring(first_off), missed, MAX_MISSED, steps_bad, logic_end, cat_max.hold, tostring(cat_at.hold), EARLY_FRAMES, cat_max.early, tostring(cat_at.early), cat_max.steady, tostring(cat_at.steady), hold_frames, MAX_HOLD, hold_bad, max_words, VB_LEN_S / LINE_S,
       isl_checked, isl_vis, isl_bad, tostring(isl_first), (draws1 - draws0) % 65536, (arena1 - arena0) % 65536,
-      strip_checked, strip_settle, MAX_SETTLE, strip_vis, strip_bad, tostring(strip_first), tile_bad, tostring(tile_first), strip_hold_vis, speed_bad, tostring(speed_first), lspc_mode and ((lspc_mode >> 8) + 1) or "nil", S_STEP, (strip1 - strip0) % 65536))
+      strip_checked, strip_settle, MAX_SETTLE, strip_vis, strip_bad, tostring(strip_first), tile_bad + CAVE.bad, tostring(tile_first or CAVE.first) .. string.format(" (cave: flat fade rows %d, curve columns %d)", CAVE.flat_rows, CAVE.curve_cols), strip_hold_vis, speed_bad, tostring(speed_first), lspc_mode and ((lspc_mode >> 8) + 1) or "nil", S_STEP, (strip1 - strip0) % 65536))
   end
 end) if not ok_ then print('LUAERR ' .. tostring(err_)); finish(false, 'lua error: ' .. tostring(err_)) end end)
 

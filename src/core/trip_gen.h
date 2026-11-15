@@ -33,6 +33,8 @@
 #define TRIP_GEN_RING      5     /* chunks held: screen 320 + ahead 96 + two partial chunks fits 4; one spare */
 #define TRIP_GEN_MAX_HAZ   3     /* hazards per chunk; TRIP_DENSITY_MAX must not exceed it and TRIP_SLOTS - 1 */
 #define TRIP_GEN_WORLD_H   180   /* FLIER_WORLD_H */
+#define TRIP_CAVE_GRID     16    /* window edges sit on the 16 px tile grid (cave art, owner decision 2026-11-15) */
+#define TRIP_CAVE_STEP_MAX 32    /* an edge moves at most one S32 curve between chunks */
 #define TRIP_HAZ_X_GAP     8     /* clear px between a hazard box and its slot border pair (4 each side) */
 #define TRIP_ISLAND_W_MIN  64    /* generated island widths are 64, 80, 96 (the art has 64/80/96/112) */
 #define TRIP_PICKUP_HALF   12    /* pickup A 24 x 24 */
@@ -73,6 +75,11 @@ typedef struct {
     TripGenHazard haz[TRIP_GEN_MAX_HAZ];
     TripGenIsland island;
     TripGenPickup pickup;
+    /* cave edges (src/core/trip_cave.c): the window of the chunk before and after. A curve is drawn on the side of a chunk
+     * boundary whose window is narrower at that edge, so its rock never reaches into a window. */
+    int16_t in_top, in_bottom;       /* window of the previous chunk (in_known 0 for chunk 0: no curve at the start) */
+    int16_t out_top, out_bottom;     /* window of the next chunk, written when the next chunk is generated */
+    uint8_t in_known, out_known;
 } TripChunk;
 
 typedef struct {
@@ -83,6 +90,7 @@ typedef struct {
     uint32_t pk_chunk;               /* chunk of the next pickup */
     uint8_t pk_slot;                 /* slot of the next pickup */
     int16_t prev_band_top, prev_band_bottom, prev_centre;
+    int16_t prev_top, prev_bottom;   /* window of the previous chunk */
     int16_t prev_isl_end, prev_isl_y;  /* island of the previous chunk: right edge relative to its chunk start (0 = none) and top edge */
     uint32_t overflow;               /* chunks that were needed but did not fit the ring (must stay 0) */
     uint32_t made;                   /* sentinel: chunks generated */

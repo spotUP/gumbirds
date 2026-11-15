@@ -64,8 +64,9 @@ int trip_hit_clamp_window_from(const Trip *t, const TripGen *g, Flier *f, int32_
 /* Hero against the tunnel walls (user decision 2026-11-11), for an ALIVE hero before and after the hazard push:
  * trip_hit_wall_touch: TRIP_WALL_TOP when the centre is above the window line (gum top 31 px under the rock row win_top),
  * TRIP_WALL_BOTTOM when it is below the lowest line (body box on the last clear row), else 0 (also 0 for FALLING and later).
- * trip_hit_hero_walls: bottom touch kills at once (trip_wall_kill, returns TRIP_EV_HIT, no clamp, no bounce); top touch
- * clamps to the line and reflects vy (flier_reflect), no gum loss. Rivals keep the bounce on both walls through
+ * trip_hit_hero_walls: a top or bottom touch kills at once (trip_wall_kill, no clamp, no bounce, owner 2026-11-15) and
+ * returns the touched side (TRIP_WALL_TOP / TRIP_WALL_BOTTOM; 0 when nothing killed): only the bottom side is a floor death
+ * with the gum splat on the death frame (Game.trip_splat; a roof death splats later, on the floor). Rivals keep the bounce on both walls through
  * trip_hit_clamp_window_from. Call it before trip_collide, so the strip hit test never sees the hero inside the rock. */
 #define TRIP_WALL_TOP    1
 #define TRIP_WALL_BOTTOM 2

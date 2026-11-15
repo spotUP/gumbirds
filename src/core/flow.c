@@ -1,4 +1,5 @@
 #include "flow.h"
+#include "trip_hit.h"
 
 static void enter(Flow *f, FlowState s)
 {
@@ -71,12 +72,15 @@ static int ranks(const Flow *f, uint32_t score)
 }
 
 /* Scripted demo input: hover. Flap (press edge: release the frame after a press; and the flap cooldown is over) whenever the flier is
- * below DEMO_HOVER_Y, sweep right and left, switching every DEMO_SWEEP_FRAMES frames of the demo. */
+ * below DEMO_HOVER_Y, sweep right and left, switching every DEMO_SWEEP_FRAMES frames of the demo. In Gum Trip the roof kills
+ * (2026-11-15) and the window moves, so the flier hovers at the middle of the cave window it is in instead. */
 static uint8_t demo_input(Flow *f)
 {
     const Flier *fl = &f->game.flier;
+    int32_t hover = FL_PX(DEMO_HOVER_Y), lo, hi;
     uint8_t in = 0;
-    if (!fl->flap_prev && fl->flap_cd == 0 && fl->y > FL_PX(DEMO_HOVER_Y)) {
+    if (f->game.mode == GAME_MODE_TRIP && trip_hit_window(&f->game.trip, &f->game.trip_gen, fl, &lo, &hi)) hover = lo + ((hi - lo) >> 1);
+    if (!fl->flap_prev && fl->flap_cd == 0 && fl->y > hover) {
         in |= IN_A;
     }
     in |= ((f->timer / DEMO_SWEEP_FRAMES) & 1u) ? IN_LEFT : IN_RIGHT;

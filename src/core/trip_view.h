@@ -87,22 +87,40 @@ const TripChunk *trip_view_ring_chunk(const TripGen *g, int r, int ready);
  * (x <= -16 or x >= 320) or the chunk has no island. No wrap. */
 int trip_view_island_col_x(const TripChunk *c, int col, uint32_t scroll_px);
 
-/* Kill strip view (step V2). A ring of TRIP_VIEW_STRIP_COLS columns of 16 px per strip (floor and ceiling) follows the camera; a
- * column holds world column j = world x / 16. The art is a vertical sequence of cells: a rim cell next to the window, fill beyond.
- * The rim repeats every 4 columns (64 px): roles A B B A with horizontal flips 0 1 0 1; the ceiling is the floor flipped vertically.
- * Fill cells flip horizontally in a checkerboard of (column + row). Floor strips run from win_bottom to the screen bottom
- * (TRIP_VIEW_STRIP_BOTTOM), ceiling strips from the screen top to win_top. */
+/* Kill strip view (step V2, cave art 2026-11-15). A ring of TRIP_VIEW_STRIP_COLS columns of 16 px per strip (floor and ceiling)
+ * follows the camera; a column holds world column j = world x / 16. A column is a vertical sequence of cells: the piece next to the
+ * window (trip_cave_piece: flat lip / rim, or one column of an eased S16 / S32 curve), then the fade away from the window: flat
+ * floor 1 fill row, fade A, fade B, solid gum; flat roof fade A, fade B, black; curves the sloped fade of trip_cave_fade.h. Floor strips run from the piece top to the screen bottom (TRIP_VIEW_STRIP_BOTTOM), ceiling strips
+ * from the screen top to the piece bottom. The ceiling is its own slate art, never the floor flipped.
+ * role = anim of assets/tripstrip/tripstrip_sheet.json (TRIPSTRIP_ANIM_*), frame = frame inside the anim, cell = tile inside it. */
 #define TRIP_VIEW_STRIP_BOTTOM   224
 #define TRIP_VIEW_STRIP_MAX_ROWS 14   /* 224 / 16 */
-#define TRIP_STRIP_FILL 0
-#define TRIP_STRIP_RIM_A 1
-#define TRIP_STRIP_RIM_B 2
+#define TRIP_STRIP_FILL   0   /* floor gum fill */
+#define TRIP_STRIP_LIP    1   /* floor lip, 4 anims by world column & 3 (1..4) */
+#define TRIP_STRIP_FS16   5   /* floor curve S16 */
+#define TRIP_STRIP_FS32   6   /* floor curve S32 */
+#define TRIP_STRIP_ROOF   7   /* ceiling slate, frames below */
+#define TRIP_STRIP_FLOOR_FADE 8   /* floor fade, frames below */
+#define TRIP_ROOF_FILL  0
+#define TRIP_ROOF_RIM_A 1
+#define TRIP_ROOF_RIM_B 2
+#define TRIP_ROOF_S16   4
+#define TRIP_ROOF_S32   5
+#define TRIP_ROOF_FADE_A 6
+#define TRIP_ROOF_FADE_B 7
+#define TRIP_ROOF_BLACK  8
+#define TRIP_ROOF_SLOPED 9   /* cell n = sloped roof fade tile n */
+#define TRIP_FLOOR_FADE_A 0
+#define TRIP_FLOOR_FADE_B 1
+#define TRIP_FLOOR_SOLID  2
+#define TRIP_FLOOR_SLOPED 3  /* cell n = sloped floor fade tile n */
 #define TRIP_STRIP_HFLIP 1
-#define TRIP_STRIP_VFLIP 2
-typedef struct { uint8_t role, flip; } TripStripCell;
+#define TRIP_STRIP_FILL_ROWS 1   /* flat floor fill rows between lip and fade; the flat roof has none */
+typedef struct { uint8_t role, frame, cell, flip; } TripStripCell;
 
-/* The chunk that holds world column j (wx <= 16 j < wx + TRIP_CHUNK_PX) among the live ring slots, or 0 (not live, not ready). */
-const TripChunk *trip_view_strip_chunk(const TripGen *g, uint32_t j, int ready);
+/* The chunk that holds world column j (wx <= 16 j < wx + TRIP_CHUNK_PX) among the live ring slots, or 0 (not live, not ready).
+ * hint: a live chunk of g (the answer for a neighbour column) tried before the ring walk, or 0. */
+const TripChunk *trip_view_strip_chunk(const TripGen *g, uint32_t j, int ready, const TripChunk *hint);
 /* Cells of column j of the floor (ceiling 0) or ceiling (1) strip of chunk c, top row first. Returns the row count (0 hides the
  * column) and sets *top to the screen y of the first row (may be negative). */
 int trip_view_strip_column(const TripChunk *c, uint32_t j, int ceiling, TripStripCell *cells, int *top);

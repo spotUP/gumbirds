@@ -1,6 +1,8 @@
 #include "trip_view.h"
+#include "trip_cave_fade.h"
 #include "trip_hit.h"
 #include "camera.h"
+#include "trip_cave.h"
 
 int trip_view_screen_x(uint32_t wx, uint32_t scroll_px) {
     return (int)(int32_t)(wx - scroll_px);
@@ -160,33 +162,80 @@ int trip_view_island_col_x(const TripChunk *c, int col, uint32_t scroll_px) {
     return (sx > -16 && sx < TRIP_VIEW_SCREEN_W) ? sx : CAMERA_COL_HIDDEN;
 }
 
-const TripChunk *trip_view_strip_chunk(const TripGen *g, uint32_t j, int ready) {
+const TripChunk *trip_view_strip_chunk(const TripGen *g, uint32_t j, int ready, const TripChunk *hint) {
     uint32_t wx = j << 4;
     int r;
-    for (r = 0; r < TRIP_GEN_RING; r++) {
-        const TripChunk *ch = trip_view_ring_chunk(g, r, ready);
-        if (ch && wx >= ch->wx && wx - ch->wx < TRIP_CHUNK_PX) return ch;
+    /* the strip scan asks for 22 neighbour columns in one frame: the ring walk for each cost ~17 lines on chunk frames (test-trip stall) */
+    for (r = hint && ready ? -1 : 0; r < TRIP_GEN_RING; r++) {
+        const TripChunk *ch = r < 0 ? hint : trip_view_ring_chunk(g, r, ready);
+        /* trailing curve columns wait until the next chunk's window is known */
+        if (ch && wx >= ch->wx && wx - ch->wx < TRIP_CHUNK_PX)
+            return (wx - ch->wx >= 16 * (TRIP_CAVE_COLS - TRIP_CAVE_CURVE_COLS) && !ch->out_known) ? 0 : ch;
     }
     return 0;
 }
 
-int trip_view_strip_column(const TripChunk *c, uint32_t j, int ceiling, TripStripCell *cells, int *top) {
-    int rows, i, m = (int)(j & 3), vf = ceiling ? TRIP_STRIP_VFLIP : 0;
-    TripStripCell rim;
-    rim.role = (m == 0 || m == 3) ? TRIP_STRIP_RIM_A : TRIP_STRIP_RIM_B;
-    rim.flip = (uint8_t)(((m & 1) ? TRIP_STRIP_HFLIP : 0) | vf);
+/* Fade cell d rows past a flat piece (0 = first row past it). Floor: TRIP_STRIP_FILL_ROWS fill rows, fade A, fade B, solid gum.
+ * Roof: fade A, fade B, black. Fade A/B cells follow world column j (floor 2 cells, roof 4), as the flat fade draft places them. */
+static void flat_fade(TripStripCell *e, int d, uint32_t j, int ceiling) {
+    e->frame = 0; e->cell = 0; e->flip = 0;
     if (ceiling) {
-        rows = c->win_top > 0 ? (c->win_top + 15) >> 4 : 0;
+        e->role = TRIP_STRIP_ROOF;
+        e->frame = d == 0 ? TRIP_ROOF_FADE_A : d == 1 ? TRIP_ROOF_FADE_B : TRIP_ROOF_BLACK;
+        if (d < 2) e->cell = (uint8_t)(j & 3);
+    } else if (d < TRIP_STRIP_FILL_ROWS) e->role = TRIP_STRIP_FILL;
+    else {
+        d -= TRIP_STRIP_FILL_ROWS;
+        e->role = TRIP_STRIP_FLOOR_FADE;
+        e->frame = d == 0 ? TRIP_FLOOR_FADE_A : d == 1 ? TRIP_FLOOR_FADE_B : TRIP_FLOOR_SOLID;
+        if (d < 2) e->cell = (uint8_t)(j & 1);
+    }
+}
+
+/* Cell r rows away from the window edge of a curve piece (floor: down from the piece top, roof: up from the piece bottom), from the
+ * sloped fade lookup of trip_cave_fade.h. */
+static void curve_cell(TripStripCell *e, const TripCavePiece *p, int r, int ceiling) {
+    int prow = trip_cave_piece_rows(p->kind), k = p->kind == TRIP_CAVE_S16 ? 0 : 1;
+    int v = r < TRIP_FADE_ROWS ? (ceiling ? trip_fade_roof : trip_fade_floor)[k][p->pcol][r] : TRIP_FADE_END;
+    e->flip = p->hflip ? TRIP_STRIP_HFLIP : 0; e->frame = 0; e->cell = 0;
+    if (v == TRIP_FADE_PIECE) {
+        if (ceiling) { e->role = TRIP_STRIP_ROOF; e->frame = k ? TRIP_ROOF_S32 : TRIP_ROOF_S16; e->cell = (uint8_t)(p->pcol * prow + prow - 1 - r); }
+        else { e->role = k ? TRIP_STRIP_FS32 : TRIP_STRIP_FS16; e->cell = (uint8_t)(p->pcol * prow + r); }
+    } else if (v == TRIP_FADE_FILL) e->role = TRIP_STRIP_FILL;
+    else if (v == TRIP_FADE_END) { e->flip = 0; e->role = ceiling ? TRIP_STRIP_ROOF : TRIP_STRIP_FLOOR_FADE; e->frame = ceiling ? TRIP_ROOF_BLACK : TRIP_FLOOR_SOLID; }
+    else { e->role = ceiling ? TRIP_STRIP_ROOF : TRIP_STRIP_FLOOR_FADE; e->frame = ceiling ? TRIP_ROOF_SLOPED : TRIP_FLOOR_SLOPED; e->cell = (uint8_t)v; }
+}
+
+int trip_view_strip_column(const TripChunk *c, uint32_t j, int ceiling, TripStripCell *cells, int *top) {
+    TripCavePiece p;
+    int k = (int)((j << 4) - c->wx) >> 4, prow = 0, rows, i, edge;
+    trip_cave_piece(c, k, ceiling, &p);
+    prow = trip_cave_piece_rows(p.kind);
+    if (ceiling) {
+        edge = p.y0 + 16 * prow;   /* piece bottom */
+        rows = edge > 0 ? (edge + 15) >> 4 : 0;
         if (rows > TRIP_VIEW_STRIP_MAX_ROWS) rows = TRIP_VIEW_STRIP_MAX_ROWS;
-        *top = c->win_top - (rows << 4);
-        for (i = 0; i < rows - 1; i++) { cells[i].role = TRIP_STRIP_FILL; cells[i].flip = (uint8_t)((((int)j + i) & 1) | vf); }
-        if (rows) cells[rows - 1] = rim;
+        *top = edge - (rows << 4);
+        for (i = 0; i < rows; i++) {
+            int r = rows - 1 - i;   /* rows up from the piece bottom */
+            TripStripCell *e = &cells[i];
+            if (p.kind != TRIP_CAVE_FLAT) curve_cell(e, &p, r, 1);
+            else if (r == 0) {
+                e->role = TRIP_STRIP_ROOF; e->flip = 0; e->cell = (uint8_t)(j & 3);
+                e->frame = (uint8_t)((((j >> 2) * 2654435761u) >> 31) ? TRIP_ROOF_RIM_B : TRIP_ROOF_RIM_A);
+            } else flat_fade(e, r - 1, j, 1);
+        }
     } else {
-        rows = c->win_bottom < TRIP_VIEW_STRIP_BOTTOM ? (TRIP_VIEW_STRIP_BOTTOM - (c->win_bottom > 0 ? c->win_bottom : 0) + 15) >> 4 : 0;
+        edge = p.y0;
+        rows = edge < TRIP_VIEW_STRIP_BOTTOM ? (TRIP_VIEW_STRIP_BOTTOM - (edge > 0 ? edge : 0) + 15) >> 4 : 0;
         if (rows > TRIP_VIEW_STRIP_MAX_ROWS) rows = TRIP_VIEW_STRIP_MAX_ROWS;
-        *top = c->win_bottom;
-        if (rows) cells[0] = rim;
-        for (i = 1; i < rows; i++) { cells[i].role = TRIP_STRIP_FILL; cells[i].flip = (uint8_t)((((int)j + i) & 1) | vf); }
+        *top = edge;
+        for (i = 0; i < rows; i++) {
+            TripStripCell *e = &cells[i];
+            if (p.kind != TRIP_CAVE_FLAT) curve_cell(e, &p, i, 0);
+            else if (i == 0) { e->role = (uint8_t)(TRIP_STRIP_LIP + (j & 3)); e->frame = 0; e->cell = 0; e->flip = 0; }
+            else flat_fade(e, i - 1, j, 0);
+        }
     }
     return rows;
 }

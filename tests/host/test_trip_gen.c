@@ -208,7 +208,7 @@ static void test_wp4_walls(void) {
                 need += mx;
                 CHECK(need <= gap);                      /* hazards never widen the window */
             }
-            CHECK(gap >= TRIP_GAP_MIN && gap <= TRIP_GAP_MIN + 1); /* full density: the smallest window; the integer reciprocal DENS_RECIP (85, not 85.33) leaves the base one row above MIN */
+            CHECK(gap >= TRIP_GAP_MIN && gap < TRIP_GAP_MIN + TRIP_CAVE_GRID && gap % TRIP_CAVE_GRID == 0); /* full density: the smallest window, rounded up to the 16 px art grid */
             if (!c->n_haz) { abs_len = rel_len = 0; continue; }
             /* absolute height y (flier centre) and height relative to the window top r: clear of every swept hazard box */
             if (abs_len == 0) memset(abs_ok, 1, sizeof abs_ok);
@@ -303,7 +303,7 @@ int main(void) {
         CHECK(r_start >= 1.05 && r_cap >= 1.35);   /* plan section 5: about 1.1 to 1.5 */
     }
     printf("hazards per chunk mean over sweep %.3f, dropped chunks %u of %u\n", (double)hz_sum / (1500.0 * NC), drop_chunks, all_chunks);
-    CHECK(drop_chunks * 100 <= all_chunks);       /* fallback is the rare case: under 1 percent */
+    CHECK(drop_chunks * 200 <= 3 * all_chunks);   /* fallback is the rare case: under 1.5 percent (eased cave curves need wider gaps) */
 
     /* different seeds differ */
     {
@@ -369,7 +369,7 @@ int main(void) {
         }
         (void)a; (void)b2; (void)l; (void)h;
         CHECK(g.overflow == 0);
-        CHECK(g.drops * 100 <= g.made);
+        CHECK(g.drops * 200 <= 3 * g.made);   /* under 1.5 percent: eased cave curves need wider gaps */
         CHECK((double)hs / 40000.0 > 2.5);
     }
 
