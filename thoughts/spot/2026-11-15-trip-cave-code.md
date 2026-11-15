@@ -131,3 +131,44 @@ Commit 903b4a1 "Keep scripted trip pilots clear of the killing roof" (src/core/f
 ### Unverified
 - Host suite after the merge commit.
 - Vent and cloud hazards still do not appear within the test-trip run (as before).
+
+## SPLAT-Y (2026-11-15)
+
+Owner report: in Gum Trip, a death shows the gum splat high up in the sky.
+
+### Root cause
+940a9e0 made the roof rock kill like the floor rock, but `trip_hit_hero_walls` returned `TRIP_EV_HIT` for both sides and
+`game_step_trip` used that return as `floor_kill`. A roof death therefore set `Game.trip_splat` with `trip_splat_y` = the feet
+line under the roof, and the splat played at the top of the screen while the body fell to the floor. The floor death itself
+was already right (y space is consistent: splat top = feet line - SPLASH_SURFACE_ROW, same screen rows as the hero sprite).
+
+Repro (MAME, cart at e2bf2f8, tests/mame/trip_splat_check.lua):
+- floor: feet line 156, splat sprite top 114 (+42 = 156): splat on the floor.
+- roof (BRAWL_SPLAT_CASE=roof): flier y 25, trip_splat 1, trip_splat_y 29, splat sprite top -13: splat at the roof.
+Host repro (seed 2024): floor death splat_y 159 at y 156; roof death (flap every 4th frame) splat_y 43 at y 40.
+
+### Fix
+- `trip_hit_hero_walls` returns the killed side (TRIP_WALL_TOP / TRIP_WALL_BOTTOM, 0 when nothing killed).
+- `game_step_trip`: either side sets TRIP_EV_HIT (hit sound unchanged); only TRIP_WALL_BOTTOM counts as a floor kill.
+- Roof death now shows no splat, as the Game.trip_splat spec says (only a floor death, bottom rock or kill line, splats; a
+  mid-air death falls on with no splat). The falling body does not splat when it reaches the floor (was_alive is 0 then).
+- Stale comments in trip_hit.h and game.c (top rock "bounces, no gum loss") brought in line with the roof kill.
+
+### Regression checks
+- tests/host/test_trip.c: floor run (no input) splats once on the feet line below TRIP_START_Y; roof run (flap every 4th
+  frame) dies by TRIP_EV_HIT above TRIP_START_Y with no splat on the death frame or after. Fails 2 checks on e2bf2f8.
+- tests/mame/trip_splat_check.lua (global SPLAT, loaded by trip_check.lua, no new locals there): replaces the old splash
+  phase (poke below the kill line). Floor case: poke y 150, A released, check splat live, sprite top + SURFACE_ROW = death
+  feet line (+-2), feet line > 90, hidden again by frame 75. BRAWL_SPLAT_CASE=roof: poke y 5, want no splat. trip_probe.c
+  gives indices 91..95 (trip_splat, trip_splat_y, SPLASH_SURFACE_ROW, SPLASH_SPRITE, SPLASH_COUNT).
+  Note: the old kill-line (DROWNED) splat poke is gone from test-trip; the host test covers the DROWNED path only through
+  the existing game_step_trip condition.
+
+### Gates
+- Host suite on e2bf2f8 (before the fix): all passed. Host suite with the fix: all passed (trip: 272747 checks, 0 failures).
+- Build: OK. test-trip: PASS (splat floor: feet line 156, sprite top 114; logic end max 220.3; flush max span 1970 us).
+  test-trip roof case: PASS (no splat). test-vblank: PASS. test-attract: PASS.
+
+### Open question for the owner
+Roof death display. Chosen per the spec: no splat (body falls on). Alternatives: (a) splat at the roof where the hero died;
+(b) splat when the falling body reaches the floor (needs a new "body landed" event).
