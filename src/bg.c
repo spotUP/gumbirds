@@ -108,10 +108,10 @@ static const u16 g_scb3_zero[BG_SPRITE_TOTAL];
 #define BG_MOOD_COLS_PER_FRAME 9
 
 /* Mood change fade (src/core/bg_scroll.c BgFade): the mood on screen dims to black, the tiles swap in the dark, the new mood brightens.
- * g_pal_lvl is the level each resident palette was last written at; fade_sync rewrites at most BG_FADE_PALS_PER_FRAME palettes (4 x 16
+ * g_pal_lvl is the level each resident palette was last written at; fade_sync rewrites at most BG_FADE_PALS_PER_FRAME palettes (2 x 16
  * words, plus the backdrop: under the 112 word flush limit) whose level differs from the wanted one. The mood whose palettes are the
  * visible ones (fade_vis) follows the fade level, every other set stays whole, so a set left dark by the fade is restored in the dark. */
-#define BG_FADE_PALS_PER_FRAME 4
+#define BG_FADE_PALS_PER_FRAME 2
 #define BG_PAL_TOTAL (CITY_PALETTE_COUNT + DUSK_PALETTE_COUNT + STORM_PALETTE_COUNT)
 static BgFade g_fade;
 static u8 g_pal_lvl[BG_PAL_TOTAL];
