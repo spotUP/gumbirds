@@ -332,7 +332,9 @@ end
 -- Gum meter (HUD row 6, fix cells 2..6, replaces the Balloons row in Gum Trip): the five cells in the fix layer must be the table
 -- entries for the step of the gum value of the previous sample (the draw of a frame is flushed before the next sample), the cells where
 -- the Balloons text and number used to be must stay blank, and g_meter_draws must have moved once per observed step change.
-LN.meter = { checked = 0, bad = 0, first = nil, blank_bad = 0, changes = 0, steps = {}, last = nil, draws0 = nil, draws1 = 0, prev_gum = nil }
+-- gfx_commit leaves fix cells dirty when the logic frame ends past VQ_FIX_LINE_END (vram_queue.h): on the first sample after a
+-- step change the cells may still show the step before it (counted as late, printed); a second late sample is bad.
+LN.meter = { checked = 0, bad = 0, late = 0, was_late = false, first = nil, blank_bad = 0, changes = 0, steps = {}, last = nil, draws0 = nil, draws1 = 0, prev_gum = nil }
 function LN.meter_sample(playing)
   local M = LN.meter
   local gum = mem:read_u16(flow_addr + tlay[69])
@@ -340,14 +342,17 @@ function LN.meter_sample(playing)
     local g = M.prev_gum
     if g > 1024 then g = 1024 end
     local step = (g + 127) // 128                       -- independent of trip_view_meter_step: spec "ceil(gum / 128), 1024 = 8"
-    local bad
+    local bad, old
     for c = 0, tlay[71] - 1 do
       local want = (tlay[72] << 12) | mem:read_u16(METERTAB_ADDR + (step * tlay[71] + c) * 2)
       local got = vram[0x7000 + (2 + c) * 32 + 6]
       if got ~= want then bad = bad or string.format("cell %d at frame %d: got 0x%04x want 0x%04x (gum %d step %d)", c, playing, got or -1, want, g, step) end
+      if M.last and got ~= ((tlay[72] << 12) | mem:read_u16(METERTAB_ADDR + (M.last * tlay[71] + c) * 2)) then old = false end
     end
     M.checked = M.checked + 1
-    if bad then M.bad = M.bad + 1; M.first = M.first or bad end
+    local late = bad and M.last and M.last ~= step and old == nil and not M.was_late
+    if late then M.late = M.late + 1; step = M.last elseif bad then M.bad = M.bad + 1; M.first = M.first or bad end
+    M.was_late = late or false
     for c = 7, 11 do if ((vram[0x7000 + c * 32 + 6] or 255) & 0xfff) ~= 255 then M.blank_bad = M.blank_bad + 1 end end
     if M.last and step ~= M.last then M.changes = M.changes + 1 end
     M.last = step
@@ -363,8 +368,8 @@ function LN.meter_result()
   for _ in pairs(M.steps) do n = n + 1 end
   local dr = (M.draws1 - (M.draws0 or 0)) % 65536
   local ok = M.bad == 0 and M.blank_bad == 0 and M.checked >= 400 and n >= 3 and M.changes >= 2 and dr >= M.changes
-  return ok, string.format("; gum meter: frames checked %d (want >= 400), bad %d (want 0; first: %s), Balloons cells not blank %d (want 0), steps seen %d (want >= 3), step changes %d (want >= 2), draws %d (want >= changes)",
-    M.checked, M.bad, tostring(M.first), M.blank_bad, n, M.changes, dr)
+  return ok, string.format("; gum meter: frames checked %d (want >= 400), bad %d (want 0; first: %s), late by one frame %d (printed), Balloons cells not blank %d (want 0), steps seen %d (want >= 3), step changes %d (want >= 2), draws %d (want >= changes)",
+    M.checked, M.bad, tostring(M.first), M.late, M.blank_bad, n, M.changes, dr)
 end
 function LN.message(kinds)
   local parts = {}
