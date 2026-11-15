@@ -112,6 +112,12 @@ static const u16 g_scb3_zero[BG_SPRITE_TOTAL];
  * words, plus the backdrop: under the 112 word flush limit) whose level differs from the wanted one. The mood whose palettes are the
  * visible ones (fade_vis) follows the fade level, every other set stays whole, so a set left dark by the fade is restored in the dark. */
 #define BG_FADE_PALS_PER_FRAME 2
+/* A palette here costs about 35 raster lines (16 faded words, MAME: 2 took 69 lines on the stage 9 world change frame, which also
+ * ran the stage start; logic then ended past line 224). A palette starts only before line 170 (raw LSPC 0x110 + 170), so the frame
+ * still ends in time; the levels left behind are written on the next frames (fade_sync rewrites whatever differs). */
+#define BG_FADE_LATE_RAW (0x110u + 170u)
+/* Raw lines 0x1F0 and up are the vblank the frame starts in: early, not late. */
+static u8 fade_late(void) { u16 l = VQ_RASTER_LINE(*REG_LSPCMODE); return l >= BG_FADE_LATE_RAW && l < 0x1F0u; }
 #define BG_PAL_TOTAL (CITY_PALETTE_COUNT + DUSK_PALETTE_COUNT + STORM_PALETTE_COUNT)
 static BgFade g_fade;
 static u8 g_pal_lvl[BG_PAL_TOTAL];
@@ -129,7 +135,7 @@ static u8 fade_sync(void) {
         for (u8 p = 0; p < MOOD_PAL_COUNT[m]; p++) {
             u8 i = (u8)(base + p), want = m == vis ? lvl : BG_FADE_MAX;
             if (g_pal_lvl[i] == want) continue;
-            if (written >= BG_FADE_PALS_PER_FRAME) return 0;
+            if (written >= BG_FADE_PALS_PER_FRAME || fade_late()) return 0; /* a late frame: next frame */
             for (u8 c = 0; c < 16; c++) gfx_pal((u16)((MOOD_PAL_SLOT[m] + p) * 16 + c), bg_fade_color(MOOD_PALS[m][p][c], want));
             g_pal_lvl[i] = want;
             written++;
