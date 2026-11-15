@@ -11,4 +11,5 @@ void trip_strip_init(void); /* boot: sprite size words and hidden SCB3, outside 
 /* Per frame. g 0 (not in Gum Trip) hides every strip column. ready 0 (run-start hold) keeps them hidden but queues the tiles of the
  * columns whose chunk exists, so the first ready frame only shows them. */
 void trip_strip_step(const TripGen *g, uint32_t scroll_px, int ready);
+u8 trip_strip_loaded(void); /* the last scan found every column in view loaded (the ready 0 hold has finished queueing) */
 #endif

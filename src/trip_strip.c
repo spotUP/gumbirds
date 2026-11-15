@@ -77,6 +77,8 @@ static void load(u8 slot, int ceiling, u32 j, const TripChunk *ch) {
 
 /* Tiles are queued as soon as a chunk covers a column, also in the run-start hold while the course is not ready (a full ring in one
  * frame would overflow the vram queue and stall a frame); the sprites are shown (SCB3 and SCB4 sent) only when ready. */
+u8 trip_strip_loaded(void) { return g_scan.valid; }
+
 void trip_strip_step(const TripGen *g, uint32_t scroll_px, int ready) {
     u32 j0;
     u8 moved = 0, loads = LOADS_PER_FRAME, pending = 0;

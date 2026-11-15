@@ -22,6 +22,8 @@ void hazard_round_restart(u8 kind); /* a new round: the strip is swapped for thi
 void hazard_load_palettes(void);
 void hazard_init(void);               /* hide both banks; the hardware state is unknown (video_init) */
 void hazard_trip_anim(u8 trip); /* Gum Trip pins the auto-animation speed to the strip art (5 ticks); leaving it restores the arena (island) speed. Call after island_step */
+void hazard_preload(void); /* entry hold (world hidden): loads the next strip's tiles one bank per call, hidden, so the reveal frame only places and shows it */
+u8 hazard_preloaded(void); /* both banks of the next strip loaded (or the strip runs) */
 void hazard_step(u8 match_running, int cam_px); /* per frame: starts the strip on the rise of match_running, hides it on the fall; the strip is 24 unchained columns, each placed on the ring by camera_parked_column_x, SCB4 of both banks written only when a column x changed */
 
 u8 hazard_owns_anim(void); /* a shown strip or Gum Trip owns the auto-animation speed; the island reload leaves it alone */

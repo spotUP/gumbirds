@@ -146,12 +146,13 @@ void bg_init(void) {
             g_scb3_show[i] = n ? gfx_scb3_word(n, (u16)(PLANE_TOP[p] + 16 * COL_ROW0[i])) : 0; /* 0 rows: height 0 hides the sprite */
             gfx_word((u16)(ADDR_SCB2 + slot), 0xFFF);
             column_strip(g_bg_mood, slot);
-            gfx_word((u16)(ADDR_SCB3 + slot), g_scb3_show[i]);
+            gfx_word((u16)(ADDR_SCB3 + slot), (g_hidden & (1u << p)) ? 0 : g_scb3_show[i]); /* a BIOS return inside Gum Trip keeps far and near hidden */
         }
         g_bg_plane_x[p] = 0x7FFF; /* no x written yet: the next bg_update sends all planes */
         g_last_valid = 0;
     }
-    g_want = g_bg_mood;
+    gfx_pal(4095, (g_hidden ? TRIP_BACKDROP : BACKDROP)[g_bg_mood]); /* the backdrop of the mood and planes now on screen */
+    g_want = g_bg_mood; /* a change cut short restarts on the next bg_set_mood: the planes are whole and shown meanwhile */
     g_bg_mood_busy = 0;
 }
 

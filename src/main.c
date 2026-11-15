@@ -790,7 +790,30 @@ static void edge_marker(const Game *g, int cam_px) {
 }
 
 /* The world (hero, pool, strips, islands, gum) draws in play and in the attract demo: the demo is the same game under the overlay. */
-static u8 world_shown(const FlowView *v) { return (v->state == FLOW_PLAYING || v->state == FLOW_ATTRACT_DEMO) && v->game; }
+/* Background hold (owner rule "no visible pop-in"): a mood change rewrites the 110 plane columns over about 14 frames with the
+ * planes hidden. At play or demo entry the world stays hidden and the game waits until the new mood is complete, so the first
+ * frame the player sees has the whole background. g_bg_late counts frames that show the world over an incomplete background. */
+#define BG_HOLD_FRAMES 2 /* entry frame plus the first game step, which picks the match mood (game.c match_start) */
+static u8 g_bg_hold = BG_HOLD_FRAMES;
+volatile u16 g_bg_late; /* test sentinel (tests/mame/vblank_check.lua) */
+volatile u8 g_bg_held;
+static u8 g_bg_paused; /* this frame the entry hold skipped flow_step: the frame has room for the start work below */
+/* Also waits for the hazard strip tiles (hazard_preload, about 66 lines a bank): the reveal frame then only places the strip. */
+/* Gum Trip the same way: once the course is built (game steps run the build while held), the game waits for the strip columns and
+ * island tiles (trip_strip_step ready 0, island_trip_preload), so the reveal frame only places and shows them. */
+static u8 g_trip_islands_loaded;
+static u8 bg_pending(void) {
+    u8 world = g_flow.state == FLOW_PLAYING || g_flow.state == FLOW_ATTRACT_DEMO;
+    u8 trip = world && g_flow.game.mode == GAME_MODE_TRIP;
+    return g_bg_mood_busy || g_bg_mood != g_flow.game.mood || (world && !trip && !hazard_preloaded())
+        || (trip && game_trip_ready(&g_flow.game) && !(trip_strip_loaded() && g_trip_islands_loaded));
+}
+/* Gum Trip entry: the course build steps run held (world hidden); the reveal waits for the course. */
+static u8 trip_building(void) {
+    return (g_flow.state == FLOW_PLAYING || g_flow.state == FLOW_ATTRACT_DEMO) && g_flow.game.mode == GAME_MODE_TRIP && !game_trip_ready(&g_flow.game);
+}
+static u8 world_state(const FlowView *v) { return (v->state == FLOW_PLAYING || v->state == FLOW_ATTRACT_DEMO) && v->game; }
+static u8 world_shown(const FlowView *v) { return world_state(v) && !g_bg_hold; }
 
 static void hero_and_mode(const FlowView *v) {
     if (world_shown(v)) {
@@ -1543,7 +1566,8 @@ static void game_loop(void) {
         if (a_edge && !start && g_flow.state <= FLOW_ATTRACT_DEMO && bios_user_mode == 1 && (in & FLOW_RESET_COMBO) != FLOW_RESET_COMBO && take_credit()) start = 1;
         if (g_flow.state == FLOW_PLAYING && g_flow.game.res.active && (bios_statchange & 1)) in |= IN_A; /* Start also ends the result screen */
         g_flow.credit_hold = (u8)(credits_now() > 0); /* owner rule "never force start": credits hold the PRESS START title */
-        flow_step(&g_flow, in, start, g_frame_counter);
+        g_bg_paused = g_bg_hold && bg_pending();
+        if (!g_bg_paused) flow_step(&g_flow, in, start, g_frame_counter); /* the game waits while the entry background loads */
         /* Never force start: keep the BIOS compulsion timer (BCD seconds) from running out in attract, so the BIOS never calls
          * PLAYER_START without a Start press and never takes a credit on its own. Bug fixed here: with a credit and no press,
          * UniBIOS forced a game after 30 s. Guarded by make test-unibios (d) and test-arcade-contout (A7). */
@@ -1597,13 +1621,18 @@ static void game_loop(void) {
             u8 trip = world && view.game->mode == GAME_MODE_TRIP;
             u8 trip_game = (world || view.state == FLOW_GAME_OVER) && view.game && view.game->mode == GAME_MODE_TRIP;
             hazard_step((world || view.state == FLOW_GAME_OVER) && !trip_game, g_cam_px); /* the hazard strip is the arena's floor; Gum Trip has its own */
+            if (g_bg_paused && world_state(&view) && view.game->mode != GAME_MODE_TRIP) hazard_preload(); /* the reveal frame then only places it */
             /* arcade only: elements kill, so they must be seen (worst scanline with them is checked in tests/host/test_sprite_budget.c) */
             arcade_elems_step(world && view.game->mode == GAME_MODE_ARCADE && view.game->arc.state != ARC_BONUS ? view.game : 0); /* the bonus shows no stage elements: hidden once on entry */
             arcade_bonus_step(world && view.game->mode == GAME_MODE_ARCADE && view.game->arc.state == ARC_BONUS && !view.game->res.active ? view.game : 0);
             island_step(world && !trip, g_cam_px); /* arena islands are not drawn in Gum Trip */
             /* the course (islands, kill strips, pickups) stays through Game Over like the planes and the hazard anim: all leave at the title */
             island_trip_step(trip_game ? &view.game->trip_gen : 0, trip_game ? view.game->trip.px : 0, trip_game && game_trip_ready(view.game));
-            trip_strip_step(trip_game ? &view.game->trip_gen : 0, trip_game ? view.game->trip.px : 0, trip_game && game_trip_ready(view.game));
+            {   /* entry hold: the strip queues its columns hidden (ready 0) and the islands load their tiles hidden */
+                u8 trip_held = g_bg_hold && world_state(&view) && view.game->mode == GAME_MODE_TRIP;
+                g_trip_islands_loaded = trip_held && game_trip_ready(view.game) && island_trip_preload(&view.game->trip_gen);
+                trip_strip_step((trip_game || trip_held) ? &view.game->trip_gen : 0, (trip_game || trip_held) ? view.game->trip.px : 0, trip_game && game_trip_ready(view.game));
+            }
             trip_pickup_step(trip_game ? &view.game->trip_gen : 0, trip_game ? view.game->trip.px : 0, trip_game ? view.game->trip.steps : 0, trip_game && game_trip_ready(view.game));
             /* Arena: the bubble is always full size (no gum value, no pop); Gum Trip: its gum meter. */
             u8 arena = world && (view.game->mode == GAME_MODE_ARENA || view.game->mode == GAME_MODE_ARCADE);
@@ -1618,10 +1647,19 @@ static void game_loop(void) {
             logo_step(view.state == FLOW_ATTRACT_TITLE);
             title_soot_step(view.state == FLOW_ATTRACT_TITLE);
             hazard_trip_anim(trip_game);
-            bg_trip_planes(trip_game); /* Gum Trip drops the far and near background planes; arena and title show them */
+            /* Gum Trip drops the far and near background planes; arena and title show them. Dropped already in the entry hold (world
+             * hidden): on the reveal frame it ran with the course start and wrapped past vblank. */
+            bg_trip_planes(trip_game || (g_bg_hold && world_state(&view) && view.game->mode == GAME_MODE_TRIP));
         }
-        bg_set_mood(g_flow.game.mood); /* game.c picks the mood per match and per attract loop; no-op when unchanged */
+        /* game.c picks the mood per match and per attract loop; no-op when unchanged. A mood change hides the planes for about
+         * 14 frames, so it runs only while the world is hidden (title, table, entry hold). An arena round, a demo rematch or an
+         * arcade world change in mid-run keeps the mood on screen until the next entry (owner rule "no visible pop-in"). */
+        if (!world_shown(&view)) bg_set_mood(g_flow.game.mood);
         bg_update(g_cam_unwrapped); /* the planes loop on the unwrapped camera (arena and Gum Trip alike) */
+        g_bg_held = (u8)(world_state(&view) && g_bg_hold); /* test sentinel: this frame kept the world hidden */
+        if (world_shown(&view) && g_bg_mood_busy) g_bg_late++;
+        if (!world_state(&view)) g_bg_hold = BG_HOLD_FRAMES;
+        else if (g_bg_hold && !bg_pending() && !trip_building()) g_bg_hold = g_flow.game.mode == GAME_MODE_TRIP ? 0 : g_bg_hold - 1; /* a built course: its steps picked the mood */
     world_done:
         gfx_commit();
         g_frame_counter++;

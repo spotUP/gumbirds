@@ -40,6 +40,7 @@ local LOGIC_LIMIT = 224       -- logic end must stay below the visible lines, el
 local FLUSH_BUDGET_US = 2000  -- GFX_FLUSH_BUDGET_US
 local demo_mode = {}          -- per mode (arena/trip/arcade): frames, logic end max, flush us max, vram words max, palette words max
 for _, m in ipairs({ K_ARENA or -1, K_TRIP or -2, K_ARCADE or -3 }) do demo_mode[m] = { frames = 0, lmax = 0, us = 0, vwords = 0, pwords = 0, us_late = 0, vw_late = 0, over = 0, first_over = nil, lmax_late = 0, idx_lmax = 0 } end
+local prev_held = 0
 local prev_demo_mode, demo_idx, prev_idx = nil, 0, 0   -- demo_idx: logic frame number inside the current demo
 
 local function sym_addrs()
@@ -229,12 +230,22 @@ local function frame_end(l)
     dm.frames = dm.frames + 1
     -- Demo frame 1 (match setup after the static table screen) is exempt: an overrun leaves the vblank callback
     -- unparked, gfx.c skips the flush, so the missed vblank writes no VRAM or palette and the table frame stays up.
+    -- The reveal frame (first world frame after the entry hold, src/main.c g_bg_held) is exempt the same way: the frame before it
+    -- held the world hidden over the finished background, so a missed vblank keeps that static background up one frame more.
+    local held = syms.g_bg_held and mem:read_u8(syms.g_bg_held) or 0
+    local reveal = prev_held == 1 and held == 0
+    -- A held frame with a mood change still busy is exempt too: bg.c keeps every plane hidden (SCB3 zero) until the show run
+    -- and the world is hidden, so the screen is the flat backdrop and a missed vblank shows the same picture one frame more.
+    local blank = held == 1 and syms.g_bg_mood_busy and mem:read_u8(syms.g_bg_mood_busy) == 1
     if demo_idx == 1 then dm.l1 = math.max(dm.l1 or 0, l)
+    elseif reveal then dm.lrev = math.max(dm.lrev or 0, l)
+    elseif blank then dm.lblank = math.max(dm.lblank or 0, l)
     else
       if l >= LOGIC_LIMIT then dm.over = dm.over + 1; dm.first_over = dm.first_over or demo_idx end
       if l > dm.lmax then dm.lmax = l; dm.idx_lmax = demo_idx end
     end
-    if demo_idx > 3 and l > dm.lmax_late then dm.lmax_late = l end   -- worst after the first 3 frames of a demo
+    if demo_idx > 3 and not reveal and not blank and l > dm.lmax_late then dm.lmax_late = l end   -- worst after the first 3 frames of a demo
+    prev_held = held
   end
   flush_seen = false
   local qs = stat.queue[cls]
@@ -444,9 +455,12 @@ emu.register_frame_done(function()
         local dm = demo_mode[m]
         local bad = dm.frames < DEMO_MIN_FRAMES or dm.lmax >= LOGIC_LIMIT or dm.us > FLUSH_BUDGET_US or dm.pwords > PAL_WORDS_MAX
         if bad then ok = false end
-        parts[#parts + 1] = string.format("demo %s: frames %d, logic end max %.1f at demo frame %d (limit %d; frames over %d, first at demo frame %s; max after frame 3: %.1f), flush max %d us (limit %d; after frame 3: %d), VRAM data words per frame max %d (after frame 3: %d), palette words per flush max %d (limit %d), demo frame 1 (exempt, screen held) %.1f%s",
-          name, dm.frames, dm.lmax, dm.idx_lmax, LOGIC_LIMIT, dm.over, tostring(dm.first_over), dm.lmax_late, dm.us, FLUSH_BUDGET_US, dm.us_late, dm.vwords, dm.vw_late, dm.pwords, PAL_WORDS_MAX, dm.l1 or 0, bad and " [OVER]" or "")
+        parts[#parts + 1] = string.format("demo %s: frames %d, logic end max %.1f at demo frame %d (limit %d; frames over %d, first at demo frame %s; max after frame 3: %.1f), flush max %d us (limit %d; after frame 3: %d), VRAM data words per frame max %d (after frame 3: %d), palette words per flush max %d (limit %d), demo frame 1 (exempt, screen held) %.1f, reveal frame (exempt, background held) %.1f, held frames with planes hidden (exempt, flat backdrop) %.1f%s",
+          name, dm.frames, dm.lmax, dm.idx_lmax, LOGIC_LIMIT, dm.over, tostring(dm.first_over), dm.lmax_late, dm.us, FLUSH_BUDGET_US, dm.us_late, dm.vwords, dm.vw_late, dm.pwords, PAL_WORDS_MAX, dm.l1 or 0, dm.lrev or 0, dm.lblank or 0, bad and " [OVER]" or "")
       end
+      local late = syms.g_bg_late and mem:read_u16(syms.g_bg_late) or -1   -- world frames shown over an incomplete background (main.c bg hold)
+      if late ~= 0 then ok = false end
+      parts[#parts + 1] = string.format("demo run: world frames over an incomplete background %d (limit 0)%s", late, late ~= 0 and " [LATE]" or "")
       local palmax = mem:read_u16(palmax_addr)   -- g_pal_words_frame_max over the whole demo run, boot included
       if palmax > PAL_WORDS_MAX then ok = false end
       parts[#parts + 1] = string.format("demo run: palette words per flush max %d (limit %d)%s", palmax, PAL_WORDS_MAX, palmax > PAL_WORDS_MAX and " [OVER]" or "")
