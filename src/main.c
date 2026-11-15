@@ -1628,8 +1628,9 @@ static void game_loop(void) {
             island_step(world && !trip, g_cam_px); /* arena islands are not drawn in Gum Trip */
             /* the course (islands, kill strips, pickups) stays through Game Over like the planes and the hazard anim: all leave at the title */
             island_trip_step(trip_game ? &view.game->trip_gen : 0, trip_game ? view.game->trip.px : 0, trip_game && game_trip_ready(view.game));
-            {   /* entry hold: the strip queues its columns hidden (ready 0) and the islands load their tiles hidden */
-                u8 trip_held = g_bg_hold && world_state(&view) && view.game->mode == GAME_MODE_TRIP;
+            {   /* entry hold: the strip queues its columns hidden (ready 0) and the islands load their tiles hidden. Not on the entry
+                 * frame (trip_hold 0, no build step yet): start_game and the title teardown already fill it. */
+                u8 trip_held = g_bg_hold && world_state(&view) && view.game->mode == GAME_MODE_TRIP && view.game->trip_hold;
                 g_trip_islands_loaded = trip_held && game_trip_ready(view.game) && island_trip_preload(&view.game->trip_gen);
                 trip_strip_step((trip_game || trip_held) ? &view.game->trip_gen : 0, (trip_game || trip_held) ? view.game->trip.px : 0, trip_game && game_trip_ready(view.game));
             }
@@ -1649,7 +1650,7 @@ static void game_loop(void) {
             hazard_trip_anim(trip_game);
             /* Gum Trip drops the far and near background planes; arena and title show them. Dropped already in the entry hold (world
              * hidden): on the reveal frame it ran with the course start and wrapped past vblank. */
-            bg_trip_planes(trip_game || (g_bg_hold && world_state(&view) && view.game->mode == GAME_MODE_TRIP));
+            bg_trip_planes(trip_game || (g_bg_hold && world_state(&view) && view.game->mode == GAME_MODE_TRIP && view.game->trip_hold));
         }
         /* game.c picks the mood per match and per attract loop; no-op when unchanged. A mood change hides the planes for about
          * 14 frames, so it runs only while the world is hidden (title, table, entry hold). An arena round, a demo rematch or an
