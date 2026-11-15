@@ -118,8 +118,9 @@ int trip_view_island_col_x(const TripChunk *c, int col, uint32_t scroll_px);
 #define TRIP_STRIP_FILL_ROWS 1   /* flat floor fill rows between lip and fade; the flat roof has none */
 typedef struct { uint8_t role, frame, cell, flip; } TripStripCell;
 
-/* The chunk that holds world column j (wx <= 16 j < wx + TRIP_CHUNK_PX) among the live ring slots, or 0 (not live, not ready). */
-const TripChunk *trip_view_strip_chunk(const TripGen *g, uint32_t j, int ready);
+/* The chunk that holds world column j (wx <= 16 j < wx + TRIP_CHUNK_PX) among the live ring slots, or 0 (not live, not ready).
+ * hint: a live chunk of g (the answer for a neighbour column) tried before the ring walk, or 0. */
+const TripChunk *trip_view_strip_chunk(const TripGen *g, uint32_t j, int ready, const TripChunk *hint);
 /* Cells of column j of the floor (ceiling 0) or ceiling (1) strip of chunk c, top row first. Returns the row count (0 hides the
  * column) and sets *top to the screen y of the first row (may be negative). */
 int trip_view_strip_column(const TripChunk *c, uint32_t j, int ceiling, TripStripCell *cells, int *top);

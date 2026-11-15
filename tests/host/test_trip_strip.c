@@ -28,7 +28,7 @@ int main(void) {
             uint32_t j0 = scroll >> 4;
             int jumped, i, on[TRIP_VIEW_STRIP_COLS];
             tripgen_advance(&g, scroll);
-            CHECK(trip_view_strip_chunk(&g, j0, 0) == 0);   /* not ready: refused */
+            CHECK(trip_view_strip_chunk(&g, j0, 0, 0) == 0);   /* not ready: refused */
             jumped = trip_view_strip_advance(&ring, j0);
             CHECK(jumped == (k == 0));                       /* first call and nothing else is a jump (24 px per step < 22 columns) */
             for (i = 0; i < TRIP_VIEW_STRIP_COLS; i++) on[i] = trip_view_strip_slot(&ring, i);
@@ -41,7 +41,7 @@ int main(void) {
             prev_j0 = j0;
             if (!tripgen_covers(&g, scroll)) continue;
             for (j = j0; j < j0 + TRIP_VIEW_STRIP_COLS; j++) {
-                const TripChunk *ch = trip_view_strip_chunk(&g, j, 1);
+                const TripChunk *ch = trip_view_strip_chunk(&g, j, 1, 0);
                 int ceil_;
                 if (!ch) continue;
                 CHECK(ch->wx <= (j << 4) && (j << 4) - ch->wx < TRIP_CHUNK_PX);

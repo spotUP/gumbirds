@@ -81,6 +81,7 @@ void trip_strip_step(const TripGen *g, uint32_t scroll_px, int ready) {
     u32 j0;
     u8 moved = 0, loads = LOADS_PER_FRAME, pending = 0;
     u8 same;
+    const TripChunk *hint = 0;   /* chunk of the last column looked up: the next column is mostly in it */
     if (!g) { if (g_on) { hide_all(); g_on = 0; } g_scan.valid = 0; return; }
     g_on = 1;
     if (!ready && g_vis) hide_all();
@@ -93,7 +94,8 @@ void trip_strip_step(const TripGen *g, uint32_t scroll_px, int ready) {
         int sx = trip_view_screen_x(j << 4, scroll_px);
         int on = sx > -16 && sx < TRIP_VIEW_SCREEN_W;
         /* same chunks as the last full scan and the slot already holds this column: the lookup would answer "covered" again */
-        const TripChunk *ch = (on && !(same && g_key[s] == j + 1)) ? trip_view_strip_chunk(g, j, 1) : 0;
+        const TripChunk *ch = (on && !(same && g_key[s] == j + 1)) ? trip_view_strip_chunk(g, j, 1, hint) : 0;
+        if (ch) hint = ch;
         u32 key = (ch || (on && same && g_key[s] == j + 1)) ? j + 1 : 0;
         if (key != g_key[s]) {
             if (key && !loads) { /* over the frame budget: the slot stays hidden until a later frame loads it */

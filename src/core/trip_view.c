@@ -162,11 +162,12 @@ int trip_view_island_col_x(const TripChunk *c, int col, uint32_t scroll_px) {
     return (sx > -16 && sx < TRIP_VIEW_SCREEN_W) ? sx : CAMERA_COL_HIDDEN;
 }
 
-const TripChunk *trip_view_strip_chunk(const TripGen *g, uint32_t j, int ready) {
+const TripChunk *trip_view_strip_chunk(const TripGen *g, uint32_t j, int ready, const TripChunk *hint) {
     uint32_t wx = j << 4;
     int r;
-    for (r = 0; r < TRIP_GEN_RING; r++) {
-        const TripChunk *ch = trip_view_ring_chunk(g, r, ready);
+    /* the strip scan asks for 22 neighbour columns in one frame: the ring walk for each cost ~17 lines on chunk frames (test-trip stall) */
+    for (r = hint && ready ? -1 : 0; r < TRIP_GEN_RING; r++) {
+        const TripChunk *ch = r < 0 ? hint : trip_view_ring_chunk(g, r, ready);
         /* trailing curve columns wait until the next chunk's window is known */
         if (ch && wx >= ch->wx && wx - ch->wx < TRIP_CHUNK_PX)
             return (wx - ch->wx >= 16 * (TRIP_CAVE_COLS - TRIP_CAVE_CURVE_COLS) && !ch->out_known) ? 0 : ch;
