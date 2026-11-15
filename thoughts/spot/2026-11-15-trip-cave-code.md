@@ -95,3 +95,39 @@ Commit 903b4a1 "Keep scripted trip pilots clear of the killing roof" (src/core/f
 - The trip_steer apex guard raises long-run hazard deaths (155 of 200 seeds in 3000 frames, old 130); roof deaths drop to 11. Does not change any gate.
 - Demo window-centre hover with trip rivals: host diagnostic only.
 - Causes of the test-trip and demo arcade failures.
+
+## TRIP-CAVE4 (test-trip and test-vblank fixes, 2026-11-15)
+
+### 1. 969 cave tile errors ("sprite 332 row 1 tile 3113 attr 0x2d01 animation"): checker wrong
+- Evidence: af99733 draws curve columns from src/core/trip_cave_fade.h. In curve_cell (src/core/trip_view.c) piece rows can be FILL or sloped fade tiles, and src/trip_strip.c load() sets attr 0x08 (auto-animation) only for roles LIP..FS32. Floor S16 piece column 2 has row 1 = FILL. fade_map.json (drafts 2026-11-15-trip-cave-smoothfade) gives the animated piece rows per column: S16 2,2,1; S32 3,2,2.
+- trip_cave_check.lua still assumed all kd+1 piece rows animate.
+- Fix: FLOOR_PIECE table; CAVE.piece returns the piece column; CAVE.tiles checks animation only on those rows. Commit 4543ded.
+- Result: tile errors 0 (flat fade rows 57236, curve columns 5932).
+
+### 2. Two-frame stall at frame 702 (no game step): strip chunk lookup cost
+- Evidence (TRIP_PC_LOG): worst frame PLAYING 218 ends at line 223; trip_view_strip_chunk takes 17 lines of it (mean 0.35, max 24).
+- Cause: on every chunk-build frame (`same` false in trip_strip_step) each of the 22 on-screen columns walks all TRIP_GEN_RING=5 slots.
+- Fix: trip_view_strip_chunk takes a hint chunk (the previous column's chunk), tried before the ring walk. The result is the same; a chunk spans 12 columns, so most lookups hit. Commit 43f94ee.
+- Result: frames without a game step 0; logic end max 220.2 (was a lost frame).
+
+### 3. Gum meter cell 4 at frame 7 (got 0x03bf want 0x03bb): checker wrong
+- Evidence: gum goes 768 to 1023 at frame 6, but the cells show the step-8 tiles only at frame 8. gfx_commit uses vq_fix_line_budget (VQ_FIX_LINE_END 0x1E6), which on purpose commits 0 fix cells when logic ends late. Early trip frames end at about line 220.
+- Fix: LN.meter_sample counts a first sample that still matches the previous step as late (printed). A second late sample in a row still fails. Commit 6207d2b.
+- Result: bad 0, late by one frame 0 in the final run.
+
+### 4. test-vblank demo arcade logic end 999.0 at demo frame 5: pre-existing at the base
+- ad8ee21: PASS (arcade 216.8). The base f65f3a6 alone: FAIL, same 999.0 at demo frame 5. trip-cave changes no arcade code; the fix is eb01220 (world table).
+- Fix: merged ad8ee21 into feature/trip-cave (clean merge; Makefile auto-merged). Commit 5dfb11e.
+
+### Gates (on 5dfb11e, the merged tree)
+- Host suite PASS (run on 43f94ee; the merge adds only eb01220's world-table code, host suite not rerun after the merge). Build OK. test-trip PASS. test-vblank PASS. test-attract PASS.
+
+### Measurements
+- Sprites per line: ROM worst 82 at line 96 (SB_LIMIT 90); trip worst sprite line 47.
+- Logic end max: test-trip 220.2 at frame 701; demos arcade 216.8, arena 215.7, trip 212.9 (limit 224).
+- VRAM writes outside vblank: 0 (palette writes outside vblank 0).
+- Palette words per flush: max 100 (limit 112).
+
+### Unverified
+- Host suite after the merge commit.
+- Vent and cloud hazards still do not appear within the test-trip run (as before).
