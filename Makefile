@@ -426,6 +426,25 @@ test-arcade: cart
 	cat $$T/result.txt; \
 	if grep -q '^PASS' $$T/result.txt; then rm -rf $$T; echo "[OK] make test-arcade passed"; else echo "[FAIL] make test-arcade, log kept in $$T"; exit 1; fi
 
+# Continue countdown out under UniBIOS (ARCADE_CONT_OUT=1, tests/mame/arcade_check.lua A7): one coin, Start, forced deaths,
+# no press on the continue screen; GAME OVER, attract, and no new game without a Start press. `make test-arcade-contout` alone.
+test-arcade-contout: cart bios
+	@if [ ! -f "$(UNIBIOS)" ]; then echo "[FAIL] UNIBIOS file not found: $(UNIBIOS)"; exit 1; fi
+	@$(MAKE) --no-print-directory $(UNIBIOS_DIR)/neogeo.zip
+	@set -e; T=$$(mktemp -d $(BUILDDIR)/test-run.XXXXXX); \
+	ARCADE_CONT_OUT=1 \
+	BRAWL_FLOW_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flow"{print $$1}') \
+	BRAWL_FRAME_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_frame_counter"{print $$1}') \
+	BRAWL_CAM_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_cam_px"{print $$1}') \
+	BRAWL_MOOD_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_bg_mood"{print $$1}') \
+	BRAWL_HAZARD_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_hazard_kind"{print $$1}') \
+	BRAWL_ARCADE_LAYOUT="$$($(M68KGCC) $(NGCFLAGS) -Ibuild -std=c99 -S -o - tests/mame/arcade_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
+	BRAWL_RESULT=$$T/result.txt \
+	SDL_VIDEODRIVER=dummy nice -n 19 $(MAME) -window -nomaximize -video none -sound none -nothrottle -seconds_to_run 300 -noautosave -skip_gameinfo -hash $(ROM) -rp "$(UNIBIOS_DIR);$(ROM)" -bios unibios40 -nvram_directory $$T -autoboot_script tests/mame/arcade_check.lua neogeo -cart1 $(GAMEROM) > $$T/mame.log 2>&1 || true; \
+	if [ ! -f $$T/result.txt ]; then tail -n 15 $$T/mame.log; echo "[FAIL] no result from arcade Lua script"; exit 1; fi; \
+	cat $$T/result.txt; grep -h "^BRAWL_LOG" $$T/mame.log | tail -n 40 || true; \
+	if grep -q '^PASS' $$T/result.txt; then rm -rf $$T; echo "[OK] make test-arcade-contout passed"; else echo "[FAIL] make test-arcade-contout, log kept in $$T"; exit 1; fi
+
 # Attract demos (tests/mame/attract_check.lua): no input for three attract cycles; the demo phases play arena, Gum Trip, arcade in turn,
 # the frame counter never stalls, a coin during the fourth demo goes to the title. About 100 s of emulated time.
 test-attract: cart

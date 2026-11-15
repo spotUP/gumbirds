@@ -128,6 +128,12 @@ local died, expect_lives, cd0, press = 0, nil, nil, 0
 -- per-frame logic end bookkeeping: steady = more than 3 frames after any stage/flow/arcade-state change, arcade state PLAY, lives state PLAY
 local walk = os.getenv("ARCADE_WALK") == "1"
 local bonus_run = os.getenv("ARCADE_BONUS") == "1" -- make test-arcade-bonus: clear stages 1..3 and measure the bonus stage (up to 10 bubbles alive)
+-- ARCADE_CONT_OUT=1 (make test-arcade-contout, UniBIOS, one coin): stage 1, forced deaths, no press on the continue screen.
+-- A7: the countdown runs out -> GAME_OVER -> attract; no new game may start without a Start press (CONT_OUT_FRAMES frames
+-- watched after attract), and the credit byte stays 0. Logs flow, credit, BIOS user mode/request and the compulsion timer.
+local cont_out = os.getenv("ARCADE_CONT_OUT") == "1"
+local co_coins = tonumber(os.getenv("ARCADE_COINS") or "2") -- owner report: more than one coin before the run, one Start
+local co = {go = nil, att = nil, sig = nil, log = {}}
 local bon_by = {}
 local bon_over, bon_over_note, bon_prev, bon_prev_cur = 0, nil, nil, nil
 local bon_logic, bon_frames, bon_nlive_max, bon_busy, bon_wait = 0, 0, 0, 0, 0
@@ -166,7 +172,7 @@ local function state() return string.format("flow=%d mode=%d stage=%d arc=%d liv
 
 emu.register_frame_done(function()
   n = n + 1
-  if n > (walk and 40000 or 9000) then finish(false, "watchdog in phase " .. phase .. ": " .. state()) return end
+  if n > ((walk or cont_out) and 40000 or 9000) then finish(false, "watchdog in phase " .. phase .. ": " .. state()) return end
   local playing = b(O_FLOW) == K.playing
   if playing and fc_line > logic_max then logic_max = fc_line end
   if playing and phase ~= "boot" and phase ~= "start" then note_frame(g(O_STAGE), g(O_ASTATE), g(O_LSTATE), fc_line) end
@@ -177,6 +183,7 @@ emu.register_frame_done(function()
     if fc ~= fc0 then phase = "start"; t0 = n; ss.begin(n) end
   elseif phase == "start" then
     if ss.step(n, playing, 2) then phase = "stage1" ; wait = 0 end
+    if cont_out and n - t0 >= 40 and n - t0 < 40 + 30 * (co_coins - 1) then coin:set_value(((n - t0 - 40) % 30) < 12 and 1 or 0) end
     if n - t0 > 1500 then finish(false, "A1 never reached PLAYING: " .. state()) end
   elseif phase == "stage1" then
     if b(O_MODE) ~= K.arcade then finish(false, "A1 mode is not ARCADE (ARCADE entry missing from the title select): " .. state()) return end
@@ -185,7 +192,7 @@ emu.register_frame_done(function()
     if wait >= 90 then
       local bad = world_bad(1)
       if bad then finish(false, "A8 stage 1 should show the moon world: " .. bad) return end
-      hash1 = island_hash(); phase = walk and "walk" or (bonus_run and "bonus_go" or "force_clear"); walk_wait = 0 end
+      hash1 = island_hash(); phase = walk and "walk" or (bonus_run and "bonus_go" or (cont_out and "die" or "force_clear")); walk_wait = 0; expect_lives = g(O_LIVES) end
   elseif phase == "walk" then
     -- ARCADE_WALK=1: play ~300 frames per stage with every rival alive (lives poked up), then force the clear
     walk_wait = walk_wait + 1
@@ -289,6 +296,28 @@ emu.register_frame_done(function()
       if g(O_LSTATE) == K.life_cont then phase = "continue"; cd0 = nil; wait = 0 end
     elseif g(O_PSTATE) ~= K.gone and b(O_NCPU) > 0 then
       mem:write_u8(flow_addr + O_PSTATE, K.gone)
+    end
+  elseif phase == "continue" and cont_out then
+    wait = wait + 1
+    local fl, crd = b(O_FLOW), mem:read_u8(0x10fe00)
+    local sig = string.format("flow %d lstate %d credit %02x umode %d ureq %d comp %02x/%02x start_flag %02x", fl, g(O_LSTATE), crd,
+      mem:read_u8(0x10fdaf), mem:read_u8(0x10fdae), mem:read_u8(0x10fdda), mem:read_u8(0x10fddb), mem:read_u8(0x10fdb4))
+    if sig ~= co.sig then co.sig = sig; print(string.format("BRAWL_LOG +%d %s", wait, sig)) end
+    if fl == K.game_over and not co.go then co.go = wait end
+    if co.go and fl <= 2 and not co.att then co.att = wait end
+    local comp = mem:read_u8(0x10fdda)
+    if co.att and comp > (co.cmax or 0) then co.cmax = comp end
+    if fl == K.playing and co.go then
+      -- A start with no press is MVS-correct only as the BIOS compulsion start: timer reloaded (about 30 s BCD) at the
+      -- game end, counted down to 0, one credit taken with it. The bug: timer never reloaded, start one frame after GAME OVER.
+      local ok = co.att and (co.cmax or 0) >= 0x25 and wait - co.att >= 1500 and crd == co_coins - 2
+      finish(ok, string.format("A7 GAME OVER at +%d, attract at +%d, %s new game %d frames into attract (compulsion timer peak %02x BCD s, credit %02x, %d coins)",
+        co.go, co.att or -1, ok and "BIOS compulsion countdown ran out:" or "a no-press", wait - (co.att or wait), co.cmax or 0, crd, co_coins)) return
+    end
+    if crd ~= co_coins - 1 then finish(false, string.format("A7 credit byte %02x after the continue screen, want %02x (%d coins, one Start)", crd, co_coins - 1, co_coins)) return end
+    if wait > 3000 and not co.att then finish(false, "A7 no GAME OVER then attract within 3000 frames: " .. state()) return end
+    if co.att and wait - co.att >= 2400 then
+      finish(true, string.format("A7 continue countdown ran out: GAME OVER at +%d, attract at +%d, no new game for 2400 frames, credit %02x (%d coins)", co.go, co.att, co_coins - 1, co_coins))
     end
   elseif phase == "continue" then
     wait = wait + 1

@@ -1462,8 +1462,13 @@ int main(void) {
  * attract (BIOS_USER_MODE 1): main/resume_game_loop return, ngdevkit's wrapper_user jumps
  * to SYSTEM_RETURN, the BIOS saves and calls USER again, and rom_game/rom_title resume
  * the loop with RAM intact (same path as a coin re-entry). Guarded by make test-reach.
+ *
+ * Every game end also returns (g_game_ended), as MVS games end a play with SYSTEM_RETURN, on the first attract frame
+ * right after flow_step, while BIOS_USER_MODE is still 2. Bug fixed here: without it the BIOS compulsion timer (0x10FDDA) was never reloaded and read 0, so with
+ * a credit left UniBIOS forced PLAYER_START on the first attract frame after game over: a new game with no Start press
+ * (arcade continue countdown run out, two coins). Guarded by make test-arcade-contout.
  */
-static u8 g_bram_unsaved;
+static u8 g_bram_unsaved, g_game_ended;
 
 static void game_loop(void) {
     FlowView view;
@@ -1503,6 +1508,11 @@ static void game_loop(void) {
             g_hiscore_saves++;
             g_flow.dirty = 0;
             g_bram_unsaved = 1;
+        }
+        if (g_flow.state == FLOW_GAME_OVER) g_game_ended = 1;
+        else if (g_game_ended && g_flow.state <= FLOW_ATTRACT_DEMO) {
+            g_game_ended = 0;
+            return; /* still user mode 2: SYSTEM_RETURN before any vblank sees mode 1 with a stale compulsion timer (see above) */
         }
         flow_view(&g_flow, &view);
         g_round_end_s[0] = g_flow.game.round_end; g_round_end_s[1] = g_flow.game.round_timer;

@@ -235,25 +235,28 @@ local function phase2()
       local u = mem:read_u8(USER_REQUEST)
       if blk then coin2.users[#coin2.users + 1] = string.format("%d:u%d", p2_n, u) end
     end
+    -- After a game end the cart SYSTEM_RETURNs, so attract runs under BIOS USER 2 and a coin re-enters with USER 3:
+    -- the loop is back about 44 frames after the coin (measured), so read the flow state at +60.
+    if p2_n == 60 then coin2.title8 = st end
     if p2_n == 8 then
-      coin2.title8 = st
       for x = 1, 13 do for y = 21, 26 do   -- overlay icon tiles are 0x400..0x43A (src/vram_layout.h ATTRACT_FIX_BASE, 59 tiles)
         local t = (vram[FIX_BASE + x * FIX_ROWS + y] or 0) & 0xfff
         if t >= 0x400 and t <= 0x43A then coin2.overlay = (coin2.overlay or 0) + 1 end
       end end
     end
     if p2_n == 70 then
-      verdict("a coin during attract", coin2.title8 == FLOW_ATTRACT_TITLE and cr() == 1, string.format("8 frames after coin flow state %d (want 0), credit byte %02x (want 01)", coin2.title8, cr()))
+      verdict("a coin during attract", coin2.title8 == FLOW_ATTRACT_TITLE and cr() == 1, string.format("60 frames after coin flow state %d (want 0), credit byte %02x (want 01)", coin2.title8, cr()))
       verdict("COIN2 measurement", true, string.format("black frames (backdrop 4095 == 0 or fix palette colour 1 == 0) %d, first +%d last +%d; frames without clean title fix layer %d; USER_REQUEST on black frames [%s]",
         coin2.black, coin2.first_black or -1, coin2.last_black or -1, coin2.notitle, table.concat(coin2.users, " ")))
       verdict("a coin clears the overlay", (coin2.overlay or 0) == 0, string.format("%d overlay icon cells left 8 frames after the coin", coin2.overlay or 0))
       p2, p2_n = "b_coin", 0
     end
   elseif p2 == "settle" then
-    -- Game over with a credit left: the BIOS starts the next game at once (measured below), so play on until credit 0 in attract.
+    -- Game over with a credit left: the cart SYSTEM_RETURNs at the game end, the BIOS reloads its compulsion timer (30 s)
+    -- and forces the next game when it runs out (make test-arcade-contout), so play on until credit 0 in attract.
     if st == FLOW_PLAYING then settle_games = settle_games + 1; p2, p2_n = "die", 0
     elseif cr() == 0 and p2_n > 10 then p2, p2_n, coin_next = "b_coin", 0, "c"
-    elseif p2_n > 300 then finish(false, "settle: credit byte " .. cr() .. " but no game and no credit loss for 300 frames (state " .. st .. ")") end
+    elseif p2_n > 2400 then finish(false, "settle: credit byte " .. cr() .. " but no game and no credit loss for 2400 frames (state " .. st .. ")") end
   elseif p2 == "b_coin" then -- second credit
     press(coin, 1, 6, p2_n)
     if p2_n == 40 then p2, p2_n, trace = coin_next, 0, {} end
