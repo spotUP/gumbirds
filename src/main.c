@@ -507,9 +507,13 @@ static void pool_show(void) {
     u32 m = obj_pool_take_hidden(&g_pool);
     for (u8 i = 0; m; i++, m >>= 1) if (m & 1) pool_hide_run(i);
     PoolObj *p = g_pool.obj;
-    for (u8 i = 0; i < POOL_MAX; i++, p++) {
+    u8 top = 0; /* objects 0..top-1 go out in the runs: above the last live one every head SCB3 is already 0 (pool_hide_run) and x unchanged */
+    u8 left = g_pool.live; /* the walk stops after the last live object */
+    for (u8 i = 0; i < POOL_MAX && left; i++, p++) {
         scb3[i] = 0;
         if (!(p->flags & POOL_F_LIVE)) continue;
+        top = (u8)(i + 1);
+        left--;
         if (p->flags & POOL_F_TRIPHAZ) { pool_show_haz(p, i, scb3); continue; }
         if (p->flags & POOL_F_HERO) { pool_show_hero(p, i, scb3); continue; }
         const ObsAnim *a = &obs_anims[p->type];
@@ -539,8 +543,10 @@ static void pool_show(void) {
         scb3[i] = gfx_scb3_word(f->tiles_h, top);
         g_pool_scb4[i] = gfx_scb4_word(x);
     }
-    gfx_scb_run(ADDR_SCB3 + POOL_SPRITE_BASE, POOL_COLS, scb3, POOL_MAX);
-    gfx_scb_run(ADDR_SCB4 + POOL_SPRITE_BASE, POOL_COLS, g_pool_scb4, POOL_MAX);
+    if (top) { /* the run walk cost about 18 raster lines for all POOL_MAX words; the arcade uses only the first few objects */
+        gfx_scb_run(ADDR_SCB3 + POOL_SPRITE_BASE, POOL_COLS, scb3, top);
+        gfx_scb_run(ADDR_SCB4 + POOL_SPRITE_BASE, POOL_COLS, g_pool_scb4, top);
+    }
     g_pool_live = g_pool.live;
     if (g_pool.live) g_pool_frames++;
 }
