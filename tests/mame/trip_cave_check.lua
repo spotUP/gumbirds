@@ -6,7 +6,9 @@
 --   narrower one there, an eased curve S16 (2 rows) / S32 (3 rows) whose rows start at y0 (roof y0 = other edge - 16).
 --   Floor sprite from y0 down to the screen bottom, roof sprite ending at the piece bottom y0 + 16 rows.
 --   Tiles: tripstrip range, palette slot floor S_PAL (gum), roof S_PAL + 1 (slate), never vflipped; only the floor piece rows
---   auto-animate; a curve piece row is hflipped with the piece, a flat one never.
+--   auto-animate; a curve piece row is hflipped with the piece, a flat one never. Smooth fade (draft trip-cave-smoothfade
+--   fade_map.json): a curve column keeps the piece tile only on its first FLOOR_PIECE[kind][pcol] floor rows (pcol = piece
+--   tile column before hflip), the rows below are fill / sloped fade tiles that do not animate.
 --   Fade rows present on flat columns: floor = lip, 1 fill row, fade A, fade B, then one solid tile; roof (up from the rim) =
 --   rim, fade A, fade B, then one black tile. Solid / black / fill are each one tile everywhere.
 CAVE = { bad = 0, first = nil, flat_rows = 0, curve_cols = 0, cols = {} }
@@ -18,19 +20,21 @@ function CAVE.init(tlay, mem_, s16_, chunk_px)
 end
 local function rd(base, off) return s16(mem:read_u16(base + off)) end
 local function kind(d) return d == 16 and 1 or d == 32 and 2 or 0 end
--- kind (0 flat, 1 S16, 2 S32), hflip, y0 of column k of the chunk at base
+-- floor rows drawn with the piece tile, per kind and piece column (fade_map.json "piece" / "empty" entries)
+local FLOOR_PIECE = { { 2, 2, 1 }, { 3, 2, 2 } }
+-- kind (0 flat, 1 S16, 2 S32), hflip, y0, piece column of column k of the chunk at base
 function CAVE.piece(base, k, ceiling)
   local own = rd(base, ceiling and L.wtop or L.wbot)
   if k < 3 and mem:read_u8(base + L.in_known) ~= 0 then
     local o = rd(base, ceiling and L.in_top or L.in_bot)
     local kd = kind(ceiling and own - o or o - own)
-    if kd > 0 then return kd, 0, ceiling and o - 16 or own end
+    if kd > 0 then return kd, 0, ceiling and o - 16 or own, k end
   elseif k >= COLS - 3 and mem:read_u8(base + L.out_known) ~= 0 then
     local o = rd(base, ceiling and L.out_top or L.out_bot)
     local kd = kind(ceiling and own - o or o - own)
-    if kd > 0 then return kd, 1, ceiling and o - 16 or own end
+    if kd > 0 then return kd, 1, ceiling and o - 16 or own, COLS - 1 - k end
   end
-  return 0, 0, ceiling and own - 16 or own
+  return 0, 0, ceiling and own - 16 or own, 0
 end
 local function fail(msg) CAVE.bad = CAVE.bad + 1; CAVE.first = CAVE.first or msg end
 local same = {}   -- "solid" / "black" / "fill" -> the one tile seen first
@@ -39,8 +43,9 @@ local function one(name, tile, msg) same[name] = same[name] or tile; if same[nam
 function CAVE.tiles(vram, sprite, rows, ceiling, j)
   local c = CAVE.cols[j]
   if not c then fail("no chunk for column " .. j); return end
-  local kd, hf = CAVE.piece(c[1], c[2], ceiling)
+  local kd, hf, _, pc = CAVE.piece(c[1], c[2], ceiling)
   local prow = kd == 0 and 1 or kd + 1
+  local arow = kd == 0 and 1 or FLOOR_PIECE[kd][pc + 1]   -- floor rows that auto-animate
   if kd > 0 then CAVE.curve_cols = CAVE.curve_cols + 1 end
   for r = 0, rows - 1 do
     local tile, attr = vram[sprite * 64 + r * 2] or 0, vram[sprite * 64 + r * 2 + 1] or 0
@@ -50,7 +55,7 @@ function CAVE.tiles(vram, sprite, rows, ceiling, j)
     if (attr >> 8) ~= L.pal + (ceiling and 1 or 0) then fail(msg .. " palette") end
     if (attr & 2) ~= 0 then fail(msg .. " vflip") end
     local anim = (attr & 0x08) ~= 0
-    if anim ~= (not ceiling and d < prow) then fail(msg .. " animation") end
+    if anim ~= (not ceiling and d < arow) then fail(msg .. " animation") end
     if d < prow and (attr & 1) ~= hf then fail(msg .. " hflip") end
     if kd == 0 and d > 0 then
       CAVE.flat_rows = CAVE.flat_rows + 1
