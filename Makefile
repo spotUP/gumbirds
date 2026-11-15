@@ -45,9 +45,9 @@ include config.mk
 # This defines the layout of your game cartridge
 # You can customize it to match your requirements
 # Name of the rom file created
-GAMEROM=brawl
+GAMEROM=gumbirds
 # Game title, long description
-GAMETITLE=Bubblegum Brawl
+GAMETITLE=Gumbirds
 HASH_GNGEO=
 include rom.mk
 
@@ -289,7 +289,7 @@ CUSTOM_GENERATE_TARGETS=sound-gen
 # you can customize clean up by adding dependencies to those targets
 
 
-# ---- Bubblegum Brawl targets (see RULES.md) ----
+# ---- Gumbirds targets (see RULES.md) ----
 .DEFAULT_GOAL := all
 
 # Window run, MVS BIOS, backup RAM kept in nvram/
