@@ -58,11 +58,8 @@ static uint16_t death_events(SoundEvents *e, const Game *g, uint8_t playing)
     e->n_die = e->n_fall = e->n_splosh = e->n_spike = e->n_pop = 0;
     if (!playing) { forget_fliers(e); e->prev_gum = SE_UNSEEN_GUM; return 0; }
     ev |= flier_edges(e, 0, &g->flier, playing, g->hazard_kind, g->mode != GAME_MODE_TRIP);   /* Trip: balloons follow the gum, the pop is the gum edge below */
-    for (i = 0; i < CPU_MAX; i++) /* arena computer fliers only: arcade rivals (slots past CPU_MAX) make no events, so their slots stay unseen */
-        ev |= flier_edges(e, 1 + i, &g->cpu[i], playing && g->mode == GAME_MODE_ARENA && i < g->cpu_count, g->hazard_kind, 1);
-    if (g->mode == GAME_MODE_ARCADE) /* arcade rivals past CPU_MAX: the liquid splash only */
-        for (i = CPU_MAX; i < STAGE_SPAWN_COUNT; i++)
-            if (i < g->cpu_count) ev |= liquid_edge(e, &g->cpu[i], g->hazard_kind);
+    for (i = 0; i < STAGE_SPAWN_COUNT; i++) /* arena and arcade computer fliers; other modes leave these slots unseen */
+        ev |= flier_edges(e, 1 + i, &g->cpu[i], playing && (g->mode == GAME_MODE_ARENA || g->mode == GAME_MODE_ARCADE) && i < g->cpu_count, g->hazard_kind, 1);
     if (g->mode == GAME_MODE_TRIP) {   /* outside the Trip these slots stay unseen (forget_fliers), so the loop is skipped: frame time */
         for (i = 0; i < TRIP_RIVAL_MAX; i++)
             ev |= flier_edges(e, 1 + STAGE_SPAWN_COUNT + i, &g->trip_rivals.r[i].f, g->trip_rivals.r[i].active, g->hazard_kind, 1);

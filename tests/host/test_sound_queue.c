@@ -299,6 +299,26 @@ int main(void)
         v.state = FLOW_ATTRACT_TITLE; v.game = 0;
         CHECK(se_step(&e, &v) == 0 && !e.n_fall);
     }
+    {   /* arcade rivals, also slots past CPU_MAX, make pop, fall and splosh events */
+        SoundEvents e;
+        Game g;
+        FlowView v;
+        int slot;
+        for (slot = 0; slot < STAGE_SPAWN_COUNT; slot += STAGE_SPAWN_COUNT - 1) {
+            memset(&e, 0, sizeof e); memset(&g, 0, sizeof g); memset(&v, 0, sizeof v);
+            v.game = &g; v.state = FLOW_PLAYING;
+            g.mode = GAME_MODE_ARCADE; g.cpu_count = STAGE_SPAWN_COUNT; g.hazard_kind = HZ_WATER;
+            g.flier.state = FLIER_GONE;
+            g.cpu[slot].state = FLIER_ALIVE; g.cpu[slot].balloons = 1;
+            se_init(&e); se_step(&e, &v); se_step(&e, &v);
+            g.cpu[slot].balloons = 0; g.cpu[slot].state = FLIER_FALLING;
+            se_step(&e, &v);
+            CHECK(e.n_pop == 1 && e.n_die == 1 && e.n_fall == 1);
+            g.cpu[slot].liquid_hit = 1;
+            se_step(&e, &v);
+            CHECK(e.n_splosh == 1);
+        }
+    }
     printf("%s: %d checks, %d failures\n", failures ? "FAIL" : "PASS", checks, failures);
     return failures != 0;
 }
