@@ -1312,7 +1312,9 @@ static void draw(const FlowView *v) {
                 rows = 0;
                 if (!on) {
                     g_banner_pending = 0; /* the panel goes in one pass: a per-cell loop over all rows cost about 200 raster lines */
-                    g_banner_cells += gfx_fix_clear_shadowed(BANNER_COL, BANNER_ROW, BANNER_W, BANNER_H, g_banner_shadow, blank);                } else {
+                    g_banner_cells += gfx_fix_clear_shadowed(BANNER_COL, BANNER_ROW, BANNER_W, BANNER_H, g_banner_shadow, blank);
+                    /* the bonus stage starts on the frame the banner goes: this blank ran after the round-start text and wiped it */
+                    if (g_rs_drawn != RS_NONE) g_rs_drawn = 0xFF;                } else {
                     for (row = 0; row < BANNER_H && rows_left; row++) {
                         if (g_banner_pending & (1 << row)) { rows |= (u8)(1 << row); g_banner_pending &= (u8)~(1 << row); rows_left--; }
                     }
