@@ -1,10 +1,10 @@
 -- BLACK-SCREEN regression (make test-black-screen, UniBIOS 4.0): Gum Trip runs back to back with the inputs a player gives between
 -- runs, and no run ranks (last score poked to 0 at Game Over, the owner's "died, no high score"). Paths, one per run:
---   run 1 two coins at boot, Start            between 1-2: Start mashed through Game Over and the title (a credit left)
+--   run 1 two coins at boot, Start            between 1-2: Start mashed through Game Over and the title (a credit left: a game)
 --   run 2 coin at Game Over                   between 2-3: A mashed the same way (a credit left)
 --   between 3-4: coin on the title, Start     between 4-5: credits out, title -> table -> demo, coin in the demo, A starts
 -- In play A flaps on a rhythm so the run lasts, then stops so the bird falls. Black = the screen bitmap shows at most 2 colours
--- (sampled every 10 frames) for 60+ frames in a row, or the entry hold (g_bg_held) lasts 300+ frames. FAIL names run, path and state.
+-- (sampled every 10 frames) for 90+ frames in a row, or the entry hold (g_bg_held) lasts 300+ frames. FAIL names run, path and state.
 local function addr(k) return tonumber(os.getenv(k), 16) end
 local flow_addr, frame_addr, held_addr, busy_addr, mood_addr = addr("BRAWL_FLOW_ADDR"), addr("BRAWL_FRAME_ADDR"),
   addr("BRAWL_BGHELD_ADDR"), addr("BRAWL_BUSY_ADDR"), addr("BRAWL_MOOD_ADDR")
@@ -23,10 +23,6 @@ local log = io.open(out, "w")
 local n, fc0, last = 0, nil, -1
 local run, phase, t0 = 0, "boot", 0          -- phase: boot, coin, menu, play, over, between
 local coins_left_demo, cr_drop
-local cpu_dbg = manager.machine.devices[":maincpu"]
-cr_tap = manager.machine.devices[":maincpu"].spaces["program"]:install_write_tap(0x10FE00, 0x10FE01, "crtap", function(off, data, mask)
-  if (mask & 0xFF00) ~= 0 then print(string.format("CRW pc %06X data %04X mask %04X mode %02X startflag %02X frame %d", cpu_dbg.state["PC"].value, data, mask, manager.machine.devices[":maincpu"].spaces["program"]:read_u8(0x10FDAF), manager.machine.devices[":maincpu"].spaces["program"]:read_u8(0x10FDB4), manager.machine.screens[":screen"]:frame_number())) end
-end)
 local cr_prev = 0
 local coins_left, black_run, held_run, fail = 0, 0, 0, nil
 local function W(s) log:write(s .. "\n"); log:flush() end
@@ -53,7 +49,9 @@ emu.register_frame_done(function()
   if phase ~= "boot" then
     if n % 10 == 0 then
       if colours() <= 2 then black_run = black_run + 10 else black_run = 0 end
-      if black_run >= 60 then
+      -- 90, not 60: every game-end SYSTEM_RETURN with a credit shows ~52 frames of one colour (UniBIOS clears palette RAM at
+      -- PC C1871A, then video_init blocks while the fix clear and palettes flush, BLACK-SCREEN-3); a stuck screen is far longer
+      if black_run >= 90 then
         fail = true
         finish(false, string.format("black screen run %d phase %s state %d frame %d: held %d busy %d mood %d credit %02x",
           run, phase, st, n, mem:read_u8(held_addr), mem:read_u8(busy_addr), mem:read_u8(mood_addr), mem:read_u8(CREDIT)))
@@ -102,6 +100,9 @@ emu.register_frame_done(function()
     if st == 5 then fail = true; finish(false, string.format("run %d ranked (name entry): score poke missed", run)) return end
   elseif phase == "between" then
     local cr = mem:read_u8(CREDIT)
+    if st == 3 then                    -- a mashed Start or A spent the credit left: that game is the next run
+      press(start, false); press(abtn, false); press(coin, false); run = run + 1; phase = "play"; t0 = n; return
+    end
     press(start, run == 1 and k < 300 and (k % 18) < 4)
     press(abtn, run == 2 and k < 300 and (k % 18) < 4)
     if run == RUNS then if k > 600 then finish(true, string.format("%d runs, no black screen, last state %d credit %02x", RUNS, st, cr)) end return end
