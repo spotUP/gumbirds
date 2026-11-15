@@ -30,7 +30,7 @@ typedef struct {
     uint8_t type;        /* game kind */
     uint8_t flags;       /* POOL_F_* */
     uint8_t anim;        /* animation frame index */
-    uint8_t anim_tick;   /* frames shown of the current animation frame; a fresh object holds its slot index until the first obj_pool_anim reduces it to its period (staggers the phase) */
+    uint8_t anim_tick;   /* frames shown of the current animation frame; a fresh object holds a slot-derived phase seed until the first obj_pool_anim reduces it to its period (staggers the phase) */
 } PoolObj;
 
 typedef struct {
