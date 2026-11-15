@@ -707,7 +707,9 @@ void coin_sound(void) { g_coin_calls++; }
 
 /*
  * PLAYER_START (vector 0x128), called by the BIOS from its vblank SYSTEM_IO when a player
- * presses start with credits, or when the title compulsion timer runs out. ngdevkit's
+ * presses start with credits. The BIOS would also call it when the title compulsion timer
+ * runs out, but game_loop writes 0x30 to BIOS_COMPULSION_S (0x10FDDA) every attract frame,
+ * so that timer never runs out and the BIOS never forces a start (CREDIT-HOLD). ngdevkit's
  * wrapper_player_start calls this symbol when it is defined (ngdevkit.ld) and otherwise
  * clears BIOS_START_FLAG, which refuses every start. The BIOS deducts the credit only if
  * BIOS_USER_MODE is 2 when this returns, so accepting means: leave the start flag set,
@@ -715,8 +717,8 @@ void coin_sound(void) { g_coin_calls++; }
  *
  * Bug fixed here: the game used to start from bios_statchange itself and never accepted
  * PLAYER_START. The credit was never taken, so after a game (high score SYSTEM_RETURN) the
- * BIOS still saw a credit, called USER 3 (title), forced PLAYER_START at the timeout, got
- * a refusal, and UniBIOS took over (DEMO_END, palette cleared) and called USER 3 again
+ * BIOS still saw a credit, called USER 3 (title), forced PLAYER_START at the timeout (before
+ * CREDIT-HOLD held that timer), got a refusal, and UniBIOS took over (DEMO_END, palette cleared) and called USER 3 again
  * with the timer already expired. That repeated about every 12 frames, so video_init never
  * finished: a blinking screen with only the sky. Guarded by make test-reach (boot 1 keeps
  * running past the title timeout after the save).
