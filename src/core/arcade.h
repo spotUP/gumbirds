@@ -24,7 +24,7 @@
 #define ARC_BONUS_LIVE_MAX 4
 #define ARC_BONUS_SPAWN_MIN 70        /* spawn timer reload = MIN + (random & MASK) frames: 70..133 */
 #define ARC_BONUS_SPAWN_MASK 63
-#define ARC_BONUS_PUFF_FRAMES 16      /* frames the nozzle mouth puffs when a bubble leaves (4 art frames, 4 each) */
+#define ARC_BONUS_PUFF_FRAMES 37      /* frames the nozzle gum burst runs when a bubble leaves (13 art frames; main.c asserts it equals the art tick table sum) */
 #define ARC_BONUS_STRAIGHT 40         /* px a bubble rises straight above its nozzle top before it starts to sway */
 #define ARC_NOZZLE_COUNT 4
 #define ARC_NOZZLE_W 32               /* nozzle art width, px */
