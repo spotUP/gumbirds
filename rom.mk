@@ -4,7 +4,7 @@ BUILDDIR?=build
 ROM?=$(BUILDDIR)/rom
 
 # ROM name
-GAMEROM?=brawl
+GAMEROM?=gumbirds
 
 # program ROM
 PROMSIZE=1048576

@@ -1,5 +1,5 @@
 /*
- * flow.h - top-level screen flow for Bubblegum Brawl. Portable C99, no libc, no drawing.
+ * flow.h - top-level screen flow for Gumbirds. Portable C99, no libc, no drawing.
  *
  * States: attract (title, high score table, demo play) cycling by knob durations; PLAYING;
  * GAME_OVER; NAME_ENTRY (only when the score ranks); SAVE_REMINDER (open the MiSTer menu

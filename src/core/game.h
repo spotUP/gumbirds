@@ -1,5 +1,5 @@
 /*
- * game.h - hardware independent game state and per-frame step for Bubblegum Brawl.
+ * game.h - hardware independent game state and per-frame step for Gumbirds.
  * Portable C99. Fixed point only. No malloc, no globals. The flow calls game_reset(seed) at start
  * press and game_step_arena(&g, input) once per frame, then the main loop draws from the public state.
  *

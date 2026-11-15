@@ -24,7 +24,7 @@ The Makefile and `RULES.md` are written around macOS with Homebrew (the run targ
 
 Run all commands from the repository root.
 
-- `gmake` builds the ROM set into `build/rom/` and a zip, `build/brawl.zip`. The game's internal ROM name is still `brawl` (see Known leftovers below).
+- `gmake` builds the ROM set into `build/rom/` and a zip, `build/gumbirds.zip`.
 - `gmake run` starts the game in a MAME window as an MVS machine, with high scores kept in `nvram/`. Pick another screen filter with, for example, `gmake run MAME_SHADER=crt-geom`.
 - `gmake test` runs the host tests and then the emulator checks (see Tests).
 - `gmake clean` removes build output.
@@ -48,10 +48,6 @@ MAME tests are Lua scripts in `tests/mame/`, run headless against the built ROM.
 - `setup/`, `cfg/`, `build.mk`, `config.mk`, `emu.mk`, `rom.mk`, `Makefile` - build configuration.
 - `design/` - draft design pages in HTML.
 - `thoughts/` - plans, research notes, handoffs and art drafts.
-
-## Known leftovers
-
-The project was renamed from an earlier working title. The build still uses the old name in places: the Makefile sets `GAMEROM=brawl` and `GAMETITLE=Bubblegum Brawl`, and the MiSTer package is named `bubblegum-brawl.neo`.
 
 ## License
 

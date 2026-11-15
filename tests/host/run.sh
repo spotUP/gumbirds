@@ -1,5 +1,5 @@
 #!/bin/sh
-# Host tests for the Bubblegum Brawl core. Usage: tests/host/run.sh
+# Host tests for the Gumbirds core. Usage: tests/host/run.sh
 # Output goes to build/test-host (override with BRAWL_TEST_OUT); only a summary is printed.
 set -u
 HERE=$(cd "$(dirname "$0")" && pwd)
