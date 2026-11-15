@@ -60,3 +60,38 @@ Gates:
 - MAME test-trip, test-vblank, test-attract: NOT RUN. trip_cave_check.lua has never run. Measurements (sprites per line, logic end, VRAM writes outside vblank, palette words per flush): not taken.
 
 Unverified: roof kill check not written (needs an active poke after the splash phase); dither phase seam on hflipped trailing curves vs flat fade; roof fill frame now unused (kept); the import depends on commit 71724ee.
+
+## TRIP-CAVE3 (gate fixes, 2026-11-15)
+
+Commit 903b4a1 "Keep scripted trip pilots clear of the killing roof" (src/core/flow.c, tests/host/trip_steer.h, tests/host/test_trip_contact.c).
+
+### Causes
+- test_flow.c:381 and test_trip_view.c:61 both pass at f65f3a6 and both fail from 940a9e0 on. 940a9e0 made the roof kill (`trip_hit_hero_walls`, src/core/trip_hit.c:155, owner decision) and moved chunk 0's window top from 26 to 16 (window limit with the gum ceiling: 41). Both scripted pilots aimed without the roof and used to bounce off it.
+  - Attract demo: `demo_input` hovers at fixed DEMO_HOVER_Y 50. Host diagnostic, 200 seeds in Gum Trip: old code 0 deaths, new code 147 (91 near the roof).
+  - Test pilot `trip_steer`: 10-frame look-ahead misses stacked flap speed (vy about -1.5 px/frame). Seed 1234: "frame 45 px 33 y 42->40 win 41..153 hits 0->1" (roof death).
+- test_trip_contact.c:82-86 (`test_top_wall`) asserted the old roof bounce. Stale after 940a9e0.
+
+### Fixes
+- flow.c `demo_input`: in GAME_MODE_TRIP the demo hovers at the centre of `trip_hit_window`. 200-seed diagnostic: 0 deaths.
+- trip_steer.h: no flap when the ballistic apex `y - v*v/(2*FLIER_GRAVITY_BALLOON)` reaches within 4 px of the window top. Seed 1234 now reaches px 1581.
+- test_trip_contact.c `test_top_wall` asserts the roof kill (FLIER_FALLING, hits 1, FLIER_FALL_START_VY, TRIP_EV_HIT), as the floor case does.
+
+### Gates (ROM at 903b4a1)
+- Host suite: PASS after the fix (test_flow 0 failures, test_trip_view 0, test_trip_contact 215 checks 0).
+- test-attract: PASS (demos 2..4 start at frames 2745, 4550, 6368).
+- test-vblank: FAIL. VRAM writes outside vblank 0, palette writes outside vblank 0, palette words per flush max 100 (limit 112). Failing item: "demo arcade: logic end max 999.0 at demo frame 5 (frames over 3)". Not from 903b4a1: the same run with the pre-fix flow.c gives the same arcade line (and the trip demo died at frame 159 with one overrun). Not root-caused; the DEMO-3 fix (`game_begin`) is present.
+- test-trip: FAIL. trip_cave_check.lua runs without Lua errors (flat fade rows 57335, curve columns 5943). Failing items:
+  - tile errors 969, first "sprite 332 row 1 tile 3113 attr 0x2d01 animation" (a hflipped floor curve row without the auto-animation bit; checker or core, not decided).
+  - a 2-frame stall at frame 702: frames without a game step 2, growth 0 at frame 702, longest still camera run 2, island slots bad 15, strip columns differ 2, pickups bad 2. Likely one cause (a skipped step), not analysed.
+  - gum meter bad 1 (cell 4 at frame 7: got 0x03bf want 0x03bb).
+
+### Measurements
+- Sprites per line max: 82 (ROM, every sprite, line 96); trip worst sprite line 47; SB_LIMIT 90.
+- Logic end max: 220.6 lines (test-trip, frame 1211); demo arcade 999.0 (overrun above).
+- VRAM writes outside vblank: 0 (test-vblank, play and demo runs).
+- Palette words per flush max: 100 (limit 112).
+
+### Unverified
+- The trip_steer apex guard raises long-run hazard deaths (155 of 200 seeds in 3000 frames, old 130); roof deaths drop to 11. Does not change any gate.
+- Demo window-centre hover with trip rivals: host diagnostic only.
+- Causes of the test-trip and demo arcade failures.
