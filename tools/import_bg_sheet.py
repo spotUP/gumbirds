@@ -29,6 +29,8 @@ MOODS = {
     "moon": {"prefix": "plane_moon_", "sheet": "city", "backdrop": "#1a1238", "trip": (115, 82, 165)},
     # dusk: the top-left sky pixel and the most common sky colour of plane_dusk_sky_1x.png
     "dusk": {"prefix": "plane_dusk_", "sheet": "dusk", "backdrop": "#211042", "trip": (90, 33, 90)},
+    # storm: the same rule (top-left sky pixel, most common sky colour of plane_storm_sky_1x.png)
+    "storm": {"prefix": "plane_storm_", "sheet": "storm", "backdrop": "#080810", "trip": (66, 123, 123)},
 }
 # Planes whose cover a plane must NOT count: Gum Trip hides near (BG_TRIP_HIDDEN_MASK in src/core/bg_scroll.h), so mid B must not lose
 # tiles to near. Sky does lose tiles to far (and to the other planes in front) where they are opaque across their whole width.

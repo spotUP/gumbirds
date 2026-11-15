@@ -1,6 +1,6 @@
 #ifndef BG_H
 #define BG_H
-/* Parallax background (moon and dusk moods): hardware side (palettes, one sprite per column). The math is src/core/bg_scroll.c. */
+/* Parallax background (moon, dusk and storm moods): hardware side (palettes, one sprite per column). The math is src/core/bg_scroll.c. */
 #include <ngdevkit/types.h>
 
 /* Sentinels for the headless test (addresses from the ELF map). */

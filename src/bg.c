@@ -9,9 +9,9 @@
  * (bg_ramp + gfx_scb_ramp, VQ_RAMP): the frame logic does O(1) work per moving plane and the vblank flush generates the
  * words. A camera step is one op per moving plane (four: the sky never moves), a still camera sends none.
  * The plane sizes, tops and factors come from assets/city/city_sheet.json through tools/import_bg_sheet.py.
- * Moods (GAME_MOOD_*): moon (city_*) and dusk (dusk_*) share the plane layout (same columns, rows and tops: checked below and
- * in tests/host/test_bg.c) and differ in tiles, palettes and backdrop. Both palette sets stay loaded (CITY_PAL_SLOT,
- * DUSK_PAL_SLOT), so a mood change sends no palette words but the backdrop: bg_set_mood hides every column (one SCB3 run),
+ * Moods (GAME_MOOD_*, BG_MOOD_COUNT in all): moon (city_*), dusk (dusk_*) and storm (storm_*) share the plane layout (same
+ * columns, rows and tops: checked below and in tests/host/test_bg.c) and differ in tiles, palettes and backdrop. All palette
+ * sets stay loaded (CITY_PAL_SLOT, DUSK_PAL_SLOT, STORM_PAL_SLOT), so a mood change sends no palette words but the backdrop: bg_set_mood hides every column (one SCB3 run),
  * bg_update rewrites BG_MOOD_COLS_PER_FRAME strips per frame, then shows the columns again (one run).
  */
 #include <ngdevkit/neogeo.h>
@@ -23,6 +23,7 @@
 #include "vram_layout.h"
 #include "gen/city_tables.h"
 #include "gen/dusk_tables.h"
+#include "gen/storm_tables.h"
 #include "core/game.h"
 
 volatile s16 g_bg_plane_x[BG_PLANE_COUNT];
@@ -35,6 +36,7 @@ static u8 g_last_valid;
 const u16 g_bg_pal_first_entry = CITY_PAL_SLOT * 16;
 /* First palette RAM entry of the dusk palettes; read by tests/mame/mood_check.lua through nm. */
 const u16 g_bg_dusk_pal_first_entry = DUSK_PAL_SLOT * 16;
+const u16 g_bg_storm_pal_first_entry = STORM_PAL_SLOT * 16; /* the same for the storm palettes */
 volatile u8 g_bg_mood;
 volatile u8 g_bg_mood_busy;
 volatile u16 g_bg_mood_changes;
@@ -42,14 +44,19 @@ volatile u16 g_bg_mood_changes;
 /* Palette word (DRGB, dark bit 0) from 5 bit channels, same layout as tools/sprite_pipeline.py rgb_to_ng. */
 #define NG_RGB5(r, g, b) ((u16)((((r) & 1) << 14) | (((g) & 1) << 13) | (((b) & 1) << 12) | (((r) >> 1) << 8) | (((g) >> 1) << 4) | ((b) >> 1)))
 /* Per mood: the backdrop ("backdrop" in the sheet json) and the Gum Trip backdrop (the sky plane colour), from tools/import_bg_sheet.py MOODS. */
-static const u16 BACKDROP[GAME_MOOD_COUNT] = { NG_RGB5(CITY_BACKDROP_R5, CITY_BACKDROP_G5, CITY_BACKDROP_B5),
-                                              NG_RGB5(DUSK_BACKDROP_R5, DUSK_BACKDROP_G5, DUSK_BACKDROP_B5) };
-static const u16 TRIP_BACKDROP[GAME_MOOD_COUNT] = { NG_RGB5(CITY_TRIP_R5, CITY_TRIP_G5, CITY_TRIP_B5),
-                                                   NG_RGB5(DUSK_TRIP_R5, DUSK_TRIP_G5, DUSK_TRIP_B5) };
-_Static_assert(GAME_MOOD_COUNT == 2, "one tile set per built mood: moon, dusk");
+static const u16 BACKDROP[BG_MOOD_COUNT] = { NG_RGB5(CITY_BACKDROP_R5, CITY_BACKDROP_G5, CITY_BACKDROP_B5),
+                                            NG_RGB5(DUSK_BACKDROP_R5, DUSK_BACKDROP_G5, DUSK_BACKDROP_B5),
+                                            NG_RGB5(STORM_BACKDROP_R5, STORM_BACKDROP_G5, STORM_BACKDROP_B5) };
+static const u16 TRIP_BACKDROP[BG_MOOD_COUNT] = { NG_RGB5(CITY_TRIP_R5, CITY_TRIP_G5, CITY_TRIP_B5),
+                                                 NG_RGB5(DUSK_TRIP_R5, DUSK_TRIP_G5, DUSK_TRIP_B5),
+                                                 NG_RGB5(STORM_TRIP_R5, STORM_TRIP_G5, STORM_TRIP_B5) };
+_Static_assert(BG_MOOD_COUNT == 3 && GAME_MOOD_STORM == 2, "one tile set per built mood: moon, dusk, storm");
 _Static_assert(sizeof dusk_tile_index == sizeof city_tile_index, "dusk planes cut like the moon planes");
+_Static_assert(sizeof storm_tile_index == sizeof city_tile_index, "storm planes cut like the moon planes");
 _Static_assert(DUSK_ANIM_SKY == CITY_ANIM_SKY && DUSK_ANIM_FAR == CITY_ANIM_FAR && DUSK_ANIM_MIDA == CITY_ANIM_MIDA &&
-               DUSK_ANIM_MIDB == CITY_ANIM_MIDB && DUSK_ANIM_NEAR == CITY_ANIM_NEAR, "same plane order in both moods");
+               DUSK_ANIM_MIDB == CITY_ANIM_MIDB && DUSK_ANIM_NEAR == CITY_ANIM_NEAR, "same plane order in every mood");
+_Static_assert(STORM_ANIM_SKY == CITY_ANIM_SKY && STORM_ANIM_FAR == CITY_ANIM_FAR && STORM_ANIM_MIDA == CITY_ANIM_MIDA &&
+               STORM_ANIM_MIDB == CITY_ANIM_MIDB && STORM_ANIM_NEAR == CITY_ANIM_NEAR, "same plane order in every mood");
 
 static const u8 PLANE_ANIM[BG_PLANE_COUNT] = { CITY_ANIM_SKY, CITY_ANIM_FAR, CITY_ANIM_MIDA, CITY_ANIM_MIDB, CITY_ANIM_NEAR };
 static const u8 PLANE_FIRST[BG_PLANE_COUNT] = { BG_SKY_SPRITE, BG_FAR_SPRITE, BG_MIDA_SPRITE, BG_MIDB_SPRITE, BG_NEAR_SPRITE };
@@ -69,7 +76,9 @@ _Static_assert(CITY_SKY_COLS <= BG_MAX_COLS && CITY_FAR_COLS <= BG_MAX_COLS && C
     _Static_assert(BG_##N##_COUNT == CITY_##N##_COLS && BG_##N##_Y0 == CITY_##N##_TOP && BG_##N##_Y1 == CITY_##N##_BOTTOM, \
                    "src/sprite_slots.h " #n " plane differs from assets/city/city_sheet.json"); \
     _Static_assert(DUSK_##N##_COLS == CITY_##N##_COLS && DUSK_##N##_TOP == CITY_##N##_TOP && DUSK_##N##_BOTTOM == CITY_##N##_BOTTOM, \
-                   #n " plane: dusk differs from the moon")
+                   #n " plane: dusk differs from the moon"); \
+    _Static_assert(STORM_##N##_COLS == CITY_##N##_COLS && STORM_##N##_TOP == CITY_##N##_TOP && STORM_##N##_BOTTOM == CITY_##N##_BOTTOM, \
+                   #n " plane: storm differs from the moon")
 CHECK_PLANE(SKY, sky);
 CHECK_PLANE(FAR, far);
 CHECK_PLANE(MIDA, mid A);
@@ -87,8 +96,8 @@ _Static_assert(CITY_ANIM_COUNT == BG_PLANE_COUNT, "one animation per plane");
 #define BG_TILE_REFS (sizeof city_tile_index / sizeof city_tile_index[0])
 /* {tile, attribute} of every tile_index entry per mood, built once: the attribute carries the tile's own palette. The queue
  * reads the pairs at flush time, so they stay here for good. */
-static u16 g_pairs[GAME_MOOD_COUNT][BG_TILE_REFS][2];
-static const u16 TILE_BASE[GAME_MOOD_COUNT] = { CITY_TILE_BASE, DUSK_TILE_BASE };
+static u16 g_pairs[BG_MOOD_COUNT][BG_TILE_REFS][2];
+static const u16 TILE_BASE[BG_MOOD_COUNT] = { CITY_TILE_BASE, DUSK_TILE_BASE, STORM_TILE_BASE };
 /* Mood change: g_want is the mood asked for, g_step the next column to rewrite while g_bg_mood_busy. */
 static u8 g_want, g_step;
 static u8 g_hidden; /* planes bg_trip_planes hides (BG_TRIP_HIDDEN_MASK bits) */
@@ -103,6 +112,9 @@ void bg_load_palettes(void) {
     for (int p = 0; p < DUSK_PALETTE_COUNT; p++)
         for (int i = 0; i < 16; i++)
             gfx_pal((DUSK_PAL_SLOT + p) * 16 + i, dusk_palettes[p][i]);
+    for (int p = 0; p < STORM_PALETTE_COUNT; p++)
+        for (int i = 0; i < 16; i++)
+            gfx_pal((STORM_PAL_SLOT + p) * 16 + i, storm_palettes[p][i]);
     /* The backdrop is the LAST palette RAM entry, not entry 0 (verified by snapshot, plan B2). */
     gfx_pal(4095, BACKDROP[g_bg_mood]);
 }
@@ -123,6 +135,8 @@ void bg_init(void) {
         g_pairs[GAME_MOOD_MOON][i][1] = (u16)((CITY_PAL_SLOT + city_tile_pal[i]) << 8);
         g_pairs[GAME_MOOD_DUSK][i][0] = dusk_tile_index[i];
         g_pairs[GAME_MOOD_DUSK][i][1] = (u16)((DUSK_PAL_SLOT + dusk_tile_pal[i]) << 8);
+        g_pairs[GAME_MOOD_STORM][i][0] = storm_tile_index[i];
+        g_pairs[GAME_MOOD_STORM][i][1] = (u16)((STORM_PAL_SLOT + storm_tile_pal[i]) << 8);
     }
     for (u8 p = 0; p < BG_PLANE_COUNT; p++) {
         for (u8 c = 0; c < PLANE_COLS[p]; c++) {
@@ -140,7 +154,7 @@ void bg_init(void) {
 }
 
 void bg_set_mood(u8 mood) {
-    if (mood >= GAME_MOOD_COUNT || mood == g_want) return;
+    if (mood >= BG_MOOD_COUNT || mood == g_want) return;
     g_want = mood;
     g_step = 0; /* a change already in flight starts its strips again for the new mood */
     if (g_bg_mood_busy) return;

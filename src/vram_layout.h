@@ -9,6 +9,7 @@
 #include "gen/obs_sprites.h"
 #include "gen/city_sprites.h"
 #include "gen/dusk_sprites.h"
+#include "gen/storm_sprites.h"
 #include "gen/sootling_sprites.h"
 #include "gen/hazard_sprites.h"
 #include "gen/island_sprites.h"
@@ -29,7 +30,8 @@
 #define CITY_TILE_BASE (OBS_TILE_BASE + OBS_TILE_COUNT)
 
 #define DUSK_TILE_BASE (CITY_TILE_BASE + CITY_TILE_COUNT) /* dusk mood planes (src/bg.c) */
-#define SOOT_TILE_BASE (DUSK_TILE_BASE + DUSK_TILE_COUNT)
+#define STORM_TILE_BASE (DUSK_TILE_BASE + DUSK_TILE_COUNT) /* storm mood planes (src/bg.c, STORM-1) */
+#define SOOT_TILE_BASE (STORM_TILE_BASE + STORM_TILE_COUNT)
 /* A Sootling frame is drawn as SOOT_COLUMNS hardware strips of 16 px: the pipeline pads the art to whole tiles, centred
    (tools/sprite_pipeline.py), so the sprite is wider than the art when ART_W is not a multiple of 16 (24 px art: 32 px
    sprite, 4 px left pad). SOOT_BOX_DX is the hit box's first column inside the sprite: art column plus the left pad. */
@@ -80,7 +82,8 @@ _Static_assert((RESFX_TILE_BASE & 7) == 0, "result sprite tile base is not 8-ali
 #define OBS_PAL_SLOT FIX_PAL_COUNT
 #define CITY_PAL_SLOT (OBS_PAL_SLOT + OBS_PALETTE_COUNT)
 #define DUSK_PAL_SLOT (CITY_PAL_SLOT + CITY_PALETTE_COUNT) /* dusk mood planes; both moods stay loaded, a mood change rewrites only the strips (src/bg.c) */
-#define SOOT_PAL_SLOT (DUSK_PAL_SLOT + DUSK_PALETTE_COUNT) /* palette 0: player, palette 1: computer fliers (red balloons) */
+#define STORM_PAL_SLOT (DUSK_PAL_SLOT + DUSK_PALETTE_COUNT) /* storm mood planes, resident like dusk */
+#define SOOT_PAL_SLOT (STORM_PAL_SLOT + STORM_PALETTE_COUNT) /* palette 0: player, palette 1: computer fliers (red balloons) */
 
 #define HAZARD_PAL_SLOT (SOOT_PAL_SLOT + SOOTLING_PALETTE_COUNT) /* palette p = hazard p: spikes, fire, water, lava */
 #define ISLAND_PAL_SLOT (HAZARD_PAL_SLOT + HAZARD_PALETTE_COUNT) /* one palette per look */
