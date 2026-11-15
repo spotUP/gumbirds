@@ -44,6 +44,7 @@ void flow_init(Flow *f, const uint8_t *image, size_t len)
     f->demo_in = 0;
     attract_overlay_reset(&f->ov);
     f->select_open = 0;
+    f->credit_hold = 0;
     f->mode = GAME_MODE_ARENA;
     f->input_prev = 0;
     f->reset_flash = 0;
@@ -129,6 +130,8 @@ void flow_step(Flow *f, uint8_t input, uint8_t start_pressed, uint32_t frame_cou
     /* MB1/MB2: A is a second Start on the attract screens, B goes back to the title (press edges) */
     uint8_t a_edge = (uint8_t)(input & ~f->input_prev & IN_A);
     uint8_t b_edge = (uint8_t)(input & ~f->input_prev & IN_B);
+    /* Owner rule "never force start": credits in hold the title, table and demo jump back to it (like a coin) */
+    if (f->credit_hold && !start_pressed && (f->state == FLOW_ATTRACT_TABLE || f->state == FLOW_ATTRACT_DEMO)) flow_coin(f);
     switch (f->state) {
     case FLOW_ATTRACT_TITLE:
         title_reset_combo(f, input);
@@ -138,7 +141,7 @@ void flow_step(Flow *f, uint8_t input, uint8_t start_pressed, uint32_t frame_cou
             start_game(f, frame_counter, 0);
         } else if (a_edge && (input & FLOW_RESET_COMBO) != FLOW_RESET_COMBO) {
             if (!f->select_open) { f->select_open = 1; f->timer = 0; } /* A without a credit only opens the select */
-        } else if (f->timer >= ATTRACT_TITLE_FRAMES) {
+        } else if (f->timer >= ATTRACT_TITLE_FRAMES && !f->credit_hold) {
             f->reset_flash = 0;
             f->select_open = 0;
             f->highlight = -1; /* the saved row was shown on the title, the table that follows is plain */

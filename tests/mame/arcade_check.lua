@@ -129,6 +129,12 @@ local died, expect_lives, cd0, press = 0, nil, nil, 0
 -- per-frame logic end bookkeeping: steady = more than 3 frames after any stage/flow/arcade-state change, arcade state PLAY, lives state PLAY
 local walk = os.getenv("ARCADE_WALK") == "1"
 local bonus_run = os.getenv("ARCADE_BONUS") == "1" -- make test-arcade-bonus: clear stages 1..3 and measure the bonus stage (up to 10 bubbles alive)
+-- ARCADE_CONT_OUT=1 (make test-arcade-contout, UniBIOS, one coin): stage 1, forced deaths, no press on the continue screen.
+-- A7: the countdown runs out -> GAME_OVER -> attract; with the credit left the PRESS START title holds and no game starts
+-- and no credit goes for 5 minutes; then one Start plays and takes one credit. Logs flow, credit, BIOS user mode/request and the compulsion timer.
+local cont_out = os.getenv("ARCADE_CONT_OUT") == "1"
+local co_coins = tonumber(os.getenv("ARCADE_COINS") or "2") -- owner report: more than one coin before the run, one Start
+local co = {go = nil, att = nil, sig = nil, log = {}}
 local bon_by = {}
 local bon_over, bon_over_note, bon_prev, bon_prev_cur = 0, nil, nil, nil
 local bon_logic, bon_frames, bon_nlive_max, bon_busy, bon_wait = 0, 0, 0, 0, 0
@@ -167,7 +173,7 @@ local function state() return string.format("flow=%d mode=%d stage=%d arc=%d liv
 
 emu.register_frame_done(function()
   n = n + 1
-  if n > (walk and 40000 or 9000) then finish(false, "watchdog in phase " .. phase .. ": " .. state()) return end
+  if n > ((walk or cont_out) and 40000 or 9000) then finish(false, "watchdog in phase " .. phase .. ": " .. state()) return end
   local playing = b(O_FLOW) == K.playing
   if playing and fc_line > logic_max then logic_max = fc_line end
   if playing and phase ~= "boot" and phase ~= "start" then note_frame(g(O_STAGE), g(O_ASTATE), g(O_LSTATE), fc_line) end
@@ -178,6 +184,7 @@ emu.register_frame_done(function()
     if fc ~= fc0 then phase = "start"; t0 = n; ss.begin(n) end
   elseif phase == "start" then
     if ss.step(n, playing, 2) then phase = "stage1" ; wait = 0 end
+    if cont_out and n - t0 >= 40 and n - t0 < 40 + 30 * (co_coins - 1) then coin:set_value(((n - t0 - 40) % 30) < 12 and 1 or 0) end
     if n - t0 > 1500 then finish(false, "A1 never reached PLAYING: " .. state()) end
   elseif phase == "stage1" then
     if b(O_MODE) ~= K.arcade then finish(false, "A1 mode is not ARCADE (ARCADE entry missing from the title select): " .. state()) return end
@@ -186,7 +193,7 @@ emu.register_frame_done(function()
     if wait >= 90 then
       local bad = world_bad(1)
       if bad then finish(false, "A8 stage 1 should show the moon world: " .. bad) return end
-      hash1 = island_hash(); phase = walk and "walk" or (bonus_run and "bonus_go" or "force_clear"); walk_wait = 0 end
+      hash1 = island_hash(); phase = walk and "walk" or (bonus_run and "bonus_go" or (cont_out and "die" or "force_clear")); walk_wait = 0; expect_lives = g(O_LIVES) end
   elseif phase == "walk" then
     -- ARCADE_WALK=1: play ~300 frames per stage with every rival alive (lives poked up), then force the clear
     walk_wait = walk_wait + 1
@@ -321,6 +328,36 @@ emu.register_frame_done(function()
     elseif g(O_PSTATE) ~= K.gone and b(O_NCPU) > 0 then
       mem:write_u8(flow_addr + O_PSTATE, K.gone)
     end
+  elseif phase == "continue" and cont_out then
+    wait = wait + 1
+    local fl, crd = b(O_FLOW), mem:read_u8(0x10fe00)
+    local sig = string.format("flow %d lstate %d credit %02x umode %d ureq %d comp %02x/%02x start_flag %02x", fl, g(O_LSTATE), crd,
+      mem:read_u8(0x10fdaf), mem:read_u8(0x10fdae), mem:read_u8(0x10fdda), mem:read_u8(0x10fddb), mem:read_u8(0x10fdb4))
+    if sig ~= co.sig then co.sig = sig; print(string.format("BRAWL_LOG +%d %s", wait, sig)) end
+    if fl == K.game_over and not co.go then co.go = wait end
+    if co.go and fl <= 2 and not co.att then co.att = wait end
+    local comp = mem:read_u8(0x10fdda)
+    if co.att and comp < (co.cmin or 0xff) then co.cmin = comp end
+    -- Owner rule "never force start": after attract the title holds (PRESS START) with the credit; no game, no credit
+    -- taken, for CO_HOLD frames (5 min, past any BIOS compulsion timer). Then one Start: a game and one credit taken.
+    local CO_HOLD = 18000
+    local held = co.att and wait - co.att
+    if co.att and not co.pressed then
+      if fl == K.playing then finish(false, string.format("A7 a no-press game %d frames into attract (compulsion timer low %02x BCD s, credit %02x, %d coins)", held, co.cmin or 0, crd, co_coins)) return end
+      if held > 120 and fl ~= 0 then finish(false, string.format("A7 credit in but attract left the PRESS START title (flow %d) %d frames into attract", fl, held)) return end
+      if crd ~= co_coins - 1 then finish(false, string.format("A7 credit byte %02x %d frames into attract with no press, want %02x (%d coins, one Start)", crd, held, co_coins - 1, co_coins)) return end
+      if held >= CO_HOLD then co.pressed = wait end
+    end
+    if co.pressed then
+      start:set_value(wait - co.pressed < 15 and 1 or 0)
+      if fl == K.playing and wait - co.pressed > 20 then
+        local ok = crd == co_coins - 2
+        finish(ok, string.format("A7 GAME OVER at +%d, attract at +%d, title held %d frames (%.0f s) with credit %02x and no game (compulsion timer low %02x BCD s); Start then played, credit %02x (want %02x)",
+          co.go, co.att, CO_HOLD, CO_HOLD / 60, co_coins - 1, co.cmin or 0, crd, co_coins - 2)) return
+      end
+      if wait - co.pressed > 300 then finish(false, "A7 Start after the hold started no game: " .. state()) return end
+    elseif crd ~= co_coins - 1 then finish(false, string.format("A7 credit byte %02x after the continue screen, want %02x (%d coins, one Start)", crd, co_coins - 1, co_coins)) return end
+    if wait > 3000 and not co.att then finish(false, "A7 no GAME OVER then attract within 3000 frames: " .. state()) return end
   elseif phase == "continue" then
     wait = wait + 1
     if wait <= 40 and (b(O_FLOW) ~= K.playing or g(O_LIVES) ~= 0 or g(O_LSTATE) ~= K.life_cont) then finish(false, "A4 continue state lost: " .. state()) return end

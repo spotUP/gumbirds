@@ -882,6 +882,7 @@ static u32 g_hud_lives;
 #define TITLE_PLAYERS_ROW 26
 #define TITLE_CREDIT_ROW 29
 #define TITLE_BLINK_ON 3      /* the plate line shows for 3 of every 5 logo animation steps */
+#define BIOS_COMPULSION_S ((volatile u8 *)0x10fdda) /* BIOS_COMPULSION_TIMER, BCD seconds; 0x10fddb counts its frames */
 #define BIOS_CREDIT_BCD ((volatile u8 *)0x10fe00) /* BCD, 1 = one credit; measured by tests/mame/logo_check.lua under UniBIOS 4.0 (nullbios never counts) */
 enum { TL_UNKNOWN = 0xFF, TL_HIDDEN = 0, TL_PRESS, TL_INSERT };
 static struct { u8 init, line, select, credits; u32 hi; u8 mode; } g_title = { 0, TL_UNKNOWN, 0xFF, 0xFF, 0xFFFFFFFFu, 0xFF };
@@ -1469,8 +1470,13 @@ int main(void) {
  * attract (BIOS_USER_MODE 1): main/resume_game_loop return, ngdevkit's wrapper_user jumps
  * to SYSTEM_RETURN, the BIOS saves and calls USER again, and rom_game/rom_title resume
  * the loop with RAM intact (same path as a coin re-entry). Guarded by make test-reach.
+ *
+ * Every game end also returns (g_game_ended), as MVS games end a play with SYSTEM_RETURN, on the first attract frame
+ * right after flow_step, while BIOS_USER_MODE is still 2. Bug fixed here: without it the BIOS compulsion timer (0x10FDDA) was never reloaded and read 0, so with
+ * a credit left UniBIOS forced PLAYER_START on the first attract frame after game over: a new game with no Start press
+ * (arcade continue countdown run out, two coins). Guarded by make test-arcade-contout.
  */
-static u8 g_bram_unsaved;
+static u8 g_bram_unsaved, g_game_ended;
 
 static void game_loop(void) {
     FlowView view;
@@ -1489,7 +1495,12 @@ static void game_loop(void) {
         if (coined && !start) flow_coin(&g_flow);
         if (a_edge && !start && g_flow.state <= FLOW_ATTRACT_DEMO && bios_user_mode == 1 && (in & FLOW_RESET_COMBO) != FLOW_RESET_COMBO && take_credit()) start = 1;
         if (g_flow.state == FLOW_PLAYING && g_flow.game.res.active && (bios_statchange & 1)) in |= IN_A; /* Start also ends the result screen */
+        g_flow.credit_hold = (u8)(credits_now() > 0); /* owner rule "never force start": credits hold the PRESS START title */
         flow_step(&g_flow, in, start, g_frame_counter);
+        /* Never force start: keep the BIOS compulsion timer (BCD seconds) from running out in attract, so the BIOS never calls
+         * PLAYER_START without a Start press and never takes a credit on its own. Bug fixed here: with a credit and no press,
+         * UniBIOS forced a game after 30 s. Guarded by make test-unibios (d) and test-arcade-contout (A7). */
+        if (g_flow.state <= FLOW_ATTRACT_DEMO) *BIOS_COMPULSION_S = 0x30;
         {
             /* hazard kind per round: a new game starts at round 0; a new round (not during the banner HOLD) swaps the strip */
             static int s_round = 0;
@@ -1510,6 +1521,11 @@ static void game_loop(void) {
             g_hiscore_saves++;
             g_flow.dirty = 0;
             g_bram_unsaved = 1;
+        }
+        if (g_flow.state == FLOW_GAME_OVER) g_game_ended = 1;
+        else if (g_game_ended && g_flow.state <= FLOW_ATTRACT_DEMO) {
+            g_game_ended = 0;
+            return; /* still user mode 2: SYSTEM_RETURN before any vblank sees mode 1 with a stale compulsion timer (see above) */
         }
         flow_view(&g_flow, &view);
         g_round_end_s[0] = g_flow.game.round_end; g_round_end_s[1] = g_flow.game.round_timer;
