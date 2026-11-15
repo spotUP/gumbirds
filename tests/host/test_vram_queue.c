@@ -117,6 +117,21 @@ int main(void)
     (void)total_cost();
     vq_fix_put(&q, 40, 0, 1); /* out of range is ignored */
     CHECK(commit_all() == 0);
+    /* clear by shadow: only the cells the shadow says differ change (a 2 x 2 box at (3, 4), one cell already blank) */
+    {
+        u16 sh[4] = { 0x1041, 0x20, 0x1042, 0x1043 }; /* row-major: (3,4) (4,4) / (3,5) (4,5) */
+        vq_fix_put(&q, 3, 4, 0x1041); vq_fix_put(&q, 3, 5, 0x1042); vq_fix_put(&q, 4, 5, 0x1043);
+        vq_fix_put(&q, 4, 4, 0x1055); /* not the banner's: its shadow cell is blank, so it stays */
+        (void)commit_all();
+        CHECK(vq_fix_clear_shadowed(&q, 3, 4, 2, 2, sh, 0x20) == 3);
+        CHECK(sh[0] == 0x20 && sh[1] == 0x20 && sh[2] == 0x20 && sh[3] == 0x20);
+        CHECK(q.fix_dirty[3] == ((1u << 4) | (1u << 5)) && q.fix_dirty[4] == (1u << 5));
+        CHECK(commit_all() == 3);
+        CHECK(vq_fix_clear_shadowed(&q, 3, 4, 2, 2, sh, 0x20) == 0 && commit_all() == 0);
+        CHECK(vq_fix_clear_shadowed(&q, 39, 4, 2, 2, sh, 0x20) == 0); /* off the layer: ignored */
+        vq_fix_put(&q, 4, 4, 0x20); /* leave the layer as the next block expects */
+        (void)commit_all();
+    }
     /* The commit runs at the end of the logic frame: its work must scale with the cells that changed, not with whole
      * columns (32 compares per touched column cost about 3.6 lines and pushed "cam moved" frames past line 224).
      * Dirty state is one bit per changed cell; a clear that changes nothing marks nothing. */

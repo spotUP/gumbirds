@@ -185,6 +185,26 @@ void vq_fix_fill(VramQueue *q, u16 cell) {
     }
 }
 
+/* One pass with no per-cell call: blanking the 22 x 8 round clear banner through vq_fix_put cost about 200 raster lines
+ * on the stage switch frame and pushed the logic of that frame past vblank (make test-arcade-walk). */
+u16 vq_fix_clear_shadowed(VramQueue *q, u8 x, u8 y, u8 w, u8 h, u16 *shadow, u16 cell) {
+    u16 n = 0;
+    if (x + w > VQ_FIX_COLS || y + h > VQ_FIX_ROWS) return 0;
+    for (u8 c = 0; c < w; c++) {
+        u16 *want = &q->fix_want[(x + c) * VQ_FIX_ROWS + y], *sh = shadow + c;
+        uint32_t m = 0, bit = 1ul << y;
+        for (u8 r = 0; r < h; r++, want++, sh += w, bit <<= 1) {
+            if (*sh == cell) continue;
+            *sh = cell;
+            if (*want != cell) { *want = cell; m |= bit; }
+            n++;
+        }
+        q->fix_dirty[x + c] |= m;
+        if (m) q->fix_any = 1;
+    }
+    return n;
+}
+
 /* Walks only the dirty bits: the cost is per changed cell, not per touched column (a whole-column scan cost about
  * 3.6 raster lines per column at the end of the logic frame and pushed "cam moved" frames past line 224). */
 int vq_fix_commit_n(VramQueue *q, u16 budget) {

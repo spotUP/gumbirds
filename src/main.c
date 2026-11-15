@@ -186,6 +186,7 @@ static void dead_hide(int d) {
     g_dead_front_mask &= (u16)~(1u << d);
 }
 static void dead_release(u8 owner) {
+    if (!g_dead_front_mask) return; /* no body slot owned (the usual frame): skip the owner scan */
     for (int d = 0; d < DEAD_BODIES; d++) if (g_dead_owner[d] == owner) dead_hide(d);
 }
 /* Slot index of the owner's body (claimed now if one is free), -1 when none is free: the body then keeps its normal slot. */
@@ -354,7 +355,8 @@ static void pool_sync_cpus(const Game *g) {
     for (int i = 0; i < slots; i++) {
         const Flier *c = &g->cpu[i];
         u8 k = g_cpu_obj[i];
-        int visible = i < g->cpu_count && flier_body_visible(c) && (c->state >= FLIER_FALLING || (int)((c->y + flier_half_h(c)) >> 16) <= SCREEN_H);
+        int32_t feet = c->y + flier_half_h(c); /* once: used by the visibility test and the pool y */
+        int visible = i < g->cpu_count && flier_body_visible(c) && (c->state >= FLIER_FALLING || (int)(feet >> 16) <= SCREEN_H);
         if (!visible) dead_release(DEAD_OWNER_CPU(i));
         if (!visible || cpu_show_front(g, i)) {
             if (k != POOL_NONE) { obj_pool_free(&g_pool, k); g_cpu_obj[i] = POOL_NONE; }
@@ -373,7 +375,7 @@ static void pool_sync_cpus(const Game *g) {
         if (arc_pump_in_window(&g->pump[i]) && c->state == FLIER_ALIVE) p->type = flier_pump_frame(&k_clips, arc_pump_progress(&g->pump[i])); /* sitting rival: pump frame */
         if (flip) p->flags |= POOL_F_FLIP; else p->flags &= (u8)~POOL_F_FLIP;
         p->x = c->x;
-        p->y = (int32_t)(c->y + flier_half_h(c));
+        p->y = feet;
         if (flier_view_visible(c, g->frame)) p->flags &= (u8)~POOL_F_BLINK; else p->flags |= POOL_F_BLINK;
     }
 }
@@ -1309,8 +1311,8 @@ static void draw(const FlowView *v) {
                 g_banner_pending |= rows;
                 rows = 0;
                 if (!on) {
-                    rows = 0xFF; g_banner_pending = 0;
-                } else {
+                    g_banner_pending = 0; /* the panel goes in one pass: a per-cell loop over all rows cost about 200 raster lines */
+                    g_banner_cells += gfx_fix_clear_shadowed(BANNER_COL, BANNER_ROW, BANNER_W, BANNER_H, g_banner_shadow, blank);                } else {
                     for (row = 0; row < BANNER_H && rows_left; row++) {
                         if (g_banner_pending & (1 << row)) { rows |= (u8)(1 << row); g_banner_pending &= (u8)~(1 << row); rows_left--; }
                     }

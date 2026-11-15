@@ -41,6 +41,7 @@ void gfx_pal(u16 idx, u16 val);
 void gfx_text(u8 x, u8 y, u8 pal, const char *s);
 /* One fix cell: S-ROM tile number with palette pal (goes through the fix shadow, so an unchanged cell sends nothing). */
 void gfx_fix_tile(u8 x, u8 y, u8 pal, u16 tile);
+u16 gfx_fix_clear_shadowed(u8 x, u8 y, u8 w, u8 h, u16 *shadow, u16 cell); /* vq_fix_clear_shadowed: cell = pal << 12 | tile */
 void gfx_text_backed(u8 x, u8 y, u8 pal, const char *s);
 void gfx_text_tall(u8 x, u8 y, u8 pal, const char *s);
 void gfx_text_tall_backed(u8 x, u8 y, u8 pal, const char *s);
