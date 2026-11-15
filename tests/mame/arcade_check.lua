@@ -7,12 +7,14 @@
 --   A4. forced flier deaths (player state GONE) take the lives down one by one; the last one opens the continue state
 --       (lives 0, countdown ARC_CONTINUE_FRAMES counting down, flow still PLAYING, not GAME_OVER);
 --   A5. A pressed in the continue state restores ARC_LIVES_START lives, score 0, state PLAY, same stage.
+-- A8: stage 1 and 2 show the moon world (sky g_bg_mood, island look, hazard g_hazard_kind); ARCADE_WALK=1 checks every stage's block.
 -- A6: logic end stays under 224 on EVERY playing frame (steady and spike frames alike; 999 = past vblank end); steady = frames >3 after a stage/state change. ARCADE_WALK=1 (make test-arcade-walk): walks stages 1..12 instead of A2..A5.
 -- Also reports the max frame logic end (raster lines after vblank end) in arcade play. Env: BRAWL_FLOW_ADDR, BRAWL_FRAME_ADDR (hex),
 -- BRAWL_ARCADE_LAYOUT (arcade_probe.c output), BRAWL_RESULT.
 local flow_addr  = tonumber(os.getenv("BRAWL_FLOW_ADDR"), 16)
 local frame_addr = tonumber(os.getenv("BRAWL_FRAME_ADDR"), 16)
 local result     = os.getenv("BRAWL_RESULT")
+local mood_addr, hz_addr = tonumber(os.getenv("BRAWL_MOOD_ADDR") or "", 16), tonumber(os.getenv("BRAWL_HAZARD_ADDR") or "", 16) -- g_bg_mood, g_hazard_kind (u8)
 
 local L = {}
 for v in (os.getenv("BRAWL_ARCADE_LAYOUT") or ""):gmatch("%d+") do L[#L + 1] = tonumber(v) end
@@ -80,19 +82,31 @@ local function island_hash()
   return h
 end
 
--- A7: every drawn island column uses the tiles and palette of the look the stage should have (look = level modulo 3: stage 1 roof, 2 garden).
--- Returns nil when all fit, else a message. A column is drawn when its SCB1 tile word is not 0 (parked sprites keep 0).
+-- A7: every drawn island column uses the tiles and palette of the look the stage should have (world_bad below gives the look).
+-- Returns nil when all fit, else a message. A column is drawn when its SCB1 tile word is not 0 and its SCB4 x is not the
+-- parked x (SCREEN_W = 0xA000): a relayout parks every column but keeps stale tiles in the ones the new layout does not use.
 local function island_look_bad(look)
   local lo, n = K.isl_tile + look * K.isl_tiles, 0
   for s = K.isl, K.isl + K.isl_n - 1 do
     local t, a = vram[s * 64] or 0, vram[s * 64 + 1] or 0
-    if t ~= 0 then
+    if t ~= 0 and vram[0x8400 + s] ~= 0xA000 then
       n = n + 1
       if t < lo or t >= lo + K.isl_tiles then return string.format("sprite %d tile %d outside look %d range %d..%d", s, t, look, lo, lo + K.isl_tiles - 1) end
       if (a >> 8) ~= K.isl_pal + look then return string.format("sprite %d palette %d, want %d", s, a >> 8, K.isl_pal + look) end
     end
   end
   if n == 0 then return "no island column drawn" end
+end
+
+-- A8 (WORLD-1): the stage block's world is on screen: stages 1-4 moon sky, roof islands, water; 5-8 dusk, garden, lava;
+-- 9-12 storm deck islands and spikes over the moon sky (storm sky not built). Spec written out here (src/core/world.h).
+local WORLD = { { mood = 0, look = 0, hz = 2 }, { mood = 1, look = 1, hz = 3 }, { mood = 0, look = 2, hz = 0 } }
+local function world_bad(stage)
+  local w = WORLD[(stage - 1) // 4 + 1]
+  local bad = island_look_bad(w.look)
+  if bad then return bad end
+  if mem:read_u8(mood_addr) ~= w.mood then return "sky mood " .. mem:read_u8(mood_addr) .. ", want " .. w.mood end
+  if mem:read_u8(hz_addr) ~= w.hz then return "hazard kind " .. mem:read_u8(hz_addr) .. ", want " .. w.hz end
 end
 
 -- logic end (report only): g_frame_counter write, raster lines after vblank end
@@ -169,12 +183,17 @@ emu.register_frame_done(function()
     if b(O_NCPU) > 0 then wait = wait + 1 end
     if g(O_STAGE) ~= 1 or g(O_ASTATE) ~= K.play then finish(false, "A1 not stage 1 PLAY: " .. state()) return end
     if wait >= 90 then
-      local bad = island_look_bad(0)
-      if bad then finish(false, "A7 stage 1 should draw the roof look: " .. bad) return end
+      local bad = world_bad(1)
+      if bad then finish(false, "A8 stage 1 should show the moon world: " .. bad) return end
       hash1 = island_hash(); phase = walk and "walk" or (bonus_run and "bonus_go" or "force_clear"); walk_wait = 0 end
   elseif phase == "walk" then
     -- ARCADE_WALK=1: play ~300 frames per stage with every rival alive (lives poked up), then force the clear
     walk_wait = walk_wait + 1
+    if walk_wait == 250 then
+      local bad = world_bad(g(O_STAGE))
+      if bad then finish(false, "A8 stage " .. g(O_STAGE) .. " world: " .. bad) return end
+      print(string.format("ARC_WORLD stage %d ok", g(O_STAGE)))
+    end
     if (g(O_STAGE) >= 12 and walk_wait >= 300) or not playing then
       local ok, why = report()
       finish(ok, ok and "walk stages 1..12 done" or why)
@@ -255,8 +274,8 @@ emu.register_frame_done(function()
   elseif phase == "stage2" then
     wait = wait + 1
     if wait >= 150 then
-      local bad = island_look_bad(1)
-      if bad then finish(false, "A7 stage 2 should draw the garden look: " .. bad) return end
+      local bad = world_bad(2)
+      if bad then finish(false, "A8 stage 2 should show the moon world: " .. bad) return end
       hash2 = island_hash()
       if hash1 == hash2 then finish(false, "A3 island VRAM words unchanged between stage 1 and 2 (hash " .. hash1 .. ")") return end
       phase = "die"; expect_lives = g(O_LIVES)

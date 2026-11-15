@@ -4,6 +4,7 @@
 #include "arena.h"
 #include "hazard_kind.h"
 #include "banner.h"
+#include "world.h"
 
 /* Broad phase reach in half pixels: the widest pair contact (two wide gums, flier.h FLIER_PAIR_REACH_HALF). */
 #define BROAD_REACH_HALF FLIER_PAIR_REACH_HALF
@@ -153,14 +154,17 @@ static void match_start(Game *g)
     }
     if (arcade) {
         stage_select(arc_stage_layout(g->arc.stage));
-        stage_set_level(g->arc.stage - 1);
+        stage_set_level(world_get(world_of_stage(g->arc.stage))->look); /* arcade: the stage block's world (world.h) */
+        g->mood = world_get(world_of_stage(g->arc.stage))->mood;
         n = stage_rival_count(); /* the layout's own rival count (ROT3b) */
         arc_elements_init(&g->elems, g->arc.stage - 1);
-    } else if (g->rounds) {
-        stage_select((int)(g->matches_won % (uint32_t)stage_layout_count())); /* round start: the pan has ended, the screen is frozen under ROUND nn */
-        stage_set_level((int)g->matches_won);
+    } else {
+        if (g->rounds) {
+            stage_select((int)(g->matches_won % (uint32_t)stage_layout_count())); /* round start: the pan has ended, the screen is frozen under ROUND nn */
+            stage_set_level((int)g->matches_won);
+        }
+        game_next_mood(g); /* arena: each part varies on its own (world.h) */
     }
-    game_next_mood(g);
     g->cpu_count = (uint8_t)n;
     g->cpu_alive = (uint8_t)n;
     for (i = 0; i < STAGE_SPAWN_COUNT; i++) {
