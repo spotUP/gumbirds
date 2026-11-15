@@ -1,5 +1,5 @@
 /*
- * main.c - Neo Geo glue for Bubblegum Brawl: vblank loop, joypad, backup RAM, fix-layer drawing.
+ * main.c - Neo Geo glue for Gumbirds: vblank loop, joypad, backup RAM, fix-layer drawing.
  * All game logic lives in src/core (host tested). Nothing here decides gameplay.
  */
 #include <ngdevkit/neogeo.h>
@@ -1400,7 +1400,7 @@ static void draw(const FlowView *v) {
  * (clear .bss, copy .data) and call main() each time. That wipes every RAM variable
  * (g_flow, g_frame_counter) mid session.
  *
- * Bubblegum Brawl overrides rom_game and rom_title (link-time hooks in ngdevkit.ld): the first
+ * Gumbirds overrides rom_game and rom_title (link-time hooks in ngdevkit.ld): the first
  * entry after power-on goes through the ngdevkit default (C runtime init, then main), every
  * later entry re-enables interrupts and resumes game_loop() with RAM intact. The flow
  * state machine owns attract/title/play, so commands 2 and 3 need no separate screens.

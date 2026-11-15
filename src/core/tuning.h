@@ -1,5 +1,5 @@
 /*
- * tuning.h - every gameplay constant for Bubblegum Brawl in one place.
+ * tuning.h - every gameplay constant for Gumbirds in one place.
  *
  * Units: positions and speeds are fixed point 8.8 (value / 256 = pixels) where the name says
  * "8.8"; everything else is whole pixels or whole frames. The game runs at 60 frames per second.
