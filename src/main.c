@@ -1663,8 +1663,10 @@ static void game_loop(void) {
         }
         /* game.c picks the mood per match and per attract loop; no-op when unchanged. A mood change hides the planes for about
          * 14 frames, so it runs only while the world is hidden (title, table, entry hold). An arena round, a demo rematch or an
-         * arcade world change in mid-run keeps the mood on screen until the next entry (owner rule "no visible pop-in"). */
+         * arcade world change in mid-run re-arms the entry hold: the world hides, the game waits for the mood, then shows it
+         * (owner rule "no visible pop-in"). The bg-fade work replaces this hide with a fade. */
         if (!world_shown(&view)) bg_set_mood(g_flow.game.mood);
+        else if (g_flow.game.mood != g_bg_mood) g_bg_hold = BG_HOLD_FRAMES; /* mid-run change: hide the world from the next frame and load it held, as at entry */
         bg_update(g_cam_unwrapped); /* the planes loop on the unwrapped camera (arena and Gum Trip alike) */
         g_bg_held = (u8)(world_state(&view) && g_bg_hold); /* test sentinel: this frame kept the world hidden */
         if (world_shown(&view) && g_bg_mood_busy) g_bg_late++;
