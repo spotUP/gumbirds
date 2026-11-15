@@ -558,6 +558,17 @@ static const u8 k_arc_anim[ARCV_PIECES] = { ARCADE_ANIM_STORM, ARCADE_ANIM_STORM
 static const u8 k_arc_first[ARCV_PIECES] = { ARCADE_PIECE_BODY_A_FIRST, ARCADE_PIECE_SPARK_A_FIRST, ARCADE_PIECE_FLIPPER_A_FIRST, ARCADE_PIECE_GRABBER_A_FIRST, ARCADE_PIECE_HATCH_FIRST };
 static u16 g_arc_tick;
 static u8 g_arc_dirty; /* slots may hold element sprites: hide them once after the last draw, not every frame (vblank budget) */
+/* Like g_pool_drawn: arcade frame index + 1 whose strips and sticky chain column c holds as a block start (0: unknown or not a start). Every
+ * column in use is rewritten each frame and the free ones are hidden, so a start column that still holds the same frame holds its whole block. */
+static u8 g_arc_drawn[ARC_ELEM_COUNT];
+static u8 g_arc_used = ARC_ELEM_COUNT; /* columns used last frame (top of the range); the ones below are already hidden */
+_Static_assert(ARCADE_FRAME_COUNT < 255, "arc frame cache holds frame index + 1 in a byte");
+
+static void arcade_elems_forget(void) {
+    for (u8 c = 0; c < ARC_ELEM_COUNT; c++) g_arc_drawn[c] = 0;
+    g_arc_used = ARC_ELEM_COUNT;
+    g_arc_dirty = 1;
+}
 
 static void arcade_elems_step(const Game *g) {
     ArcSprite blocks[ARC_VIEW_MAX];
@@ -567,15 +578,24 @@ static void arcade_elems_step(const Game *g) {
     if (g) n = arc_view_build(&g->elems, g_arc_tick++, blocks);
     for (int i = 0; i < n; i++) {
         const ArcSprite *b = &blocks[i];
-        const ArcadeFrame *f = &arcade_frames[arcade_anims[k_arc_anim[b->piece]].first_frame + k_arc_first[b->piece] + b->frame];
+        u8 fi = (u8)(arcade_anims[k_arc_anim[b->piece]].first_frame + k_arc_first[b->piece] + b->frame);
+        const ArcadeFrame *f = &arcade_frames[fi];
         int w = f->tiles_w * 16, sx = camera_screen_x(b->x - f->pad_left, g_cam_px, w);
         if (used + f->tiles_w > ARC_ELEM_COUNT || !camera_visible(sx, w)) continue;
-        u16 slot = (u16)(ARC_ELEM_SPRITE + ARC_ELEM_COUNT - used - f->tiles_w);
-        gfx_sprite_strips(slot, f->tiles_w, f->tiles_h, &arcade_tile_index[f->tile_offset], ARCADE_TILE_BASE, (u16)((ARCADE_PAL_SLOT + f->palette) << 8));
-        gfx_sprite_place(slot, f->tiles_w, f->tiles_h, sx, b->y - f->pad_top);
+        int s = ARC_ELEM_COUNT - used - f->tiles_w;
+        u16 slot = (u16)(ARC_ELEM_SPRITE + s);
+        if (g_arc_drawn[s] != (u8)(fi + 1)) {
+            gfx_sprite_strips(slot, f->tiles_w, f->tiles_h, &arcade_tile_index[f->tile_offset], ARCADE_TILE_BASE, (u16)((ARCADE_PAL_SLOT + f->palette) << 8));
+            gfx_sprite_chain(slot, f->tiles_w);
+            g_arc_drawn[s] = (u8)(fi + 1);
+            for (int c = 1; c < f->tiles_w; c++) g_arc_drawn[s + c] = 0;
+        }
+        gfx_word((u16)(ADDR_SCB3 + slot), gfx_scb3_word(f->tiles_h, b->y - f->pad_top));
+        gfx_word((u16)(ADDR_SCB4 + slot), gfx_scb4_word(sx));
         used += f->tiles_w;
     }
-    for (int i = 0; i < ARC_ELEM_COUNT - used; i++) obs_hide_slot(ARC_ELEM_SPRITE + i);
+    for (int i = ARC_ELEM_COUNT - g_arc_used; i < ARC_ELEM_COUNT - used; i++) { obs_hide_slot(ARC_ELEM_SPRITE + i); g_arc_drawn[i] = 0; }
+    g_arc_used = (u8)used;
 }
 
 /* Bonus stage: bubbles (Gum Trip pickup art, 2 sprite columns each) in the first slots of the shared strip range, in the order of the live
@@ -1409,6 +1429,7 @@ static void video_init(void) {
     hero_hide();
     dead_release_all();
     pool_hide_all(); /* the hardware state is unknown; live objects redraw next frame */
+    arcade_elems_forget();
     g_draw_state = -1;
     gfx_commit_all();
     gfx_drain(); /* init is outside the per-frame budget: it blocks, one flush per vblank, until everything is written */
