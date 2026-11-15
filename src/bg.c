@@ -103,7 +103,9 @@ static u8 g_want, g_step;
 static u8 g_hidden; /* planes bg_trip_planes hides (BG_TRIP_HIDDEN_MASK bits) */
 static u16 g_scb3_show[BG_SPRITE_TOTAL], g_scb3_out[BG_SPRITE_TOTAL];
 static const u16 g_scb3_zero[BG_SPRITE_TOTAL];
-#define BG_MOOD_COLS_PER_FRAME 8 /* strips per frame while the mood changes: at most 8 x 7 rows of tile pairs */
+/* Strips per frame while the mood changes: at most 9 x 7 rows of tile pairs. The show run (every column's SCB3 word, about 31
+ * lines) gets a frame of its own after the last strips; 9 per frame keeps it on the same frame as 8 with the show folded in. */
+#define BG_MOOD_COLS_PER_FRAME 9
 
 void bg_load_palettes(void) {
     for (int p = 0; p < CITY_PALETTE_COUNT; p++)
@@ -163,18 +165,21 @@ void bg_set_mood(u8 mood) {
     gfx_pal(4095, (g_hidden ? TRIP_BACKDROP : BACKDROP)[mood]);
 }
 
-/* One frame of a mood change: BG_MOOD_COLS_PER_FRAME strips, then the show run (planes Gum Trip hides stay at height 0). */
+/* One frame of a mood change: BG_MOOD_COLS_PER_FRAME strips, or once all are sent the show run (planes Gum Trip hides stay at height 0). */
 static void mood_step(void) {
-    u8 end = (u8)(g_step + BG_MOOD_COLS_PER_FRAME);
-    if (end > BG_SPRITE_TOTAL) end = BG_SPRITE_TOTAL;
-    for (; g_step < end; g_step++) column_strip(g_want, (u8)(BG_SKY_SPRITE + g_step));
-    if (g_step < BG_SPRITE_TOTAL) return;
-    for (u8 p = 0; p < BG_PLANE_COUNT; p++)
-        for (u8 c = 0; c < PLANE_COLS[p]; c++) {
-            u8 i = (u8)(PLANE_FIRST[p] + c - BG_SKY_SPRITE);
-            g_scb3_out[i] = (g_hidden & (1u << p)) ? 0 : g_scb3_show[i];
-        }
-    gfx_scb_run((u16)(ADDR_SCB3 + BG_SKY_SPRITE), 1, g_scb3_out, BG_SPRITE_TOTAL);
+    if (g_step < BG_SPRITE_TOTAL) {
+        u8 end = (u8)(g_step + BG_MOOD_COLS_PER_FRAME);
+        if (end > BG_SPRITE_TOTAL) end = BG_SPRITE_TOTAL;
+        for (; g_step < end; g_step++) column_strip(g_want, (u8)(BG_SKY_SPRITE + g_step));
+        return;
+    }
+    if (g_hidden)
+        for (u8 p = 0; p < BG_PLANE_COUNT; p++)
+            for (u8 c = 0; c < PLANE_COLS[p]; c++) {
+                u8 i = (u8)(PLANE_FIRST[p] + c - BG_SKY_SPRITE);
+                g_scb3_out[i] = (g_hidden & (1u << p)) ? 0 : g_scb3_show[i];
+            }
+    gfx_scb_run((u16)(ADDR_SCB3 + BG_SKY_SPRITE), 1, g_hidden ? g_scb3_out : g_scb3_show, BG_SPRITE_TOTAL); /* nothing hidden: the show words as they are */
     g_bg_mood = g_want;
     g_bg_mood_busy = 0;
     g_bg_mood_changes++;

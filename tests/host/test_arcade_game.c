@@ -50,11 +50,10 @@ static void pump_tests(int mode) {
     CHECK(g.score - s0 == (mode == GAME_MODE_ARCADE ? arc_rank(g.pump[0].rank)->defeat_score : (uint32_t)SCORE_CPU_DEFEAT));
 }
 
-/* WORLD-1: arcade stages 1-4 moon, 5-8 dusk, 9-12 storm (sky, islands and hazard together, storm on the moon sky until it is
- * built); the loop restart and the bonus stage follow the table. Arena: 30 rounds, no value twice in a row, every value shows. */
+/* WORLD-1: arcade stages 1-4 moon, 5-8 dusk, 9-12 storm (sky, islands and hazard together); the loop restart and the bonus stage follow the table. Arena: 30 rounds, no value twice in a row, every value shows. */
 static void world_tests(void) {
     static Game g;
-    static const uint8_t mood[3] = { GAME_MOOD_MOON, GAME_MOOD_DUSK, GAME_MOOD_MOON };
+    static const uint8_t mood[3] = { GAME_MOOD_MOON, GAME_MOOD_DUSK, GAME_MOOD_STORM };
     static const uint8_t look[3] = { STAGE_LOOK_ROOF, STAGE_LOOK_GARDEN, STAGE_LOOK_DECK };
     static const uint8_t haz[3] = { HZ_WATER, HZ_LAVA, HZ_SPIKES };
     int st, r, b, seen_l[STAGE_LOOK_COUNT] = { 0 }, seen_h[HAZARD_KINDS] = { 0 }, seen_m[GAME_MOOD_COUNT] = { 0 };
@@ -80,7 +79,7 @@ static void world_tests(void) {
     for (r = 0; r < GAME_MOOD_COUNT; r++) CHECK(seen_m[r]);
     for (r = 0; r < STAGE_LOOK_COUNT; r++) CHECK(seen_l[r]);
     for (r = 0; r < HAZARD_KINDS; r++) CHECK(seen_h[r]);
-    { /* 24 rounds: every mood x look x hazard combination (two moods alternate) */
+    { /* 24 rounds: every parity x look x hazard combination of the look and hazard periods */
         int combo[2][STAGE_LOOK_COUNT][HAZARD_KINDS] = { { { 0 } } }, n = 0, l, h;
         for (r = 0; r < 24; r++) combo[r & 1][stage_look_for_level(r)][hazard_kind_for_round((uint16_t)r)] = 1;
         for (r = 0; r < 2; r++) for (l = 0; l < STAGE_LOOK_COUNT; l++) for (h = 0; h < HAZARD_KINDS; h++) n += combo[r][l][h];

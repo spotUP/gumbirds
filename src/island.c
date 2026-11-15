@@ -92,6 +92,16 @@ static void hide(void) {
    Each 16 px column is placed on its own on the ring; VRAM gets a word only when the column's x or visibility changed.
    Camera dependent: the screen x of each platform's first column (one camera_screen_x per platform) and, from it, one add and one
    wrap test per column (camera_strip_x). Static: first sprite and column count (g_first, g_cols), the platform's world x and y. */
+/* SCB3 of n adjacent columns that appear, as one run op: the round-start reveal of every column as one gfx_word each took
+ * about 25 raster lines on the frame the island load finishes (walk-cost8). */
+static void show_cols(u16 first, u8 n, const StagePlatform *p) {
+    u16 w[ISLAND_COUNT];
+    u16 v = gfx_scb3_word(1, p->y - ISLAND_LINE_ROW);
+    if (n == 1) { gfx_word((u16)(ADDR_SCB3 + first), v); return; } /* a scroll edge column: the word op is cheaper than a run */
+    for (u8 k = 0; k < n; k++) w[k] = v;
+    gfx_scb_run((u16)(ADDR_SCB3 + first), 1, w, n);
+}
+
 static void place(int cam_px) {
     u8 moved = 0;
     if (cam_px == g_placed_cam) return;
@@ -101,6 +111,8 @@ static void place(int cam_px) {
         u16 slot = g_first[i];
         int cols = g_cols[i];
         int sx0 = camera_screen_x(p->x, cam_px, 16);
+        u16 show0 = 0; /* adjacent columns of this platform that appear this frame: one run op, not one word op each */
+        u8 shown = 0;
         for (int c = 0; c < cols; c++, slot++, sx0 += 16) {
             int sx = camera_strip_x(sx0);
             s16 *last = &g_col_x[slot - ISLAND_SPRITE];
@@ -108,12 +120,17 @@ static void place(int cam_px) {
             if (sx == CAMERA_COL_HIDDEN) {
                 gfx_word((u16)(ADDR_SCB3 + slot), 0); /* SCB4 keeps its last value */
             } else {
-                if (*last == CAMERA_COL_HIDDEN) gfx_word((u16)(ADDR_SCB3 + slot), gfx_scb3_word(1, p->y - ISLAND_LINE_ROW));
+                if (*last == CAMERA_COL_HIDDEN) {
+                    if (shown && slot != show0 + shown) { show_cols(show0, shown, p); shown = 0; }
+                    if (!shown) show0 = slot;
+                    shown++;
+                }
                 g_scb4[slot - ISLAND_SPRITE] = gfx_scb4_word(sx);
                 moved = 1;
             }
             *last = (s16)sx;
         }
+        if (shown) show_cols(show0, shown, p);
     }
     if (moved) gfx_scb_run((u16)(ADDR_SCB4 + ISLAND_SPRITE), 1, g_scb4, ISLAND_COUNT); /* one run op, not one per word */
 }

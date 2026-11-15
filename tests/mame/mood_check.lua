@@ -4,7 +4,7 @@
 --   2. win rounds by RAM poke (round_skip.lua) until match_start picks the other mood and the strip rewrite ends; record B.
 --   3. PASS when both moods were seen (moon 0, dusk 1), the backdrop words differ, and palette RAM from the dusk first
 --      entry equals the generated dusk_palettes words read from ROM (both palette sets stay resident).
---   4. STORM-1: force storm (poke Game mood 2, probe entry 28; game_next_mood does not pick storm yet), wait for the strip
+--   4. STORM-1: force storm (poke Game mood 2, probe entry 28; storm also comes up in the rotation), wait for the strip
 --      rewrite; PASS needs g_bg_mood 2, a third backdrop word, storm_palettes resident from its first entry, and over
 --      STORM_FRAMES frames the worst screen line of every sprite in VRAM (shared counter) at most SB_LIMIT 90.
 -- Env: BRAWL_FLOW_ADDR, BRAWL_FRAME_ADDR, BRAWL_RE_ADDR, BRAWL_FLIER_LAYOUT, BRAWL_MOOD_ADDR, BRAWL_BUSY_ADDR,
@@ -77,7 +77,7 @@ emu.register_frame_done(function() local ok_, err_ = pcall(function()
   local state = mem:read_u8(flow_addr + flay[1])
   local fc = mem:read_u32(frame_addr)
   local mood, busy = mem:read_u8(mood_addr), mem:read_u8(busy_addr)
-  if mood > (phase == "storm" and GAME_MOOD_STORM or 1) then finish(false, "g_bg_mood " .. mood .. " in phase " .. phase) return end
+  if mood > GAME_MOOD_STORM then finish(false, "g_bg_mood " .. mood .. " in phase " .. phase) return end
   seen[mood] = true
 
   if phase == "boot" then

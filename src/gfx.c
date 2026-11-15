@@ -111,6 +111,7 @@ void gfx_pal(u16 idx, u16 val) { RETRY(vq_pal(&g_gfx_q, idx, val)); }
 _Static_assert(FIXFONT_BLANK == SROM_EMPTY_TILE, "the font keeps the ngdevkit blank tile");
 
 void gfx_fix_tile(u8 x, u8 y, u8 pal, u16 tile) { vq_fix_put(&g_gfx_q, x, y, (u16)((pal << 12) | tile)); }
+u16 gfx_fix_clear_shadowed(u8 x, u8 y, u8 w, u8 h, u16 *shadow, u16 cell) { return vq_fix_clear_shadowed(&g_gfx_q, x, y, w, h, shadow, cell); }
 void gfx_text(u8 x, u8 y, u8 pal, const char *s) { vq_fix_text(&g_gfx_q, x, y, (u16)(pal << 12), fixfont_map, s); }
 void gfx_text_backed(u8 x, u8 y, u8 pal, const char *s) { vq_fix_text(&g_gfx_q, x, y, (u16)(pal << 12), fixfont_map_backed, s); }
 /* Tall text is two tiles high: top half on row y, bottom half on row y + 1. */

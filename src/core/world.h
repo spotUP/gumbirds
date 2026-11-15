@@ -21,14 +21,12 @@ typedef struct {
     uint8_t mood, look, hazard;
 } World;
 
-/* The storm sky is not built (it measured 91 of 90 sprites per line): storm shows the moon sky until it lands; then its
- * mood entry becomes GAME_MOOD_STORM, the only change. */
 static inline const World *world_get(int w)
 {
     static const World table[WORLD_COUNT] = {
         { GAME_MOOD_MOON, STAGE_LOOK_ROOF, HZ_WATER },
         { GAME_MOOD_DUSK, STAGE_LOOK_GARDEN, HZ_LAVA },
-        { GAME_MOOD_MOON, STAGE_LOOK_DECK, HZ_SPIKES },
+        { GAME_MOOD_STORM, STAGE_LOOK_DECK, HZ_SPIKES },
     };
     return &table[w < 0 ? 0 : w >= WORLD_COUNT ? WORLD_COUNT - 1 : w];
 }

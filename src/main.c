@@ -186,6 +186,7 @@ static void dead_hide(int d) {
     g_dead_front_mask &= (u16)~(1u << d);
 }
 static void dead_release(u8 owner) {
+    if (!g_dead_front_mask) return; /* no body slot owned (the usual frame): skip the owner scan */
     for (int d = 0; d < DEAD_BODIES; d++) if (g_dead_owner[d] == owner) dead_hide(d);
 }
 /* Slot index of the owner's body (claimed now if one is free), -1 when none is free: the body then keeps its normal slot. */
@@ -354,7 +355,8 @@ static void pool_sync_cpus(const Game *g) {
     for (int i = 0; i < slots; i++) {
         const Flier *c = &g->cpu[i];
         u8 k = g_cpu_obj[i];
-        int visible = i < g->cpu_count && flier_body_visible(c) && (c->state >= FLIER_FALLING || (int)((c->y + flier_half_h(c)) >> 16) <= SCREEN_H);
+        int32_t feet = c->y + flier_half_h(c); /* once: used by the visibility test and the pool y */
+        int visible = i < g->cpu_count && flier_body_visible(c) && (c->state >= FLIER_FALLING || (int)(feet >> 16) <= SCREEN_H);
         if (!visible) dead_release(DEAD_OWNER_CPU(i));
         if (!visible || cpu_show_front(g, i)) {
             if (k != POOL_NONE) { obj_pool_free(&g_pool, k); g_cpu_obj[i] = POOL_NONE; }
@@ -373,7 +375,7 @@ static void pool_sync_cpus(const Game *g) {
         if (arc_pump_in_window(&g->pump[i]) && c->state == FLIER_ALIVE) p->type = flier_pump_frame(&k_clips, arc_pump_progress(&g->pump[i])); /* sitting rival: pump frame */
         if (flip) p->flags |= POOL_F_FLIP; else p->flags &= (u8)~POOL_F_FLIP;
         p->x = c->x;
-        p->y = (int32_t)(c->y + flier_half_h(c));
+        p->y = feet;
         if (flier_view_visible(c, g->frame)) p->flags &= (u8)~POOL_F_BLINK; else p->flags |= POOL_F_BLINK;
     }
 }
@@ -507,9 +509,13 @@ static void pool_show(void) {
     u32 m = obj_pool_take_hidden(&g_pool);
     for (u8 i = 0; m; i++, m >>= 1) if (m & 1) pool_hide_run(i);
     PoolObj *p = g_pool.obj;
-    for (u8 i = 0; i < POOL_MAX; i++, p++) {
+    u8 top = 0; /* objects 0..top-1 go out in the runs: above the last live one every head SCB3 is already 0 (pool_hide_run) and x unchanged */
+    u8 left = g_pool.live; /* the walk stops after the last live object */
+    for (u8 i = 0; i < POOL_MAX && left; i++, p++) {
         scb3[i] = 0;
         if (!(p->flags & POOL_F_LIVE)) continue;
+        top = (u8)(i + 1);
+        left--;
         if (p->flags & POOL_F_TRIPHAZ) { pool_show_haz(p, i, scb3); continue; }
         if (p->flags & POOL_F_HERO) { pool_show_hero(p, i, scb3); continue; }
         const ObsAnim *a = &obs_anims[p->type];
@@ -539,8 +545,10 @@ static void pool_show(void) {
         scb3[i] = gfx_scb3_word(f->tiles_h, top);
         g_pool_scb4[i] = gfx_scb4_word(x);
     }
-    gfx_scb_run(ADDR_SCB3 + POOL_SPRITE_BASE, POOL_COLS, scb3, POOL_MAX);
-    gfx_scb_run(ADDR_SCB4 + POOL_SPRITE_BASE, POOL_COLS, g_pool_scb4, POOL_MAX);
+    if (top) { /* the run walk cost about 18 raster lines for all POOL_MAX words; the arcade uses only the first few objects */
+        gfx_scb_run(ADDR_SCB3 + POOL_SPRITE_BASE, POOL_COLS, scb3, top);
+        gfx_scb_run(ADDR_SCB4 + POOL_SPRITE_BASE, POOL_COLS, g_pool_scb4, top);
+    }
     g_pool_live = g_pool.live;
     if (g_pool.live) g_pool_frames++;
 }
@@ -558,6 +566,17 @@ static const u8 k_arc_anim[ARCV_PIECES] = { ARCADE_ANIM_STORM, ARCADE_ANIM_STORM
 static const u8 k_arc_first[ARCV_PIECES] = { ARCADE_PIECE_BODY_A_FIRST, ARCADE_PIECE_SPARK_A_FIRST, ARCADE_PIECE_FLIPPER_A_FIRST, ARCADE_PIECE_GRABBER_A_FIRST, ARCADE_PIECE_HATCH_FIRST };
 static u16 g_arc_tick;
 static u8 g_arc_dirty; /* slots may hold element sprites: hide them once after the last draw, not every frame (vblank budget) */
+/* Like g_pool_drawn: arcade frame index + 1 whose strips and sticky chain column c holds as a block start (0: unknown or not a start). Every
+ * column in use is rewritten each frame and the free ones are hidden, so a start column that still holds the same frame holds its whole block. */
+static u8 g_arc_drawn[ARC_ELEM_COUNT];
+static u8 g_arc_used = ARC_ELEM_COUNT; /* columns used last frame (top of the range); the ones below are already hidden */
+_Static_assert(ARCADE_FRAME_COUNT < 255, "arc frame cache holds frame index + 1 in a byte");
+
+static void arcade_elems_forget(void) {
+    for (u8 c = 0; c < ARC_ELEM_COUNT; c++) g_arc_drawn[c] = 0;
+    g_arc_used = ARC_ELEM_COUNT;
+    g_arc_dirty = 1;
+}
 
 static void arcade_elems_step(const Game *g) {
     ArcSprite blocks[ARC_VIEW_MAX];
@@ -567,15 +586,24 @@ static void arcade_elems_step(const Game *g) {
     if (g) n = arc_view_build(&g->elems, g_arc_tick++, blocks);
     for (int i = 0; i < n; i++) {
         const ArcSprite *b = &blocks[i];
-        const ArcadeFrame *f = &arcade_frames[arcade_anims[k_arc_anim[b->piece]].first_frame + k_arc_first[b->piece] + b->frame];
+        u8 fi = (u8)(arcade_anims[k_arc_anim[b->piece]].first_frame + k_arc_first[b->piece] + b->frame);
+        const ArcadeFrame *f = &arcade_frames[fi];
         int w = f->tiles_w * 16, sx = camera_screen_x(b->x - f->pad_left, g_cam_px, w);
         if (used + f->tiles_w > ARC_ELEM_COUNT || !camera_visible(sx, w)) continue;
-        u16 slot = (u16)(ARC_ELEM_SPRITE + ARC_ELEM_COUNT - used - f->tiles_w);
-        gfx_sprite_strips(slot, f->tiles_w, f->tiles_h, &arcade_tile_index[f->tile_offset], ARCADE_TILE_BASE, (u16)((ARCADE_PAL_SLOT + f->palette) << 8));
-        gfx_sprite_place(slot, f->tiles_w, f->tiles_h, sx, b->y - f->pad_top);
+        int s = ARC_ELEM_COUNT - used - f->tiles_w;
+        u16 slot = (u16)(ARC_ELEM_SPRITE + s);
+        if (g_arc_drawn[s] != (u8)(fi + 1)) {
+            gfx_sprite_strips(slot, f->tiles_w, f->tiles_h, &arcade_tile_index[f->tile_offset], ARCADE_TILE_BASE, (u16)((ARCADE_PAL_SLOT + f->palette) << 8));
+            gfx_sprite_chain(slot, f->tiles_w);
+            g_arc_drawn[s] = (u8)(fi + 1);
+            for (int c = 1; c < f->tiles_w; c++) g_arc_drawn[s + c] = 0;
+        }
+        gfx_word((u16)(ADDR_SCB3 + slot), gfx_scb3_word(f->tiles_h, b->y - f->pad_top));
+        gfx_word((u16)(ADDR_SCB4 + slot), gfx_scb4_word(sx));
         used += f->tiles_w;
     }
-    for (int i = 0; i < ARC_ELEM_COUNT - used; i++) obs_hide_slot(ARC_ELEM_SPRITE + i);
+    for (int i = ARC_ELEM_COUNT - g_arc_used; i < ARC_ELEM_COUNT - used; i++) { obs_hide_slot(ARC_ELEM_SPRITE + i); g_arc_drawn[i] = 0; }
+    g_arc_used = (u8)used;
 }
 
 /* Bonus stage: bubbles (Gum Trip pickup art, 2 sprite columns each) in the first slots of the shared strip range, in the order of the live
@@ -1293,8 +1321,10 @@ static void draw(const FlowView *v) {
                 g_banner_pending |= rows;
                 rows = 0;
                 if (!on) {
-                    rows = 0xFF; g_banner_pending = 0;
-                } else {
+                    g_banner_pending = 0; /* the panel goes in one pass: a per-cell loop over all rows cost about 200 raster lines */
+                    g_banner_cells += gfx_fix_clear_shadowed(BANNER_COL, BANNER_ROW, BANNER_W, BANNER_H, g_banner_shadow, blank);
+                    /* the bonus stage starts on the frame the banner goes: this blank ran after the round-start text and wiped it */
+                    if (g_rs_drawn != RS_NONE) g_rs_drawn = 0xFF;                } else {
                     for (row = 0; row < BANNER_H && rows_left; row++) {
                         if (g_banner_pending & (1 << row)) { rows |= (u8)(1 << row); g_banner_pending &= (u8)~(1 << row); rows_left--; }
                     }
@@ -1419,6 +1449,7 @@ static void video_init(void) {
     hero_hide();
     dead_release_all();
     pool_hide_all(); /* the hardware state is unknown; live objects redraw next frame */
+    arcade_elems_forget();
     g_draw_state = -1;
     gfx_commit_all();
     gfx_drain(); /* init is outside the per-frame budget: it blocks, one flush per vblank, until everything is written */
