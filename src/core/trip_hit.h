@@ -66,7 +66,7 @@ int trip_hit_clamp_window_from(const Trip *t, const TripGen *g, Flier *f, int32_
  * TRIP_WALL_BOTTOM when it is below the lowest line (body box on the last clear row), else 0 (also 0 for FALLING and later).
  * trip_hit_hero_walls: a top or bottom touch kills at once (trip_wall_kill, no clamp, no bounce, owner 2026-11-15) and
  * returns the touched side (TRIP_WALL_TOP / TRIP_WALL_BOTTOM; 0 when nothing killed): only the bottom side is a floor death
- * with the gum splat (Game.trip_splat). Rivals keep the bounce on both walls through
+ * with the gum splat on the death frame (Game.trip_splat; a roof death splats later, on the floor). Rivals keep the bounce on both walls through
  * trip_hit_clamp_window_from. Call it before trip_collide, so the strip hit test never sees the hero inside the rock. */
 #define TRIP_WALL_TOP    1
 #define TRIP_WALL_BOTTOM 2

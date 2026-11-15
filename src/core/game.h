@@ -90,8 +90,9 @@ typedef struct {
     TripRivals trip_rivals; /* Gum Trip rivals (trip_rival.h), seeded by game_set_mode, stepped by game_step_trip */
     uint8_t trip_events; /* TRIP_EV_* bits of the last game_step_trip frame (0 when none); sound and view read it */
     uint8_t trip_rival_events; /* TRIP_RIV_EV_* bits of the last game_step_trip frame (0 when none); sound and view read it */
-    uint8_t trip_splat;  /* 1 on the one frame the player dies at the floor (bottom rock or kill line); trip_splat_y is the feet line, the gum splat lands there */
+    uint8_t trip_splat;  /* 1 on the one frame the player dies at the floor (bottom rock or kill line), or a roof-killed body falls through the floor line; trip_splat_y is the feet line, the gum splat lands there */
     int16_t trip_splat_y;
+    uint8_t trip_roof_fall; /* 1 from a roof death until the falling body reaches the floor line (its trip_splat frame) */
     uint8_t trip_hold;   /* hold steps taken at run start while the first screen chunks are built (one per game_step_trip), sentinel */
     ArcRun arc;          /* Arcade run (stage table, arcade.h), live in GAME_MODE_ARCADE; the arena step runs it */
     uint8_t cont_a;      /* A was held on the previous arena step (press edge for the arcade continue) */
