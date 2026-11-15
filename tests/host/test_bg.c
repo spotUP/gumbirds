@@ -96,6 +96,33 @@ int main(void)
     /* the wrapped ring camera is the WRONG feed: at the ring seam (384 -> 0) far, mid A and mid B jump by 96, 192, 288 px */
     CHECK(bg_loop_offset(384, K[1], 336) == 96 && bg_loop_offset(384, K[2], 352) == 192 && bg_loop_offset(384, K[3], 368) == 288);
     CHECK(bg_loop_offset(384, K[4], 384) == 0);
+    /* BG-FADE: colour scaling and the phase machine of the mood change fade */
+    CHECK(bg_fade_color(0x7fc6, BG_FADE_MAX) == 0x7fc6 && bg_fade_color(0x7fc6, 0) == 0x0000 && bg_fade_color(0x8000, 5) == 0x8000);
+    CHECK(bg_fade_color(0x7fff, BG_FADE_MAX / 2) == 0x7777); /* 31 * 8 / 16 = 15 in every channel */
+    {
+        BgFade f = { BGF_IDLE, BG_FADE_MAX };
+        int swaps = 0, n = 0, dark = 0, seen_in_sync = 0;
+        bg_fade_start(&f);
+        CHECK(f.phase == BGF_OUT && f.level == BG_FADE_MAX);
+        while (f.phase == BGF_OUT && n < 100) { swaps += bg_fade_step(&f); n++; }
+        CHECK(n == BG_FADE_FRAMES && swaps == 1 && f.phase == BGF_DARK && f.level == 0);
+        CHECK(bg_fade_step(&f) == 0 && f.phase == BGF_DARK);          /* DARK waits for the swap */
+        bg_fade_swapped(&f);
+        CHECK(f.phase == BGF_IN);
+        for (n = 0; n < BG_FADE_FRAMES - 1; n++) { bg_fade_step(&f); bg_fade_settle(&f, 1); }
+        CHECK(f.phase == BGF_IN && f.level == BG_FADE_MAX - 1);
+        bg_fade_step(&f); bg_fade_settle(&f, 0);
+        CHECK(f.phase == BGF_IN && f.level == BG_FADE_MAX);          /* full level but palettes not all written: stays */
+        bg_fade_settle(&f, 1); seen_in_sync = f.phase == BGF_IDLE;
+        CHECK(seen_in_sync);
+        /* a new request during IN dims again from the level reached; one for the mood on screen during OUT turns round */
+        f.phase = BGF_IN; f.level = 5; bg_fade_start(&f);
+        CHECK(f.phase == BGF_OUT && f.level == 5);
+        bg_fade_abort(&f);
+        CHECK(f.phase == BGF_IN && f.level == 5);
+        bg_fade_abort(&f); dark = f.phase == BGF_IN;
+        CHECK(dark);                                                    /* abort outside OUT does nothing */
+    }
     printf("test_bg: %d checks, %d failures\n", checks, failures);
     return failures ? 1 : 0;
 }
