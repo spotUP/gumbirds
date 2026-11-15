@@ -39,8 +39,9 @@ typedef enum {
     OB_BOT
 } ObstacleType;
 
-/* Background moods that are built (src/bg.c draws them): moon, dusk. Storm comes later and only raises the count. */
-enum { GAME_MOOD_MOON, GAME_MOOD_DUSK, GAME_MOOD_COUNT };
+/* Background moods. GAME_MOOD_COUNT counts the moods game_next_mood rotates (moon, dusk). Storm is built (src/bg.c draws it,
+ * BG_MOOD_COUNT moods in all) but not chosen yet: WORLD-1 owns the choice. Putting storm in the rotation moves it before GAME_MOOD_COUNT. */
+enum { GAME_MOOD_MOON, GAME_MOOD_DUSK, GAME_MOOD_COUNT, GAME_MOOD_STORM = GAME_MOOD_COUNT, BG_MOOD_COUNT };
 
 /* Play mode, chosen on the title (flow.h Flow.mode) and set by game_set_mode after game_reset. */
 typedef enum {

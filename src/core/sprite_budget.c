@@ -4,6 +4,7 @@
 #include "stage.h"
 #include "gen/city_tables.h"
 #include "gen/dusk_tables.h"
+#include "gen/storm_tables.h"
 #include "gen/island_tables.h"
 #include "gen/logo_sprites.h"
 
@@ -12,10 +13,13 @@ static const unsigned char COL_ROW0[] = CITY_TABLE_COL_ROW0;
 static const unsigned char COL_ROWS[] = CITY_TABLE_COL_ROWS;
 static const unsigned char DUSK_COL_ROW0[] = DUSK_TABLE_COL_ROW0; /* dusk counts its own rows (identical today, src/bg.c asserts the layout) */
 static const unsigned char DUSK_COL_ROWS[] = DUSK_TABLE_COL_ROWS;
+static const unsigned char STORM_COL_ROW0[] = STORM_TABLE_COL_ROW0; /* storm too (identical to the moon today) */
+static const unsigned char STORM_COL_ROWS[] = STORM_TABLE_COL_ROWS;
 static const unsigned char PLANE_TOP[] = CITY_TABLE_PLANE_TOP;
 /* C99 build (host tests): a compile-time check as a constant division, zero when the sizes differ. */
 enum { SB_CHECK_TABLE = 1 / (sizeof COL_ROWS == BG_SPRITE_TOTAL && sizeof COL_ROW0 == BG_SPRITE_TOTAL &&
-                             sizeof DUSK_COL_ROWS == BG_SPRITE_TOTAL && sizeof DUSK_COL_ROW0 == BG_SPRITE_TOTAL) }; /* one table row per background sprite */
+                             sizeof DUSK_COL_ROWS == BG_SPRITE_TOTAL && sizeof DUSK_COL_ROW0 == BG_SPRITE_TOTAL &&
+                             sizeof STORM_COL_ROWS == BG_SPRITE_TOTAL && sizeof STORM_COL_ROW0 == BG_SPRITE_TOTAL) }; /* one table row per background sprite */
 
 /* y ranges and counts per line: the drawn art (the parallax planes: counts and y ranges in src/sprite_slots.h,
  * checked against the sheet in src/bg.c). Plane entries (SB_COLUMNS) count column by column from the generated table. */
@@ -44,7 +48,10 @@ const int SPRITE_BUDGET_COUNT = (int)(sizeof SPRITE_BUDGET / sizeof SPRITE_BUDGE
 const SpriteBudgetMood SPRITE_BUDGET_MOODS[] = {
     { "moon",  1, 0, COL_ROW0, COL_ROWS },           /* clear night: built, no rain (GAME_MOOD_MOON) */
     { "dusk",  1, 0, DUSK_COL_ROW0, DUSK_COL_ROWS }, /* built (DUSK-1, GAME_MOOD_DUSK) */
-    { "storm", 0, 1, 0, 0 },                         /* not built (BG-2): the only mood with rain columns */
+    /* built (STORM-1, GAME_MOOD_STORM): planes only, rain 0. The rain slots hold the arcade stage elements today (ARC_ELEM_SPRITE),
+       and 10 flat rain columns on every line would put the arena at 96 of 90 (line 112). Rain (B6) must bring its own per-line
+       rows and fit SB_LIMIT next to the planes before this flag goes to 1. */
+    { "storm", 1, 0, STORM_COL_ROW0, STORM_COL_ROWS },
 };
 const int SPRITE_BUDGET_MOOD_COUNT = (int)(sizeof SPRITE_BUDGET_MOODS / sizeof SPRITE_BUDGET_MOODS[0]);
 

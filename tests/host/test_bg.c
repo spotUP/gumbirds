@@ -7,6 +7,7 @@
 #include "../../src/core/vram_queue.h"
 #include "gen/city_tables.h"
 #include "gen/dusk_tables.h"
+#include "gen/storm_tables.h"
 
 static int failures, checks;
 static VramQueue q;
@@ -18,6 +19,9 @@ static const unsigned char TOP[] = CITY_TABLE_PLANE_TOP;
 /* DUSK-1: the dusk sheet is cut like the moon sheet; src/bg.c draws both with one geometry and swaps only tiles and palettes. */
 static const unsigned char CR0[] = CITY_TABLE_COL_ROW0, CRN[] = CITY_TABLE_COL_ROWS, DR0[] = DUSK_TABLE_COL_ROW0, DRN[] = DUSK_TABLE_COL_ROWS;
 static const unsigned char DK[] = DUSK_TABLE_PLANE_K, DCOLS[] = DUSK_TABLE_PLANE_COLS, DTOP[] = DUSK_TABLE_PLANE_TOP;
+/* STORM-1: the storm sheet too. */
+static const unsigned char SR0[] = STORM_TABLE_COL_ROW0, SRN[] = STORM_TABLE_COL_ROWS;
+static const unsigned char SK[] = STORM_TABLE_PLANE_K, SCOLS[] = STORM_TABLE_PLANE_COLS, STOP[] = STORM_TABLE_PLANE_TOP;
 
 /* 64 bit reference of the plane offset: floor(u * k / 16) mod period. */
 static uint32_t ref_off(uint32_t u, uint32_t k, uint32_t period) { return (uint32_t)((((uint64_t)u * k) >> 4) % period); }
@@ -29,6 +33,8 @@ int main(void)
     CHECK(sizeof K == BG_PLANE_COUNT && sizeof COLS == BG_PLANE_COUNT && sizeof TOP == BG_PLANE_COUNT);
     CHECK(sizeof DR0 == sizeof CR0 && memcmp(DR0, CR0, sizeof CR0) == 0 && sizeof DRN == sizeof CRN && memcmp(DRN, CRN, sizeof CRN) == 0);
     CHECK(memcmp(DK, K, sizeof K) == 0 && memcmp(DCOLS, COLS, sizeof COLS) == 0 && memcmp(DTOP, TOP, sizeof TOP) == 0);
+    CHECK(sizeof SR0 == sizeof CR0 && memcmp(SR0, CR0, sizeof CR0) == 0 && sizeof SRN == sizeof CRN && memcmp(SRN, CRN, sizeof CRN) == 0);
+    CHECK(memcmp(SK, K, sizeof K) == 0 && memcmp(SCOLS, COLS, sizeof COLS) == 0 && memcmp(STOP, TOP, sizeof TOP) == 0);
     /* sky fixed, near at world speed, the others in between and in order */
     CHECK(K[0] == 0 && K[BG_PLANE_COUNT - 1] == BG_K_ONE);
     for (p = 1; p < BG_PLANE_COUNT; p++) CHECK(K[p] > K[p - 1] && TOP[p] >= TOP[p - 1]);
