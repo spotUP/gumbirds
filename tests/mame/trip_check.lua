@@ -823,7 +823,7 @@ emu.register_frame_done(function() local ok_, err_ = pcall(function()
     if playing >= MIN_PLAYING + 100 and ((hz_vis >= 60 and HZ.rv.pop_ok ~= nil) or playing >= 1700) then phase = "done" end
   end
   if phase == "done" and not SPLAT.over then
-    -- Gum Trip death splat (tests/mame/trip_splat_check.lua): a floor death shows the splat on the floor, a roof death none
+    -- Gum Trip death splat (tests/mame/trip_splat_check.lua): a floor or roof death shows the splat on the floor
     if SPLAT.k == nil and state ~= 3 then finish(false, "trip splat check: not PLAYING when the death was due") return end
     SPLAT.err = SPLAT.step()
     if SPLAT.err then finish(false, SPLAT.err) return end
