@@ -612,7 +612,11 @@ static u8 g_bonus_puff_on; /* bit k: nozzle k's puff sprite is shown */
  * one camera_screen_x per piece, SCB3 only when a column enters or leaves the screen and one run op for the SCB4 x words (the per-piece
  * gfx_sprite_place of every frame cost about 60 raster lines of the logic budget when the camera scrolled). */
 static void bonus_static_place(void) {
-    int idx = 0, piece, moved = 0, first = g_bonus_cam < 0;
+    int idx = 0, piece, moved = 0, first;
+    /* The bonus floor shares the island slots: the island reload of the bonus layout parks them all on its first step, and the
+       camera does not move until the player does, so placing before the load ends left the floor off screen until the first move. */
+    if (!island_loaded()) { g_bonus_cam = -1; return; }
+    first = g_bonus_cam < 0;
     if (g_bonus_cam == (int)g_cam_px) return;
     g_bonus_cam = (int)g_cam_px;
     if (first) for (idx = 0; idx < BONUS_STATIC_COLS; idx++) g_bonus_cx[idx] = BONUS_COL_UNKNOWN;
@@ -1030,6 +1034,9 @@ static void draw_overlay(const FlowView *v) {
 _Static_assert(RES_SPRITE_END <= SPRITE_SLOT_END, "result sprites leave the fixed slot ranges");
 static void draw_result_fx(const Result *r);
 
+/* Fix rows 0-1 sit above the visible top (raster line 16): art row r goes to fix row r + 2, as on the title screen. */
+#define RES_FIX_ROW0 2
+
 static void draw_result(const Game *g) {
     Result *r = &g_flow.game.res; /* the dirty bits are drawing bookkeeping the core only sets */
     u8 col, row, n = 0, bit;
@@ -1052,7 +1059,7 @@ static void draw_result(const Game *g) {
         while (n < RES_FILL_PER_FRAME && g_res_row < RESV_H) {
             u16 c = result_cell(&g->res, g_res_col, g_res_row);
             g_res_shadow[g_res_filled++] = c;
-            gfx_fix_tile(g_res_col, g_res_row, (u8)(c >> 12), (u16)(c & 0xFFF));
+            gfx_fix_tile(g_res_col, (u8)(g_res_row + RES_FIX_ROW0), (u8)(c >> 12), (u16)(c & 0xFFF));
             n++;
             if (++g_res_col == RESV_W) { g_res_col = 0; g_res_row++; }
         }
@@ -1069,7 +1076,7 @@ static void draw_result(const Game *g) {
                 u16 *sh = &g_res_shadow[row * RESV_W + col];
                 if (c == *sh) continue;
                 *sh = c;
-                gfx_fix_tile(col, row, (u8)(c >> 12), (u16)(c & 0xFFF));
+                gfx_fix_tile(col, (u8)(row + RES_FIX_ROW0), (u8)(c >> 12), (u16)(c & 0xFFF));
             }
         }
         break;

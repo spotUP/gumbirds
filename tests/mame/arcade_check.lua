@@ -22,7 +22,8 @@ local O_FLOW, O_MODE, O_STAGE, O_ASTATE, O_LIVES, O_LSTATE, O_COUNT, O_NCPU, O_C
   L[1], L[2], L[3], L[4], L[5], L[6], L[7], L[8], L[9], L[10], L[11], L[12], L[13], L[14]
 local K = { playing = L[15], arcade = L[16], play = L[17], clear = L[18], life_play = L[19], life_cont = L[20], lives = L[21],
   clear_frames = L[22], cont_frames = L[23], gone = L[24], isl = L[25], isl_n = L[26], game_over = L[27], life_end = L[28],
-  isl_tile = L[29], isl_tiles = L[30], isl_pal = L[31], bonus = L[33] }
+  isl_tile = L[29], isl_tiles = L[30], isl_pal = L[31], bonus = L[33],
+  fix_blank = L[37], res_glass = L[38], res_wheel = L[39], res_ticket = L[40], res_crank = L[41] }
 local O_NLIVE, O_BTIMER, BONUS_LIVE_MAX, O_RES = L[32], L[34], L[35], L[36]
 -- result screen cost: latest logic end, most sprites on one line (all slots, shared counter), frame dumps when RESULT_DUMP is set
 local res_logic, res_line, res_dump = 0, 0, os.getenv("RESULT_DUMP")
@@ -31,7 +32,7 @@ local res_count = dofile(((debug and debug.getinfo and debug.getinfo(1, "S").sou
 local res_frames, res_score0, res_score1 = 0, nil, nil -- result screen frames seen in the bonus stage and the score at its first and last frame
 -- The result screen holds until a press: no input until RES_HOLD_FRAMES (past the longest sequence, about 500), then A; it must still be up then and end soon after
 local RES_HOLD_FRAMES, res_trace = 700, os.getenv("RES_TRACE")
--- The SCORE row (fix row 19, cols 19..26, 8 zero-padded digits) must show the score of this or the previous frame once filled
+-- The SCORE row (fix row 21 (art row 19), cols 19..26, 8 zero-padded digits) must show the score of this or the previous frame once filled
 local res_row = {bad = 0, prev = nil, note = nil}
 local res_trace_f = res_trace and res_trace ~= "" and io.open(res_trace, "w") or nil
 local mem    = manager.machine.devices[":maincpu"].spaces["program"]
@@ -210,6 +211,16 @@ emu.register_frame_done(function()
     -- every stage's rivals forced GONE until the arcade state is BONUS; then every frame of the bonus stage is measured until it ends
     bon_wait = bon_wait + 1
     if g(O_ASTATE) == K.bonus then
+      -- BONUS-FLOOR-LATE: hands off for the first 16 bonus frames (camera still), then the floor must be on screen
+      res_row.fl_n = (res_row.fl_n or 0) + 1
+      if res_row.fl_n == 16 then
+        local on = 0
+        for s = K.isl, K.isl + K.isl_n - 1 do
+          local x = (vram[0x8400 + s] or 0xa000) >> 7
+          if ((vram[0x8200 + s] or 0) & 0x3f) > 0 and (x < 320 or x >= 496) then on = on + 1 end
+        end
+        res_row.floor_on = on
+      end
       if playing then
         local nl = g(O_NLIVE)
         -- stress: the pace (spawn gap 70..133, about 300 frames per rise) does not always fill the pool, so force the spawn
@@ -222,15 +233,33 @@ emu.register_frame_done(function()
           if res_dump and res_dump ~= "" and res_frames % 2 == 1 then screen:snapshot(string.format("res_%03d.png", res_frames)) end
           res_score1 = g(O_SCORE); if not res_score0 then res_score0 = res_score1 end
           if res_frames >= 30 then -- col 19 is always the digit 0 (score < 10^7): decode the row against it
-            local z, v = (vram[0x7000 + 19 * 32 + 19] or 0) & 0xfff, 0
-            for c = 19, 26 do local d = ((vram[0x7000 + c * 32 + 19] or 0) & 0xfff) - z; if d < 0 or d > 9 then v = -1 break end; v = v * 10 + d end
+            local z, v = (vram[0x7000 + 19 * 32 + 21] or 0) & 0xfff, 0
+            for c = 19, 26 do local d = ((vram[0x7000 + c * 32 + 21] or 0) & 0xfff) - z; if d < 0 or d > 9 then v = -1 break end; v = v * 10 + d end
             if v ~= res_score1 and v ~= res_row.prev then res_row.bad = res_row.bad + 1; res_row.note = res_row.note or string.format("frame %d shows %d, score %d", res_frames, v, res_score1) end
           end
           res_row.prev = res_score1
-          if res_trace_f then -- per frame: score, wheel SCB1 tile + SCB3 of sprites 349..353, fix cells rows 4, 13, 19, 23
+          if res_frames == 40 then do -- window geometry: blank fix-row runs in one column per window vs sprite tops (screen y = 8 * fix row - visible top)
+            local ok, va = pcall(function() return screen.visible_area end)
+            local vtop = ok and va and va.min_y or 16
+            local out = {"ARC_RESWIN vis_top " .. vtop}
+            for _, wc in ipairs({{"cage", 8}, {"counter", 30}, {"crank", 34}, {"ticket", 9}}) do
+              local runs, r0 = {}, nil
+              for row = 0, 32 do
+                local blank = row < 32 and ((vram[0x7000 + wc[2] * 32 + row] or 0) & 0xfff) == K.fix_blank
+                if blank and not r0 then r0 = row elseif not blank and r0 then runs[#runs + 1] = string.format("rows %d-%d y %d-%d", r0, row - 1, r0 * 8 - vtop, row * 8 - 1 - vtop); r0 = nil end
+              end
+              out[#out + 1] = wc[1] .. " col " .. wc[2] .. ": " .. table.concat(runs, ", ")
+            end
+            for _, sp in ipairs({{"glass", K.res_glass}, {"wheel0", K.res_wheel}, {"crank", K.res_crank}, {"ticket", K.res_ticket}}) do
+              local w = vram[0x8200 + sp[2]] or 0
+              out[#out + 1] = string.format("%s top %d rows %d", sp[1], (496 - (w >> 7)) & 0x1ff, w & 0x3f)
+            end
+            print(table.concat(out, " | "))
+          end end
+          if res_trace_f then -- per frame: score, wheel SCB1 tile + SCB3 of sprites 349..353, fix cells rows 6, 15, 21, 25
             local t = {string.format("%d %d", res_frames, res_score1)}
             for w = 349, 353 do t[#t + 1] = string.format("w%04x/%04x", vram[w * 64] or 0, vram[0x8200 + w] or 0) end
-            for _, rc in ipairs({{4, 10, 29}, {13, 25, 32}, {19, 19, 26}, {23, 20, 24}}) do
+            for _, rc in ipairs({{6, 10, 29}, {15, 25, 32}, {21, 19, 26}, {25, 20, 24}}) do
               local cs = {}
               for c = rc[2], rc[3] do cs[#cs + 1] = string.format("%04x", vram[0x7000 + c * 32 + rc[1]] or 0) end
               t[#t + 1] = "r" .. rc[1] .. ":" .. table.concat(cs, ",")
@@ -244,13 +273,15 @@ emu.register_frame_done(function()
         if b(O_RES) == 1 then -- hands off until the hold check, then one A press
           rgt:set_value(0); lft:set_value(0); abtn:set_value(res_frames > RES_HOLD_FRAMES and res_frames <= RES_HOLD_FRAMES + 3 and 1 or 0)
         else rgt:set_value((bon_frames % 240) < 120 and 1 or 0); lft:set_value((bon_frames % 240) >= 120 and 1 or 0); abtn:set_value((bon_frames % 14) < 3 and 1 or 0) end
+        if res_row.fl_n <= 16 then rgt:set_value(0); lft:set_value(0); abtn:set_value(0) end
         do local t = bon_by[nl] or {0, 0, 0}; t[1] = t[1] + 1; t[2] = t[2] + (fc_line >= 224 and 1 or 0); if fc_line < 224 and fc_line > t[3] then t[3] = fc_line end; bon_by[nl] = t end
       end
       bon_wait = 0
     elseif bon_frames > 0 then
       local why
       for k = 0, 10 do local t = bon_by[k]; if t then print(string.format('BON_NL %d frames %d over %d max %.1f', k, t[1], t[2], t[3])) end end
-      if bon_nlive_max < BONUS_LIVE_MAX then why = "bonus never had " .. BONUS_LIVE_MAX .. " bubbles alive (max " .. bon_nlive_max .. ")"
+      if (res_row.floor_on or 0) == 0 then why = "bonus floor not on screen 16 frames into the bonus (no island-slot column with a height and an on-screen x)"
+      elseif bon_nlive_max < BONUS_LIVE_MAX then why = "bonus never had " .. BONUS_LIVE_MAX .. " bubbles alive (max " .. bon_nlive_max .. ")"
       elseif bon_over > 0 then why = "bonus logic end past 224 on " .. bon_over .. " of " .. bon_busy .. " busy frames, first " .. bon_over_note
       elseif bon_busy < 50 then why = "only " .. bon_busy .. " frames with 8+ bubbles"
       elseif res_logic >= 224 then why = string.format("result screen logic end %.1f, limit 224, %d of %d frames over, first frames %s", res_logic, res_over, res_frames, table.concat(res_over_list, ","))

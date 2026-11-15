@@ -15,10 +15,10 @@ int main(void) {
         {{ARC_EL_VENT,184,108,0}},
         {{ARC_EL_VENT,160,116,0},{ARC_EL_VENT,246,80,0}},
         {{ARC_EL_VENT,196,92,0},{ARC_EL_VENT,60,52,0}},
-        {{ARC_EL_VENT,322,72,0},{ARC_EL_VENT,168,52,0},{ARC_EL_GRABBER,112,188,224},{ARC_EL_GRATE,232,186,0}},
+        {{ARC_EL_VENT,322,72,0},{ARC_EL_VENT,168,52,0},{ARC_EL_GRABBER,112,ARC_GRAB_Y,224},{ARC_EL_GRATE,232,186,0}},
         {{ARC_EL_VENT,204,88,0},{ARC_EL_VENT,306,72,0},{ARC_EL_GRATE,248,186,0}},
         {{ARC_EL_VENT,110,100,0},{ARC_EL_VENT,296,60,0}},
-        {{ARC_EL_VENT,180,104,0},{ARC_EL_VENT,252,80,0},{ARC_EL_FLIPPER,148,72,0},{ARC_EL_GRABBER,104,188,256}},
+        {{ARC_EL_VENT,180,104,0},{ARC_EL_VENT,252,80,0},{ARC_EL_FLIPPER,148,72,0},{ARC_EL_GRABBER,104,ARC_GRAB_Y,256}},
         {{ARC_EL_VENT,174,124,0},{ARC_EL_VENT,300,80,0},{ARC_EL_FLIPPER,176,76,0}},
         {{ARC_EL_VENT,224,76,0},{ARC_EL_VENT,314,72,0},{ARC_EL_GRATE,248,186,0},{ARC_EL_FLIPPER,252,122,0},{ARC_EL_FLIPPER,96,92,0}},
         {{ARC_EL_VENT,160,108,0},{ARC_EL_VENT,320,72,0},{ARC_EL_FLIPPER,36,84,0},{ARC_EL_FLIPPER,176,50,0},{ARC_EL_FLIPPER,252,110,0}},
@@ -55,7 +55,7 @@ int main(void) {
     vx = 7; vy = 9; CHECK(!arc_elements_bounce(&a, 36 + ARC_FLIP_HALF + 2 + 1, 84, 2, 5, &vx, &vy) && vx == 7 && vy == 9);
     CHECK(!arc_elements_bounce(&a, 100, 140, 2, 5, &vx, &vy));
 
-    /* grabber (N03: range 112..224, water 188): hidden and patrolling without a target, rises only for a low flier at its x */
+    /* grabber (N03: range 112..224, water ARC_GRAB_Y): hidden and patrolling without a target, rises only for a low flier at its x */
     {
         ArcElement *h; int x0, k, sum = 0;
         static const int ticks[ARC_GRAB_FRAMES] = { 7, 6, 4, 4, 8, 3, 4, 13, 5, 5, 5, 7 };
@@ -68,43 +68,51 @@ int main(void) {
             int px = h->x;
             arc_elements_step(&a);
             CHECK(h->timer == 0 && h->x >= 112 && h->x <= 224 && (h->x == px + ARC_GRAB_PATROL || h->x == 112));
-            CHECK(!arc_elements_kill(&a, h->x, 160, 2, 5));
+            CHECK(!arc_elements_kill(&a, h->x, (ARC_GRAB_Y - 28), 2, 5));
         }
         x0 = h->x;
         arc_elements_note_low(&a, h->x, 100); arc_elements_step(&a); CHECK(h->timer == 0);              /* high flier: no rise */
-        arc_elements_note_low(&a, h->x + 40, 170); arc_elements_step(&a); CHECK(h->timer == 0);         /* low but elsewhere */
-        arc_elements_note_low(&a, h->x, 188 - ARC_GRAB_LOW_DY - 1); arc_elements_step(&a); CHECK(h->timer == 0); /* 1 px above the trigger height: no rise */
+        arc_elements_note_low(&a, h->x + 40, (ARC_GRAB_Y - 18)); arc_elements_step(&a); CHECK(h->timer == 0);         /* low but elsewhere */
+        arc_elements_note_low(&a, h->x, ARC_GRAB_Y - ARC_GRAB_LOW_DY - 1); arc_elements_step(&a); CHECK(h->timer == 0); /* 1 px above the trigger height: no rise */
         (void)x0;
-        arc_elements_note_low(&a, h->x + ARC_GRAB_TRIG_DX + 2, 170); arc_elements_step(&a); CHECK(h->timer == 0); /* just outside the trigger */
-        arc_elements_note_low(&a, h->x + 1 + 0, 170); arc_elements_step(&a); CHECK(h->timer == 1 && h->cycle == 1);   /* low at its x: rises */
+        arc_elements_note_low(&a, h->x + ARC_GRAB_TRIG_DX + 2, (ARC_GRAB_Y - 18)); arc_elements_step(&a); CHECK(h->timer == 0); /* just outside the trigger */
+        arc_elements_note_low(&a, h->x + 1 + 0, (ARC_GRAB_Y - 18)); arc_elements_step(&a); CHECK(h->timer == 1 && h->cycle == 1);   /* low at its x: rises */
         /* target stays low the whole rise: the hand closes in frames 5..7 (timer 30..49), then sinks, then hides */
-        for (t = 0; t < ARC_GRAB_RISE; t++) { arc_elements_note_low(&a, h->x, 170); arc_elements_step(&a); }
-        CHECK(h->timer == ARC_GRAB_RISE + 1 && arc_elements_grab_frame(h->timer) == 5 && arc_elements_kill(&a, h->x, 160, 2, 5));
-        CHECK(!arc_elements_kill(&a, h->x + ARC_GRAB_HALF_W + 3, 160, 2, 5));
-        run(&a, 19); CHECK(h->timer == ARC_GRAB_SINK_AT - 1 && arc_elements_kill(&a, h->x, 160, 2, 5));
-        run(&a, 1); CHECK(h->timer == ARC_GRAB_SINK_AT && !arc_elements_kill(&a, h->x, 160, 2, 5));   /* sink */
+        for (t = 0; t < ARC_GRAB_RISE; t++) { arc_elements_note_low(&a, h->x, (ARC_GRAB_Y - 18)); arc_elements_step(&a); }
+        CHECK(h->timer == ARC_GRAB_RISE + 1 && arc_elements_grab_frame(h->timer) == 5 && arc_elements_kill(&a, h->x, (ARC_GRAB_Y - 28), 2, 5));
+        CHECK(!arc_elements_kill(&a, h->x + ARC_GRAB_HALF_W + 3, (ARC_GRAB_Y - 28), 2, 5));
+        run(&a, 19); CHECK(h->timer == ARC_GRAB_SINK_AT - 1 && arc_elements_kill(&a, h->x, (ARC_GRAB_Y - 28), 2, 5));
+        run(&a, 1); CHECK(h->timer == ARC_GRAB_SINK_AT && !arc_elements_kill(&a, h->x, (ARC_GRAB_Y - 28), 2, 5));   /* sink */
         run(&a, ARC_GRAB_LOOP - ARC_GRAB_SINK_AT + 1); CHECK(h->timer == 0);
         /* the target leaves while the hand rises: it retreats at once, even on the last rise tick, and never closes */
         for (k = 1; k <= ARC_GRAB_RISE; k += 14) {
             int n;
-            arc_elements_note_low(&a, h->x, 170); arc_elements_step(&a); CHECK(h->timer == 1);
-            for (n = 1; n < k; n++) { arc_elements_note_low(&a, h->x, 170); arc_elements_step(&a); }
+            arc_elements_note_low(&a, h->x, (ARC_GRAB_Y - 18)); arc_elements_step(&a); CHECK(h->timer == 1);
+            for (n = 1; n < k; n++) { arc_elements_note_low(&a, h->x, (ARC_GRAB_Y - 18)); arc_elements_step(&a); }
             arc_elements_step(&a);   /* nobody low */
-            CHECK(h->timer == ARC_GRAB_SINK_AT + 1 && arc_elements_grab_frame(h->timer) == 8 && !arc_elements_kill(&a, h->x, 160, 2, 5));
+            CHECK(h->timer == ARC_GRAB_SINK_AT + 1 && arc_elements_grab_frame(h->timer) == 8 && !arc_elements_kill(&a, h->x, (ARC_GRAB_Y - 28), 2, 5));
             run(&a, ARC_GRAB_LOOP);
             CHECK(h->timer == 0);
         }
         /* a target that rises out of reach (high) counts as gone */
-        arc_elements_note_low(&a, h->x, 170); arc_elements_step(&a);
+        arc_elements_note_low(&a, h->x, (ARC_GRAB_Y - 18)); arc_elements_step(&a);
         arc_elements_note_low(&a, h->x, 100); arc_elements_step(&a);
         CHECK(h->timer == ARC_GRAB_SINK_AT + 1);
         run(&a, ARC_GRAB_LOOP);
-        /* follows the target x while rising, at most ARC_GRAB_FOLLOW a tick, and stays in its range */
-        arc_elements_note_low(&a, h->x, 170); arc_elements_step(&a);
-        { int tx = h->x + ARC_GRAB_TRIG_DX; for (k = 0; k < 4; k++) { int px = h->x; arc_elements_note_low(&a, tx, 170); arc_elements_step(&a); CHECK(h->x - px <= ARC_GRAB_FOLLOW && h->x <= tx); } CHECK(h->x == tx && h->timer == 5); }
+        /* rising, it jumps to the target x anywhere in its range (reference fish) and bites a flier skimming the water */
+        arc_elements_note_low(&a, h->x, (ARC_GRAB_Y - 18)); arc_elements_step(&a);
+        for (k = 0; k < 4; k++) { arc_elements_note_low(&a, 168, ARC_GRAB_Y - 6); arc_elements_step(&a); CHECK(h->x == 168); }
+        CHECK(h->timer == 5);
+        while (h->timer <= ARC_GRAB_RISE) { arc_elements_note_low(&a, 168, ARC_GRAB_Y - 6); arc_elements_step(&a); }
+        CHECK(arc_elements_grab_frame(h->timer) == 5 && arc_elements_kill(&a, 168, ARC_GRAB_Y - 6, 2, 5));   /* feet 1 px over the surface */
+        CHECK(ARC_GRAB_Y == HAZARD_KILL_WATER - HAZARD_DIP);   /* hand bottom row on the water line */
+        run(&a, ARC_GRAB_LOOP);
+        /* a target outside the range counts as gone */
+        arc_elements_note_low(&a, h->x, (ARC_GRAB_Y - 18)); arc_elements_step(&a); CHECK(h->timer == 1);
+        arc_elements_note_low(&a, 224 + 10, (ARC_GRAB_Y - 18)); arc_elements_step(&a); CHECK(h->timer == ARC_GRAB_SINK_AT + 1);
         run(&a, ARC_GRAB_LOOP);
         h->x = 224; h->timer = 0;
-        arc_elements_note_low(&a, 224, 170); arc_elements_step(&a);   /* patrol wrapped to 112 first, so no flier there: stays hidden */
+        arc_elements_note_low(&a, 224, (ARC_GRAB_Y - 18)); arc_elements_step(&a);   /* patrol wrapped to 112 first, so no flier there: stays hidden */
         CHECK(h->x == 112 && h->timer == 0);
     }
 
@@ -125,9 +133,21 @@ int main(void) {
     CHECK(arc_elements_avoid_dir(&a, 184 - 4, 100, 2, 5, 0x10000) == 1);
     /* heading at the vent widens the look by ARC_AVOID_LOOK_TICKS of |vx| */
     CHECK(arc_elements_avoid_dir(&a, 184 - 17 - ARC_AVOID_LOOK, 100, 2, 5, 0) == 0 && arc_elements_avoid_dir(&a, 184 - 17 - ARC_AVOID_LOOK, 100, 2, 5, 0x10000) == -1);
-    arc_elements_init(&a, 3);   /* N03: hand at x 112, water 188 */
-    CHECK(arc_elements_avoid_dir(&a, 120, 175, 2, 5, 0) == 1 && arc_elements_avoid_dir(&a, 105, 175, 2, 5, 0) == -1);
-    CHECK(arc_elements_avoid_dir(&a, 120, 100, 2, 5, 0) == 0 && arc_elements_avoid_dir(&a, 112 + 40, 175, 2, 5, 0) == 0);
+    arc_elements_init(&a, 3);   /* N03: hand at x 112, water ARC_GRAB_Y */
+    CHECK(arc_elements_avoid_dir(&a, 120, (ARC_GRAB_Y - 13), 2, 5, 0) == 1 && arc_elements_avoid_dir(&a, 105, (ARC_GRAB_Y - 13), 2, 5, 0) == -1);
+    CHECK(arc_elements_avoid_dir(&a, 120, 100, 2, 5, 0) == 0 && arc_elements_avoid_dir(&a, 112 + 40, (ARC_GRAB_Y - 13), 2, 5, 0) == 0);
+    /* rising (timer 1..ARC_GRAB_RISE): the hand jumps to any low flier in its range [112, 224], so the whole range plus half
+       width, flier half width and pad (94..242) is a threat; high fliers stay free; after the rise the box is at the hand x again */
+    CHECK(a.el[2].kind == ARC_EL_GRABBER);
+    for (t = 1; t <= ARC_GRAB_RISE; t += ARC_GRAB_RISE - 1) {
+        a.el[2].timer = (uint16_t)t;
+        CHECK(arc_elements_avoid_dir(&a, 152, (ARC_GRAB_Y - 13), 2, 5, 0) == 1 && arc_elements_avoid_dir(&a, 242, (ARC_GRAB_Y - 13), 2, 5, 0) == 1);
+        CHECK(arc_elements_avoid_dir(&a, 94, (ARC_GRAB_Y - 13), 2, 5, 0) == -1);
+        CHECK(arc_elements_avoid_dir(&a, 243, (ARC_GRAB_Y - 13), 2, 5, 0) == 0 && arc_elements_avoid_dir(&a, 93, (ARC_GRAB_Y - 13), 2, 5, 0) == 0);
+        CHECK(arc_elements_avoid_dir(&a, 152, 100, 2, 5, 0) == 0);
+    }
+    a.el[2].timer = ARC_GRAB_RISE + 1;
+    CHECK(arc_elements_avoid_dir(&a, 152, (ARC_GRAB_Y - 13), 2, 5, 0) == 0 && arc_elements_avoid_dir(&a, 120, (ARC_GRAB_Y - 13), 2, 5, 0) == 1);
 
     /* grate (N06: x 248, hatch top 186): lift only inside the zone */
     arc_elements_init(&a, 4);

@@ -468,7 +468,7 @@ test-arcade-bonus: cart
 	SDL_VIDEODRIVER=dummy nice -n 19 $(MAME) -window -nomaximize -video none -sound none -nothrottle -seconds_to_run 600 -noautosave -skip_gameinfo -hash $(ROM) -rp $(ROM) -nvram_directory $$T $(if $(RESULT_DUMP),-snapshot_directory $(RESULT_DUMP)) -autoboot_script tests/mame/arcade_check.lua neogeo -cart1 $(GAMEROM) > $$T/mame.log 2>&1 || true; \
 	if [ ! -f $$T/result.txt ]; then tail -n 15 $$T/mame.log; echo "[FAIL] no result from arcade Lua script"; exit 1; fi; \
 	cat $$T/result.txt; \
-	if grep -q '^PASS' $$T/result.txt; then cat $$T/result.txt; rm -rf $$T; echo "[OK] make test-arcade-bonus passed"; else echo "[FAIL] make test-arcade-bonus, log kept in $$T"; exit 1; fi
+	if grep -q '^PASS' $$T/result.txt; then cat $$T/result.txt; grep -h "^ARC_" $$T/mame.log || true; rm -rf $$T; echo "[OK] make test-arcade-bonus passed"; else echo "[FAIL] make test-arcade-bonus, log kept in $$T"; exit 1; fi
 
 # Small Sootling reachability (tests/mame/small_sootling_check.lua): the 24 x 32 sheet is what the real ROM draws for the
 # player (art size, tile count, SCB3 height, SCB1 tiles in range, frame-select sentinel, sprite top and x from the flier
