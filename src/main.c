@@ -1584,7 +1584,10 @@ static void game_loop(void) {
         if (g_flow.state == FLOW_PLAYING && g_flow.game.res.active && (bios_statchange & 1)) in |= IN_A; /* Start also ends the result screen */
         g_flow.credit_hold = (u8)(credits_now() > 0); /* owner rule "never force start": credits hold the PRESS START title */
         g_bg_paused = g_bg_hold && bg_pending();
-        if (!g_bg_paused) flow_step(&g_flow, in, start, g_frame_counter); /* the game waits while the entry background loads */
+        /* The game waits while the entry background loads. A taken credit waits with it: bug fixed here, a Start accepted on
+         * the title during the mood rewrite after a Gum Trip run was dropped here (credit gone, no game). make test-black-screen. */
+        if (!g_bg_paused) flow_step(&g_flow, in, start, g_frame_counter);
+        else if (start) g_start_pending = 1;
         /* Never force start: keep the BIOS compulsion timer (BCD seconds) from running out in attract, so the BIOS never calls
          * PLAYER_START without a Start press and never takes a credit on its own. Bug fixed here: with a credit and no press,
          * UniBIOS forced a game after 30 s. Guarded by make test-unibios (d) and test-arcade-contout (A7). */
