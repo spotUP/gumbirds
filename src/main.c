@@ -1426,6 +1426,7 @@ void rom_game(void);
 void rom_title(void);
 
 static void game_loop(void);
+static u8 g_coin_blipped;
 
 /*
  * Video state the game owns: fix layer, palettes, hero sprite. A real BIOS (SNK MVS BIOS,
@@ -1485,6 +1486,9 @@ static void resume_game_loop(void) {
     *REG_WATCHDOGW = 0;
     __asm__ volatile ("move.w #0x2000,%%sr" ::: "memory");
     *REG_CRTFIX = 1;
+    /* video_init blocks for many vblanks (budgeted flush), and game_loop only sends sounds after it: play the coin blip now so it
+     * is not 40+ frames late. g_coin_blipped tells game_loop the pending coin already has its blip (tests/mame/sound_check.lua). */
+    if (g_coin_calls) { sound_play_sfx(SND_SFX_COIN); sound_tick(); g_coin_blipped = 1; }
     video_init();
     game_loop();
 }
@@ -1581,7 +1585,8 @@ static void game_loop(void) {
         flow_view(&g_flow, &view);
         g_round_end_s[0] = g_flow.game.round_end; g_round_end_s[1] = g_flow.game.round_timer;
         g_round_end_s[2] = g_flow.game.round_start; g_round_end_s[3] = game_flier_visible(&g_flow.game);
-        if (coined) sound_play_sfx(SND_SFX_COIN);
+        if (coined && !g_coin_blipped) sound_play_sfx(SND_SFX_COIN);
+        if (coined) g_coin_blipped = 0;
         if (view.game && view.state == FLOW_PLAYING && g_flow.game.res.events) { /* result screen sounds */
             u8 re = g_flow.game.res.events;
             g_flow.game.res.events = 0;
