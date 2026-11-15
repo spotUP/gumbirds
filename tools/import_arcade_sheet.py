@@ -44,13 +44,15 @@ BURST_DIR = os.path.join(ROOT, "assets/arcade")
 BURST_TICKS = [3, 3, 2, 2, 2, 2, 3, 3, 3, 3, 3, 4, 4]
 NOZZLE_X = [0, 36, 72, 108]; NOZZLE_W = 32; NOZZLE_H = [24, 40, 32, 36]
 # animation -> palette it is pinned to (sources: triphaz storm, sootling player/cpu, island roof)
-PINS = {"storm": ["body_b", "spark_a", "spark_b", "smoke_light", "smoke_dark", "flash", "air", "hatch", "boil"],
+PINS = {"storm": ["body_b", "spark_a", "spark_b", "smoke_light", "smoke_dark", "flash", "air", "hatch"],
         "player": ["flipper_a", "flipper_b", "grabber_a", "grabber_b", "drop_a"],
         "computer": ["blow", "caught"],
         "roof": ["island_a", "island_b"]}
 # Vent warning (variant B, picked 2026-11-15; draft thoughts/shared/drafts/2026-11-15-vent-warn/draw_vent_warn.py, grids copied unchanged).
 # Boil bubbles: 10 hand-placed frames of 16x16, bottom aligned (rows missing at the top are empty). A digit is a storm palette entry:
-# 9 blue rim, a cyan, b pale, c white (the spark's own colours).
+# 9 blue rim, a cyan, b pale, c white (the spark's own colours). They are not a sprite of their own: each warning frame of the body
+# ("warn", 32x32) holds a body frame with one boil grid on its top, so the warning costs no sprite. WARN lists the (body frame, boil grid)
+# pairs the 72 warning ticks show, in the order they show (src/core/arc_view.c WARN_TAB).
 BOIL = [
     [".....99.........", "....9ab9...9....", "....9aa9..9a9..."],
     [".....99.........", "....9ab9........", "...9abba9..99...", "...9aaaa9.9ab9.."],
@@ -63,6 +65,7 @@ BOIL = [
     [".......b....b...", "................", "................", "...............a", "................", "................", "....999.........", "...9abb9........", "..9abcba9.......", "..9abbaa9....a..", "..9aaaa99.......", "...9aa99........", "....999........."],
     ["....99..........", "...9ab9.........", "...9ba9.........", "....99..........", "................", "................", "................", "................", "...............a", "...........9....", ".....9....9a9..."],
 ]
+WARN = [(1, b) for b in range(5)] + [(2, b) for b in range(4, 10)] + [(3, 9)] + [(3, b) for b in range(7)]
 # Glow: hand-picked 5-bit RGB steps for entries 1..5 of the vent palette line (outline, 3 metal shades, metal light). Step 0 is the storm
 # colours (asserted in build). The game writes one row on a step change (table vent_heat, 8 x 5 palette words).
 HEAT = [
@@ -122,15 +125,19 @@ def build(out):
         y += im.height
     storm = load_json("assets/triphaz/triphaz_sheet.json")["palettes"]["storm"]
     assert [[c5(v) for v in c] for c in HEAT[0]] == storm[:5], "heat step 0 must be the storm colours"
-    y = sheet.height   # boil row: the hand grids in storm colours
-    grown = Image.new("RGBA", (max(sheet.width, 16 * len(BOIL)), y + 16), (0, 0, 0, 0))
+    y = sheet.height   # warn row: body frame in the lower half, its boil grid (storm colours) centred on the body top, 1 px into the body and behind it
+    grown = Image.new("RGBA", (max(sheet.width, 32 * len(WARN)), y + 32), (0, 0, 0, 0))
     grown.paste(sheet, (0, 0)); sheet = grown
-    for i, rows in enumerate(BOIL):
+    for i, (bf, bi) in enumerate(WARN):
+        rows = BOIL[bi]
         assert all(len(r) == 16 for r in rows) and len(rows) <= 16
         for ry, row in enumerate(rows):
             for rx, ch in enumerate(row):
-                if ch != ".": sheet.putpixel((i * 16 + rx, y + 16 - len(rows) + ry), (*storm[int(ch, 16) - 1], 255))
-    anims["boil"] = [{"x": i * 16, "y": y, "w": 16, "h": 16} for i in range(len(BOIL))]
+                if ch != ".": sheet.putpixel((i * 32 + 8 + rx, y + 17 - len(rows) + ry), (*storm[int(ch, 16) - 1], 255))
+        r = anims["body_a"][bf]
+        body = sheet.crop((r["x"], r["y"], r["x"] + 32, r["y"] + 16))
+        sheet.paste(body, (i * 32, y + 16), body)
+    anims["warn"] = [{"x": i * 32, "y": y, "w": 32, "h": 32} for i in range(len(WARN))]
     for f in ("nozzles_A_1x.png", "gum_burst_a_strip.png", "floor_A_1x.png"):
         im = snap5(Image.open(os.path.join(BURST_DIR if f.startswith("gum_burst") else NOZZLE_DIR, f)).convert("RGBA"))
         y = sheet.height
@@ -147,7 +154,7 @@ def build(out):
             assert im.size == (64, 16)
             anims["floor"] = [{"x": 0, "y": y, "w": 32, "h": 16}]
     pins = {**PINS, "nozzle": ["nozzle0", "nozzle1", "nozzle2", "nozzle3", "puff", "floor"],
-            "vent": ["body_a"]}   # the vent body on its own line (a copy of storm), so its glow cycle leaves sparks and the hatch alone; last, so no palette index moves
+            "vent": ["body_a", "warn"]}   # the vent body on its own line (a copy of storm), so its glow cycle leaves sparks and the hatch alone; last, so no palette index moves
     pieces, groups = {}, {g: [] for g in pins}
     for g, names in pins.items():
         for a in names:

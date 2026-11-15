@@ -20,21 +20,21 @@ static void test_vent(void) {
     CHECK(arc_view_build(&a, 0, s) == 1);
     CHECK(s[0].piece == ARCV_BODY && s[0].frame == 0 && s[0].x == 100 - ARC_VIEW_W[ARCV_BODY] / 2 && s[0].y == 80 - ARC_VIEW_H[ARCV_BODY]);
     a.el[0].timer = ARC_VENT_LOOP / 2 - 24; /* telegraph */
-    CHECK(arc_view_build(&a, 0, s) == 2 && s[1].piece == ARCV_BOIL && s[1].frame == 0); /* body plus boil bubbles on its top */
-    CHECK(s[0].frame == 1 && s[0].x == 100 - ARC_VIEW_W[ARCV_BODY] / 2 && s[1].y + ARC_VIEW_H[ARCV_BOIL] == s[0].y + 1);
+    CHECK(arc_view_build(&a, 0, s) == 1 && s[0].piece == ARCV_WARN && s[0].frame == 0); /* one sprite: the body with boil bubbles on its top */
+    CHECK(s[0].x == 100 - ARC_VIEW_W[ARCV_BODY] / 2 && s[0].y + ARC_VIEW_H[ARCV_WARN] == 80 && ARC_VIEW_W[ARCV_WARN] == ARC_VIEW_W[ARCV_BODY]);
     CHECK(arc_view_heat(&a) == 1);
     CHECK(ARC_VENT_LAUNCH - ARC_VENT_TELEGRAPH == 72); /* the shake, boil and heat tables cover exactly the window rivals steer by */
     a.el[0].timer = ARC_VENT_TELEGRAPH - 1;
     CHECK(arc_view_build(&a, 0, s) == 1 && arc_view_heat(&a) == 0); /* no warning before the window rivals steer by */
     a.el[0].timer = ARC_VENT_LAUNCH - 1; /* last warning tick: violent shake (-2,-1), last boil hold (16 % 10), flicker step */
-    CHECK(arc_view_build(&a, 0, s) == 2 && s[0].frame == 3 && s[0].x == 100 - ARC_VIEW_W[ARCV_BODY] / 2 - 2 && s[0].y == 80 - ARC_VIEW_H[ARCV_BODY] - 1);
-    CHECK(s[1].frame == 6 && s[1].x == 100 - ARC_VIEW_W[ARCV_BOIL] / 2 - 2 && arc_view_heat(&a) == 6);
+    CHECK(arc_view_build(&a, 0, s) == 1 && s[0].piece == ARCV_WARN && s[0].x == 100 - ARC_VIEW_W[ARCV_BODY] / 2 - 2 && s[0].y == 80 - ARC_VIEW_H[ARCV_WARN] - 1);
+    CHECK(s[0].frame == 18 && arc_view_heat(&a) == 6); /* body frame 3 with boil grid 6: the last of the 19 warning frames */
     { /* tables vs the step lists they were generated from (old loop and modulo, old step_at walk) */
         static const uint8_t bs[] = { 0, 6, 12, 18, 23, 28, 33, 38, 42, 46, 50, 54, 57, 60, 63, 66, 69 };
         static const uint8_t ha[][2] = { {0,1},{14,2},{26,3},{36,4},{45,5},{53,6},{60,7},{66,6},{68,7},{70,6} }, ca[][2] = { {0,7},{40,5},{50,3},{60,1},{70,0} };
         unsigned w, k, ok = 1;
         for (w = 0; w < 72 + 75; w++) {
-            unsigned h = 0, i, hv = ha[0][1], cv = ca[0][1];
+            unsigned h = 0, bf, bi, wf, i, hv = ha[0][1], cv = ca[0][1];
             for (i = 1; i < 10; i++) if (w >= ha[i][0]) hv = ha[i][1];
             for (i = 1; i < 5; i++) if (w >= ca[i][0]) cv = ca[i][1];
             while (h + 1 < sizeof bs && w >= bs[h + 1]) h++;
@@ -44,7 +44,10 @@ static void test_vent(void) {
                 v.n = 1; v.el[0].kind = ARC_EL_VENT; v.el[0].x = 100; v.el[0].y = 80;
                 if (k == 0 && w < 72) {
                     v.el[0].timer = (uint16_t)(ARC_VENT_TELEGRAPH + w);
-                    ok &= arc_view_build(&v, 0, o) == 2 && o[1].frame == h % 10 && arc_view_heat(&v) == (int)hv;
+                    bf = 1 + w / 24; bi = h % 10; /* old body frame and boil frame; the warning frames hold the pairs in the order they show */
+                    wf = bf == 1 ? bi : bf == 2 ? bi + 1 : bi == 9 ? 11 : 12 + bi;
+                    ok &= bf != 1 || bi <= 4; ok &= bf != 2 || bi >= 4; ok &= bf != 3 || bi <= 6 || bi == 9;
+                    ok &= arc_view_build(&v, 0, o) == 1 && o[0].piece == ARCV_WARN && o[0].frame == wf && arc_view_heat(&v) == (int)hv;
                 } else if (k == 1) {
                     v.el[0].timer = (uint16_t)(ARC_VENT_LAUNCH + w);
                     ok &= arc_view_heat(&v) == (int)cv;

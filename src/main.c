@@ -560,10 +560,10 @@ static void pool_show(void) {
 _Static_assert(ARCADE_VENT_ART_W == 32 && ARCADE_SPARK_ART_W == 16 && ARCADE_FLIPPER_ART_W == 40 && ARCADE_GRABBER_ART_W == 40 && ARCADE_GRABBER_ART_H == 44,
                "arcade art sizes differ from ARC_VIEW_W/H in core/arc_view.h");
 _Static_assert(ARCADE_VENT_FRAMES == ARCADE_PIECE_BODY_A_COUNT && ARCADE_SPARK_FRAMES == ARCADE_PIECE_SPARK_A_COUNT && ARCADE_FLIPPER_FRAMES == ARCADE_PIECE_FLIPPER_A_COUNT &&
-               ARCADE_GRABBER_FRAMES == ARC_GRAB_FRAMES && ARCADE_PIECE_HATCH_COUNT == 1 && ARCADE_PIECE_BOIL_COUNT == 10, "arcade frame counts differ from arc_view");
+               ARCADE_GRABBER_FRAMES == ARC_GRAB_FRAMES && ARCADE_PIECE_HATCH_COUNT == 1 && ARCADE_PIECE_WARN_COUNT == 19, "arcade frame counts differ from arc_view");
 _Static_assert(ARCADE_MAX_COLUMNS <= 3, "arcade frames are at most 3 columns (ARC_VIEW_COLS)");
-static const u8 k_arc_anim[ARCV_PIECES] = { ARCADE_ANIM_VENT, ARCADE_ANIM_STORM, ARCADE_ANIM_PLAYER, ARCADE_ANIM_PLAYER, ARCADE_ANIM_STORM, ARCADE_ANIM_STORM };
-static const u8 k_arc_first[ARCV_PIECES] = { ARCADE_PIECE_BODY_A_FIRST, ARCADE_PIECE_SPARK_A_FIRST, ARCADE_PIECE_FLIPPER_A_FIRST, ARCADE_PIECE_GRABBER_A_FIRST, ARCADE_PIECE_HATCH_FIRST, ARCADE_PIECE_BOIL_FIRST };
+static const u8 k_arc_anim[ARCV_PIECES] = { ARCADE_ANIM_VENT, ARCADE_ANIM_STORM, ARCADE_ANIM_PLAYER, ARCADE_ANIM_PLAYER, ARCADE_ANIM_STORM, ARCADE_ANIM_VENT };
+static const u8 k_arc_first[ARCV_PIECES] = { ARCADE_PIECE_BODY_A_FIRST, ARCADE_PIECE_SPARK_A_FIRST, ARCADE_PIECE_FLIPPER_A_FIRST, ARCADE_PIECE_GRABBER_A_FIRST, ARCADE_PIECE_HATCH_FIRST, ARCADE_PIECE_WARN_FIRST };
 /* Vent glow: entries 1..5 (outline and metal) of the vent body's own palette line, one row per heat step, written on a step change only. */
 static const u16 k_vent_heat[] = ARCADE_TABLE_VENT_HEAT;
 _Static_assert(sizeof k_vent_heat / sizeof k_vent_heat[0] == ARC_VIEW_HEAT_STEPS * 5, "vent_heat table differs from arc_view heat steps");

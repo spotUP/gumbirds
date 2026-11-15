@@ -65,8 +65,8 @@
 #define FG_SPRAY_COUNT 4
 /* Arcade stage elements (src/core/arc_view.h): drawn in arcade mode only, in the rain and spray slots, which no code draws (the rain mood is
    not built), plus slot 323, the first of the strip range below: Gum Trip, the title, the bonus stage and its result screen draw there, never
-   an arcade stage. The planned 261..308 is the hazard strip. 15 columns: the worst stage (R10) needs 13 for bodies and 2 for the sparks or the
-   warning boils of its two vents; smoke and air particles are not drawn. */
+   an arcade stage. The planned 261..308 is the hazard strip. 15 columns: the worst stage (R10) needs 13 for bodies and 2 for the sparks of its
+   two vents (the warning boil is part of the body frames); smoke and air particles are not drawn. */
 #define ARC_ELEM_SPRITE FG_RAIN_SPRITE
 #define ARC_ELEM_COUNT (FG_RAIN_COUNT + FG_SPRAY_COUNT + 1)
 #define TRIP_STRIP_SPRITE 323 /* Gum Trip kill strips: 22 floor columns, then 22 ceiling columns (step V2) */

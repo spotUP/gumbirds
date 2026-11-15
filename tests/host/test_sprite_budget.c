@@ -166,7 +166,7 @@ static void test_arcade_elements(void) {
         for (int t = 0; t < 700; t++, arc_elements_step(&a)) {
             int n = arc_view_build(&a, (unsigned)t, s), cols = 0;
             for (int i = 0; i < n; i++) cols += ARC_VIEW_COLS[s[i].piece];
-            CHECK(cols <= ARC_ELEM_COUNT); /* every block gets its columns, also the spark and the boil of the last vent */
+            CHECK(cols <= ARC_ELEM_COUNT); /* every block gets its columns, also the spark of the last vent */
             for (int y = 0; y < SB_LINES; y++) {
                 int c = sprite_budget_line(0, y, 0) + arc_view_line(s, n, y);
                 if (c > sw) sw = c;
