@@ -20,13 +20,24 @@ static void test_vent(void) {
     CHECK(arc_view_build(&a, 0, s) == 1);
     CHECK(s[0].piece == ARCV_BODY && s[0].frame == 0 && s[0].x == 100 - ARC_VIEW_W[ARCV_BODY] / 2 && s[0].y == 80 - ARC_VIEW_H[ARCV_BODY]);
     a.el[0].timer = ARC_VENT_LOOP / 2 - 24; /* telegraph */
-    arc_view_build(&a, 0, s);
-    CHECK(s[0].frame >= 1 && s[0].frame <= 3);
+    CHECK(arc_view_build(&a, 0, s) == 2 && s[1].piece == ARCV_BOIL && s[1].frame == 0); /* body plus boil bubbles on its top */
+    CHECK(s[0].frame == 1 && s[0].x == 100 - ARC_VIEW_W[ARCV_BODY] / 2 && s[1].y + ARC_VIEW_H[ARCV_BOIL] == s[0].y + 1);
+    CHECK(arc_view_heat(&a) == 1);
+    CHECK(ARC_VENT_LAUNCH - ARC_VENT_TELEGRAPH == 72); /* the shake, boil and heat tables cover exactly the window rivals steer by */
+    a.el[0].timer = ARC_VENT_TELEGRAPH - 1;
+    CHECK(arc_view_build(&a, 0, s) == 1 && arc_view_heat(&a) == 0); /* no warning before the window rivals steer by */
+    a.el[0].timer = ARC_VENT_LAUNCH - 1; /* last warning tick: violent shake (-2,-1), last boil hold (16 % 10), flicker step */
+    CHECK(arc_view_build(&a, 0, s) == 2 && s[0].frame == 3 && s[0].x == 100 - ARC_VIEW_W[ARCV_BODY] / 2 - 2 && s[0].y == 80 - ARC_VIEW_H[ARCV_BODY] - 1);
+    CHECK(s[1].frame == 6 && s[1].x == 100 - ARC_VIEW_W[ARCV_BOIL] / 2 - 2 && arc_view_heat(&a) == 6);
     a.el[0].timer = ARC_VENT_LAUNCH;
     CHECK(arc_view_build(&a, 0, s) == 2); /* body in launch frame, one spark above it */
     CHECK(s[0].frame == 4 && s[1].piece == ARCV_SPARK && s[1].y < s[0].y + ARC_VIEW_H[ARCV_BODY]);
+    CHECK(s[0].x == 100 - ARC_VIEW_W[ARCV_BODY] / 2 && arc_view_heat(&a) == 7); /* shake over, hottest */
     a.el[0].timer = ARC_VENT_LAUNCH + ARC_VENT_BURST_TICKS;
     CHECK(arc_view_build(&a, 0, s) == 1 && s[0].frame == 0); /* burst over */
+    CHECK(arc_view_heat(&a) == 5);
+    a.el[0].timer = ARC_VENT_LAUNCH + 70;
+    CHECK(arc_view_heat(&a) == 0); /* cooled down */
 }
 
 static void test_others(void) {
