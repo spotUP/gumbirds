@@ -107,6 +107,38 @@ static const u16 g_scb3_zero[BG_SPRITE_TOTAL];
  * lines) gets a frame of its own after the last strips; 9 per frame keeps it on the same frame as 8 with the show folded in. */
 #define BG_MOOD_COLS_PER_FRAME 9
 
+/* Mood change fade (src/core/bg_scroll.c BgFade): the mood on screen dims to black, the tiles swap in the dark, the new mood brightens.
+ * g_pal_lvl is the level each resident palette was last written at; fade_sync rewrites at most BG_FADE_PALS_PER_FRAME palettes (4 x 16
+ * words, plus the backdrop: under the 112 word flush limit) whose level differs from the wanted one. The mood whose palettes are the
+ * visible ones (fade_vis) follows the fade level, every other set stays whole, so a set left dark by the fade is restored in the dark. */
+#define BG_FADE_PALS_PER_FRAME 4
+#define BG_PAL_TOTAL (CITY_PALETTE_COUNT + DUSK_PALETTE_COUNT + STORM_PALETTE_COUNT)
+static BgFade g_fade;
+static u8 g_pal_lvl[BG_PAL_TOTAL];
+static const u16 (*const MOOD_PALS[BG_MOOD_COUNT])[16] = { city_palettes, dusk_palettes, storm_palettes };
+static const u8 MOOD_PAL_SLOT[BG_MOOD_COUNT] = { CITY_PAL_SLOT, DUSK_PAL_SLOT, STORM_PAL_SLOT };
+static const u8 MOOD_PAL_COUNT[BG_MOOD_COUNT] = { CITY_PALETTE_COUNT, DUSK_PALETTE_COUNT, STORM_PALETTE_COUNT };
+
+static u8 fade_vis(void) { return g_fade.phase == BGF_OUT ? g_bg_mood : g_want; }
+static u8 fade_level(void) { return g_fade.phase == BGF_IDLE ? BG_FADE_MAX : g_fade.level; }
+static void backdrop_put(void) { gfx_pal(4095, bg_fade_color((g_hidden ? TRIP_BACKDROP : BACKDROP)[fade_vis()], fade_level())); }
+/* One frame of palette writes; returns 1 when every palette (and nothing else) is at its wanted level. */
+static u8 fade_sync(void) {
+    u8 vis = fade_vis(), lvl = fade_level(), written = 0, base = 0;
+    for (u8 m = 0; m < BG_MOOD_COUNT; m++) {
+        for (u8 p = 0; p < MOOD_PAL_COUNT[m]; p++) {
+            u8 i = (u8)(base + p), want = m == vis ? lvl : BG_FADE_MAX;
+            if (g_pal_lvl[i] == want) continue;
+            if (written >= BG_FADE_PALS_PER_FRAME) return 0;
+            for (u8 c = 0; c < 16; c++) gfx_pal((u16)((MOOD_PAL_SLOT[m] + p) * 16 + c), bg_fade_color(MOOD_PALS[m][p][c], want));
+            g_pal_lvl[i] = want;
+            written++;
+        }
+        base = (u8)(base + MOOD_PAL_COUNT[m]);
+    }
+    return 1;
+}
+
 void bg_load_palettes(void) {
     for (int p = 0; p < CITY_PALETTE_COUNT; p++)
         for (int i = 0; i < 16; i++)
@@ -119,6 +151,7 @@ void bg_load_palettes(void) {
             gfx_pal((STORM_PAL_SLOT + p) * 16 + i, storm_palettes[p][i]);
     /* The backdrop is the LAST palette RAM entry, not entry 0 (verified by snapshot, plan B2). */
     gfx_pal(4095, BACKDROP[g_bg_mood]);
+    for (u8 i = 0; i < BG_PAL_TOTAL; i++) g_pal_lvl[i] = BG_FADE_MAX;
 }
 
 /* Strip of the column in sprite `slot`, mood m: the tiles of its drawn rows (none for a 0 row column). */
@@ -151,19 +184,31 @@ void bg_init(void) {
         g_bg_plane_x[p] = 0x7FFF; /* no x written yet: the next bg_update sends all planes */
         g_last_valid = 0;
     }
-    gfx_pal(4095, (g_hidden ? TRIP_BACKDROP : BACKDROP)[g_bg_mood]); /* the backdrop of the mood and planes now on screen */
     g_want = g_bg_mood; /* a change cut short restarts on the next bg_set_mood: the planes are whole and shown meanwhile */
     g_bg_mood_busy = 0;
+    if (g_fade.phase != BGF_IDLE) { g_fade.phase = BGF_IN; g_bg_mood_busy = 1; } /* a fade cut short brightens the mood on screen */
+    backdrop_put();
 }
 
-void bg_set_mood(u8 mood) {
-    if (mood >= BG_MOOD_COUNT || mood == g_want) return;
-    g_want = mood;
-    g_step = 0; /* a change already in flight starts its strips again for the new mood */
-    if (g_bg_mood_busy) return;
-    g_bg_mood_busy = 1;
+/* The tile swap, run while the planes are black: hide every column, then mood_step rewrites the strips. */
+static void swap_begin(void) {
+    g_step = 0;
     gfx_scb_run((u16)(ADDR_SCB3 + BG_SKY_SPRITE), 1, g_scb3_zero, BG_SPRITE_TOTAL);
-    gfx_pal(4095, (g_hidden ? TRIP_BACKDROP : BACKDROP)[mood]);
+}
+
+/* A mood change fades the planes out first (they stay lit meanwhile), swaps the tiles in the dark, fades back in. */
+void bg_set_mood(u8 mood) {
+    if (mood >= BG_MOOD_COUNT) return;
+    if (g_fade.phase == BGF_OUT && mood == g_bg_mood) { /* asked for the mood on screen again: brighten, nothing was swapped */
+        g_want = mood;
+        bg_fade_abort(&g_fade);
+        return;
+    }
+    if (mood == g_want) return;
+    g_want = mood;
+    g_step = 0; /* a swap already in flight starts its strips again for the new mood */
+    g_bg_mood_busy = 1;
+    if (g_fade.phase == BGF_IN || g_fade.phase == BGF_IDLE) bg_fade_start(&g_fade); /* IN: dim again from the level reached */
 }
 
 /* One frame of a mood change: BG_MOOD_COLS_PER_FRAME strips, or once all are sent the show run (planes Gum Trip hides stay at height 0). */
@@ -182,8 +227,18 @@ static void mood_step(void) {
             }
     gfx_scb_run((u16)(ADDR_SCB3 + BG_SKY_SPRITE), 1, g_hidden ? g_scb3_out : g_scb3_show, BG_SPRITE_TOTAL); /* nothing hidden: the show words as they are */
     g_bg_mood = g_want;
-    g_bg_mood_busy = 0;
     g_bg_mood_changes++;
+    bg_fade_swapped(&g_fade); /* busy until the fade in has written the last palette */
+}
+
+/* One frame of a mood change: the fade level, its palette words, and the tile swap while dark. */
+static void change_step(void) {
+    if (bg_fade_step(&g_fade)) swap_begin();
+    u8 synced = fade_sync();
+    if (g_fade.phase == BGF_DARK) mood_step();
+    bg_fade_settle(&g_fade, synced);
+    if (g_fade.phase == BGF_IDLE) g_bg_mood_busy = 0;
+    backdrop_put();
 }
 
 /* Gum Trip drops the planes in BG_TRIP_HIDDEN_MASK (far, near): hide = SCB3 height 0 for each of their columns, show = bg_init's word.
@@ -193,8 +248,8 @@ void bg_trip_planes(u8 trip) {
     u8 want = trip ? BG_TRIP_HIDDEN_MASK : 0, diff = (u8)(want ^ g_hidden);
     if (!diff) return;
     g_hidden = want;
-    gfx_pal(4095, (trip ? TRIP_BACKDROP : BACKDROP)[g_want]);
-    if (g_bg_mood_busy) return; /* every column is hidden now; the show run at the end of the mood change reads g_hidden */
+    backdrop_put();
+    if (g_fade.phase == BGF_DARK) return; /* every column is hidden now; the show run at the end of the swap reads g_hidden */
     for (u8 p = 0; p < BG_PLANE_COUNT; p++) {
         if (!(diff & (1u << p))) continue;
         for (u8 c = 0; c < PLANE_COLS[p]; c++) {
@@ -208,7 +263,7 @@ void bg_trip_planes(u8 trip) {
  * plane, no libgcc call). The SCB4 words of a plane go out only when its offset changed. */
 void bg_update(s32 unwrapped_px) {
     BgRamp ramp;
-    if (g_bg_mood_busy) mood_step();
+    if (g_bg_mood_busy) change_step();
     if (g_last_valid && unwrapped_px == g_last_u) return;
     g_last_u = unwrapped_px;
     g_last_valid = 1;
