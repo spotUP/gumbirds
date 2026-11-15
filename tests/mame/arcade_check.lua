@@ -15,6 +15,10 @@ local flow_addr  = tonumber(os.getenv("BRAWL_FLOW_ADDR"), 16)
 local frame_addr = tonumber(os.getenv("BRAWL_FRAME_ADDR"), 16)
 local result     = os.getenv("BRAWL_RESULT")
 local mood_addr, hz_addr = tonumber(os.getenv("BRAWL_MOOD_ADDR") or "", 16), tonumber(os.getenv("BRAWL_HAZARD_ADDR") or "", 16) -- g_bg_mood, g_hazard_kind (u8)
+-- Background hold (src/main.c g_bg_held, g_bg_mood_busy): the reveal frame and held frames with a mood change busy are exempt from A6,
+-- as in tests/mame/vblank_check.lua: a missed vblank there keeps the same static picture one frame more. Their max is printed.
+local held_addr, busy_addr = tonumber(os.getenv("BRAWL_BGHELD_ADDR") or "", 16), tonumber(os.getenv("BRAWL_BUSY_ADDR") or "", 16)
+local hold = {prev = 0, max = 0, n = 0}
 
 local L = {}
 for v in (os.getenv("BRAWL_ARCADE_LAYOUT") or ""):gmatch("%d+") do L[#L + 1] = tonumber(v) end
@@ -162,6 +166,7 @@ local function note_frame(stage, astate, lstate, line)
 end
 local function report()
   for i, t in ipairs(top) do print(string.format("ARC_TOP%d line %.1f frame %d stage %d astate %d lstate %d since_change %d", i, t.line, t.n, t.stage, t.astate, t.lstate, t.since)) end
+  print(string.format("ARC_HOLD %d reveal/blank frames exempt, logic end max %d", hold.n, hold.max))
   for st = 1, 12 do
     if steady_max[st] or spike_max[st] then print(string.format("ARC_STAGE %d steady %.1f (fit %.1f, %d of %d frames over 215, %d overrun) spike %.1f %s", st, steady_max[st] or 0, steady_fit[st] or 0, steady_hi[st] or 0, steady_n[st] or 0, steady_over[st] or 0, spike_max[st] or 0, spike_note[st] or "")) end
   end
@@ -177,7 +182,11 @@ emu.register_frame_done(function()
   if n > ((walk or cont_out) and 40000 or 9000) then finish(false, "watchdog in phase " .. phase .. ": " .. state()) return end
   local playing = b(O_FLOW) == K.playing
   if playing and fc_line > logic_max then logic_max = fc_line end
-  if playing and phase ~= "boot" and phase ~= "start" then note_frame(g(O_STAGE), g(O_ASTATE), g(O_LSTATE), fc_line) end
+  local held = held_addr and mem:read_u8(held_addr) or 0
+  local exempt = (hold.prev == 1 and held == 0) or (held == 1 and busy_addr and mem:read_u8(busy_addr) == 1)
+  hold.prev = held
+  if playing and exempt then hold.n = hold.n + 1; hold.max = math.max(hold.max, fc_line)
+  elseif playing and phase ~= "boot" and phase ~= "start" then note_frame(g(O_STAGE), g(O_ASTATE), g(O_LSTATE), fc_line) end
   if (walk or bonus_run) and phase ~= "boot" and phase ~= "start" and phase ~= "stage1" and phase ~= "walk_clear" then mem:write_u32(flow_addr + O_LIVES, K.lives) end
   if phase == "boot" then
     local fc = mem:read_u32(frame_addr)
