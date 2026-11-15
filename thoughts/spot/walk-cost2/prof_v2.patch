@@ -1,0 +1,218 @@
+diff --git a/Makefile b/Makefile
+index f5c0957..742f745 100644
+--- a/Makefile
++++ b/Makefile
+@@ -448,11 +448,12 @@ test-arcade-walk: cart
+ 	BRAWL_MOOD_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_bg_mood"{print $$1}') \
+ 	BRAWL_HAZARD_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_hazard_kind"{print $$1}') \
+ 	BRAWL_ARCADE_LAYOUT="$$($(M68KGCC) $(NGCFLAGS) -Ibuild -std=c99 -S -o - tests/mame/arcade_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
++	PROF_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_prof_mark"{print $$1}') \
+ 	BRAWL_RESULT=$$T/result.txt ARCADE_WALK=1 \
+ 	SDL_VIDEODRIVER=dummy nice -n 19 $(MAME) -window -nomaximize -video none -sound none -nothrottle -seconds_to_run 900 -noautosave -skip_gameinfo -hash $(ROM) -rp $(ROM) -nvram_directory $$T -autoboot_script tests/mame/arcade_check.lua neogeo -cart1 $(GAMEROM) > $$T/mame.log 2>&1 || true; \
+ 	if [ ! -f $$T/result.txt ]; then tail -n 15 $$T/mame.log; echo "[FAIL] no result from arcade Lua script"; exit 1; fi; \
+ 	cat $$T/result.txt; \
+-	if grep -q '^PASS' $$T/result.txt; then grep -h "^ARC_\|BRAWL_TEST" $$T/mame.log; rm -rf $$T; echo "[OK] make test-arcade-walk passed"; else echo "[FAIL] make test-arcade-walk, log kept in $$T"; exit 1; fi
++	if grep -q '^PASS' $$T/result.txt; then grep -h "^ARC_\|BRAWL_TEST\|^PROF" $$T/mame.log; rm -rf $$T; echo "[OK] make test-arcade-walk passed"; else echo "[FAIL] make test-arcade-walk, log kept in $$T"; exit 1; fi
+ 
+ # RESULT_DUMP=<absolute directory> also writes every second result screen frame there as res_NNN.png.
+ # Bonus stage cost (ARCADE_BONUS=1): clears stages 1..3, then measures the bonus stage with 8+ bubbles alive (logic end under 224); not in `make test`.
+diff --git a/src/core/game.c b/src/core/game.c
+index f571428..e03978d 100644
+--- a/src/core/game.c
++++ b/src/core/game.c
+@@ -436,6 +436,7 @@ static int arc_interlude(Game *g, uint8_t input, uint8_t a_edge)
+     return 1;
+ }
+ 
++extern volatile unsigned char g_prof_mark; /* PROF temp */
+ void game_step_arena(Game *g, uint8_t input)
+ {
+     FlierInput in;
+@@ -443,6 +444,7 @@ void game_step_arena(Game *g, uint8_t input)
+     uint8_t bodies;
+     uint8_t a_edge = (uint8_t)((input & IN_A) && !g->cont_a);
+     g->cont_a = (input & IN_A) ? 1 : 0;
++    g_prof_mark = 20;
+     if (g->over) {
+         camera_follow(g);
+         return;
+@@ -466,10 +468,12 @@ void game_step_arena(Game *g, uint8_t input)
+         return;
+     }
+     g->frame++;
++    g_prof_mark = 21;
+     if (g->mode == GAME_MODE_ARCADE) {
+         arc_note_low_fliers(g);
+         arc_elements_step(&g->elems);
+     }
++    g_prof_mark = 22;
+     in.flap = (input & IN_A) ? 1 : 0;
+     in.dir = (int8_t)(((input & IN_RIGHT) ? 1 : 0) - ((input & IN_LEFT) ? 1 : 0));
+     if (in.flap && !g->flier.flap_prev && g->flier.state < FLIER_DROWNED) {
+@@ -486,13 +490,16 @@ void game_step_arena(Game *g, uint8_t input)
+         if (c->state == FLIER_GONE) {
+             continue;
+         }
++        g_prof_mark = 23;
+         pumping = arc_pump_in_window(&g->pump[i]);
+         arc_pump_step(&g->pump[i]);
+         if (pumping) {
+             ci.dir = 0; /* sits and pumps: no AI, no input until the window ends */
+             ci.flap = 0;
+         } else if (c->state <= FLIER_PARACHUTE) {
++            g_prof_mark = 24;
+             ai_step(&g->ai[i], &g->rng, c, ai_nearest(c, &g->flier, g->cpu, g->cpu_count), &ci);
++            g_prof_mark = 25;
+             if (g->mode == GAME_MODE_ARCADE) {
+                 int away = arc_elements_avoid_dir(&g->elems, (int)(c->x >> 16), (int)(c->y >> 16), FLIER_HALF_W, (int)(flier_half_h(c) >> 16), c->vx);
+                 if (away) {
+@@ -506,7 +513,9 @@ void game_step_arena(Game *g, uint8_t input)
+             ci.dir = 0;
+             ci.flap = 0;
+         }
++        g_prof_mark = 26;
+         arena_flier_step(g, c, &ci);
++        g_prof_mark = 27;
+         if (g->mode == GAME_MODE_ARCADE) arc_element_apply(&g->elems, c);
+         if (pumping && !arc_pump_in_window(&g->pump[i])) {
+             c->vy = FLIER_GROUND_JUMP_VY; /* lift-off: one upward impulse, no sideways speed */
+@@ -529,6 +538,7 @@ void game_step_arena(Game *g, uint8_t input)
+        passes do not move a flier horizontally (they change velocities, state and at most y), so the near set computed
+        here holds for both, and they keep the (i, j) order. Distances are measured across the arena seam (arena_dx_half):
+        fliers wrap at 384 px, so x 382 and x 2 are 4 px apart. */
++    g_prof_mark = 28;
+     n = g->cpu_count + 1;
+     {
+         Flier *f[STAGE_SPAWN_COUNT + 1];
+@@ -548,6 +558,7 @@ void game_step_arena(Game *g, uint8_t input)
+                 }
+             }
+         }
++        g_prof_mark = 29;
+         /* One decision per unordered pair; a bounce reflects both fliers (a balloon-less one is left to flier_body_kill). */
+         for (i = 0; i < n; i++) {
+             for (j = i + 1; j < n; j++) {
+@@ -590,6 +601,7 @@ void game_step_arena(Game *g, uint8_t input)
+                 }
+             }
+         }
++        g_prof_mark = 30;
+         for (i = 0; i < n; i++) {
+             for (j = 0; j < n; j++) {
+                 if (near[i] & (1u << j)) {
+@@ -601,6 +613,7 @@ void game_step_arena(Game *g, uint8_t input)
+             }
+         }
+     }
++    g_prof_mark = 31;
+     g->cpu_alive = 0;
+     bodies = 0;
+     for (i = 0; i < g->cpu_count; i++) {
+diff --git a/src/main.c b/src/main.c
+index a9b0752..51f382b 100644
+--- a/src/main.c
++++ b/src/main.c
+@@ -52,6 +52,7 @@ u8 _backup_ram g_hiscore_image[SCORE_IMAGE_SIZE];
+ 
+ /* RAM sentinel for the headless test: counts main loop frames. Address in the ELF map. */
+ volatile u32 g_frame_counter;
++volatile u8 g_prof_mark; /* PROF temp */
+ 
+ /* RAM sentinel for the headless reachability test (make test-reach): counts backup RAM image writes. */
+ volatile u32 g_hiscore_saves;
+@@ -1471,6 +1472,7 @@ static void game_loop(void) {
+         /* A credit is taken by the BIOS (player_start) on a Start press, or here for A: both reach flow_step as start,
+          * and flow_step turns a taken credit into a game at once. A coin jumps to the title first. */
+         static u8 s_a_prev;
++        g_prof_mark = 1;
+         u8 in = read_input();
+         u8 a_edge = (u8)((in & IN_A) && !s_a_prev);
+         s_a_prev = (u8)((in & IN_A) != 0);
+@@ -1482,7 +1484,9 @@ static void game_loop(void) {
+         if (coined && !start) flow_coin(&g_flow);
+         if (a_edge && !start && g_flow.state <= FLOW_ATTRACT_DEMO && bios_user_mode == 1 && (in & FLOW_RESET_COMBO) != FLOW_RESET_COMBO && take_credit()) start = 1;
+         if (g_flow.state == FLOW_PLAYING && g_flow.game.res.active && (bios_statchange & 1)) in |= IN_A; /* Start also ends the result screen */
++        g_prof_mark = 2;
+         flow_step(&g_flow, in, start, g_frame_counter);
++        g_prof_mark = 3;
+         {
+             /* hazard kind per round: a new game starts at round 0; a new round (not during the banner HOLD) swaps the strip */
+             static int s_round = 0;
+@@ -1518,7 +1522,9 @@ static void game_loop(void) {
+         }
+         sound_frame(&view);
+         sound_tick();
++        g_prof_mark = 4;
+         draw(&view);
++        g_prof_mark = 5;
+         /* The result screen's fix scene covers the world: its steps wait, so the fill frames keep their budget. */
+         if (view.state == FLOW_PLAYING && view.game && view.game->res.active) goto world_done;
+         hero_and_mode(&view);
+@@ -1526,10 +1532,13 @@ static void game_loop(void) {
+             u8 world = world_shown(&view);
+             u8 trip = world && view.game->mode == GAME_MODE_TRIP;
+             u8 trip_game = (world || view.state == FLOW_GAME_OVER) && view.game && view.game->mode == GAME_MODE_TRIP;
++            g_prof_mark = 6;
+             hazard_step((world || view.state == FLOW_GAME_OVER) && !trip_game, g_cam_px); /* the hazard strip is the arena's floor; Gum Trip has its own */
+             /* arcade only: elements kill, so they must be seen (worst scanline with them is checked in tests/host/test_sprite_budget.c) */
++            g_prof_mark = 7;
+             arcade_elems_step(world && view.game->mode == GAME_MODE_ARCADE && view.game->arc.state != ARC_BONUS ? view.game : 0); /* the bonus shows no stage elements: hidden once on entry */
+             arcade_bonus_step(world && view.game->mode == GAME_MODE_ARCADE && view.game->arc.state == ARC_BONUS && !view.game->res.active ? view.game : 0);
++            g_prof_mark = 8;
+             island_step(world && !trip, g_cam_px); /* arena islands are not drawn in Gum Trip */
+             /* the course (islands, kill strips, pickups) stays through Game Over like the planes and the hazard anim: all leave at the title */
+             island_trip_step(trip_game ? &view.game->trip_gen : 0, trip_game ? view.game->trip.px : 0, trip_game && game_trip_ready(view.game));
+@@ -1537,6 +1546,7 @@ static void game_loop(void) {
+             trip_pickup_step(trip_game ? &view.game->trip_gen : 0, trip_game ? view.game->trip.px : 0, trip_game ? view.game->trip.steps : 0, trip_game && game_trip_ready(view.game));
+             /* Arena: the bubble is always full size (no gum value, no pop); Gum Trip: its gum meter. */
+             u8 arena = world && (view.game->mode == GAME_MODE_ARENA || view.game->mode == GAME_MODE_ARCADE);
++            g_prof_mark = 9;
+             gum_step(arena || (trip && game_trip_ready(view.game)), trip ? view.game->trip.gum : GUM_MAX, (trip || arena) ? view.game->frame : 0, g_gum_pose.drawn, g_gum_pose.frame, g_gum_pose.flip, g_gum_pose.cx, g_gum_pose.top);
+             {   /* the splash starts from the same crossing that plays the splosh sound; it keeps running through Game Over */
+                 const SoundEvents *se = sound_events();
+@@ -1545,14 +1555,17 @@ static void game_loop(void) {
+                               trip_game ? sg->trip_splat : se->n_splosh > 0, trip_game ? SPLASH_KIND_GUM : sg ? sg->hazard_kind : 0,
+                               trip_game ? sg->flier.x >> 16 : se->splosh_x, trip_game ? sg->trip_splat_y : 0, g_cam_px);
+             }
++            g_prof_mark = 10;
+             logo_step(view.state == FLOW_ATTRACT_TITLE);
+             title_soot_step(view.state == FLOW_ATTRACT_TITLE);
+             hazard_trip_anim(trip_game);
+             bg_trip_planes(trip_game); /* Gum Trip drops the far and near background planes; arena and title show them */
+         }
++        g_prof_mark = 11;
+         bg_set_mood(g_flow.game.mood); /* game.c picks the mood per match and per attract loop; no-op when unchanged */
+         bg_update(g_cam_unwrapped); /* the planes loop on the unwrapped camera (arena and Gum Trip alike) */
+     world_done:
++        g_prof_mark = 12;
+         gfx_commit();
+         g_frame_counter++;
+         gfx_wait_vblank(); /* the vblank callback flushes the queue: the only VRAM and palette writes of the frame */
+diff --git a/tests/mame/arcade_check.lua b/tests/mame/arcade_check.lua
+index 07bf7b9..656f9e1 100644
+--- a/tests/mame/arcade_check.lua
++++ b/tests/mame/arcade_check.lua
+@@ -127,6 +127,7 @@ local clear_frames, hash1, hash2, wait = 0, nil, nil, 0
+ local died, expect_lives, cd0, press = 0, nil, nil, 0
+ -- per-frame logic end bookkeeping: steady = more than 3 frames after any stage/flow/arcade-state change, arcade state PLAY, lives state PLAY
+ local walk = os.getenv("ARCADE_WALK") == "1"
++local prof = os.getenv("PROF_ADDR") and loadfile("tests/mame/prof_tap.lua")(mem, tonumber(os.getenv("PROF_ADDR"), 16)) -- PROF temp
+ local bonus_run = os.getenv("ARCADE_BONUS") == "1" -- make test-arcade-bonus: clear stages 1..3 and measure the bonus stage (up to 10 bubbles alive)
+ local bon_by = {}
+ local bon_over, bon_over_note, bon_prev, bon_prev_cur = 0, nil, nil, nil
+@@ -139,6 +140,7 @@ local function note_frame(stage, astate, lstate, line)
+   if sig ~= last_sig then last_sig = sig; since_change = 0 else since_change = since_change + 1 end
+   local steady = since_change > 3 and astate == K.play and lstate == K.life_play
+   local tab = steady and steady_max or spike_max
++  if prof then prof.frame(stage, steady, line) end -- PROF temp
+   if steady then
+     steady_n[stage] = (steady_n[stage] or 0) + 1
+     if line >= 224 then steady_over[stage] = (steady_over[stage] or 0) + 1 else steady_fit[stage] = math.max(steady_fit[stage] or 0, line) end
+@@ -153,6 +155,7 @@ local function note_frame(stage, astate, lstate, line)
+   top[6] = nil
+ end
+ local function report()
++  if prof then prof.report() end -- PROF temp
+   for i, t in ipairs(top) do print(string.format("ARC_TOP%d line %.1f frame %d stage %d astate %d lstate %d since_change %d", i, t.line, t.n, t.stage, t.astate, t.lstate, t.since)) end
+   for st = 1, 12 do
+     if steady_max[st] or spike_max[st] then print(string.format("ARC_STAGE %d steady %.1f (fit %.1f, %d of %d frames over 215, %d overrun) spike %.1f %s", st, steady_max[st] or 0, steady_fit[st] or 0, steady_hi[st] or 0, steady_n[st] or 0, steady_over[st] or 0, spike_max[st] or 0, spike_note[st] or "")) end
