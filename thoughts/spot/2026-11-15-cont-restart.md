@@ -103,3 +103,63 @@ compulsion start (it used to expect a start at once, which was this bug).
 - Real MVS hardware and the AES/MVS stock BIOS: only UniBIOS 4.0 in MAME ran.
 - The one-coin variant of the contout path (ARCADE_COINS=1, no credit left):
   not run; nothing forces a start there.
+
+## CREDIT-HOLD (owner rule: never force a start)
+
+Commit 17106fd on fix/cont-restart.
+
+### How the forced start is stopped
+
+The cart writes 0x30 to the BIOS compulsion timer (0x10FDDA, BCD seconds) every
+attract frame (flow state title/table/demo), right after flow_step in game_loop.
+The BIOS counts it down in its vblank. It never reaches 0, so UniBIOS never
+calls PLAYER_START without a press and never takes a credit by itself. The
+game-end SYSTEM_RETURN from d4ab3e5 stays. It is harmless and keeps the BIOS state
+normal. I found no repo note (ngdevkit/neogeodev) that says this write is the
+official MVS way. It is the cart-side lead from the brief, and it is proved here
+only under UniBIOS 4.0.
+
+Measured (test-arcade-contout log): the timer reads 30 on every logged attract
+frame. It reads 00 on one frame only, the game-end return frame before the BIOS
+reload. That frame is why A7 prints "low 00".
+
+### PRESS START hold
+
+Flow gets `credit_hold`. game_loop sets it each frame from the BIOS credit byte.
+With it set, the title no longer times out, and the table or demo jumps back to the
+title the way a coin does (flow_coin). The title already blinks PRESS START when
+credits are in (draw_title), so no new text or art was needed. There is no countdown.
+
+### Tests changed
+
+- tests/host/test_flow.c CREDIT-HOLD: the title holds for 4 attract cycles, the
+  table and the demo each jump back, and Start then plays.
+- test-arcade-contout A7: 2 coins, one Start, die out, the credit left. The title holds 18000
+  frames (5 min) with no game and the credit kept. Then one Start plays and the
+  credit goes 01 -> 00. Run length raised to 600 s.
+- test-unibios `settle` used to wait for the BIOS forced start. It now asserts a
+  2100 frame (35 s) hold with the title shown, credit 01 and no game. Then `c`
+  uses that credit with A (b_coin skipped).
+- test-unibios `d` changed: it used to accept and report the BIOS forced start
+  at about 30 s. It now inserts two coins and asserts 18000 frames (5 min) with the
+  title shown, credit 02 and no game. Then one Start: PLAYING, credit 01. Run
+  length raised to 700 s.
+
+### Gates (UniBIOS 4.0 where the target uses it)
+
+host suite OK, build OK, test-unibios PASS (settle 35 s hold, d 300 s hold
+with 02, Start -> 01 + PLAYING), test-arcade-contout PASS (300 s hold, Start
+-> credit 00), test-arcade PASS, test-reach PASS, test-vblank PASS (outside
+vblank 0), test-attract PASS.
+
+### Unverified
+
+- Stock SNK MVS/AES BIOS and real hardware. Only UniBIOS 4.0 ran in MAME.
+- Whether some BIOS reads the compulsion timer during its own USER 3 re-entry
+  frames (about 30 black frames). The 30 s margin covers that time.
+- Credits added without a coin event (service credit). The flow jump covers them, but MAME has not tested them.
+
+### Open questions
+
+- After game over with credits, should the PRESS START title open the mode list by itself? Now select_open stays as it is.
+- The player_start comment in main.c still talks about the compulsion timer. Update it in a later pass.
