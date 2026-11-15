@@ -8,6 +8,7 @@
 #define BRAWL_ARC_ELEMENTS_H
 
 #include <stdint.h>
+#include "hazard_kind.h"
 
 #define ARC_ELEM_MAX 5          /* elements per stage */
 
@@ -37,8 +38,9 @@
 #define ARC_GRAB_LOW_DY 18      /* VETO: a flier is low when its centre is this far above the water line: feet about 12 px over the surface (reference rule: the hand only answers fliers skimming the water; was 42, which raised it under fliers in mid air) */
 #define ARC_GRAB_PATROL 1       /* px per tick the hidden hand moves, wrapping from the right end to the left end */
 #define ARC_GRAB_TRIG_DX 6      /* VETO: a low flier within this many px of the hidden hand's x starts the rise */
-#define ARC_GRAB_TRACK_DX 16    /* VETO: a rising hand keeps a target within this many px; the hand slides to its x */
-#define ARC_GRAB_FOLLOW 4       /* VETO: max px per tick the rising hand slides toward the target */
+/* Water line the hand rises from: its bottom row meets the drawn water surface (HAZARD_KILL_WATER less the death dip).
+   Was 188 from the old gen3 layout, 16 px above the surface: the hand floated and its bite box missed fliers skimming the water. */
+#define ARC_GRAB_Y (HAZARD_KILL_WATER - HAZARD_DIP)
 
 /* ---- updraft grate (art: zone 32 wide, 48 above the hatch top) ---- */
 #define ARC_GRATE_HALF_W 16

@@ -31,10 +31,10 @@ void arc_elements_init(ArcElements *a, int s) {
     case 0:  add(a, ARC_EL_VENT, 184, 108, 0); break;                                              /* R01 */
     case 1:  add(a, ARC_EL_VENT, 160, 116, 0); add(a, ARC_EL_VENT, 246, 80, 0); break;            /* R02 */
     case 2:  add(a, ARC_EL_VENT, 196, 92, 0); add(a, ARC_EL_VENT, 60, 52, 0); break;              /* N05 */
-    case 3:  add(a, ARC_EL_VENT, 322, 72, 0); add(a, ARC_EL_VENT, 168, 52, 0); add(a, ARC_EL_GRABBER, 112, 188, 224); add(a, ARC_EL_GRATE, 232, 186, 0); break; /* N03 */
+    case 3:  add(a, ARC_EL_VENT, 322, 72, 0); add(a, ARC_EL_VENT, 168, 52, 0); add(a, ARC_EL_GRABBER, 112, ARC_GRAB_Y, 224); add(a, ARC_EL_GRATE, 232, 186, 0); break; /* N03 */
     case 4:  add(a, ARC_EL_VENT, 204, 88, 0); add(a, ARC_EL_VENT, 306, 72, 0); add(a, ARC_EL_GRATE, 248, 186, 0); break; /* N06 */
     case 5:  add(a, ARC_EL_VENT, 110, 100, 0); add(a, ARC_EL_VENT, 296, 60, 0); break;            /* N04 */
-    case 6:  add(a, ARC_EL_VENT, 180, 104, 0); add(a, ARC_EL_VENT, 252, 80, 0); add(a, ARC_EL_FLIPPER, 148, 72, 0); add(a, ARC_EL_GRABBER, 104, 188, 256); break; /* N08 */
+    case 6:  add(a, ARC_EL_VENT, 180, 104, 0); add(a, ARC_EL_VENT, 252, 80, 0); add(a, ARC_EL_FLIPPER, 148, 72, 0); add(a, ARC_EL_GRABBER, 104, ARC_GRAB_Y, 256); break; /* N08 */
     case 7:  add(a, ARC_EL_VENT, 174, 124, 0); add(a, ARC_EL_VENT, 300, 80, 0); add(a, ARC_EL_FLIPPER, 176, 76, 0); break; /* N02 */
     case 8:  add(a, ARC_EL_VENT, 224, 76, 0); add(a, ARC_EL_VENT, 314, 72, 0); add(a, ARC_EL_GRATE, 248, 186, 0); add(a, ARC_EL_FLIPPER, 252, 122, 0); add(a, ARC_EL_FLIPPER, 96, 92, 0); break; /* N09 */
     case 9:  add(a, ARC_EL_VENT, 160, 108, 0); add(a, ARC_EL_VENT, 320, 72, 0); add(a, ARC_EL_FLIPPER, 36, 84, 0); add(a, ARC_EL_FLIPPER, 176, 50, 0); add(a, ARC_EL_FLIPPER, 252, 110, 0); break; /* R10 */
@@ -48,15 +48,17 @@ void arc_elements_note_low(ArcElements *a, int cx, int cy) {
     if (a->nlow < ARC_LOW_MAX) { a->low_x[a->nlow] = (int16_t)cx; a->low_y[a->nlow] = (int16_t)cy; a->nlow++; }
 }
 
-/* Index of a noted flier that is low over this hand's water line and within dxmax px of its x, else -1. */
+/* Index of the noted flier nearest this hand's x that is low over its water line, inside its patrol range and within
+   dxmax px of its x, else -1 (reference fish: a target that leaves the low band or the x range is gone). */
 static int grab_target(const ArcElements *a, const ArcElement *e, int dxmax) {
-    int k;
+    int k, best = -1, bd = 0;
     for (k = 0; k < a->nlow; k++) {
         int dx = a->low_x[k] - e->x;
         if (dx < 0) dx = -dx;
-        if (dx <= dxmax && a->low_y[k] >= e->y - ARC_GRAB_LOW_DY) return k;
+        if (dx > dxmax || a->low_y[k] < e->y - ARC_GRAB_LOW_DY || a->low_x[k] < e->x0 || a->low_x[k] > e->param) continue;
+        if (best < 0 || dx < bd) { best = k; bd = dx; }
     }
-    return -1;
+    return best;
 }
 
 static void grab_step(const ArcElements *a, ArcElement *e) {
@@ -67,16 +69,10 @@ static void grab_step(const ArcElements *a, ArcElement *e) {
         if (grab_target(a, e, ARC_GRAB_TRIG_DX) >= 0) { e->timer = 1; e->cycle++; }
         return;
     }
-    if (e->timer <= ARC_GRAB_RISE) {   /* rising: the target must still be low at the hand, else retreat at once; follow its x */
-        k = grab_target(a, e, ARC_GRAB_TRACK_DX);
+    if (e->timer <= ARC_GRAB_RISE) {   /* rising: retreat at once if no flier is low in range, else jump to its x (reference fish) */
+        k = grab_target(a, e, e->param - e->x0);
         if (k < 0) e->timer = ARC_GRAB_SINK_AT;
-        else {
-            int d = a->low_x[k] - e->x, x;
-            if (d > ARC_GRAB_FOLLOW) d = ARC_GRAB_FOLLOW;
-            if (d < -ARC_GRAB_FOLLOW) d = -ARC_GRAB_FOLLOW;
-            x = e->x + d;
-            e->x = (int16_t)(x < e->x0 ? e->x0 : x > e->param ? e->param : x);
-        }
+        else e->x = a->low_x[k];
     }
     if (++e->timer > ARC_GRAB_LOOP) e->timer = 0;
 }
@@ -123,7 +119,9 @@ int arc_elements_avoid_dir(const ArcElements *a, int cx, int cy, int hw, int hh,
         } else if (e->kind == ARC_EL_GRABBER) {   /* any hand state: the hand patrols hidden, so stay off the water near it */
             int gx = cx - e->x;
             if (gx < 0) gx = -gx;
-            if (cy < e->y - ARC_GRAB_LOW_DY || gx > ARC_GRAB_HALF_W + hw + ARC_AVOID_PAD) continue;
+            if (cy < e->y - ARC_GRAB_LOW_DY) continue;
+            if (e->timer >= 1 && e->timer <= ARC_GRAB_RISE) { if (cx < e->x0 - ARC_GRAB_HALF_W - hw - ARC_AVOID_PAD || cx > e->param + ARC_GRAB_HALF_W + hw + ARC_AVOID_PAD) continue; }   /* rising: it jumps to any low flier in range */
+            else if (gx > ARC_GRAB_HALF_W + hw + ARC_AVOID_PAD) continue;
         } else continue;
         if (best < 0 || dx < bd) { best = i; bd = dx; }   /* the nearest threat decides: two vents' look boxes meet between them */
     }
