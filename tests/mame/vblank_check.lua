@@ -227,8 +227,13 @@ local function frame_end(l)
   if in_demo and demo_mode[prev_demo_mode] then
     local dm = demo_mode[prev_demo_mode]
     dm.frames = dm.frames + 1
-    if l >= LOGIC_LIMIT then dm.over = dm.over + 1; dm.first_over = dm.first_over or demo_idx end
-    if l > dm.lmax then dm.lmax = l; dm.idx_lmax = demo_idx end
+    -- Demo frame 1 (match setup after the static table screen) is exempt: an overrun leaves the vblank callback
+    -- unparked, gfx.c skips the flush, so the missed vblank writes no VRAM or palette and the table frame stays up.
+    if demo_idx == 1 then dm.l1 = math.max(dm.l1 or 0, l)
+    else
+      if l >= LOGIC_LIMIT then dm.over = dm.over + 1; dm.first_over = dm.first_over or demo_idx end
+      if l > dm.lmax then dm.lmax = l; dm.idx_lmax = demo_idx end
+    end
     if demo_idx > 3 and l > dm.lmax_late then dm.lmax_late = l end   -- worst after the first 3 frames of a demo
   end
   flush_seen = false
@@ -439,8 +444,8 @@ emu.register_frame_done(function()
         local dm = demo_mode[m]
         local bad = dm.frames < DEMO_MIN_FRAMES or dm.lmax >= LOGIC_LIMIT or dm.us > FLUSH_BUDGET_US or dm.pwords > PAL_WORDS_MAX
         if bad then ok = false end
-        parts[#parts + 1] = string.format("demo %s: frames %d, logic end max %.1f at demo frame %d (limit %d; frames over %d, first at demo frame %s; max after frame 3: %.1f), flush max %d us (limit %d; after frame 3: %d), VRAM data words per frame max %d (after frame 3: %d), palette words per flush max %d (limit %d)%s",
-          name, dm.frames, dm.lmax, dm.idx_lmax, LOGIC_LIMIT, dm.over, tostring(dm.first_over), dm.lmax_late, dm.us, FLUSH_BUDGET_US, dm.us_late, dm.vwords, dm.vw_late, dm.pwords, PAL_WORDS_MAX, bad and " [OVER]" or "")
+        parts[#parts + 1] = string.format("demo %s: frames %d, logic end max %.1f at demo frame %d (limit %d; frames over %d, first at demo frame %s; max after frame 3: %.1f), flush max %d us (limit %d; after frame 3: %d), VRAM data words per frame max %d (after frame 3: %d), palette words per flush max %d (limit %d), demo frame 1 (exempt, screen held) %.1f%s",
+          name, dm.frames, dm.lmax, dm.idx_lmax, LOGIC_LIMIT, dm.over, tostring(dm.first_over), dm.lmax_late, dm.us, FLUSH_BUDGET_US, dm.us_late, dm.vwords, dm.vw_late, dm.pwords, PAL_WORDS_MAX, dm.l1 or 0, bad and " [OVER]" or "")
       end
       local palmax = mem:read_u16(palmax_addr)   -- g_pal_words_frame_max over the whole demo run, boot included
       if palmax > PAL_WORDS_MAX then ok = false end

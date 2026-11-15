@@ -88,10 +88,14 @@ void trip_strip_step(const TripGen *g, uint32_t scroll_px, int ready) {
     j0 = scroll_px >> 4;
     if (trip_view_strip_advance(&g_ring, j0)) hide_sprites();
     same = g_scan.valid && g->head == g_scan.head && g->count == g_scan.count && g->made == g_scan.made;
+    /* Slot and screen x step with k (trip_view_strip_slot and trip_view_screen_x inlined): the out-of-line calls per column were a
+     * large part of the scan, which runs every frame for all 22 columns. */
+    u8 s = g_ring.s0;
+    int sx = trip_view_screen_x(j0 << 4, scroll_px) - 16;
     for (int k = 0; k < COLS; k++) {
-        u8 s = (u8)trip_view_strip_slot(&g_ring, k);
         u32 j = j0 + (u32)k;
-        int sx = trip_view_screen_x(j << 4, scroll_px);
+        sx += 16;
+        if (k) { if (++s == COLS) s = 0; }
         int on = sx > -16 && sx < TRIP_VIEW_SCREEN_W;
         /* same chunks as the last full scan and the slot already holds this column: the lookup would answer "covered" again */
         const TripChunk *ch = (on && !(same && g_key[s] == j + 1)) ? trip_view_strip_chunk(g, j, 1, hint) : 0;
