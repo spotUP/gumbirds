@@ -560,10 +560,14 @@ static void pool_show(void) {
 _Static_assert(ARCADE_VENT_ART_W == 32 && ARCADE_SPARK_ART_W == 16 && ARCADE_FLIPPER_ART_W == 40 && ARCADE_GRABBER_ART_W == 40 && ARCADE_GRABBER_ART_H == 44,
                "arcade art sizes differ from ARC_VIEW_W/H in core/arc_view.h");
 _Static_assert(ARCADE_VENT_FRAMES == ARCADE_PIECE_BODY_A_COUNT && ARCADE_SPARK_FRAMES == ARCADE_PIECE_SPARK_A_COUNT && ARCADE_FLIPPER_FRAMES == ARCADE_PIECE_FLIPPER_A_COUNT &&
-               ARCADE_GRABBER_FRAMES == ARC_GRAB_FRAMES && ARCADE_PIECE_HATCH_COUNT == 1, "arcade frame counts differ from arc_view");
+               ARCADE_GRABBER_FRAMES == ARC_GRAB_FRAMES && ARCADE_PIECE_HATCH_COUNT == 1 && ARCADE_PIECE_WARN_COUNT == 19, "arcade frame counts differ from arc_view");
 _Static_assert(ARCADE_MAX_COLUMNS <= 3, "arcade frames are at most 3 columns (ARC_VIEW_COLS)");
-static const u8 k_arc_anim[ARCV_PIECES] = { ARCADE_ANIM_STORM, ARCADE_ANIM_STORM, ARCADE_ANIM_PLAYER, ARCADE_ANIM_PLAYER, ARCADE_ANIM_STORM };
-static const u8 k_arc_first[ARCV_PIECES] = { ARCADE_PIECE_BODY_A_FIRST, ARCADE_PIECE_SPARK_A_FIRST, ARCADE_PIECE_FLIPPER_A_FIRST, ARCADE_PIECE_GRABBER_A_FIRST, ARCADE_PIECE_HATCH_FIRST };
+static const u8 k_arc_anim[ARCV_PIECES] = { ARCADE_ANIM_VENT, ARCADE_ANIM_STORM, ARCADE_ANIM_PLAYER, ARCADE_ANIM_PLAYER, ARCADE_ANIM_STORM, ARCADE_ANIM_VENT };
+static const u8 k_arc_first[ARCV_PIECES] = { ARCADE_PIECE_BODY_A_FIRST, ARCADE_PIECE_SPARK_A_FIRST, ARCADE_PIECE_FLIPPER_A_FIRST, ARCADE_PIECE_GRABBER_A_FIRST, ARCADE_PIECE_HATCH_FIRST, ARCADE_PIECE_WARN_FIRST };
+/* Vent glow: entries 1..5 (outline and metal) of the vent body's own palette line, one row per heat step, written on a step change only. */
+static const u16 k_vent_heat[] = ARCADE_TABLE_VENT_HEAT;
+_Static_assert(sizeof k_vent_heat / sizeof k_vent_heat[0] == ARC_VIEW_HEAT_STEPS * 5, "vent_heat table differs from arc_view heat steps");
+static u8 g_arc_heat; /* step the vent line holds (0: the sheet colours, as loaded) */
 static u16 g_arc_tick;
 static u8 g_arc_dirty; /* slots may hold element sprites: hide them once after the last draw, not every frame (vblank budget) */
 /* Like g_pool_drawn: arcade frame index + 1 whose strips and sticky chain column c holds as a block start (0: unknown or not a start). Every
@@ -584,6 +588,11 @@ static void arcade_elems_step(const Game *g) {
     if (!g && !g_arc_dirty) return;
     g_arc_dirty = g != 0;
     if (g) n = arc_view_build(&g->elems, g_arc_tick++, blocks);
+    u8 heat = g ? (u8)arc_view_heat(&g->elems) : 0;
+    if (heat != g_arc_heat) {
+        for (u8 c = 0; c < 5; c++) gfx_pal((u16)((ARCADE_PAL_SLOT + arcade_frames[arcade_anims[ARCADE_ANIM_VENT].first_frame].palette) * 16 + 1 + c), k_vent_heat[heat * 5 + c]);
+        g_arc_heat = heat;
+    }
     for (int i = 0; i < n; i++) {
         const ArcSprite *b = &blocks[i];
         u8 fi = (u8)(arcade_anims[k_arc_anim[b->piece]].first_frame + k_arc_first[b->piece] + b->frame);
@@ -1632,8 +1641,9 @@ static void game_loop(void) {
             hazard_step((world || view.state == FLOW_GAME_OVER) && !trip_game, g_cam_px); /* the hazard strip is the arena's floor; Gum Trip has its own */
             if (g_bg_paused && world_state(&view) && view.game->mode != GAME_MODE_TRIP) hazard_preload(); /* the reveal frame then only places it */
             /* arcade only: elements kill, so they must be seen (worst scanline with them is checked in tests/host/test_sprite_budget.c) */
-            arcade_elems_step(world && view.game->mode == GAME_MODE_ARCADE && view.game->arc.state != ARC_BONUS ? view.game : 0); /* the bonus shows no stage elements: hidden once on entry */
+            /* Bonus first: on the frame it ends it parks slot 323, which the stage elements share and draw right after. */
             arcade_bonus_step(world && view.game->mode == GAME_MODE_ARCADE && view.game->arc.state == ARC_BONUS && !view.game->res.active ? view.game : 0);
+            arcade_elems_step(world && view.game->mode == GAME_MODE_ARCADE && view.game->arc.state != ARC_BONUS ? view.game : 0); /* the bonus shows no stage elements: hidden once on entry */
             island_step(world && !trip, g_cam_px); /* arena islands are not drawn in Gum Trip */
             /* the course (islands, kill strips, pickups) stays through Game Over like the planes and the hazard anim: all leave at the title */
             island_trip_step(trip_game ? &view.game->trip_gen : 0, trip_game ? view.game->trip.px : 0, trip_game && game_trip_ready(view.game));

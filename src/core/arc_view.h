@@ -11,21 +11,25 @@
 #include "arc_elements.h"
 #include "arcade.h"
 
-typedef enum { ARCV_BODY = 0, ARCV_SPARK, ARCV_FLIPPER, ARCV_GRABBER, ARCV_HATCH, ARCV_PIECES } ArcViewPiece;
+typedef enum { ARCV_BODY = 0, ARCV_SPARK, ARCV_FLIPPER, ARCV_GRABBER, ARCV_HATCH, ARCV_WARN, ARCV_PIECES } ArcViewPiece;
 
 typedef struct { uint8_t piece; uint8_t frame; int16_t x, y; } ArcSprite;   /* frame: index inside the piece's frame run */
 
 #define ARC_VIEW_MAX (2 * ARC_ELEM_MAX)   /* a body plus a spark per element at most */
+#define ARC_VIEW_HEAT_STEPS 8             /* vent glow steps (table vent_heat of the arcade sheet, asserted in main.c) */
 #define ARC_VIEW_SPARK_TICKS 4            /* ticks per spark frame (art table, asserted in main.c) */
 #define ARC_VIEW_FLIP_TICKS 4             /* ticks per flipper frame */
 
 /* Source art size in px (asserted against the generated ARCADE_*_ART_W/H in main.c) and sprite columns (16 px each). */
-static const uint8_t ARC_VIEW_W[ARCV_PIECES] = { 32, 16, 40, 40, 32 };
-static const uint8_t ARC_VIEW_H[ARCV_PIECES] = { 16, 16, 40, 44, 16 };
-static const uint8_t ARC_VIEW_COLS[ARCV_PIECES] = { 2, 1, 3, 3, 2 };
+static const uint8_t ARC_VIEW_W[ARCV_PIECES] = { 32, 16, 40, 40, 32, 32 };
+static const uint8_t ARC_VIEW_H[ARCV_PIECES] = { 16, 16, 40, 44, 16, 32 };   /* ARCV_WARN: the vent body with its warning boil above it */
+static const uint8_t ARC_VIEW_COLS[ARCV_PIECES] = { 2, 1, 3, 3, 2, 2 };
 
 /* Fills out[] (bodies first, then sparks) and returns the count. tick drives the flipper turn. */
 int arc_view_build(const ArcElements *a, unsigned tick, ArcSprite *out);
+/* Glow step 0..ARC_VIEW_HEAT_STEPS-1 of the vent palette line: rises over the warning, cools after the launch. All vents share one
+   timer, so the first vent decides; 0 without a vent. */
+int arc_view_heat(const ArcElements *a);
 /* Bonus stage bubbles: the Gum Trip pickup art (32 x 32 sprite, 2 columns, 16 idle frames; main.c asserts the sizes). For these blocks piece is the
  * bubble index (0..ARC_BONUS_LIVE_MAX-1, so a bubble keeps its sprite slot while the others come and go) and x, y are the sprite's top left in
  * world px: the 16 px catch box sits 8 px right of the sprite left and 12 px below its top, like the pickup in Gum Trip. */
