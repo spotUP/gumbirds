@@ -11,6 +11,9 @@ OUT=build/mister
 command -v npx >/dev/null || { echo "[ERROR] node/npx required for neosdconv" >&2; exit 1; }
 mkdir -p "$OUT"
 # neosdconv pinned; name is read from the file by the core, keep it short ASCII.
-npx --yes neosdconv@1.0.2 -i "$ROMDIR" -o "$OUT/gumbirds.neo" -n "Gumbirds" -g Other -y 2026 -m "Gumbirds"
+# neosdconv reads every ROM file in its input dir; stage only this game's set so stale sets (old names) never double the .neo.
+SET=$(mktemp -d); trap 'rm -rf "$SET"' EXIT
+cp "$ROMDIR"/gumbirds-*.[pscmv]1 "$ROMDIR"/gumbirds-c2.c2 "$SET"/
+npx --yes neosdconv@1.0.2 -i "$SET" -o "$OUT/gumbirds.neo" -n "Gumbirds" -g Other -y 2026 -m "Gumbirds"
 ls -l "$OUT/gumbirds.neo"
 echo "[OK] copy $OUT/gumbirds.neo to /media/fat/games/NeoGeo/ (no stray .xml files there)"
