@@ -100,7 +100,7 @@ end
 
 -- A8 (WORLD-1): the stage block's world is on screen: stages 1-4 moon sky, roof islands, water; 5-8 dusk, garden, lava;
 -- 9-12 storm deck islands and spikes over the moon sky (storm sky not built). Spec written out here (src/core/world.h).
-local WORLD = { { mood = 0, look = 0, hz = 2 }, { mood = 1, look = 1, hz = 3 }, { mood = 0, look = 2, hz = 0 } }
+local WORLD = { { mood = 0, look = 0, hz = 2 }, { mood = 1, look = 1, hz = 3 }, { mood = 2, look = 2, hz = 0 } }
 local function world_bad(stage)
   local w = WORLD[(stage - 1) // 4 + 1]
   local bad = island_look_bad(w.look)
