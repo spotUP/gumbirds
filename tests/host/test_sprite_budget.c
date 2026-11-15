@@ -155,7 +155,7 @@ static void test_title(void) {
    test adds their columns to the arena's line sum: every arcade stage, every tick of a long run (vent phases, sparks, grabber), worst line. */
 static void test_arcade_elements(void) {
     int worst = 0;
-    CHECK(ARC_ELEM_SPRITE >= FG_RAIN_SPRITE && ARC_ELEM_SPRITE + ARC_ELEM_COUNT <= FG_SPRAY_SPRITE + FG_SPRAY_COUNT);
+    CHECK(ARC_ELEM_SPRITE >= FG_RAIN_SPRITE && ARC_ELEM_SPRITE + ARC_ELEM_COUNT == TRIP_STRIP_SPRITE + 1); /* rain, spray and the first strip slot, idle in arcade stages */
     printf("arcade worst scanline per stage 1..12:");
     for (int st = 1; st <= 12; st++) {
         ArcElements a;
@@ -164,7 +164,9 @@ static void test_arcade_elements(void) {
         stage_select(arc_stage_layout(st));
         arc_elements_init(&a, st - 1);
         for (int t = 0; t < 700; t++, arc_elements_step(&a)) {
-            int n = arc_view_build(&a, (unsigned)t, s);
+            int n = arc_view_build(&a, (unsigned)t, s), cols = 0;
+            for (int i = 0; i < n; i++) cols += ARC_VIEW_COLS[s[i].piece];
+            CHECK(cols <= ARC_ELEM_COUNT); /* every block gets its columns, also the spark and the boil of the last vent */
             for (int y = 0; y < SB_LINES; y++) {
                 int c = sprite_budget_line(0, y, 0) + arc_view_line(s, n, y);
                 if (c > sw) sw = c;

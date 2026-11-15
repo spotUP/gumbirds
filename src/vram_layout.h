@@ -93,7 +93,7 @@ _Static_assert((RESFX_TILE_BASE & 7) == 0, "result sprite tile base is not 8-ali
 #define GUM_PAL_SLOT (TRIPHAZ_PAL_SLOT + TRIPHAZ_PALETTE_COUNT) /* one palette: the bubble */
 #define LOGO_PAL_SLOT (GUM_PAL_SLOT + GUM_PALETTE_COUNT) /* one palette: the moon logo (entries 1..15) */
 #define SPLASH_PAL_SLOT (LOGO_PAL_SLOT + 1) /* palette 0 water, 1 lava (animation order) */
-#define ARCADE_PAL_SLOT (SPLASH_PAL_SLOT + SPLASH_PALETTE_COUNT) /* palette p = arcade palette p (ARCADE_ANIM_* order: storm, player, computer, roof) */
+#define ARCADE_PAL_SLOT (SPLASH_PAL_SLOT + SPLASH_PALETTE_COUNT) /* palette p = arcade palette p (ARCADE_ANIM_* order: storm, player, computer, roof, nozzle, vent; the vent line glows, main.c arcade_elems_step) */
 #define ATTRACT_PAL_SLOT (ARCADE_PAL_SLOT + ARCADE_PALETTE_COUNT) /* one palette: the attract overlay icons (build/gen/attract_icons.h) */
 #define ATTRACT_FIX_BASE 0x400 /* first fix tile of the overlay icons: right after the 1024-tile font in the S-ROM (tools/build_attract_icons.py --fix-base) */
 #define RESFX_PAL_SLOT (ATTRACT_PAL_SLOT + 1) /* palette p = resfx palette p (RESFX_ANIM_* order: bubble, wheel, crank, glass, ticket) */
