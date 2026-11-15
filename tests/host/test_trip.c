@@ -385,6 +385,29 @@ int main(void) {
         CHECK(hit_by_haz >= 1);                     /* the hit came from a hazard box, not only a strip */
     }
 
+    /* SPLAT-Y: the gum splat starts only on a floor death (Game.trip_splat). No input: the hero sinks onto the bottom rock and
+     * the splat starts on its feet line, low on screen. Flap every 4th frame: the hero rises into the roof rock, which kills
+     * (TRIP_EV_HIT) with no splat; before the fix the roof kill counted as a floor kill and the splat showed at the roof. */
+    for (int flap = 0; flap < 2; flap++) {
+        static Game g;
+        int f, splats = 0, died = 0;
+        game_reset(&g, 2024);
+        game_set_mode(&g, GAME_MODE_TRIP);
+        for (f = 0; f < 3000 && !g.over && !died; f++) {
+            int was_alive = g.flier.state < FLIER_FALLING;
+            game_step(&g, (uint8_t)(flap && (f & 3) == 0 ? IN_A : 0));
+            splats += g.trip_splat;
+            if (was_alive && g.flier.state >= FLIER_FALLING) {
+                died = 1;
+                CHECK(g.trip_events & TRIP_EV_HIT);   /* a wall kill on both runs */
+                if (flap) CHECK(g.flier.y < ((int32_t)TRIP_START_Y << 16) && !g.trip_splat);
+                else CHECK(g.trip_splat && g.trip_splat_y > TRIP_START_Y && g.trip_splat_y == (g.flier.y + flier_half_h(&g.flier)) >> 16);
+            }
+        }
+        CHECK(died);
+        for (; f < 300 && !g.over; f++) { game_step(&g, 0); splats += g.trip_splat; }   /* the body falls on: no later splat */
+        CHECK(splats == !flap);
+    }
     printf("DIGEST %u\n", (unsigned)digest);
     printf("trip: %d checks, %d failures\n", checks, failures);
     return failures ? 1 : 0;

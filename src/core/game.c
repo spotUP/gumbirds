@@ -680,16 +680,19 @@ void game_step_trip(Game *g, uint8_t input)
     step = g->trip.speed; /* the step trip_step scrolls by this frame */
     trip_step(&g->trip, &g->flier);
     tripgen_advance(&g->trip_gen, g->trip.px);
-    /* Walls first (hero: bottom rock kills, top rock bounces without gum loss), so the strip hit test below never sees the hero
-     * inside the rock; then the hazard hit (gum loss, cooldown), the push-out and bounce off the hazard, and the walls again
-     * (a push into the rock is a wall touch). TRIP_EV_HIT from a wall kill plays the hit sound like a hazard hit. */
+    /* Walls first (hero: the bottom and the top rock both kill), so the strip hit test below never sees the hero inside the
+     * rock; then the hazard hit (gum loss, cooldown), the push-out and bounce off the hazard, and the walls again (a push into
+     * the rock is a wall touch). A wall kill plays the hit sound like a hazard hit (TRIP_EV_HIT); only the bottom rock is a
+     * floor death: a roof death falls on with no splat, like a mid-air gum death. */
     {
-        unsigned ev = trip_hit_hero_walls(&g->trip, &g->trip_gen, &g->flier);
-        unsigned floor_kill = ev;   /* only the bottom rock returns TRIP_EV_HIT here */
+        unsigned side = trip_hit_hero_walls(&g->trip, &g->trip_gen, &g->flier);
+        unsigned ev = side ? TRIP_EV_HIT : 0u;
+        int floor_kill = side == TRIP_WALL_BOTTOM;
         ev |= trip_collide(&g->trip, &g->trip_gen, &g->flier);
         trip_hit_haz_bounce(&g->trip, &g->trip_gen, &g->flier);
-        floor_kill |= trip_hit_hero_walls(&g->trip, &g->trip_gen, &g->flier);
-        ev |= floor_kill;
+        side = trip_hit_hero_walls(&g->trip, &g->trip_gen, &g->flier);
+        if (side) ev |= TRIP_EV_HIT;
+        floor_kill |= side == TRIP_WALL_BOTTOM;
         g->trip_events = (uint8_t)ev;
         /* a death at the floor: the bottom rock, or the kill line reached alive (DROWNED); a mid-air gum death falls on and makes no splat */
         g->trip_splat = (uint8_t)(was_alive && g->flier.state >= FLIER_FALLING && (floor_kill || g->flier.state == FLIER_DROWNED));

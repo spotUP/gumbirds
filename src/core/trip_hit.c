@@ -152,8 +152,7 @@ int trip_hit_wall_touch(const Trip *t, const TripGen *g, const Flier *f) {
 
 unsigned trip_hit_hero_walls(Trip *t, const TripGen *g, Flier *f) {
     int side = trip_hit_wall_touch(t, g, f);
-    if (side) return trip_wall_kill(t, f) ? TRIP_EV_HIT : 0u;   /* floor and roof both kill (owner 2026-11-15) */
-    return 0;
+    return side && trip_wall_kill(t, f) ? (unsigned)side : 0u;   /* floor and roof both kill (owner 2026-11-15) */
 }
 
 /* Away speed: reflect an approaching velocity, then guarantee TRIP_HAZ_KNOCK_MIN_SPEED away from the hazard. dir is +1 when
