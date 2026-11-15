@@ -136,6 +136,18 @@ int main(void) {
     arc_elements_init(&a, 3);   /* N03: hand at x 112, water ARC_GRAB_Y */
     CHECK(arc_elements_avoid_dir(&a, 120, (ARC_GRAB_Y - 13), 2, 5, 0) == 1 && arc_elements_avoid_dir(&a, 105, (ARC_GRAB_Y - 13), 2, 5, 0) == -1);
     CHECK(arc_elements_avoid_dir(&a, 120, 100, 2, 5, 0) == 0 && arc_elements_avoid_dir(&a, 112 + 40, (ARC_GRAB_Y - 13), 2, 5, 0) == 0);
+    /* rising (timer 1..ARC_GRAB_RISE): the hand jumps to any low flier in its range [112, 224], so the whole range plus half
+       width, flier half width and pad (94..242) is a threat; high fliers stay free; after the rise the box is at the hand x again */
+    CHECK(a.el[2].kind == ARC_EL_GRABBER);
+    for (t = 1; t <= ARC_GRAB_RISE; t += ARC_GRAB_RISE - 1) {
+        a.el[2].timer = (uint16_t)t;
+        CHECK(arc_elements_avoid_dir(&a, 152, (ARC_GRAB_Y - 13), 2, 5, 0) == 1 && arc_elements_avoid_dir(&a, 242, (ARC_GRAB_Y - 13), 2, 5, 0) == 1);
+        CHECK(arc_elements_avoid_dir(&a, 94, (ARC_GRAB_Y - 13), 2, 5, 0) == -1);
+        CHECK(arc_elements_avoid_dir(&a, 243, (ARC_GRAB_Y - 13), 2, 5, 0) == 0 && arc_elements_avoid_dir(&a, 93, (ARC_GRAB_Y - 13), 2, 5, 0) == 0);
+        CHECK(arc_elements_avoid_dir(&a, 152, 100, 2, 5, 0) == 0);
+    }
+    a.el[2].timer = ARC_GRAB_RISE + 1;
+    CHECK(arc_elements_avoid_dir(&a, 152, (ARC_GRAB_Y - 13), 2, 5, 0) == 0 && arc_elements_avoid_dir(&a, 120, (ARC_GRAB_Y - 13), 2, 5, 0) == 1);
 
     /* grate (N06: x 248, hatch top 186): lift only inside the zone */
     arc_elements_init(&a, 4);
