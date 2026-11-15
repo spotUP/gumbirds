@@ -122,6 +122,7 @@ void island_autoanim_baseline(void) { gfx_autoanim_speed(ISLAND_STEP_FRAMES); }
 
 /* The stage layout changed (stage_select, at a round start under the frozen ROUND banner): the next island_step recomputes the columns and rewrites the tiles. */
 static u8 g_relayout_hold; /* set by island_relayout: the frame match_start runs in (rivals, stage copy) writes no island yet */
+u8 island_loaded(void) { return g_loaded; }
 void island_relayout(void) { g_layout_ready = 0; g_loaded = 0; g_load_i = 0; g_relayout_hold = 1; }
 
 void island_step(u8 playing, int cam_px) {

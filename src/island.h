@@ -11,6 +11,7 @@
 #include "core/trip_gen.h"
 
 void island_step(u8 playing, int cam_px); /* per frame: shows the islands on the rise of playing, hides them on the fall, follows the camera */
+u8 island_loaded(void); /* 1 once the layout load finished: its first step parks every island slot, the bonus floor included */
 void island_relayout(void); /* the stage layout changed: reload the columns on the next island_step */
 
 void island_autoanim_baseline(void); /* LSPC auto-animation counter to ISLAND_STEP_FRAMES: at boot, and where a hazard hands the counter back */

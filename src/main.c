@@ -612,7 +612,11 @@ static u8 g_bonus_puff_on; /* bit k: nozzle k's puff sprite is shown */
  * one camera_screen_x per piece, SCB3 only when a column enters or leaves the screen and one run op for the SCB4 x words (the per-piece
  * gfx_sprite_place of every frame cost about 60 raster lines of the logic budget when the camera scrolled). */
 static void bonus_static_place(void) {
-    int idx = 0, piece, moved = 0, first = g_bonus_cam < 0;
+    int idx = 0, piece, moved = 0, first;
+    /* The bonus floor shares the island slots: the island reload of the bonus layout parks them all on its first step, and the
+       camera does not move until the player does, so placing before the load ends left the floor off screen until the first move. */
+    if (!island_loaded()) { g_bonus_cam = -1; return; }
+    first = g_bonus_cam < 0;
     if (g_bonus_cam == (int)g_cam_px) return;
     g_bonus_cam = (int)g_cam_px;
     if (first) for (idx = 0; idx < BONUS_STATIC_COLS; idx++) g_bonus_cx[idx] = BONUS_COL_UNKNOWN;

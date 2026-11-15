@@ -210,6 +210,16 @@ emu.register_frame_done(function()
     -- every stage's rivals forced GONE until the arcade state is BONUS; then every frame of the bonus stage is measured until it ends
     bon_wait = bon_wait + 1
     if g(O_ASTATE) == K.bonus then
+      -- BONUS-FLOOR-LATE: hands off for the first 16 bonus frames (camera still), then the floor must be on screen
+      res_row.fl_n = (res_row.fl_n or 0) + 1
+      if res_row.fl_n == 16 then
+        local on = 0
+        for s = K.isl, K.isl + K.isl_n - 1 do
+          local x = (vram[0x8400 + s] or 0xa000) >> 7
+          if ((vram[0x8200 + s] or 0) & 0x3f) > 0 and (x < 320 or x >= 496) then on = on + 1 end
+        end
+        res_row.floor_on = on
+      end
       if playing then
         local nl = g(O_NLIVE)
         -- stress: the pace (spawn gap 70..133, about 300 frames per rise) does not always fill the pool, so force the spawn
@@ -244,13 +254,15 @@ emu.register_frame_done(function()
         if b(O_RES) == 1 then -- hands off until the hold check, then one A press
           rgt:set_value(0); lft:set_value(0); abtn:set_value(res_frames > RES_HOLD_FRAMES and res_frames <= RES_HOLD_FRAMES + 3 and 1 or 0)
         else rgt:set_value((bon_frames % 240) < 120 and 1 or 0); lft:set_value((bon_frames % 240) >= 120 and 1 or 0); abtn:set_value((bon_frames % 14) < 3 and 1 or 0) end
+        if res_row.fl_n <= 16 then rgt:set_value(0); lft:set_value(0); abtn:set_value(0) end
         do local t = bon_by[nl] or {0, 0, 0}; t[1] = t[1] + 1; t[2] = t[2] + (fc_line >= 224 and 1 or 0); if fc_line < 224 and fc_line > t[3] then t[3] = fc_line end; bon_by[nl] = t end
       end
       bon_wait = 0
     elseif bon_frames > 0 then
       local why
       for k = 0, 10 do local t = bon_by[k]; if t then print(string.format('BON_NL %d frames %d over %d max %.1f', k, t[1], t[2], t[3])) end end
-      if bon_nlive_max < BONUS_LIVE_MAX then why = "bonus never had " .. BONUS_LIVE_MAX .. " bubbles alive (max " .. bon_nlive_max .. ")"
+      if (res_row.floor_on or 0) == 0 then why = "bonus floor not on screen 16 frames into the bonus (no island-slot column with a height and an on-screen x)"
+      elseif bon_nlive_max < BONUS_LIVE_MAX then why = "bonus never had " .. BONUS_LIVE_MAX .. " bubbles alive (max " .. bon_nlive_max .. ")"
       elseif bon_over > 0 then why = "bonus logic end past 224 on " .. bon_over .. " of " .. bon_busy .. " busy frames, first " .. bon_over_note
       elseif bon_busy < 50 then why = "only " .. bon_busy .. " frames with 8+ bubbles"
       elseif res_logic >= 224 then why = string.format("result screen logic end %.1f, limit 224, %d of %d frames over, first frames %s", res_logic, res_over, res_frames, table.concat(res_over_list, ","))
