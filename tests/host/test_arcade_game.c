@@ -7,6 +7,7 @@
 #include "../../src/core/arc_view.h"
 #include "../../src/core/island_layout.h"
 #include "../../src/core/stage.h"
+#include "../../src/core/world.h"
 
 static int checks, failures;
 #define CHECK(c) do { checks++; if (!(c)) { failures++; printf("FAIL %s:%d: %s\n", __FILE__, __LINE__, #c); } } while (0)
@@ -49,10 +50,49 @@ static void pump_tests(int mode) {
     CHECK(g.score - s0 == (mode == GAME_MODE_ARCADE ? arc_rank(g.pump[0].rank)->defeat_score : (uint32_t)SCORE_CPU_DEFEAT));
 }
 
+/* WORLD-1: arcade stages 1-4 moon, 5-8 dusk, 9-12 storm (sky, islands and hazard together, storm on the moon sky until it is
+ * built); the loop restart and the bonus stage follow the table. Arena: 30 rounds, no value twice in a row, every value shows. */
+static void world_tests(void) {
+    static Game g;
+    static const uint8_t mood[3] = { GAME_MOOD_MOON, GAME_MOOD_DUSK, GAME_MOOD_MOON };
+    static const uint8_t look[3] = { STAGE_LOOK_ROOF, STAGE_LOOK_GARDEN, STAGE_LOOK_DECK };
+    static const uint8_t haz[3] = { HZ_WATER, HZ_LAVA, HZ_SPIKES };
+    int st, r, b, seen_l[STAGE_LOOK_COUNT] = { 0 }, seen_h[HAZARD_KINDS] = { 0 }, seen_m[GAME_MOOD_COUNT] = { 0 };
+    for (st = 1; st <= ARC_STAGE_COUNT; st++) {
+        b = (st - 1) / 4;
+        start(&g, st);
+        CHECK(world_of_stage(st) == b);
+        CHECK(g.mood == mood[b] && stage_look() == look[b] && world_hazard(&g) == haz[b]);
+    }
+    CHECK(arc_next_stage(ARC_STAGE_COUNT) == ARC_LOOP_STAGE && world_of_stage(ARC_LOOP_STAGE) == WORLD_MOON);
+    start(&g, 4); g.arc.state = ARC_CLEAR; CHECK(world_hazard(&g) == HZ_LAVA);   /* CLEAR before stage 5: the next block */
+    start(&g, 6); g.arc.state = ARC_CLEAR; CHECK(world_hazard(&g) == HZ_LAVA);   /* CLEAR before a bonus: the cleared stage */
+    g.arc.state = ARC_BONUS; CHECK(world_hazard(&g) == HZ_LAVA);
+    start(&g, 12); g.arc.state = ARC_BONUS; CHECK(world_hazard(&g) == HZ_SPIKES);
+    game_reset(&g, 5);
+    for (r = 0; r < 30; r++) {
+        uint8_t m0 = g.mood;
+        game_next_mood(&g);
+        g.mode = GAME_MODE_ARENA; g.matches_won = (uint32_t)r;
+        if (r) CHECK(g.mood != m0 && stage_look_for_level(r) != stage_look_for_level(r - 1) && world_hazard(&g) != hazard_kind_for_round((uint16_t)(r - 1)));
+        seen_m[g.mood]++; seen_l[stage_look_for_level(r)]++; seen_h[world_hazard(&g)]++;
+    }
+    for (r = 0; r < GAME_MOOD_COUNT; r++) CHECK(seen_m[r]);
+    for (r = 0; r < STAGE_LOOK_COUNT; r++) CHECK(seen_l[r]);
+    for (r = 0; r < HAZARD_KINDS; r++) CHECK(seen_h[r]);
+    { /* 24 rounds: every mood x look x hazard combination (two moods alternate) */
+        int combo[2][STAGE_LOOK_COUNT][HAZARD_KINDS] = { { { 0 } } }, n = 0, l, h;
+        for (r = 0; r < 24; r++) combo[r & 1][stage_look_for_level(r)][hazard_kind_for_round((uint16_t)r)] = 1;
+        for (r = 0; r < 2; r++) for (l = 0; l < STAGE_LOOK_COUNT; l++) for (h = 0; h < HAZARD_KINDS; h++) n += combo[r][l][h];
+        CHECK(n == 24);
+    }
+}
+
 int main(void) {
     static Game g;
     int i, st;
     uint32_t s0;
+    world_tests();
     /* ROT3b: each arcade stage brings its layout's rival count (own values), spawned on its islands; the stage clears only when all are gone. */
     {
         static const uint8_t want[ARC_STAGE_COUNT] = { 3, 3, 4, 4, 4, 4, 4, 4, 3, 4, 4, 4 };
@@ -81,7 +121,7 @@ int main(void) {
     for (i = 0; i < ARC_CLEAR_FRAMES; i++) game_step(&g, 0);
     game_step(&g, 0);
     CHECK(g.arc.stage == 2 && stage_layout_index() == arc_stage_layout(2) && g.cpu_alive == g.cpu_count && g.cpu_count > 0);
-    CHECK(stage_look() == STAGE_LOOK_GARDEN); /* stage 2 */
+    CHECK(stage_look() == STAGE_LOOK_ROOF); /* stage 2: still the moon block (WORLD-1) */
 
     /* a death loses a life and respawns; the last one ends the run */
     g.flier.state = FLIER_GONE;
