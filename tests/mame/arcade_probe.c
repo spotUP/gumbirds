@@ -4,11 +4,13 @@
  * 9 cpu[0].state, 10 sizeof(Flier), 11 player Flier.state, 12 score, 13 over, 14 lives.score,
  * then the enum and knob values the script compares with: 15 FLOW_PLAYING, 16 GAME_MODE_ARCADE, 17 ARC_PLAY, 18 ARC_CLEAR,
  * 19 ARC_LIFE_PLAY, 20 ARC_LIFE_CONTINUE, 21 ARC_LIVES_START, 22 ARC_CLEAR_FRAMES, 23 ARC_CONTINUE_FRAMES, 24 FLIER_GONE,
- * 25 ISLAND_SPRITE, 26 ISLAND_COUNT, 27 FLOW_GAME_OVER, 28 ARC_LIFE_ENDED, 29 ISLAND_TILE_BASE, 30 ISLAND_TILE_COUNT, 31 ISLAND_PAL_SLOT, 32 bonus.nlive, 33 ARC_BONUS, 34 bonus.timer (int16_t), 35 ARC_BONUS_LIVE_MAX, 36 res.active (u8). */
+ * 25 ISLAND_SPRITE, 26 ISLAND_COUNT, 27 FLOW_GAME_OVER, 28 ARC_LIFE_ENDED, 29 ISLAND_TILE_BASE, 30 ISLAND_TILE_COUNT, 31 ISLAND_PAL_SLOT, 32 bonus.nlive, 33 ARC_BONUS, 34 bonus.timer (int16_t), 35 ARC_BONUS_LIVE_MAX, 36 res.active (u8),
+ * 37 FIXFONT_BLANK, 38 RES_GLASS_SPRITE, 39 RES_WHEEL_SPRITE, 40 RES_TICKET_SPRITE, 41 RES_CRANK_SPRITE. */
 #include <stddef.h>
 #include "../../src/core/flow.h"
 #include "../../src/sprite_slots.h"
 #include "../../src/vram_layout.h"
+#include "gen/fix_font.h"
 #define G(m) (offsetof(Flow, game) + offsetof(Game, m))
 unsigned int probe[] = {
     offsetof(Flow, state), G(mode), G(arc) + offsetof(ArcRun, stage), G(arc) + offsetof(ArcRun, state),
@@ -20,4 +22,5 @@ unsigned int probe[] = {
     ISLAND_TILE_BASE, ISLAND_TILE_COUNT, ISLAND_PAL_SLOT,
     G(bonus) + offsetof(ArcBonus, nlive), ARC_BONUS,
     G(bonus) + offsetof(ArcBonus, timer), ARC_BONUS_LIVE_MAX, G(res) + offsetof(Result, active),
+    FIXFONT_BLANK, RES_GLASS_SPRITE, RES_WHEEL_SPRITE, RES_TICKET_SPRITE, RES_CRANK_SPRITE,
 };

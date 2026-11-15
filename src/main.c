@@ -1034,6 +1034,9 @@ static void draw_overlay(const FlowView *v) {
 _Static_assert(RES_SPRITE_END <= SPRITE_SLOT_END, "result sprites leave the fixed slot ranges");
 static void draw_result_fx(const Result *r);
 
+/* Fix rows 0-1 sit above the visible top (raster line 16): art row r goes to fix row r + 2, as on the title screen. */
+#define RES_FIX_ROW0 2
+
 static void draw_result(const Game *g) {
     Result *r = &g_flow.game.res; /* the dirty bits are drawing bookkeeping the core only sets */
     u8 col, row, n = 0, bit;
@@ -1056,7 +1059,7 @@ static void draw_result(const Game *g) {
         while (n < RES_FILL_PER_FRAME && g_res_row < RESV_H) {
             u16 c = result_cell(&g->res, g_res_col, g_res_row);
             g_res_shadow[g_res_filled++] = c;
-            gfx_fix_tile(g_res_col, g_res_row, (u8)(c >> 12), (u16)(c & 0xFFF));
+            gfx_fix_tile(g_res_col, (u8)(g_res_row + RES_FIX_ROW0), (u8)(c >> 12), (u16)(c & 0xFFF));
             n++;
             if (++g_res_col == RESV_W) { g_res_col = 0; g_res_row++; }
         }
@@ -1073,7 +1076,7 @@ static void draw_result(const Game *g) {
                 u16 *sh = &g_res_shadow[row * RESV_W + col];
                 if (c == *sh) continue;
                 *sh = c;
-                gfx_fix_tile(col, row, (u8)(c >> 12), (u16)(c & 0xFFF));
+                gfx_fix_tile(col, (u8)(row + RES_FIX_ROW0), (u8)(c >> 12), (u16)(c & 0xFFF));
             }
         }
         break;

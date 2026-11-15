@@ -22,7 +22,8 @@ local O_FLOW, O_MODE, O_STAGE, O_ASTATE, O_LIVES, O_LSTATE, O_COUNT, O_NCPU, O_C
   L[1], L[2], L[3], L[4], L[5], L[6], L[7], L[8], L[9], L[10], L[11], L[12], L[13], L[14]
 local K = { playing = L[15], arcade = L[16], play = L[17], clear = L[18], life_play = L[19], life_cont = L[20], lives = L[21],
   clear_frames = L[22], cont_frames = L[23], gone = L[24], isl = L[25], isl_n = L[26], game_over = L[27], life_end = L[28],
-  isl_tile = L[29], isl_tiles = L[30], isl_pal = L[31], bonus = L[33] }
+  isl_tile = L[29], isl_tiles = L[30], isl_pal = L[31], bonus = L[33],
+  fix_blank = L[37], res_glass = L[38], res_wheel = L[39], res_ticket = L[40], res_crank = L[41] }
 local O_NLIVE, O_BTIMER, BONUS_LIVE_MAX, O_RES = L[32], L[34], L[35], L[36]
 -- result screen cost: latest logic end, most sprites on one line (all slots, shared counter), frame dumps when RESULT_DUMP is set
 local res_logic, res_line, res_dump = 0, 0, os.getenv("RESULT_DUMP")
@@ -31,7 +32,7 @@ local res_count = dofile(((debug and debug.getinfo and debug.getinfo(1, "S").sou
 local res_frames, res_score0, res_score1 = 0, nil, nil -- result screen frames seen in the bonus stage and the score at its first and last frame
 -- The result screen holds until a press: no input until RES_HOLD_FRAMES (past the longest sequence, about 500), then A; it must still be up then and end soon after
 local RES_HOLD_FRAMES, res_trace = 700, os.getenv("RES_TRACE")
--- The SCORE row (fix row 19, cols 19..26, 8 zero-padded digits) must show the score of this or the previous frame once filled
+-- The SCORE row (fix row 21 (art row 19), cols 19..26, 8 zero-padded digits) must show the score of this or the previous frame once filled
 local res_row = {bad = 0, prev = nil, note = nil}
 local res_trace_f = res_trace and res_trace ~= "" and io.open(res_trace, "w") or nil
 local mem    = manager.machine.devices[":maincpu"].spaces["program"]
@@ -232,15 +233,33 @@ emu.register_frame_done(function()
           if res_dump and res_dump ~= "" and res_frames % 2 == 1 then screen:snapshot(string.format("res_%03d.png", res_frames)) end
           res_score1 = g(O_SCORE); if not res_score0 then res_score0 = res_score1 end
           if res_frames >= 30 then -- col 19 is always the digit 0 (score < 10^7): decode the row against it
-            local z, v = (vram[0x7000 + 19 * 32 + 19] or 0) & 0xfff, 0
-            for c = 19, 26 do local d = ((vram[0x7000 + c * 32 + 19] or 0) & 0xfff) - z; if d < 0 or d > 9 then v = -1 break end; v = v * 10 + d end
+            local z, v = (vram[0x7000 + 19 * 32 + 21] or 0) & 0xfff, 0
+            for c = 19, 26 do local d = ((vram[0x7000 + c * 32 + 21] or 0) & 0xfff) - z; if d < 0 or d > 9 then v = -1 break end; v = v * 10 + d end
             if v ~= res_score1 and v ~= res_row.prev then res_row.bad = res_row.bad + 1; res_row.note = res_row.note or string.format("frame %d shows %d, score %d", res_frames, v, res_score1) end
           end
           res_row.prev = res_score1
-          if res_trace_f then -- per frame: score, wheel SCB1 tile + SCB3 of sprites 349..353, fix cells rows 4, 13, 19, 23
+          if res_frames == 40 then do -- window geometry: blank fix-row runs in one column per window vs sprite tops (screen y = 8 * fix row - visible top)
+            local ok, va = pcall(function() return screen.visible_area end)
+            local vtop = ok and va and va.min_y or 16
+            local out = {"ARC_RESWIN vis_top " .. vtop}
+            for _, wc in ipairs({{"cage", 8}, {"counter", 30}, {"crank", 34}, {"ticket", 9}}) do
+              local runs, r0 = {}, nil
+              for row = 0, 32 do
+                local blank = row < 32 and ((vram[0x7000 + wc[2] * 32 + row] or 0) & 0xfff) == K.fix_blank
+                if blank and not r0 then r0 = row elseif not blank and r0 then runs[#runs + 1] = string.format("rows %d-%d y %d-%d", r0, row - 1, r0 * 8 - vtop, row * 8 - 1 - vtop); r0 = nil end
+              end
+              out[#out + 1] = wc[1] .. " col " .. wc[2] .. ": " .. table.concat(runs, ", ")
+            end
+            for _, sp in ipairs({{"glass", K.res_glass}, {"wheel0", K.res_wheel}, {"crank", K.res_crank}, {"ticket", K.res_ticket}}) do
+              local w = vram[0x8200 + sp[2]] or 0
+              out[#out + 1] = string.format("%s top %d rows %d", sp[1], (496 - (w >> 7)) & 0x1ff, w & 0x3f)
+            end
+            print(table.concat(out, " | "))
+          end end
+          if res_trace_f then -- per frame: score, wheel SCB1 tile + SCB3 of sprites 349..353, fix cells rows 6, 15, 21, 25
             local t = {string.format("%d %d", res_frames, res_score1)}
             for w = 349, 353 do t[#t + 1] = string.format("w%04x/%04x", vram[w * 64] or 0, vram[0x8200 + w] or 0) end
-            for _, rc in ipairs({{4, 10, 29}, {13, 25, 32}, {19, 19, 26}, {23, 20, 24}}) do
+            for _, rc in ipairs({{6, 10, 29}, {15, 25, 32}, {21, 19, 26}, {25, 20, 24}}) do
               local cs = {}
               for c = rc[2], rc[3] do cs[#cs + 1] = string.format("%04x", vram[0x7000 + c * 32 + rc[1]] or 0) end
               t[#t + 1] = "r" .. rc[1] .. ":" .. table.concat(cs, ",")
