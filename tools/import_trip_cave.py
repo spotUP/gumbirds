@@ -41,6 +41,9 @@ builtins.open, Image.open = guarded_open, sheet_open
 sys.path.insert(0, os.path.join(DRAFTS, "2026-11-15-trip-cave-smoothfade"))
 try:
     import build_smooth as S
+    sys.path.insert(0, os.path.join(DRAFTS, "2026-11-15-roof-boulders"))
+    import build_roof   # owner-approved roof boulders: same 18 tile names, same lookup, new pixels
+    S.NEW["roof"] = build_roof.NEW
 finally:
     builtins.open, Image.open = real_open, real_img_open
 BF, B = S.BF, S.B
