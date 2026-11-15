@@ -61,6 +61,11 @@ static uint8_t trip_steer(const Game *g, SteerMode mode)
             }
         }
     }
+    {   /* the roof kills (2026-11-15): no flap whose rise (stacked on the current climb, lightest gravity) would reach the roof line */
+        int32_t wlo, whi;
+        long long v = (long long)FLIER_FLAP_IMPULSE - (f->vy < 0 ? f->vy : 0);
+        if (trip_hit_window(&g->trip, &g->trip_gen, f, &wlo, &whi) && f->y - v * v / (2 * FLIER_GRAVITY_BALLOON) < wlo + FL_PX(4)) no_flap = 1;
+    }
     if (want_x > fx + 3) dir = 1; else if (want_x < fx - 3) dir = -1;
     if (!no_flap && (f->y + 10 * f->vy) > FL_PX(target) && f->flap_cd == 0 && !f->flap_prev) in |= IN_A;
     if (dir > 0) in |= IN_RIGHT; else if (dir < 0) in |= IN_LEFT;

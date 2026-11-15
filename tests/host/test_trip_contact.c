@@ -75,16 +75,13 @@ static void test_bottom_wall(void) {
 }
 
 static void test_top_wall(void) {
-    uint32_t gum0;
+    /* the roof kills like the floor (owner decision 2026-11-15; it used to bounce the hero down) */
     setup(160, 66, 0, -3);
-    gum0 = g.trip.gum;
     step1(0);
-    CHECK(g.flier.state == FLIER_ALIVE && g.flier.balloons == 2);
-    CHECK(g.trip.hits == 0 && gum0 - g.trip.gum <= 1u);   /* decay only, no gum loss */
-    CHECK(g.flier.vy > 0);                              /* bounced down */
-    CHECK((g.flier.y >> 16) >= 65);                     /* back on the gum-top line (65.5), not inside the rock */
-    CHECK(!(g.trip_events & TRIP_EV_HIT));
-    CHECK(flier_view_visible(&g.flier, g.frame));       /* fully visible: it got no protection */
+    CHECK(g.flier.state == FLIER_FALLING);
+    CHECK(g.trip.gum == 0 && g.trip.hits == 1);
+    CHECK(g.flier.balloons == 0 && g.flier.vy == FLIER_FALL_START_VY);
+    CHECK(g.trip_events & TRIP_EV_HIT);
 }
 
 static void test_hazards(void) {
