@@ -169,7 +169,8 @@ tap_fc = mem:install_write_tap(frame_addr, frame_addr + 3, "tripfc", function(of
   if not counting then PF.fc_fn = screen:frame_number(); return end
   -- inside vblank is an overrun only when a vblank passed since the last write (a short frame can end in the vblank it started in)
   local fn = screen:frame_number()
-  local l = in_vblank() and ((PF.fc_fn and fn - PF.fc_fn <= 1) and 0 or 999) or (224 - screen:time_until_vblank_start():as_double() / LINE_S)
+  -- an end in the active area after a missed vblank (2+ frames since the last write) is an overrun too (reports/demo-start.md)
+  local l = in_vblank() and ((PF.fc_fn and fn - PF.fc_fn <= 1) and 0 or 999) or ((PF.fc_fn and fn - PF.fc_fn >= 2) and 999 or (224 - screen:time_until_vblank_start():as_double() / LINE_S))
   PF.fc_fn = fn
   if PF.on then PF.close(l == 999); PF.steps = mem:read_u32(flow_addr + O_STEPS) end
   if l > logic_end then logic_end = l end

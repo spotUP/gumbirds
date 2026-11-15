@@ -243,7 +243,7 @@ local function frame_end(l)
       local live = A_LIVE and mem:read_u8(A_LIVE) or -1
       local who = {}
       for r = 1, R do if acc.queue.inv[r] > 0 then who[#who + 1] = row_names[r] .. "=" .. acc.queue.inv[r] end end
-      print(string.format("VBLANK_OVERRUN frame %d class %s live %d wrote inside vblank: %s", n, CLASS[cls], live, table.concat(who, " ")))
+      print(string.format("VBLANK_OVERRUN frame %d class %s demo mode %s frame %d live %d (999: logic end inside vblank or after a missed vblank), queued inside vblank: %s", n, CLASS[cls], tostring(prev_demo_mode), demo_idx, live, table.concat(who, " ")))
     end
   else
     qs.lsum = qs.lsum + l; qs.lcnt = qs.lcnt + 1
@@ -332,6 +332,9 @@ tap_fc = mem:install_write_tap(frame_addr, frame_addr + 3, "fc", function(offset
   -- lines after vblank end = active lines - lines left to vblank start; a write inside vblank is an overrun (999)
   local inv = vblank_state()
   local l = inv and 999 or (ACTIVE_LINES - screen:time_until_vblank_start():as_double() / LINE_S)
+  -- a whole vblank passed since the previous logic end: this frame missed its vblank and wrapped into the next frame.
+  -- Its end then reads as a small line number (blind spot, thoughts/spot/reports/gum-burst-vblank.md): count it as an overrun.
+  if fe_frame >= 0 and n - fe_frame >= 2 and fe_frame ~= n then l = 999 end
   if l > logic_end then logic_end = l end
   if full_now and l > logic_end_full then logic_end_full = l end
   if fe_frame ~= n then fe_frame = n; frame_end(l) end
