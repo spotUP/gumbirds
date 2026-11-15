@@ -34,3 +34,46 @@ int bg_column_x(uint32_t off, uint32_t c, uint32_t period) {
     int x = (int)(c * BG_COL_PX) - (int)off;
     return x <= -BG_COL_PX ? x + (int)period : x;
 }
+
+uint16_t bg_fade_color(uint16_t c, uint8_t level)
+{
+    uint16_t r = (uint16_t)((((c >> 8) & 0xF) << 1) | ((c >> 14) & 1));
+    uint16_t g = (uint16_t)((((c >> 4) & 0xF) << 1) | ((c >> 13) & 1));
+    uint16_t b = (uint16_t)(((c & 0xF) << 1) | ((c >> 12) & 1));
+    r = (uint16_t)(r * level / BG_FADE_MAX); /* 5 bit * 16 fits u16; the divisor is a power of two */
+    g = (uint16_t)(g * level / BG_FADE_MAX);
+    b = (uint16_t)(b * level / BG_FADE_MAX);
+    return (uint16_t)((c & 0x8000) | ((r & 1) << 14) | ((g & 1) << 13) | ((b & 1) << 12) | ((r >> 1) << 8) | ((g >> 1) << 4) | (b >> 1));
+}
+
+void bg_fade_start(BgFade *f)
+{
+    if (f->phase == BGF_IDLE) f->level = BG_FADE_MAX;
+    f->phase = BGF_OUT;
+}
+
+void bg_fade_abort(BgFade *f)
+{
+    if (f->phase == BGF_OUT) f->phase = BGF_IN;
+}
+
+void bg_fade_swapped(BgFade *f)
+{
+    if (f->phase == BGF_DARK) f->phase = BGF_IN;
+}
+
+uint8_t bg_fade_step(BgFade *f)
+{
+    if (f->phase == BGF_OUT) {
+        if (f->level) f->level--;
+        if (!f->level) { f->phase = BGF_DARK; return 1; }
+    } else if (f->phase == BGF_IN && f->level < BG_FADE_MAX) {
+        f->level++;
+    }
+    return 0;
+}
+
+void bg_fade_settle(BgFade *f, uint8_t synced)
+{
+    if (f->phase == BGF_IN && f->level == BG_FADE_MAX && synced) f->phase = BGF_IDLE;
+}
