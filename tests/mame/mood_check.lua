@@ -66,7 +66,7 @@ end
 
 local rs = (#flay >= 23 and re_addr) and dofile("tests/mame/round_skip.lua")(mem, flow_addr, flay) or nil
 local n, phase, fc0, t, wins = 0, "boot", nil, 0, 0
-local mood_a, back_a, back_b, seen, summary = nil, nil, nil, {}, nil
+local mood_a, mood_b, back_a, back_b, seen, summary = nil, nil, nil, nil, {}, nil
 local worst, worst_line, sframes = 0, 0, 0
 emu.register_frame_done(function() local ok_, err_ = pcall(function()
   if done then return end
@@ -103,7 +103,7 @@ emu.register_frame_done(function() local ok_, err_ = pcall(function()
       rs.win(); wins = wins + 1; t = 0
       return
     end
-    back_b = mem:read_u16(BACKDROP)
+    back_b, mood_b = mem:read_u16(BACKDROP), mood
     if back_b == back_a then finish(false, string.format("backdrop 4095 %04x in both moods", back_a)) return end
     local bad = pal_mismatch()
     if bad then finish(false, "dusk palette not resident in mood " .. mood .. ": " .. bad) return end
@@ -121,7 +121,8 @@ emu.register_frame_done(function() local ok_, err_ = pcall(function()
     sframes = sframes + 1
     if sframes < STORM_FRAMES then return end
     local back_s = mem:read_u16(BACKDROP)
-    if back_s == back_a or back_s == back_b then finish(false, string.format("storm backdrop %04x equals another mood", back_s)) return end
+    -- storm is in the rotation (b404f51): mood A or B may be storm itself, so compare only with the non-storm backdrops
+    if (mood_a ~= GAME_MOOD_STORM and back_s == back_a) or (mood_b ~= GAME_MOOD_STORM and back_s == back_b) then finish(false, string.format("storm backdrop %04x equals another mood", back_s)) return end
     local bad = pal_mismatch(sfirst_addr, spal_addr, spal_size, "storm_palettes") or pal_mismatch()
     if bad then finish(false, "palette not resident in storm: " .. bad) return end
     if worst > SB_LIMIT then finish(false, string.format("storm: %d sprites on line %d (limit %d)", worst, worst_line, SB_LIMIT)) return end
