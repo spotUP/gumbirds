@@ -744,6 +744,25 @@ test-sound: cart
 	if grep -q 'FAIL' $$T/result-$$LEG.txt; then echo "[FAIL] make test-sound $$LEG, log kept in $$T"; exit 1; fi; \
 	done; rm -rf $$T; echo "[OK] make test-sound passed"
 
+# Black screen between Gum Trip runs (tests/mame/black_screen_check.lua, UniBIOS 4.0): five runs that die with no rank, with a coin at
+# Game Over, a coin on the title, Start from the title and a coin in the demo between them; the screen never stays black, the entry
+# hold never sticks. `make test-black-screen`.
+.PHONY: test-black-screen
+test-black-screen: cart bios
+	@if [ ! -f "$(UNIBIOS)" ]; then echo "[FAIL] UNIBIOS file not found: $(UNIBIOS)"; exit 1; fi
+	@$(MAKE) --no-print-directory $(UNIBIOS_DIR)/neogeo.zip
+	@set -e; T=$$(mktemp -d $(BUILDDIR)/test-run.XXXXXX); \
+	BRAWL_FLOW_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flow"{print $$1}') \
+	BRAWL_FRAME_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_frame_counter"{print $$1}') \
+	BRAWL_BGHELD_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_bg_held"{print $$1}') \
+	BRAWL_BUSY_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_bg_mood_busy"{print $$1}') \
+	BRAWL_MOOD_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_bg_mood"{print $$1}') \
+	BRAWL_RESULT=$$T/result.txt \
+	SDL_VIDEODRIVER=dummy nice -n 19 $(MAME) -window -nomaximize -video none -sound none -nothrottle -seconds_to_run 1500 -noautosave -skip_gameinfo -hash $(ROM) -rp "$(UNIBIOS_DIR);$(ROM)" -bios unibios40 -nvram_directory $$T -autoboot_script tests/mame/black_screen_check.lua neogeo -cart1 $(GAMEROM) > $$T/mame.log 2>&1 || true; \
+	if [ ! -f $$T/result.txt ]; then tail -n 15 $$T/mame.log; echo "[FAIL] no result from black screen Lua script"; exit 1; fi; \
+	cat $$T/result.txt; \
+	if grep -q '^PASS' $$T/result.txt; then rm -rf $$T; echo "[OK] make test-black-screen passed"; else echo "[FAIL] make test-black-screen, log kept in $$T"; exit 1; fi
+
 # UniBIOS check (tests/mame/unibios_check.lua): palettes survive the real-BIOS coin re-entry.
 # Separate from make test, because it needs the UNIBIOS file from outside the repo.
 test-unibios: cart bios
