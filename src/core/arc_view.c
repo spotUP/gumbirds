@@ -7,24 +7,18 @@ static const int8_t SHAKE[(ARC_VENT_LAUNCH - ARC_VENT_TELEGRAPH) / 2][2] = { /* 
     {0,0},{0,0},{1,0},{0,0},{0,0},{-1,0}, {0,0},{0,0},{1,0},{0,0},{0,0},{-1,0},
     {1,0},{0,0},{-1,0},{0,-1},{1,0},{-1,0}, {1,0},{0,0},{-1,0},{0,-1},{1,0},{-1,0},
     {2,0},{-1,-1},{1,0},{-2,0},{1,-1},{-1,0},{2,-1},{-2,0},{1,0},{-1,-1},{2,0},{-2,-1} };
-static const uint8_t BOIL_START[] = { 0, 6, 12, 18, 23, 28, 33, 38, 42, 46, 50, 54, 57, 60, 63, 66, 69 }; /* first tick of each hold: 6,6,6,5,5,5,5,4,4,4,4,3.. ticks */
-#define BOIL_FRAMES 10
-static const uint8_t HEAT_AT[][2] = { {0,1},{14,2},{26,3},{36,4},{45,5},{53,6},{60,7},{66,6},{68,7},{70,6} }; /* warning tick, step: rises, then flickers */
-static const uint8_t COOL_AT[][2] = { {0,7},{40,5},{50,3},{60,1},{70,0} };                                  /* ticks after the launch, step */
-
-static int step_at(const uint8_t (*tab)[2], int n, unsigned t) {
-    int v = tab[0][1], i;
-    for (i = 1; i < n && t >= tab[i][0]; i++) v = tab[i][1];
-    return v;
-}
+/* Per tick tables (no loop or division per frame on the 68000); tests/host/test_arc_view.c checks them against the step lists they came from. */
+static const uint8_t BOIL_TAB[ARC_VENT_LAUNCH - ARC_VENT_TELEGRAPH] = { 0,0,0,0,0,0,1,1,1,1,1,1,2,2,2,2,2,2,3,3,3,3,3,4,4,4,4,4,5,5,5,5,5,6,6,6,6,6,7,7,7,7,8,8,8,8,9,9,9,9,0,0,0,0,1,1,1,2,2,2,3,3,3,4,4,4,5,5,5,6,6,6 }; /* boil frame per warning tick: holds of 6,6,6,5,5,5,5,4,4,4,4,3.. ticks, frame = hold % 10 */
+static const uint8_t HEAT_TAB[ARC_VENT_LAUNCH - ARC_VENT_TELEGRAPH] = { 1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,2,2,2,2,2,2,2,2,2,2,2,3,3,3,3,3,3,3,3,3,3,4,4,4,4,4,4,4,4,4,5,5,5,5,5,5,5,5,6,6,6,6,6,6,6,7,7,7,7,7,7,6,6,7,7,6,6 }; /* heat step per warning tick: rises, then flickers */
+static const uint8_t COOL_TAB[71] = { 7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,5,5,5,5,5,5,5,5,5,5,3,3,3,3,3,3,3,3,3,3,1,1,1,1,1,1,1,1,1,1,0 }; /* heat step per tick after the launch (0 from tick 70) */
 
 int arc_view_heat(const ArcElements *a) {
     int i;
     for (i = 0; i < a->n; i++)
         if (a->el[i].kind == ARC_EL_VENT) {
             unsigned t = a->el[i].timer;
-            if (t >= ARC_VENT_LAUNCH) return step_at(COOL_AT, (int)(sizeof COOL_AT / sizeof COOL_AT[0]), t - ARC_VENT_LAUNCH);
-            if (t >= ARC_VENT_TELEGRAPH) return step_at(HEAT_AT, (int)(sizeof HEAT_AT / sizeof HEAT_AT[0]), t - ARC_VENT_TELEGRAPH);
+            if (t >= ARC_VENT_LAUNCH) return t - ARC_VENT_LAUNCH < sizeof COOL_TAB ? COOL_TAB[t - ARC_VENT_LAUNCH] : 0;
+            if (t >= ARC_VENT_TELEGRAPH) return HEAT_TAB[t - ARC_VENT_TELEGRAPH];
             return 0;
         }
     return 0;
@@ -73,10 +67,9 @@ int arc_view_build(const ArcElements *a, unsigned tick, ArcSprite *out) {
     for (i = 0; i < a->n; i++) {
         const ArcElement *e = &a->el[i];
         if (e->kind == ARC_EL_VENT && e->timer >= ARC_VENT_TELEGRAPH && e->timer < ARC_VENT_LAUNCH) {
-            unsigned w = e->timer - ARC_VENT_TELEGRAPH, h = 0;
+            unsigned w = e->timer - ARC_VENT_TELEGRAPH;
             ArcSprite *s = &out[n++];
-            while (h + 1 < sizeof BOIL_START && w >= BOIL_START[h + 1]) h++;
-            s->piece = ARCV_BOIL; s->frame = (uint8_t)(h % BOIL_FRAMES);
+            s->piece = ARCV_BOIL; s->frame = BOIL_TAB[w];
             s->x = (int16_t)(e->x - ARC_VIEW_W[ARCV_BOIL] / 2 + SHAKE[w / 2][0]);
             s->y = (int16_t)(e->y - ARC_VIEW_H[ARCV_BODY] - (ARC_VIEW_H[ARCV_BOIL] - 1) + SHAKE[w / 2][1]);
         }

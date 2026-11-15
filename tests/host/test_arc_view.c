@@ -29,6 +29,30 @@ static void test_vent(void) {
     a.el[0].timer = ARC_VENT_LAUNCH - 1; /* last warning tick: violent shake (-2,-1), last boil hold (16 % 10), flicker step */
     CHECK(arc_view_build(&a, 0, s) == 2 && s[0].frame == 3 && s[0].x == 100 - ARC_VIEW_W[ARCV_BODY] / 2 - 2 && s[0].y == 80 - ARC_VIEW_H[ARCV_BODY] - 1);
     CHECK(s[1].frame == 6 && s[1].x == 100 - ARC_VIEW_W[ARCV_BOIL] / 2 - 2 && arc_view_heat(&a) == 6);
+    { /* tables vs the step lists they were generated from (old loop and modulo, old step_at walk) */
+        static const uint8_t bs[] = { 0, 6, 12, 18, 23, 28, 33, 38, 42, 46, 50, 54, 57, 60, 63, 66, 69 };
+        static const uint8_t ha[][2] = { {0,1},{14,2},{26,3},{36,4},{45,5},{53,6},{60,7},{66,6},{68,7},{70,6} }, ca[][2] = { {0,7},{40,5},{50,3},{60,1},{70,0} };
+        unsigned w, k, ok = 1;
+        for (w = 0; w < 72 + 75; w++) {
+            unsigned h = 0, i, hv = ha[0][1], cv = ca[0][1];
+            for (i = 1; i < 10; i++) if (w >= ha[i][0]) hv = ha[i][1];
+            for (i = 1; i < 5; i++) if (w >= ca[i][0]) cv = ca[i][1];
+            while (h + 1 < sizeof bs && w >= bs[h + 1]) h++;
+            for (k = 0; k < 2; k++) { /* k 0: warning window, k 1: after the launch */
+                ArcElements v; ArcSprite o[ARC_VIEW_MAX];
+                memset(&v, 0, sizeof v);
+                v.n = 1; v.el[0].kind = ARC_EL_VENT; v.el[0].x = 100; v.el[0].y = 80;
+                if (k == 0 && w < 72) {
+                    v.el[0].timer = (uint16_t)(ARC_VENT_TELEGRAPH + w);
+                    ok &= arc_view_build(&v, 0, o) == 2 && o[1].frame == h % 10 && arc_view_heat(&v) == (int)hv;
+                } else if (k == 1) {
+                    v.el[0].timer = (uint16_t)(ARC_VENT_LAUNCH + w);
+                    ok &= arc_view_heat(&v) == (int)cv;
+                }
+            }
+        }
+        CHECK(ok);
+    }
     a.el[0].timer = ARC_VENT_LAUNCH;
     CHECK(arc_view_build(&a, 0, s) == 2); /* body in launch frame, one spark above it */
     CHECK(s[0].frame == 4 && s[1].piece == ARCV_SPARK && s[1].y < s[0].y + ARC_VIEW_H[ARCV_BODY]);
