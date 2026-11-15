@@ -45,3 +45,18 @@ Brief: thoughts/spot/2026-11-15-trip-cave-code-brief.md. Stopped at the tool bud
   MAME gates (trip check, test-vblank, test-attract). tests/mame/trip_check.lua line 13 still expects the old
   rim/fill/flip pattern and will fail until updated (new checks belong in a new lua file, 200-local limit).
 - Roof solo 32x16 rim frame unused. Island and pickup heights are unchanged (window rules only).
+
+## Part 2 (smooth fade import, 2026-11-15)
+
+What changed:
+- tools/import_trip_cave.py now imports the draft scripts unchanged (build_smooth -> build_fade -> build_cave3) and re-runs from them: the shipped pre-cave sheet and json come from git commit 71724ee, draft-folder writes go to os.devnull. Adds the flat fade frames (floor: fade A, fade B, solid gum; roof: fade A, fade B, black), 19 floor + 18 roof sloped fade tiles, and generates src/core/trip_cave_fade.h from fade_map.json. Carries the old `palettes.gum` list (tools/build_splash_sprites.py needs it; part 1 had dropped it, which broke the build).
+- trip_view.c: the depth table is replaced by flat_fade (floor 1 fill row, roof 0) and the fade_map lookup per curve kind, piece column, row and hflip.
+- test_trip_strip.c checks the new rows; test_trip_gen.c drop bound 1% -> 1.5% (lines 306, 372).
+- tests/mame/trip_cave_check.lua (new, global CAVE): per-column curve edge expectation, tile palette/anim/flip rules, fade rows present on flat columns. trip_check.lua line 13 comment, strip_expect and strip_compare use it; trip_probe.c layout gains TripChunk in/out edge offsets (85..90).
+
+Gates:
+- Firmware build: PASS (buildq).
+- Host tests: FAIL in 2 places, not analysed (tool budget ran out): test_flow.c:381 (attract demo flier dies, 2 of 12 runs) and test_trip_view.c:61 (`g.trip.px > 1000`). test_trip_strip PASS (4998589 flat / 536150 sloped fade cells), test_trip PASS. Unverified whether the failures come from the part 1 curve collision at 940a9e0 or from this part.
+- MAME test-trip, test-vblank, test-attract: NOT RUN. trip_cave_check.lua has never run. Measurements (sprites per line, logic end, VRAM writes outside vblank, palette words per flush): not taken.
+
+Unverified: roof kill check not written (needs an active poke after the splash phase); dither phase seam on hflipped trailing curves vs flat fade; roof fill frame now unused (kept); the import depends on commit 71724ee.

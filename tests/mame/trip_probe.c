@@ -54,4 +54,7 @@ unsigned int probe[] = {
     FLIER_HALF_H16_BALLOON, FLIER_HALF_H16_NOBAL, FLIER_HALF_W, FLIER_FALLING,
     /* top edge: FLIER_CEILING_FEET_Y (83), FLIER_RIVAL_CEILING_DROP (84) */
     FLIER_CEILING_FEET_Y, FLIER_RIVAL_CEILING_DROP,
+    /* cave curves (tests/mame/trip_cave_check.lua): TripChunk.in_top (85), .in_bottom (86), .out_top (87), .out_bottom (88), .in_known (89), .out_known (90) */
+    offsetof(TripChunk, in_top), offsetof(TripChunk, in_bottom), offsetof(TripChunk, out_top), offsetof(TripChunk, out_bottom),
+    offsetof(TripChunk, in_known), offsetof(TripChunk, out_known),
 };

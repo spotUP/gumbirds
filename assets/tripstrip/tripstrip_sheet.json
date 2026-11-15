@@ -1,5 +1,5 @@
 {
- "source": "thoughts/shared/drafts/2026-11-15-trip-cave-v3 (take 1 slate roof, F1 lip, S16/S32 curves), assembled by tools/import_trip_cave.py",
+ "source": "thoughts/shared/drafts/2026-11-15-trip-cave-v3, -fade, -smoothfade (take 1 slate roof, F1 lip, S16/S32 curves, sloped fade), assembled by tools/import_trip_cave.py",
  "palette_policy": "merge",
  "groups": {
   "lip0": 8,
@@ -8,6 +8,60 @@
   "lip3": 8,
   "floor_s16": 8,
   "floor_s32": 8
+ },
+ "palettes": {
+  "gum": [
+   [
+    24,
+    0,
+    33
+   ],
+   [
+    57,
+    8,
+    57
+   ],
+   [
+    115,
+    24,
+    107
+   ],
+   [
+    181,
+    41,
+    123
+   ],
+   [
+    239,
+    74,
+    140
+   ],
+   [
+    255,
+    140,
+    156
+   ],
+   [
+    255,
+    214,
+    198
+   ],
+   [
+    255,
+    247,
+    247
+   ],
+   [
+    74,
+    24,
+    123
+   ],
+   [
+    255,
+    181,
+    82
+   ]
+  ]
  },
  "defines": {
   "STEP_TICKS": 5,
@@ -358,13 +412,55 @@
     "y": 160,
     "w": 48,
     "h": 48
+   },
+   {
+    "x": 320,
+    "y": 160,
+    "w": 64,
+    "h": 16
+   },
+   {
+    "x": 384,
+    "y": 160,
+    "w": 64,
+    "h": 16
+   },
+   {
+    "x": 448,
+    "y": 160,
+    "w": 16,
+    "h": 16
+   },
+   {
+    "x": 464,
+    "y": 160,
+    "w": 288,
+    "h": 16
    }
   ],
-  "black": [
+  "floor_fade": [
    {
     "x": 0,
     "y": 208,
+    "w": 32,
+    "h": 16
+   },
+   {
+    "x": 32,
+    "y": 208,
+    "w": 32,
+    "h": 16
+   },
+   {
+    "x": 64,
+    "y": 208,
     "w": 16,
+    "h": 16
+   },
+   {
+    "x": 80,
+    "y": 208,
+    "w": 304,
     "h": 16
    }
   ]
