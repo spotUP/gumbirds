@@ -129,8 +129,8 @@ local died, expect_lives, cd0, press = 0, nil, nil, 0
 local walk = os.getenv("ARCADE_WALK") == "1"
 local bonus_run = os.getenv("ARCADE_BONUS") == "1" -- make test-arcade-bonus: clear stages 1..3 and measure the bonus stage (up to 10 bubbles alive)
 -- ARCADE_CONT_OUT=1 (make test-arcade-contout, UniBIOS, one coin): stage 1, forced deaths, no press on the continue screen.
--- A7: the countdown runs out -> GAME_OVER -> attract; no new game may start without a Start press (CONT_OUT_FRAMES frames
--- watched after attract), and the credit byte stays 0. Logs flow, credit, BIOS user mode/request and the compulsion timer.
+-- A7: the countdown runs out -> GAME_OVER -> attract; with the credit left the PRESS START title holds and no game starts
+-- and no credit goes for 5 minutes; then one Start plays and takes one credit. Logs flow, credit, BIOS user mode/request and the compulsion timer.
 local cont_out = os.getenv("ARCADE_CONT_OUT") == "1"
 local co_coins = tonumber(os.getenv("ARCADE_COINS") or "2") -- owner report: more than one coin before the run, one Start
 local co = {go = nil, att = nil, sig = nil, log = {}}
@@ -306,19 +306,27 @@ emu.register_frame_done(function()
     if fl == K.game_over and not co.go then co.go = wait end
     if co.go and fl <= 2 and not co.att then co.att = wait end
     local comp = mem:read_u8(0x10fdda)
-    if co.att and comp > (co.cmax or 0) then co.cmax = comp end
-    if fl == K.playing and co.go then
-      -- A start with no press is MVS-correct only as the BIOS compulsion start: timer reloaded (about 30 s BCD) at the
-      -- game end, counted down to 0, one credit taken with it. The bug: timer never reloaded, start one frame after GAME OVER.
-      local ok = co.att and (co.cmax or 0) >= 0x25 and wait - co.att >= 1500 and crd == co_coins - 2
-      finish(ok, string.format("A7 GAME OVER at +%d, attract at +%d, %s new game %d frames into attract (compulsion timer peak %02x BCD s, credit %02x, %d coins)",
-        co.go, co.att or -1, ok and "BIOS compulsion countdown ran out:" or "a no-press", wait - (co.att or wait), co.cmax or 0, crd, co_coins)) return
+    if co.att and comp < (co.cmin or 0xff) then co.cmin = comp end
+    -- Owner rule "never force start": after attract the title holds (PRESS START) with the credit; no game, no credit
+    -- taken, for CO_HOLD frames (5 min, past any BIOS compulsion timer). Then one Start: a game and one credit taken.
+    local CO_HOLD = 18000
+    local held = co.att and wait - co.att
+    if co.att and not co.pressed then
+      if fl == K.playing then finish(false, string.format("A7 a no-press game %d frames into attract (compulsion timer low %02x BCD s, credit %02x, %d coins)", held, co.cmin or 0, crd, co_coins)) return end
+      if held > 120 and fl ~= 0 then finish(false, string.format("A7 credit in but attract left the PRESS START title (flow %d) %d frames into attract", fl, held)) return end
+      if crd ~= co_coins - 1 then finish(false, string.format("A7 credit byte %02x %d frames into attract with no press, want %02x (%d coins, one Start)", crd, held, co_coins - 1, co_coins)) return end
+      if held >= CO_HOLD then co.pressed = wait end
     end
-    if crd ~= co_coins - 1 then finish(false, string.format("A7 credit byte %02x after the continue screen, want %02x (%d coins, one Start)", crd, co_coins - 1, co_coins)) return end
+    if co.pressed then
+      start:set_value(wait - co.pressed < 15 and 1 or 0)
+      if fl == K.playing and wait - co.pressed > 20 then
+        local ok = crd == co_coins - 2
+        finish(ok, string.format("A7 GAME OVER at +%d, attract at +%d, title held %d frames (%.0f s) with credit %02x and no game (compulsion timer low %02x BCD s); Start then played, credit %02x (want %02x)",
+          co.go, co.att, CO_HOLD, CO_HOLD / 60, co_coins - 1, co.cmin or 0, crd, co_coins - 2)) return
+      end
+      if wait - co.pressed > 300 then finish(false, "A7 Start after the hold started no game: " .. state()) return end
+    elseif crd ~= co_coins - 1 then finish(false, string.format("A7 credit byte %02x after the continue screen, want %02x (%d coins, one Start)", crd, co_coins - 1, co_coins)) return end
     if wait > 3000 and not co.att then finish(false, "A7 no GAME OVER then attract within 3000 frames: " .. state()) return end
-    if co.att and wait - co.att >= 2400 then
-      finish(true, string.format("A7 continue countdown ran out: GAME OVER at +%d, attract at +%d, no new game for 2400 frames, credit %02x (%d coins)", co.go, co.att, co_coins - 1, co_coins))
-    end
   elseif phase == "continue" then
     wait = wait + 1
     if wait <= 40 and (b(O_FLOW) ~= K.playing or g(O_LIVES) ~= 0 or g(O_LSTATE) ~= K.life_cont) then finish(false, "A4 continue state lost: " .. state()) return end

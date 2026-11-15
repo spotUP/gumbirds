@@ -54,6 +54,7 @@ typedef struct {
     uint8_t mode;            /* GameMode picked on the title (up or down edge toggles); default arena; kept across runs */
     uint8_t input_prev;      /* held input last frame, for the title edge */
     uint8_t select_open;     /* 1 after the first start press: mode select is open, the next start on the title begins the game */
+    uint8_t credit_hold;     /* caller sets it each frame: 1 while credits are in; attract then holds the title (PRESS START) until Start */
     uint8_t demo;            /* 1 when game is the attract demo */
     uint8_t demo_in;         /* input the scripted demo fed the game on the last demo frame (demo_input() computes it) */
     AttractOverlay ov;       /* how-to-play state for the demo overlay, stepped with demo_in */

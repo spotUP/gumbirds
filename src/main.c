@@ -878,6 +878,7 @@ static u32 g_hud_lives;
 #define TITLE_PLAYERS_ROW 26
 #define TITLE_CREDIT_ROW 29
 #define TITLE_BLINK_ON 3      /* the plate line shows for 3 of every 5 logo animation steps */
+#define BIOS_COMPULSION_S ((volatile u8 *)0x10fdda) /* BIOS_COMPULSION_TIMER, BCD seconds; 0x10fddb counts its frames */
 #define BIOS_CREDIT_BCD ((volatile u8 *)0x10fe00) /* BCD, 1 = one credit; measured by tests/mame/logo_check.lua under UniBIOS 4.0 (nullbios never counts) */
 enum { TL_UNKNOWN = 0xFF, TL_HIDDEN = 0, TL_PRESS, TL_INSERT };
 static struct { u8 init, line, select, credits; u32 hi; u8 mode; } g_title = { 0, TL_UNKNOWN, 0xFF, 0xFF, 0xFFFFFFFFu, 0xFF };
@@ -1487,7 +1488,12 @@ static void game_loop(void) {
         if (coined && !start) flow_coin(&g_flow);
         if (a_edge && !start && g_flow.state <= FLOW_ATTRACT_DEMO && bios_user_mode == 1 && (in & FLOW_RESET_COMBO) != FLOW_RESET_COMBO && take_credit()) start = 1;
         if (g_flow.state == FLOW_PLAYING && g_flow.game.res.active && (bios_statchange & 1)) in |= IN_A; /* Start also ends the result screen */
+        g_flow.credit_hold = (u8)(credits_now() > 0); /* owner rule "never force start": credits hold the PRESS START title */
         flow_step(&g_flow, in, start, g_frame_counter);
+        /* Never force start: keep the BIOS compulsion timer (BCD seconds) from running out in attract, so the BIOS never calls
+         * PLAYER_START without a Start press and never takes a credit on its own. Bug fixed here: with a credit and no press,
+         * UniBIOS forced a game after 30 s. Guarded by make test-unibios (d) and test-arcade-contout (A7). */
+        if (g_flow.state <= FLOW_ATTRACT_DEMO) *BIOS_COMPULSION_S = 0x30;
         {
             /* hazard kind per round: a new game starts at round 0; a new round (not during the banner HOLD) swaps the strip */
             static int s_round = 0;

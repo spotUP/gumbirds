@@ -151,7 +151,7 @@ local function steer(st)
 end
 
 -- COIN-ITEM2 phases (after the second game): verdicts a..e, COIN2 measurement. Every verdict is recorded; none stops the run.
-local verdicts, die_next, last_cr, last_st, coin_next, settle_games = {}, nil, nil, nil, "b", 0
+local verdicts, die_next, last_cr, last_st, coin_next = {}, nil, nil, nil, "b"
 local function cr() return mem:read_u8(0x10fe00) end
 local function verdict(name, ok, ev)
   verdicts[#verdicts + 1] = (ok and "[PASS] " or "[FAIL] ") .. name .. ": " .. ev
@@ -252,11 +252,14 @@ local function phase2()
       p2, p2_n = "b_coin", 0
     end
   elseif p2 == "settle" then
-    -- Game over with a credit left: the cart SYSTEM_RETURNs at the game end, the BIOS reloads its compulsion timer (30 s)
-    -- and forces the next game when it runs out (make test-arcade-contout), so play on until credit 0 in attract.
-    if st == FLOW_PLAYING then settle_games = settle_games + 1; p2, p2_n = "die", 0
-    elseif cr() == 0 and p2_n > 10 then p2, p2_n, coin_next = "b_coin", 0, "c"
-    elseif p2_n > 2400 then finish(false, "settle: credit byte " .. cr() .. " but no game and no credit loss for 2400 frames (state " .. st .. ")") end
+    -- Game over with a credit left (owner rule "never force start"): the PRESS START title holds, no game and no credit
+    -- taken for 2100 frames (35 s, past the 30 s BIOS compulsion timer the cart keeps from running out); c then uses it.
+    if st == FLOW_PLAYING or cr() ~= 1 or (p2_n > 120 and st ~= FLOW_ATTRACT_TITLE) then
+      finish(false, string.format("settle: %d frames into attract with a credit left and no press: flow state %d (want title 0), credit byte %02x (want 01)", p2_n, st, cr()))
+    elseif p2_n >= 2100 then
+      verdict("settle credit left after game over", true, string.format("%d frames (%.0f s): title held, credit 01, no game", p2_n, p2_n / 60))
+      p2, p2_n, trace = "c", 0, {}
+    end
   elseif p2 == "b_coin" then -- second credit
     press(coin, 1, 6, p2_n)
     if p2_n == 40 then p2, p2_n, trace = coin_next, 0, {} end
@@ -277,24 +280,25 @@ local function phase2()
     if p2_n == 180 then
       local steady, p = true, first_play or 1
       for i = p + 5, 180 do if trace[i] ~= trace[180] then steady = false end end
-      verdict("c one A press with a credit", trace.before == 1 and cr() == 0 and first_play ~= nil and steady, string.format("[settle: BIOS started %d extra game(s) after b's game over with a credit left] credit before %02x after %02x (want 01 -> 00), PLAYING at +%s, byte steady from +%d on: %s; trace: %s",
-        settle_games, trace.before, cr(), tostring(first_play), p + 5, tostring(steady), table.concat(trace, ",", 1, 180):gsub("(%x%x,)%1+", "%1*")))
+      verdict("c one A press with a credit", trace.before == 1 and cr() == 0 and first_play ~= nil and steady, string.format("credit before %02x after %02x (want 01 -> 00), PLAYING at +%s, byte steady from +%d on: %s; trace: %s",
+        trace.before, cr(), tostring(first_play), p + 5, tostring(steady), table.concat(trace, ",", 1, 180):gsub("(%x%x,)%1+", "%1*")))
       abtn:set_value(0)
       steering = false; p2, p2_n, die_next = "die", 0, "d_coin"
     end
-  elseif p2 == "d_coin" then
-    press(coin, 1, 6, p2_n)
-    if p2_n == 60 then
-      if cr() ~= 1 then verdict("d precondition", false, "credit byte " .. string.format("%02x", cr()) .. " after coin, want 01") end
+  elseif p2 == "d_coin" then -- two coins
+    coin:set_value(((p2_n >= 1 and p2_n < 7) or (p2_n >= 31 and p2_n < 37)) and 1 or 0)
+    if p2_n == 90 then
+      if cr() ~= 2 then verdict("d precondition", false, "credit byte " .. string.format("%02x", cr()) .. " after two coins, want 02") end
       p2, p2_n, trace, first_change = "d", 0, {}, nil
     end
-  elseif p2 == "d" then -- one credit, no press: measure the BIOS title timeout
-    if not first_change and (cr() ~= 1 or st == FLOW_PLAYING) then first_change = p2_n; trace.st, trace.cr = st, cr() end
-    if p2_n == 3300 or first_change then
-      -- The BIOS title timer (about 30 s) forces a start through player_start; the cart cannot refuse that without losing the
-      -- credit. So d asserts the invariant (credit gone only together with a running game) and reports the measured timeout.
-      verdict("d credit, no press (BIOS title timeout)", not first_change or (trace.cr == 0 and trace.st == FLOW_PLAYING), first_change and string.format("after %d frames (%.1f s) credit byte %02x, flow state %d: the BIOS forced a start, credit and game together (Require Start is not possible against the BIOS timer)", first_change, first_change / 60, trace.cr, trace.st)
-        or string.format("%d frames (%.1f s) with a credit and no press: credit byte stayed 01, flow never reached PLAYING", p2_n, p2_n / 60))
+  elseif p2 == "d" then -- two credits, no press for 5 minutes: never force start; then one Start plays and takes one credit
+    local D_HOLD = 18000
+    if p2_n <= D_HOLD and not first_change and (cr() ~= 2 or st ~= FLOW_ATTRACT_TITLE) then first_change = p2_n; trace.st, trace.cr = st, cr() end
+    if p2_n > D_HOLD then press(start, D_HOLD + 1, 15, p2_n) end
+    if p2_n == D_HOLD + 180 or (first_change and p2_n <= D_HOLD) then
+      verdict("d two credits, no press (never force start)", not first_change, first_change and string.format("after %d frames (%.1f s) credit byte %02x, flow state %d: left the PRESS START title or started without a press", first_change, first_change / 60, trace.cr, trace.st)
+        or string.format("%d frames (%.0f s) with two credits and no press: title held, credit byte stayed 02, no game", D_HOLD, D_HOLD / 60))
+      verdict("d Start after the hold", not first_change and cr() == 1 and st == FLOW_PLAYING, string.format("credit byte %02x (want 01), flow state %d (want 3)", cr(), st))
       verdict("f coin sentinel", coin_rises == coins_in and not coin_stray, string.format("%d coins inserted, g_coin_calls rose %d times, a rise without a coin: %s", coins_in, coin_rises, tostring(coin_stray)))
       local bad = false
       for _, v in ipairs(verdicts) do if v:sub(1, 6) == "[FAIL]" then bad = true end end

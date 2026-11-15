@@ -747,6 +747,24 @@ static void test_menu_buttons(void)
     /* CREDIT-START: with a credit and no press the title waits no longer than attract (no auto start from flow) */
     rig_ticks(&r, 0, 5);
     CHECK(r.f.state == FLOW_ATTRACT_TITLE);
+    /* CREDIT-HOLD: credits in hold the title (no cycle, no start) however long; table and demo jump back to it; Start then plays */
+    flow_init(&r.f, NULL, 0);
+    r.f.credit_hold = 1;
+    rig_ticks(&r, 0, 4 * (ATTRACT_TITLE_FRAMES + ATTRACT_TABLE_FRAMES + ATTRACT_DEMO_FRAMES));
+    CHECK(r.f.state == FLOW_ATTRACT_TITLE);
+    r.f.credit_hold = 0;
+    rig_until(&r, FLOW_ATTRACT_TABLE, 0, 100000);
+    r.f.credit_hold = 1;
+    rig_ticks(&r, 0, 1);
+    CHECK(r.f.state == FLOW_ATTRACT_TITLE && r.f.select_open);
+    r.f.credit_hold = 0;
+    rig_until(&r, FLOW_ATTRACT_DEMO, 0, 100000);
+    r.f.credit_hold = 1;
+    rig_ticks(&r, 0, 1);
+    CHECK(r.f.state == FLOW_ATTRACT_TITLE && !r.f.demo);
+    rig_tick(&r, 0, 1);
+    CHECK(r.f.state == FLOW_PLAYING);
+    r.f.credit_hold = 0;
     /* START: a taken credit starts the highlighted mode at once, from title, table and demo */
     {
         int m;
