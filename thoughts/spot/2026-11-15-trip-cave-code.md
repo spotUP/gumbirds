@@ -172,3 +172,34 @@ Host repro (seed 2024): floor death splat_y 159 at y 156; roof death (flap every
 ### Open question for the owner
 Roof death display. Chosen per the spec: no splat (body falls on). Alternatives: (a) splat at the roof where the hero died;
 (b) splat when the falling body reaches the floor (needs a new "body landed" event).
+
+## ROOF-SPLAT (2026-11-15)
+
+Owner decision: a death on the cave roof splats when the falling body reaches the floor line; floor deaths unchanged.
+
+### Change
+- `Game.trip_roof_fall` (game.h): set by `game_step_trip` on a roof kill (TRIP_WALL_TOP, no bottom kill in the same step).
+  While set and the body is FALLING, the first frame its centre is below the floor-death line (`trip_hit_window` hi, the
+  same line the bottom wall kill uses) sets `trip_splat`; `trip_splat_y` is the feet line, as for a floor death (splat top +
+  SPLASH_SURFACE_ROW 42 = feet line). The flag clears on the splat or when the body leaves FALLING. Reuses the existing
+  trip_splat -> splash_view path in main.c; no view change.
+- Comments in game.h, game.c, trip_hit.h updated.
+
+### Checks
+- tests/host/test_trip.c: floor run splats once on the death frame (unchanged); roof run has no splat on the kill frame,
+  exactly one splat on the first frame below the floor line, on the floor (y > TRIP_START_Y), placed on the feet line; no
+  splat on any other frame. New DROWNED check: kill_y moved above the feet of a live hero, the step drowns it (no
+  TRIP_EV_HIT) and splats on that frame on the feet line, none on the next. Mutation checks: removing the landing splat
+  fails 2 checks, removing the DROWNED clause fails 1.
+- tests/mame/trip_splat_check.lua: keyed on the trip_splat frame. Floor: splat frame = death frame. Roof: splat frame after
+  the death frame. Both: one splat per death, feet line > 90, sprite top + 42 = feet line (+-2), hidden by start + 75.
+
+### Gates (commit 948ac5a + lua commit)
+- Host suite: all passed (trip: 272760 checks, 0 failures). Build OK.
+- test-trip floor: PASS (death k 15, splat k 15, feet line 156, sprite top 114; logic end max 220.3; flush max span 1970 us).
+- test-trip roof: PASS (death k 2, splat k 85, feet line 160, sprite top 118).
+- test-vblank: PASS. test-attract: PASS.
+
+### Open
+- If the falling roof body passes a column with no cave window (trip_hit_window 0), the landing check waits for the next
+  covered frame; never seen in play.
