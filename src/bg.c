@@ -197,8 +197,18 @@ static void swap_begin(void) {
 }
 
 /* A mood change fades the planes out first (they stay lit meanwhile), swaps the tiles in the dark, fades back in. */
-void bg_set_mood(u8 mood) {
+void bg_set_mood(u8 mood, u8 cut) {
     if (mood >= BG_MOOD_COUNT) return;
+    if (cut) { /* world hidden: swap at once at full colour (DARK at level max), the entry hold waits for it */
+        if (mood == g_want && (g_fade.phase == BGF_IDLE || (g_fade.phase != BGF_OUT && g_fade.level == BG_FADE_MAX))) return;
+        g_want = mood;
+        g_bg_mood_busy = 1;
+        g_fade.phase = BGF_DARK;
+        g_fade.level = BG_FADE_MAX;
+        swap_begin();
+        backdrop_put();
+        return;
+    }
     if (g_fade.phase == BGF_OUT && mood == g_bg_mood) { /* asked for the mood on screen again: brighten, nothing was swapped */
         g_want = mood;
         bg_fade_abort(&g_fade);
@@ -230,6 +240,8 @@ static void mood_step(void) {
     g_bg_mood_changes++;
     bg_fade_swapped(&g_fade); /* busy until the fade in has written the last palette */
 }
+
+u8 bg_bare(void) { return g_fade.phase == BGF_DARK && g_fade.level == BG_FADE_MAX; }
 
 /* One frame of a mood change: the fade level, its palette words, and the tile swap while dark. */
 static void change_step(void) {

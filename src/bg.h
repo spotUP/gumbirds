@@ -10,7 +10,9 @@ extern volatile u32 g_bg_x_writes;    /* plane SCB4 runs (one per plane, all its
 void bg_load_palettes(void);          /* palettes + backdrop colour; call from video_init() */
 void bg_init(void);                   /* tiles, tops and heights of every column, written once; forces the x words on the next update */
 void bg_trip_planes(u8 trip);          /* 1 hides the planes Gum Trip drops (BG_TRIP_HIDDEN_MASK: far, near), 0 shows them again; also the backdrop colour: sky colour in trip, dark otherwise; words go out only on a change */
-void bg_set_mood(u8 mood);            /* GAME_MOOD_*: hides the planes now, rewrites their strips over the next bg_update calls, then shows them; no-op for the mood shown or asked */
+void bg_set_mood(u8 mood, u8 cut);    /* GAME_MOOD_*: fades the planes out, rewrites their strips in the dark over the next bg_update calls, fades in;
+                                       * cut 1 (world hidden, entry hold): hides the planes now and swaps at full colour, no fade. No-op for the mood shown or asked */
+u8 bg_bare(void);                     /* 1 while a cut swap shows the flat lit backdrop (planes hidden, no fade) */
 extern volatile u8 g_bg_mood;         /* mood on screen (test sentinel) */
 extern volatile u8 g_bg_mood_busy;    /* 1 while a mood change runs */
 extern volatile u16 g_bg_mood_changes; /* mood changes finished since boot (test sentinel) */
