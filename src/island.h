@@ -20,6 +20,9 @@ void island_autoanim_baseline(void); /* LSPC auto-animation counter to ISLAND_ST
  * course chunks take the island sprites, TRIP_VIEW_ISLAND_BLOCK columns per ring slot. g is the course while a trip runs, 0
  * otherwise (the arena islands are loaded again on the way out). ready is game_trip_ready: no chunk is read while it is 0. */
 void island_trip_step(const TripGen *g, uint32_t scroll_px, int ready);
+/* Gum Trip entry hold (world hidden, course built): loads every course island's tiles hidden, so the reveal frame only places them.
+ * Leaves the trip state off: the hold's island_trip_step(0) calls keep the loaded blocks. 1 once loaded (the arena tiles must be in). */
+u8 island_trip_preload(const TripGen *g);
 
 extern volatile u16 g_island_trip_draws; /* frames the generated islands were placed (test sentinel) */
 extern volatile u16 g_island_draws; /* frames the islands were placed (test sentinel) */

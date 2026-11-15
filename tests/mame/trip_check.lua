@@ -39,7 +39,8 @@ local HZ = { base = tlay[51], tiles = tlay[52], pal = tlay[53], paln = tlay[54],
   nhaz = tlay[57], haz = tlay[58], size = tlay[59], kind = tlay[60], x = tlay[61], y = tlay[62], amp = tlay[63], phase = tlay[64],
   near = tlay[65], near_n = tlay[66], step = tlay[67],
   rlay = nums("BRAWL_RIVAL_LAYOUT"),
-  draws_addr = tonumber(os.getenv("BRAWL_HAZDRAWS_ADDR"), 16) }   -- g_trip_haz_draws (u16)
+  draws_addr = tonumber(os.getenv("BRAWL_HAZDRAWS_ADDR"), 16),   -- g_trip_haz_draws (u16)
+  held_addr = tonumber(os.getenv("BRAWL_BGHELD_ADDR"), 16) }   -- g_bg_held (u8): the entry hold kept the world hidden this frame
 local METERDRAWS_ADDR = tonumber(os.getenv("BRAWL_METERDRAWS_ADDR"), 16)   -- g_meter_draws (u16)
 local METERTAB_ADDR = tonumber(os.getenv("BRAWL_METERTAB_ADDR"), 16)   -- tripmeter_cell[step][cell] (u16 each, in the cart ROM)
 local PICKUPDRAWS_ADDR = tonumber(os.getenv("BRAWL_PICKUPDRAWS_ADDR"), 16)   -- g_trip_pickup_draws (u16)
@@ -55,6 +56,8 @@ local MODE_TRIP = 1
 local MIN_PLAYING = 400
 local MAX_MISSED = 0
 local mem    = manager.machine.devices[":maincpu"].spaces["program"]
+-- entry hold after the course is ready (src/main.c bg_pending): strip columns and island tiles load hidden, the game waits
+function HZ.held() return mem:read_u8(HZ.held_addr) ~= 0 end
 local screen = manager.machine.screens[":screen"]
 local ports  = manager.machine.ioport.ports
 local function field(tag, name)
@@ -169,7 +172,8 @@ tap_fc = mem:install_write_tap(frame_addr, frame_addr + 3, "tripfc", function(of
   if not counting then PF.fc_fn = screen:frame_number(); return end
   -- inside vblank is an overrun only when a vblank passed since the last write (a short frame can end in the vblank it started in)
   local fn = screen:frame_number()
-  local l = in_vblank() and ((PF.fc_fn and fn - PF.fc_fn <= 1) and 0 or 999) or (224 - screen:time_until_vblank_start():as_double() / LINE_S)
+  -- an end in the active area after a missed vblank (2+ frames since the last write) is an overrun too (reports/demo-start.md)
+  local l = in_vblank() and ((PF.fc_fn and fn - PF.fc_fn <= 1) and 0 or 999) or ((PF.fc_fn and fn - PF.fc_fn >= 2) and 999 or (224 - screen:time_until_vblank_start():as_double() / LINE_S))
   PF.fc_fn = fn
   if PF.on then PF.close(l == 999); PF.steps = mem:read_u32(flow_addr + O_STEPS) end
   if l > logic_end then logic_end = l end
@@ -203,7 +207,7 @@ dofile(debug.getinfo(1, "S").source:sub(2):gsub("[^/]*$", "") .. "trip_splat_che
 local function island_expect(px)
   local want = {}
   -- the view reads no chunk until game_trip_ready (tripgen_covers: next_wx >= px + 320): nothing is shown before
-  if mem:read_u32(flow_addr + R_NEXTWX) < px + SCREEN_W then return want end
+  if mem:read_u32(flow_addr + R_NEXTWX) < px + SCREEN_W or HZ.held() then return want end
   local head, count = mem:read_u8(flow_addr + R_HEAD), mem:read_u8(flow_addr + R_COUNT)
   for k = 0, count - 1 do
     local r = (head + k) % RING
@@ -581,7 +585,7 @@ local function haz_compare(want)
 end
 local function pickup_expect(px, steps)
   local want = {}
-  if mem:read_u32(flow_addr + R_NEXTWX) < px + SCREEN_W then PK.fx = {} return want end
+  if mem:read_u32(flow_addr + R_NEXTWX) < px + SCREEN_W or HZ.held() then PK.fx = {} return want end
   local live = {}
   local head, count = mem:read_u8(flow_addr + R_HEAD), mem:read_u8(flow_addr + R_COUNT)
   for k = 0, count - 1 do
@@ -716,9 +720,10 @@ emu.register_frame_done(function() local ok_, err_ = pcall(function()
     if state ~= 3 then return end
     start:set_value(0); phase = "play"; phase_at = n; counting = true
     -- the flow step that sees the Start set at START_FC enters PLAYING with g_frame_counter still START_FC (the seed is that
-    -- counter value; no symbol exposes the seed itself), so the first PLAYING read is exactly START_FC
+    -- counter value; no symbol exposes the seed itself); that frame ends before the next vblank (logic end < 224 is checked on
+    -- every frame), so the first PLAYING read is exactly START_FC + 1
     local sfc = mem:read_u32(frame_addr)
-    if sfc ~= HZ.START_FC then finish(false, string.format("course seed not pinned: PLAYING first read at g_frame_counter %d, want %d (HZ.START_FC)", sfc, HZ.START_FC)) end
+    if sfc ~= HZ.START_FC + 1 then finish(false, string.format("course seed not pinned: PLAYING first read at g_frame_counter %d, want %d (HZ.START_FC + 1)", sfc, HZ.START_FC + 1)) end
     return
   end
   if state ~= 3 then
@@ -751,6 +756,9 @@ emu.register_frame_done(function() local ok_, err_ = pcall(function()
       hold_frames = hold_frames + 1
       if steps ~= prev_steps or d ~= prev_dist or cam ~= prev_cam or made ~= prev_made + 1 then hold_bad = hold_bad + 1 end
       if fc == prev_fc then missed = missed + 1 end
+    elseif prev_fc and HZ.held() and steps == prev_steps then   -- entry hold wait: no step, nothing moves
+      if fc == prev_fc then missed = missed + 1 end
+      if d ~= prev_dist or cam ~= prev_cam or made ~= prev_made then hold_bad = hold_bad + 1 end
     elseif prev_fc then
       if fc == prev_fc then missed = missed + 1 end
       if steps ~= prev_steps + 1 then steps_bad = steps_bad + 1 end
@@ -774,7 +782,8 @@ emu.register_frame_done(function() local ok_, err_ = pcall(function()
     if playing == 1 then strip0 = mem:read_u16(STRIPDRAWS_ADDR) end
     strip1 = mem:read_u16(STRIPDRAWS_ADDR)
     if is_hold then for i = 0, S_COUNT - 1 do if ((vram[0x8200 + S_SPRITE + i] or 0) & 0x3f) ~= 0 then strip_hold_vis = strip_hold_vis + 1 end end end
-    if playing > 2 and lspc_mode and (lspc_mode >> 8) + 1 ~= S_STEP then speed_bad = speed_bad + 1; speed_first = speed_first or string.format("LSPC mode 0x%04x at frame %d", lspc_mode, n) end
+    if playing > 2 and not HZ.held() and not HZ.was_held and lspc_mode and (lspc_mode >> 8) + 1 ~= S_STEP then speed_bad = speed_bad + 1; speed_first = speed_first or string.format("LSPC mode 0x%04x at frame %d", lspc_mode, n) end
+    HZ.was_held = HZ.held()   -- the mode register read lags one frame: the reveal frame still shows the hold's value
     if is_hold then for i = 0, P_COUNT - 1 do if ((vram[0x8200 + P_SPRITE + i] or 0) & 0x3f) ~= 0 then pk_hold_vis = pk_hold_vis + 1 end end end
     if is_hold then for o = 0, 14 do if ((vram[0x8200 + HZ.sprite + 3 * o] or 0) & 0x3f) ~= 0 then hz_hold_vis = hz_hold_vis + 1 end end end
     if playing >= 6 then near_trip_vis = near_trip_vis + near_visible(); HZ.far_trip = HZ.far_trip + HZ.far_visible()

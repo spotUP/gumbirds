@@ -118,7 +118,8 @@ local logic_max, fc_line, fc_fn = 0, -1, nil
 tap_fc = mem:install_write_tap(frame_addr, frame_addr + 3, "arcfc", function(offset, data, mask)
   local to_end, to_start = screen:time_until_vblank_end():as_double(), screen:time_until_vblank_start():as_double()
   local fn = screen:frame_number()
-  if to_end >= to_start then fc_line = 224 - to_start / LINE_S
+  -- an end in the active area after a missed vblank (2+ frames since the last write) is an overrun too (reports/demo-start.md)
+  if to_end >= to_start then fc_line = (fc_fn and fn - fc_fn >= 2) and 999 or 224 - to_start / LINE_S
   elseif fc_fn and fn - fc_fn <= 1 then fc_line = 0 else fc_line = 999 end
   if (offset & 2) ~= 0 then fc_fn = fn end   -- the u32 counter is two bus writes: the low word ends the frame
 end)
