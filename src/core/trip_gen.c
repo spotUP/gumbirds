@@ -39,7 +39,7 @@ static int try_layout(TripGen *g, TripChunk *c, uint32_t d, int n, int top_side,
     int ov, shift, centre, wb;
 
     if (base < TRIP_GAP_MIN) base = TRIP_GAP_MIN;
-    gap = imax(base, need);
+    gap = (imax(base, need) + TRIP_CAVE_GRID - 1) & ~(TRIP_CAVE_GRID - 1); /* cave tiles: windows on the 16 px grid */
     lo_rel = 0;
     hi_rel = gap - isl_h;
     for (i = 0; i < n; i++) {
@@ -48,8 +48,9 @@ static int try_layout(TripGen *g, TripChunk *c, uint32_t d, int n, int top_side,
         else hi_rel = imin(hi_rel, gap - slack[i] - swept);
     }
     if (c->index == 0) {
-        wt = (TRIP_GEN_WORLD_H - gap) >> 1;
+        wt = ((TRIP_GEN_WORLD_H - gap) >> 1) & ~(TRIP_CAVE_GRID - 1);
     } else {
+        int lo, hi;
         wt = (int)g->prev_centre - (gap >> 1) + (int)rngr(&g->rng, 2 * TRIP_WIN_STEP_MAX + 1) - TRIP_WIN_STEP_MAX;
         wt = imax(0, imin(wt, TRIP_GEN_WORLD_H - gap));
         ov = imin(wt + hi_rel, g->prev_band_bottom) - imax(wt + lo_rel, g->prev_band_top);
@@ -58,10 +59,22 @@ static int try_layout(TripGen *g, TripChunk *c, uint32_t d, int n, int top_side,
             wt += (wt + lo_rel < g->prev_band_top) ? shift : -shift;
             wt = imax(0, imin(wt, TRIP_GEN_WORLD_H - gap));
             ov = imin(wt + hi_rel, g->prev_band_bottom) - imax(wt + lo_rel, g->prev_band_top);
-            if (ov < TRIP_PASS_MIN) return 0;
         }
-        centre = wt + (gap >> 1);
-        if (iabs(centre - g->prev_centre) > TRIP_CENTRE_REACH) return 0;
+        /* snap to the grid and keep each edge within one S32 curve of the previous window */
+        lo = imax(imax(0, g->prev_top - TRIP_CAVE_STEP_MAX), g->prev_bottom - TRIP_CAVE_STEP_MAX - gap);
+        hi = imin(imin((TRIP_GEN_WORLD_H - gap) & ~(TRIP_CAVE_GRID - 1), g->prev_top + TRIP_CAVE_STEP_MAX), g->prev_bottom + TRIP_CAVE_STEP_MAX - gap);
+        lo = (lo + TRIP_CAVE_GRID - 1) & ~(TRIP_CAVE_GRID - 1);
+        {   /* the grid position in lo..hi (at most 5) nearest the random one that keeps the pass and the reach */
+            int best = -1, bd = 0x7fff, w;
+            for (w = lo; w <= hi; w += TRIP_CAVE_GRID) {
+                ov = imin(w + hi_rel, g->prev_band_bottom) - imax(w + lo_rel, g->prev_band_top);
+                centre = w + (gap >> 1);
+                if (ov < TRIP_PASS_MIN || iabs(centre - g->prev_centre) > TRIP_CENTRE_REACH) continue;
+                if (iabs(w - wt) < bd) { bd = iabs(w - wt); best = w; }
+            }
+            if (best < 0) return 0;
+            wt = best;
+        }
     }
     wb = wt + gap;
     c->win_top = (int16_t)wt;
@@ -142,7 +155,9 @@ static void make_chunk(TripGen *g, TripChunk *c) {
             break;
         }
         if (tries == 2) {                                    /* even the plain window failed: window on the old band */
-            int gap = TRIP_GAP_MIN, wt = imax(0, imin(g->prev_band_top, TRIP_GEN_WORLD_H - gap));
+            /* the previous window again: always passable, on the grid and no curve */
+            int gap = c->index ? g->prev_bottom - g->prev_top : TRIP_CAVE_GRID * 8;
+            int wt = c->index ? g->prev_top : ((TRIP_GEN_WORLD_H - gap) >> 1) & ~(TRIP_CAVE_GRID - 1);
             memset(&scratch, 0, sizeof scratch);
             scratch.index = c->index; scratch.wx = c->wx; scratch.n_req = c->n_req; scratch.dropped = 1;
             scratch.win_top = (int16_t)wt; scratch.win_bottom = (int16_t)(wt + gap);
@@ -164,6 +179,11 @@ static void make_chunk(TripGen *g, TripChunk *c) {
         g->pk_slot = (uint8_t)s;
         g->pk_chunk = ch;
     }
+    c->in_known = c->index != 0;
+    c->in_top = c->in_known ? g->prev_top : c->win_top;
+    c->in_bottom = c->in_known ? g->prev_bottom : c->win_bottom;
+    g->prev_top = c->win_top;
+    g->prev_bottom = c->win_bottom;
     g->prev_band_top = c->band_top;
     g->prev_band_bottom = c->band_bottom;
     g->prev_centre = (int16_t)((c->win_top + c->win_bottom) >> 1);
@@ -176,6 +196,10 @@ static void build_next(TripGen *g) {
     int slot = g->head + g->count;
     if (slot >= TRIP_GEN_RING) slot -= TRIP_GEN_RING;
     make_chunk(g, &g->ring[slot]);
+    if (g->count) {                                          /* the chunk before learns its right neighbour (cave curves) */
+        TripChunk *p = &g->ring[slot ? slot - 1 : TRIP_GEN_RING - 1];
+        p->out_top = g->ring[slot].win_top; p->out_bottom = g->ring[slot].win_bottom; p->out_known = 1;
+    }
     g->count++;
     g->made++;
     g->next_index++;

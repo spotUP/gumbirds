@@ -208,7 +208,7 @@ static void test_wp4_walls(void) {
                 need += mx;
                 CHECK(need <= gap);                      /* hazards never widen the window */
             }
-            CHECK(gap >= TRIP_GAP_MIN && gap <= TRIP_GAP_MIN + 1); /* full density: the smallest window; the integer reciprocal DENS_RECIP (85, not 85.33) leaves the base one row above MIN */
+            CHECK(gap >= TRIP_GAP_MIN && gap < TRIP_GAP_MIN + TRIP_CAVE_GRID && gap % TRIP_CAVE_GRID == 0); /* full density: the smallest window, rounded up to the 16 px art grid */
             if (!c->n_haz) { abs_len = rel_len = 0; continue; }
             /* absolute height y (flier centre) and height relative to the window top r: clear of every swept hazard box */
             if (abs_len == 0) memset(abs_ok, 1, sizeof abs_ok);

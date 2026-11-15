@@ -5,6 +5,7 @@
 #include "../../src/core/trip_view.h"
 #include "../../src/core/trip_gen.h"
 #include "../../src/core/camera.h"
+#include "../../src/core/trip_cave.h"
 
 static int checks, failures;
 #define CHECK(c) do { checks++; if (!(c)) { failures++; if (failures <= 20) printf("FAIL %s:%d: %s\n", __FILE__, __LINE__, #c); } } while (0)
@@ -14,7 +15,7 @@ int main(void) {
     TripStripCell cells[TRIP_VIEW_STRIP_MAX_ROWS];
     uint32_t seed, k, j;
     int top, rows, r;
-    long columns = 0, loaded_floor = 0;
+    long columns = 0, loaded_floor = 0, curves = 0;
 
     for (seed = 1; seed <= 200; seed++) {
         TripStripRing ring = { 0, 0, 0 };
@@ -44,38 +45,45 @@ int main(void) {
                 if (!ch) continue;
                 CHECK(ch->wx <= (j << 4) && (j << 4) - ch->wx < TRIP_CHUNK_PX);
                 for (ceil_ = 0; ceil_ < 2; ceil_++) {
-                    int m = (int)(j & 3);
+                    TripCavePiece p;
+                    int prow, k = (int)((j << 4) - ch->wx) >> 4, want, edge;
+                    trip_cave_piece(ch, k, ceil_, &p);
+                    prow = trip_cave_piece_rows(p.kind);
+                    if (p.kind) curves++;
+                    edge = trip_cave_edge(ch, k, ceil_);
+                    CHECK(ceil_ ? edge <= ch->win_top : edge >= ch->win_bottom);   /* rock never reaches into the window */
                     rows = trip_view_strip_column(ch, j, ceil_, cells, &top);
                     columns++;
                     CHECK(rows >= 0 && rows <= TRIP_VIEW_STRIP_MAX_ROWS);
                     if (!ceil_) {
-                        int want = ch->win_bottom < TRIP_VIEW_STRIP_BOTTOM ? (TRIP_VIEW_STRIP_BOTTOM - (ch->win_bottom > 0 ? ch->win_bottom : 0) + 15) / 16 : 0;
+                        want = p.y0 < TRIP_VIEW_STRIP_BOTTOM ? (TRIP_VIEW_STRIP_BOTTOM - (p.y0 > 0 ? p.y0 : 0) + 15) / 16 : 0;
                         if (want > TRIP_VIEW_STRIP_MAX_ROWS) want = TRIP_VIEW_STRIP_MAX_ROWS;
-                        CHECK(rows == want && top == ch->win_bottom);
+                        CHECK(rows == want && top == p.y0);
                         if (rows) { loaded_floor++; CHECK(top + 16 * rows >= TRIP_VIEW_STRIP_BOTTOM || rows == TRIP_VIEW_STRIP_MAX_ROWS); }
                     } else {
-                        int want = ch->win_top > 0 ? (ch->win_top + 15) / 16 : 0;
+                        int bottom = p.y0 + 16 * prow;
+                        want = bottom > 0 ? (bottom + 15) / 16 : 0;
                         if (want > TRIP_VIEW_STRIP_MAX_ROWS) want = TRIP_VIEW_STRIP_MAX_ROWS;
                         CHECK(rows == want);
-                        if (rows) CHECK(top + 16 * rows == ch->win_top);
+                        if (rows) CHECK(top + 16 * rows == bottom);
                     }
-                    if (!rows) continue;
-                    {   /* rim next to the window (floor row 0, ceiling last row), fill beyond; rim role and flip by column mod 4 */
-                        const TripStripCell *rim = &cells[ceil_ ? rows - 1 : 0];
-                        int expect_role = (m == 0 || m == 3) ? TRIP_STRIP_RIM_A : TRIP_STRIP_RIM_B;
-                        int expect_flip = ((m & 1) ? TRIP_STRIP_HFLIP : 0) | (ceil_ ? TRIP_STRIP_VFLIP : 0);
-                        CHECK(rim->role == expect_role && rim->flip == expect_flip);
-                        for (r = 0; r < rows; r++) {
-                            if (r == (ceil_ ? rows - 1 : 0)) continue;
-                            CHECK(cells[r].role == TRIP_STRIP_FILL);
-                            CHECK(cells[r].flip == ((((int)j + r) & 1) | (ceil_ ? TRIP_STRIP_VFLIP : 0)));
-                        }
+                    for (r = 0; r < rows; r++) {   /* piece next to the window, then fill, fade (fill art), black */
+                        int d = ceil_ ? rows - 1 - r : r;
+                        const TripStripCell *e = &cells[r];
+                        if (d < prow) {
+                            if (ceil_) CHECK(e->role == TRIP_STRIP_ROOF && (p.kind ? e->frame == (p.kind == TRIP_CAVE_S16 ? TRIP_ROOF_S16 : TRIP_ROOF_S32) && e->cell == p.pcol * prow + (prow - 1 - d)
+                                                                               : (e->frame == TRIP_ROOF_RIM_A || e->frame == TRIP_ROOF_RIM_B) && e->cell == (j & 3)));
+                            else CHECK(p.kind ? e->role == (p.kind == TRIP_CAVE_S16 ? TRIP_STRIP_FS16 : TRIP_STRIP_FS32) && e->cell == p.pcol * prow + d
+                                              : e->role == TRIP_STRIP_LIP + (int)(j & 3));
+                            CHECK(e->flip == (p.hflip ? TRIP_STRIP_HFLIP : 0));
+                        } else if (d - prow >= TRIP_STRIP_FILL_ROWS + TRIP_STRIP_FADE_ROWS) CHECK(e->role == TRIP_STRIP_BLACK);
+                        else CHECK(e->role == (ceil_ ? TRIP_STRIP_ROOF : TRIP_STRIP_FILL) && (!ceil_ || e->frame == TRIP_ROOF_FILL));
                     }
                 }
             }
         }
     }
-    CHECK(columns > 20000 && loaded_floor > 5000);
-    printf("%s trip strip: %d checks, %d failures, %ld columns built, %ld floor columns with art\n", failures ? "FAIL" : "PASS", checks, failures, columns, loaded_floor);
+    CHECK(columns > 20000 && loaded_floor > 5000 && curves > 1000);
+    printf("%s trip strip: %d checks, %d failures, %ld columns built, %ld floor columns with art, %ld curve columns\n", failures ? "FAIL" : "PASS", checks, failures, columns, loaded_floor, curves);
     return failures ? 1 : 0;
 }

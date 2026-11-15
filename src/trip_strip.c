@@ -5,6 +5,9 @@
 #include "core/camera.h"
 #include "core/trip_view.h"
 #include "gen/tripstrip_tables.h"
+_Static_assert(TRIPSTRIP_ANIM_FILL == TRIP_STRIP_FILL && TRIPSTRIP_ANIM_LIP0 == TRIP_STRIP_LIP && TRIPSTRIP_ANIM_FLOOR_S16 == TRIP_STRIP_FS16
+    && TRIPSTRIP_ANIM_FLOOR_S32 == TRIP_STRIP_FS32 && TRIPSTRIP_ANIM_ROOF == TRIP_STRIP_ROOF && TRIPSTRIP_ANIM_BLACK == TRIP_STRIP_BLACK,
+    "strip roles follow the sheet anim order");
 
 #define COLS TRIP_VIEW_STRIP_COLS
 #define ALL (2 * COLS)
@@ -31,7 +34,8 @@ static u16 g_scb4[ALL];     /* SCB4 word per sprite: floor slots first, then cei
 static u16 g_pairs[ALL][ROWS * 2]; /* {tile, attribute} per row; the queue keeps the pointer until the flush */
 
 void trip_strip_load_palettes(void) {
-    for (u8 i = 0; i < 16; i++) gfx_pal((u16)(TRIPSTRIP_PAL_SLOT * 16 + i), tripstrip_palettes[0][i]);
+    for (u8 p = 0; p < TRIPSTRIP_PALETTE_COUNT; p++)
+        for (u8 i = 0; i < 16; i++) gfx_pal((u16)((TRIPSTRIP_PAL_SLOT + p) * 16 + i), tripstrip_palettes[p][i]);
 }
 
 static void hide_sprites(void) {
@@ -60,11 +64,11 @@ static void load(u8 slot, int ceiling, u32 j, const TripChunk *ch) {
     u16 *p = g_pairs[slot + (ceiling ? COLS : 0)];
     if (!rows) { g_scb3[sprite - TRIP_STRIP_SPRITE] = 0; if (g_vis) gfx_word((u16)(ADDR_SCB3 + sprite), 0); return; }
     for (int i = 0; i < rows; i++) {
-        u16 attr = (u16)((TRIPSTRIP_PAL_SLOT << 8) | cells[i].flip);
-        u16 tile;
-        if (cells[i].role == TRIP_STRIP_FILL) tile = tripstrip_tile_index[0];
-        else { tile = tripstrip_tile_index[cells[i].role == TRIP_STRIP_RIM_A ? 1 : 9]; attr |= 0x08; } /* rim: 8 frame auto-animation */
-        p[i * 2] = tile; p[i * 2 + 1] = attr;
+        const TripStripCell *e = &cells[i];
+        u16 f = (u16)(tripstrip_anims[e->role].first_frame + e->frame);
+        u16 attr = (u16)(((TRIPSTRIP_PAL_SLOT + tripstrip_frames[f].palette) << 8) | e->flip);
+        if (e->role >= TRIP_STRIP_LIP && e->role <= TRIP_STRIP_FS32) attr |= 0x08; /* lip and floor curves: 8 frame auto-animation */
+        p[i * 2] = tripstrip_tile_index[tripstrip_frames[f].tile_offset + e->cell]; p[i * 2 + 1] = attr;
     }
     gfx_strip_attr(sprite, p, TRIPSTRIP_TILE_BASE, (u8)rows);
     g_scb3[sprite - TRIP_STRIP_SPRITE] = gfx_scb3_word((u8)rows, top);

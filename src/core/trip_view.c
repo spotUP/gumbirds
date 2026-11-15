@@ -1,6 +1,7 @@
 #include "trip_view.h"
 #include "trip_hit.h"
 #include "camera.h"
+#include "trip_cave.h"
 
 int trip_view_screen_x(uint32_t wx, uint32_t scroll_px) {
     return (int)(int32_t)(wx - scroll_px);
@@ -165,28 +166,54 @@ const TripChunk *trip_view_strip_chunk(const TripGen *g, uint32_t j, int ready) 
     int r;
     for (r = 0; r < TRIP_GEN_RING; r++) {
         const TripChunk *ch = trip_view_ring_chunk(g, r, ready);
-        if (ch && wx >= ch->wx && wx - ch->wx < TRIP_CHUNK_PX) return ch;
+        /* trailing curve columns wait until the next chunk's window is known */
+        if (ch && wx >= ch->wx && wx - ch->wx < TRIP_CHUNK_PX)
+            return (wx - ch->wx >= 16 * (TRIP_CAVE_COLS - TRIP_CAVE_CURVE_COLS) && !ch->out_known) ? 0 : ch;
     }
     return 0;
 }
 
+/* Depth cell d rows away from the piece (0 = first row past it): fill, then fade (fill art for now), then black. */
+static void depth_cell(TripStripCell *e, int d, uint32_t j, int r, int ceiling) {
+    e->frame = 0; e->cell = 0; e->flip = 0;
+    if (d >= TRIP_STRIP_FILL_ROWS + TRIP_STRIP_FADE_ROWS) { e->role = TRIP_STRIP_BLACK; return; }
+    if (ceiling) { e->role = TRIP_STRIP_ROOF; e->frame = TRIP_ROOF_FILL; e->cell = (uint8_t)(((int)j + 2 * r) & 3); }
+    else { e->role = TRIP_STRIP_FILL; e->flip = (uint8_t)(((int)j + r) & 1); }
+}
+
 int trip_view_strip_column(const TripChunk *c, uint32_t j, int ceiling, TripStripCell *cells, int *top) {
-    int rows, i, m = (int)(j & 3), vf = ceiling ? TRIP_STRIP_VFLIP : 0;
-    TripStripCell rim;
-    rim.role = (m == 0 || m == 3) ? TRIP_STRIP_RIM_A : TRIP_STRIP_RIM_B;
-    rim.flip = (uint8_t)(((m & 1) ? TRIP_STRIP_HFLIP : 0) | vf);
+    TripCavePiece p;
+    int k = (int)((j << 4) - c->wx) >> 4, prow = 0, rows, i, edge;
+    trip_cave_piece(c, k, ceiling, &p);
+    prow = trip_cave_piece_rows(p.kind);
     if (ceiling) {
-        rows = c->win_top > 0 ? (c->win_top + 15) >> 4 : 0;
+        edge = p.y0 + 16 * prow;   /* piece bottom */
+        rows = edge > 0 ? (edge + 15) >> 4 : 0;
         if (rows > TRIP_VIEW_STRIP_MAX_ROWS) rows = TRIP_VIEW_STRIP_MAX_ROWS;
-        *top = c->win_top - (rows << 4);
-        for (i = 0; i < rows - 1; i++) { cells[i].role = TRIP_STRIP_FILL; cells[i].flip = (uint8_t)((((int)j + i) & 1) | vf); }
-        if (rows) cells[rows - 1] = rim;
+        *top = edge - (rows << 4);
+        for (i = 0; i < rows; i++) {
+            int r = rows - 1 - i;   /* rows up from the piece bottom */
+            TripStripCell *e = &cells[i];
+            if (r < prow) {
+                int pr = prow - 1 - r;
+                e->role = TRIP_STRIP_ROOF; e->flip = p.hflip ? TRIP_STRIP_HFLIP : 0;
+                if (p.kind == TRIP_CAVE_FLAT) { e->frame = (uint8_t)((((j >> 2) * 2654435761u) >> 31) ? TRIP_ROOF_RIM_B : TRIP_ROOF_RIM_A); e->cell = (uint8_t)(j & 3); }
+                else { e->frame = p.kind == TRIP_CAVE_S16 ? TRIP_ROOF_S16 : TRIP_ROOF_S32; e->cell = (uint8_t)(p.pcol * prow + pr); }
+            } else depth_cell(e, r - prow, j, i, 1);
+        }
     } else {
-        rows = c->win_bottom < TRIP_VIEW_STRIP_BOTTOM ? (TRIP_VIEW_STRIP_BOTTOM - (c->win_bottom > 0 ? c->win_bottom : 0) + 15) >> 4 : 0;
+        edge = p.y0;
+        rows = edge < TRIP_VIEW_STRIP_BOTTOM ? (TRIP_VIEW_STRIP_BOTTOM - (edge > 0 ? edge : 0) + 15) >> 4 : 0;
         if (rows > TRIP_VIEW_STRIP_MAX_ROWS) rows = TRIP_VIEW_STRIP_MAX_ROWS;
-        *top = c->win_bottom;
-        if (rows) cells[0] = rim;
-        for (i = 1; i < rows; i++) { cells[i].role = TRIP_STRIP_FILL; cells[i].flip = (uint8_t)((((int)j + i) & 1) | vf); }
+        *top = edge;
+        for (i = 0; i < rows; i++) {
+            TripStripCell *e = &cells[i];
+            if (i < prow) {
+                e->frame = 0; e->flip = p.hflip ? TRIP_STRIP_HFLIP : 0;
+                if (p.kind == TRIP_CAVE_FLAT) { e->role = (uint8_t)(TRIP_STRIP_LIP + (j & 3)); e->cell = 0; }
+                else { e->role = p.kind == TRIP_CAVE_S16 ? TRIP_STRIP_FS16 : TRIP_STRIP_FS32; e->cell = (uint8_t)(p.pcol * prow + i); }
+            } else depth_cell(e, i - prow, j, i, 0);
+        }
     }
     return rows;
 }

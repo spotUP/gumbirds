@@ -1,5 +1,6 @@
 /* trip_hit.c - Gum Trip collision, see trip_hit.h. */
 #include "trip_hit.h"
+#include "trip_cave.h"
 
 int trip_hit_haz_y(const TripGenHazard *h, uint32_t frame) {
     uint8_t a = (uint8_t)(h->phase + (uint8_t)(frame * TRIP_SWEEP_STEP));
@@ -63,8 +64,7 @@ int trip_hit_window(const Trip *t, const TripGen *g, const Flier *f, int32_t *lo
         const TripChunk *c = &g->ring[s];
         int rel = (int)(int32_t)(t->px - c->wx) + fx;
         if (rel + FLIER_HALF_W < 0 || rel - FLIER_HALF_W > TRIP_CHUNK_PX - 1) continue;
-        if (c->win_top > top) top = c->win_top;
-        if (c->win_bottom < bot) bot = c->win_bottom;
+        trip_cave_span(c, rel - FLIER_HALF_W, rel + FLIER_HALF_W, &top, &bot);   /* per 16 px column, curves included */
         any = 1;
     }
     /* the box rows y-fh..y+fh must avoid rows 0..top-1 and bot..179 (the trip_collide rule) */
@@ -122,7 +122,11 @@ unsigned trip_collide(Trip *t, TripGen *g, Flier *f) {
         TripChunk *c = &g->ring[s];
         int rel = (int)(int32_t)(t->px - c->wx) + fx;   /* flier whole x relative to the chunk start */
         if (rel + FLIER_HALF_W < 0 || rel - FLIER_HALF_W > TRIP_CHUNK_PX - 1) continue;   /* flier box misses the chunk */
-        if (fy - fh <= c->win_top - 1 || fy + fh >= c->win_bottom) hit = 1;
+        {
+            int top = -32768, bot = 32767;
+            trip_cave_span(c, rel - FLIER_HALF_W, rel + FLIER_HALF_W, &top, &bot);   /* the rock drawn in the columns the box covers */
+            if (fy - fh <= top - 1 || fy + fh >= bot) hit = 1;
+        }
         for (k = 0; k < c->n_haz; k++) {
             const TripGenHazard *h = &c->haz[k];
             if (iabs(rel - h->x) <= h->hw + FLIER_HALF_W && iabs(fy - trip_hit_haz_y(h, t->steps)) <= h->hh + fh) hit = 1;   /* trip_hit_haz_bounce repeats this test */
@@ -148,8 +152,7 @@ int trip_hit_wall_touch(const Trip *t, const TripGen *g, const Flier *f) {
 
 unsigned trip_hit_hero_walls(Trip *t, const TripGen *g, Flier *f) {
     int side = trip_hit_wall_touch(t, g, f);
-    if (side == TRIP_WALL_BOTTOM) return trip_wall_kill(t, f) ? TRIP_EV_HIT : 0u;
-    if (side == TRIP_WALL_TOP) trip_hit_clamp_window(t, g, f);   /* bounce down: vy reflected, no gum loss */
+    if (side) return trip_wall_kill(t, f) ? TRIP_EV_HIT : 0u;   /* floor and roof both kill (owner 2026-11-15) */
     return 0;
 }
 
