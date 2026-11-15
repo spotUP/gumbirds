@@ -16,8 +16,8 @@
 
 /* Kind the core must use now: the shown strip, or the one the next strip will show (demo, title, a play starting this frame). */
 u8 hazard_kind_now(void);
-void hazard_game_restart(void);  /* a new game: the next strip is round 0's kind */
-void hazard_round_restart(void); /* a new round: the strip is swapped for the next kind on the next hazard_step */
+void hazard_game_restart(u8 kind);  /* a new game: the next strip shows this kind (world_hazard) */
+void hazard_round_restart(u8 kind); /* a new round: the strip is swapped for this kind on the next hazard_step */
 
 void hazard_load_palettes(void);
 void hazard_init(void);               /* hide both banks; the hardware state is unknown (video_init) */

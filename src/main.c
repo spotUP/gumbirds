@@ -7,6 +7,7 @@
 #include <ngdevkit/ng-video.h>
 #include <ngdevkit/bios-ram.h>
 #include "core/stage.h"
+#include "core/world.h"
 #include "core/camera.h"
 #include "core/bg_scroll.h"
 #include "core/flier.h"
@@ -1488,8 +1489,8 @@ static void game_loop(void) {
             static u8 s_was_playing = 0;
             u8 playing = (g_flow.state == FLOW_PLAYING || g_flow.state == FLOW_ATTRACT_DEMO) && (g_flow.game.mode == GAME_MODE_ARENA || g_flow.game.mode == GAME_MODE_ARCADE); /* a new arcade stage swaps the strip like a new round */
             int rnd = game_round_number(&g_flow.game);
-            if (playing && !s_was_playing) { hazard_game_restart(); s_round = rnd; }
-            else if (playing && rnd != s_round && g_flow.game.round_end != RE_HOLD) { hazard_round_restart(); s_round = rnd; }
+            if (playing && !s_was_playing) { hazard_game_restart(world_hazard(&g_flow.game)); s_round = rnd; }
+            else if (playing && rnd != s_round && g_flow.game.round_end != RE_HOLD) { hazard_round_restart(world_hazard(&g_flow.game)); s_round = rnd; }
             s_was_playing = playing;
         }
         { /* arena layout per round: game.c match_start selected it; the island sprites follow in the same frame (the ROUND banner freeze) */

@@ -16,7 +16,7 @@ static const u8 k_first_anim[HAZARD_KINDS] = HAZARD_TABLE_FIRST_ANIM;
 static s16 g_col_x[HAZARD_STRIP_COLS]; /* last x sent per column (both banks), or CAMERA_COL_HIDDEN before the first place() */
 volatile u8 g_hazard_kind = 0xFF;
 volatile u16 g_hazard_matches;
-static u16 g_round;   /* round of the running game, 0 for the first: picks the kind (hazard_kind_for_round) */
+static u8 g_next = HZ_WATER; /* kind of the next strip: main.c passes it from world_hazard (src/core/world.h) */
 static u8 g_restart;  /* a new round: hide the strip and start the next kind in the same step */
 static int g_placed_cam = -1; /* camera the columns were last placed for: place() is a pure function of it (-1: unknown) */
 static u8 g_running;
@@ -94,7 +94,7 @@ static void start(int cam_px) {
     g_hazard_matches++;
 }
 
-u8 hazard_kind_now(void) { return g_hazard_kind != 0xFF ? g_hazard_kind : hazard_kind_for_round(g_round); }
+u8 hazard_kind_now(void) { return g_hazard_kind != 0xFF ? g_hazard_kind : g_next; }
 
 static u8 g_trip_anim;
 void hazard_trip_anim(u8 trip) {
@@ -104,8 +104,8 @@ void hazard_trip_anim(u8 trip) {
 
 u8 hazard_owns_anim(void) { return g_hazard_kind != 0xFF || g_trip_anim; }
 
-void hazard_game_restart(void) { g_round = 0; g_restart = 0; }
-void hazard_round_restart(void) { g_round++; g_restart = 1; }
+void hazard_game_restart(u8 kind) { g_next = kind; g_restart = 0; }
+void hazard_round_restart(u8 kind) { g_next = kind; g_restart = 1; }
 
 void hazard_step(u8 match_running, int cam_px) {
     if (g_restart) {
