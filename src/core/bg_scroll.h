@@ -17,6 +17,24 @@
 #define BG_TRIP_HIDDEN_MASK ((1u << BG_PLANE_FAR) | (1u << BG_PLANE_NEAR))
 #define BG_K_ONE 16  /* factor denominator: k 16 = full camera speed */
 
+/* Mood change fade (src/bg.c): the shown mood's palettes dim to black over BG_FADE_FRAMES frames, the tiles swap while it is dark, the new
+ * mood's palettes brighten again. level 0 = black, BG_FADE_MAX = as drawn. */
+#define BG_FADE_FRAMES 16
+#define BG_FADE_MAX BG_FADE_FRAMES
+enum { BGF_IDLE, BGF_OUT, BGF_DARK, BGF_IN };
+typedef struct { uint8_t phase, level; } BgFade;
+/* Palette word c at `level` (0..BG_FADE_MAX): the 5 bit channels scaled by level / BG_FADE_MAX, the dark bit untouched. */
+uint16_t bg_fade_color(uint16_t c, uint8_t level);
+/* Begin the fade out (from IDLE at full level; from IN it turns round at the level reached). */
+void bg_fade_start(BgFade *f);
+/* A request for the mood on screen during OUT: turn round and brighten again from the level reached. */
+void bg_fade_abort(BgFade *f);
+/* One frame. OUT lowers the level and returns 1 on the frame it reaches black (the caller starts the tile swap, phase DARK); DARK waits for
+ * bg_fade_swapped; IN raises it. */
+uint8_t bg_fade_step(BgFade *f);
+void bg_fade_settle(BgFade *f, uint8_t synced); /* IN at full level with every palette written: IDLE */
+void bg_fade_swapped(BgFade *f); /* the tiles are in: DARK -> IN */
+
 /* Looping planes. u = camera_unwrapped_px (continuous; it drops by CAM_LAP_PERIOD_PX once per lap, a multiple of every plane period at its
  * factor, so no plane moves at the drop), k = factor (a multiple of 4: shifts and adds, no multiply), period = plane width in px
  * (generated CITY_TABLE_PLANE_PERIOD_PX). Offset into the art: floor(u * k / 16) mod period, u at most CAM_LAP_PERIOD_PX + 383. */
