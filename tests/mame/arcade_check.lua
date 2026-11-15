@@ -203,7 +203,9 @@ emu.register_frame_done(function()
     for i = 0, b(O_NCPU) - 1 do mem:write_u8(flow_addr + O_C0STATE + i * SZ_FLIER, K.gone) end
     if g(O_ASTATE) == K.clear then phase = "walk_wait_next"; clear_frames = 0 end
   elseif phase == "walk_wait_next" then
-    if g(O_ASTATE) == K.play then phase = "walk"; walk_wait = 0; print(string.format("ARC_PROG stage %d at frame %d", g(O_STAGE), n)) end
+    -- the bonus result screen holds until a press (847d0d9): tap A while it shows
+    abtn:set_value(b(O_RES) == 1 and (n % 8) < 2 and 1 or 0)
+    if g(O_ASTATE) == K.play then abtn:set_value(0); phase = "walk"; walk_wait = 0; print(string.format("ARC_PROG stage %d at frame %d", g(O_STAGE), n)) end
   elseif phase == "bonus_go" then
     -- every stage's rivals forced GONE until the arcade state is BONUS; then every frame of the bonus stage is measured until it ends
     bon_wait = bon_wait + 1
