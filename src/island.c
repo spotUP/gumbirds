@@ -189,6 +189,27 @@ static void trip_block_load(int r, const TripChunk *ch) {
     }
 }
 
+/* Loads the tiles of every ring chunk's island whose block holds another one (SCB3 stays as is: hidden columns stay hidden). */
+static u8 trip_keys(const TripGen *g) {
+    u8 changed = 0;
+    for (int r = 0; r < TRIP_GEN_RING; r++) {
+        const TripChunk *ch = trip_view_ring_chunk(g, r, 1);
+        u32 key = (ch && ch->island.present) ? ch->index + 1 : 0;
+        if (key == g_trip_key[r]) continue;
+        trip_block_hide(r);
+        if (key) trip_block_load(r, ch);
+        g_trip_key[r] = key;
+        changed = 1;
+    }
+    return changed;
+}
+
+u8 island_trip_preload(const TripGen *g) {
+    if (!g_loaded) return 0;
+    trip_keys(g);
+    return 1;
+}
+
 void island_trip_step(const TripGen *g, uint32_t scroll_px, int ready) {
     u8 changed = 0, moved = 0;
     if (!g) {
@@ -208,15 +229,7 @@ void island_trip_step(const TripGen *g, uint32_t scroll_px, int ready) {
         return;
     }
     if (!g_loaded) return;
-    for (int r = 0; r < TRIP_GEN_RING; r++) {
-        const TripChunk *ch = trip_view_ring_chunk(g, r, ready);
-        u32 key = (ch && ch->island.present) ? ch->index + 1 : 0;
-        if (key == g_trip_key[r]) continue;
-        trip_block_hide(r);
-        if (key) trip_block_load(r, ch);
-        g_trip_key[r] = key;
-        changed = 1;
-    }
+    changed = trip_keys(g);
     if (!changed && g_trip_px_valid && scroll_px == g_trip_px) return;
     g_trip_px = scroll_px; g_trip_px_valid = 1;
     for (int r = 0; r < TRIP_GEN_RING; r++) {

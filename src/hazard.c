@@ -35,6 +35,9 @@ static const u16 k_hidden[HAZARD_COUNT]; /* SCB3 height 0 hides a column */
  * send them as one run (22 + 48 * 4 us in the flush, about 7 lines of logic). One word op per column, twice on a round restart
  * (here and in start), was 96 ops and about 105 lines of logic: the restart frame ran past vblank start and the flush was
  * skipped (thoughts/spot/2026-11-12-test-scroll-diagnosis.md). */
+/* Banks of kind g_pre_kind already loaded (hidden) by hazard_preload; start() loads only the rest. */
+static u8 g_pre_kind = 0xFF, g_pre_banks;
+
 static void hide_banks(void) {
     gfx_swap_disarm();
     gfx_scb_forget((u16)(ADDR_SCB3 + HAZARD_SPRITE), HAZARD_COUNT);
@@ -46,6 +49,7 @@ void hazard_init(void) {
     hide_banks();
     g_hazard_kind = 0xFF;
     g_running = 0;
+    g_pre_kind = 0xFF; /* a BIOS return may have reset VRAM: no preloaded bank is trusted */
 }
 
 /* Each column sits on the ring at camera_parked_column_x; both banks share the x. Hidden columns are parked at x 320, not
@@ -68,23 +72,36 @@ static void place(int cam_px) {
         for (u8 b = 0; b < 2; b++) gfx_scb_run((u16)(ADDR_SCB4 + BANK_SPRITE(b)), 1, words, HAZARD_STRIP_COLS);
 }
 
-static void start(int cam_px) {
-    u8 kind = hazard_kind_now(); /* the strip is hidden here, so this is the kind of the next match */
+/* The tiles of one bank (SCB1 and the hidden size words): the heavy part of a strip start, about 66 raster lines a bank. */
+static void load_bank(u8 kind, u8 b) {
     u8 nv = k_variants[kind];
     u16 attr = 0;
-    for (u8 b = 0; b < 2; b++) {
-        for (u8 c = 0; c < HAZARD_STRIP_COLS; c++) {
-            u8 anim = (u8)(k_first_anim[kind] + 2 * ((c / 4) % nv) + b);
-            const HazardFrame *f = &hazard_frames[hazard_anims[anim].first_frame];
-            /* the first frame's tile of each cell is the base of the cell's run of 8 consecutive frames */
-            for (u8 r = 0; r < HAZARD_STRIP_ROWS; r++)
-                g_tiles[b][c * HAZARD_STRIP_ROWS + r] = hazard_tile_index[f->tile_offset + (c % 4) * HAZARD_STRIP_ROWS + r];
-            attr = (u16)(((HAZARD_PAL_SLOT + f->palette) << 8) | 0x08); /* bit 3: 8-frame auto-animation */
-        }
-        gfx_sprite_strips(BANK_SPRITE(b), HAZARD_STRIP_COLS, HAZARD_STRIP_ROWS, g_tiles[b], HAZARD_TILE_BASE, attr);
-        gfx_sprite_unchained(BANK_SPRITE(b), HAZARD_STRIP_COLS);
-        gfx_scb_run((u16)(ADDR_SCB3 + BANK_SPRITE(b)), 1, k_hidden, HAZARD_STRIP_COLS); /* deduped: hide_banks sent them since the last swap */
+    for (u8 c = 0; c < HAZARD_STRIP_COLS; c++) {
+        u8 anim = (u8)(k_first_anim[kind] + 2 * ((c / 4) % nv) + b);
+        const HazardFrame *f = &hazard_frames[hazard_anims[anim].first_frame];
+        /* the first frame's tile of each cell is the base of the cell's run of 8 consecutive frames */
+        for (u8 r = 0; r < HAZARD_STRIP_ROWS; r++)
+            g_tiles[b][c * HAZARD_STRIP_ROWS + r] = hazard_tile_index[f->tile_offset + (c % 4) * HAZARD_STRIP_ROWS + r];
+        attr = (u16)(((HAZARD_PAL_SLOT + f->palette) << 8) | 0x08); /* bit 3: 8-frame auto-animation */
     }
+    gfx_sprite_strips(BANK_SPRITE(b), HAZARD_STRIP_COLS, HAZARD_STRIP_ROWS, g_tiles[b], HAZARD_TILE_BASE, attr);
+    gfx_sprite_unchained(BANK_SPRITE(b), HAZARD_STRIP_COLS);
+    gfx_scb_run((u16)(ADDR_SCB3 + BANK_SPRITE(b)), 1, k_hidden, HAZARD_STRIP_COLS); /* deduped: hide_banks sent them since the last swap */
+}
+
+void hazard_preload(void) {
+    u8 kind = hazard_kind_now();
+    if (g_running || g_restart) return;
+    if (kind != g_pre_kind) { g_pre_kind = kind; g_pre_banks = 0; }
+    if (g_pre_banks < 2) load_bank(kind, g_pre_banks++);
+}
+
+u8 hazard_preloaded(void) { return g_running || (g_pre_kind == hazard_kind_now() && g_pre_banks == 2); }
+
+static void start(int cam_px) {
+    u8 kind = hazard_kind_now(); /* the strip is hidden here, so this is the kind of the next match */
+    for (u8 b = (kind == g_pre_kind) ? g_pre_banks : 0; b < 2; b++) load_bank(kind, b);
+    g_pre_kind = 0xFF; /* one use: later starts (round restarts) load their own tiles as before */
     for (u8 c = 0; c < HAZARD_STRIP_COLS; c++) g_col_x[c] = CAMERA_COL_HIDDEN;
     g_placed_cam = -1;
     place(cam_px);

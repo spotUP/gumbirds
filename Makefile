@@ -806,6 +806,7 @@ test-trip: cart
 	BRAWL_FLOW_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flow"{print $$1}') \
 	BRAWL_FRAME_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_frame_counter"{print $$1}') \
 	BRAWL_TRIPDRAWS_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_island_trip_draws"{print $$1}') \
+	BRAWL_BGHELD_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_bg_held"{print $$1}') \
 	BRAWL_ISLANDDRAWS_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_island_draws"{print $$1}') \
 	BRAWL_STRIPDRAWS_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_trip_strip_draws"{print $$1}') \
 	BRAWL_WINCALLS_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_trip_window_calls"{print $$1}') \

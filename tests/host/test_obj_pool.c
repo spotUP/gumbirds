@@ -123,6 +123,22 @@ static void test_anim_stagger(void) {
     }
     printf("anim stagger: worst %d of 16 drones change frame on one frame\n", worst);
     CHECK(worst <= 8);
+    /* Two types alternating over the slots (the stress fill: drone, bot, drone...): the 16 drones on every other slot still split. */
+    obj_pool_init(&P, 96);
+    for (int k = 0; k < 32; k++) obj_pool_alloc(&P, 1, 0, 0, 0, 0);
+    for (int k = 0; k < 32; k += 2) prev[k / 2] = P.obj[k].anim;
+    worst = 0;
+    for (int f = 0; f < 64; f++) {
+        int changed = 0;
+        for (int k = 0; k < 32; k += 2) {
+            obj_pool_anim(&P.obj[k], 2, 2);
+            if (P.obj[k].anim != prev[k / 2]) changed++;
+            prev[k / 2] = P.obj[k].anim;
+        }
+        if (changed > worst) worst = changed;
+    }
+    printf("anim stagger: worst %d of 16 even-slot drones change frame on one frame\n", worst);
+    CHECK(worst <= 8);
 }
 
 /* obj_pool_claim takes one named free object, leaves the others allocatable, refuses a live or out-of-range object. */
