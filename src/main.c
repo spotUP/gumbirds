@@ -614,7 +614,11 @@ static void arcade_elems_step(const Game *g) {
 #define BONUS_FLOOR_TILES (ARC_BONUS_WORLD_W / 32)
 _Static_assert(BONUS_PUFF_SPRITE + 2 * ARC_NOZZLE_COUNT <= ARC_BONUS_SPRITE + TRIP_STRIP_COUNT, "bonus sprites exceed the shared strip range");
 _Static_assert(ARC_BONUS_COUNT >= 2 * ARC_BONUS_LIVE_MAX && 2 * BONUS_FLOOR_TILES <= ISLAND_COUNT, "bonus sprite slot counts");
-_Static_assert(ARCADE_PIECE_NOZZLE0_COUNT == 1 && ARCADE_PIECE_FLOOR_COUNT == 1 && ARCADE_PIECE_PUFF_COUNT == 4, "bonus art frame counts");
+_Static_assert(ARCADE_PIECE_NOZZLE0_COUNT == 1 && ARCADE_PIECE_FLOOR_COUNT == 1 && ARCADE_PIECE_PUFF_COUNT == 13 && ARCADE_PUFF_TOTAL_TICKS == ARC_BONUS_PUFF_FRAMES, "bonus art frame counts");
+_Static_assert(ARC_BONUS_PUFF_FRAMES <= ARC_BONUS_SPAWN_MIN, "a nozzle cannot fire again inside its burst");
+static const u8 k_puff_ticks[ARCADE_PIECE_PUFF_COUNT] = ARCADE_TABLE_PUFF_FRAME_TICKS;
+/* Art frame of the burst after e elapsed ticks (e < ARC_BONUS_PUFF_FRAMES). */
+static int puff_frame(int e) { int f = 0; while (e >= k_puff_ticks[f]) e -= k_puff_ticks[f++]; return f; }
 _Static_assert(TRIPPICKUP_PICKUP_IDLE_FRAMES == ARC_VIEW_BUBBLE_FRAMES, "pickup idle frame count differs from arc_view bubbles");
 static u8 g_bonus_dirty;
 static int g_bonus_cam = -1; /* camera the floor and nozzles were last placed for; -1 = place them again */
@@ -720,7 +724,7 @@ static void arcade_bonus_step(const Game *g) {
     bonus_static_place();
     for (int k = 0; k < ARC_NOZZLE_COUNT; k++) {
         int top = arc_nozzle_top(k), x = arc_nozzle_x(k), p = g->bonus.puff[k];
-        if (p) { bonus_piece((u16)(BONUS_PUFF_SPRITE + 2 * k), ARCADE_PIECE_PUFF_FIRST + ((ARC_BONUS_PUFF_FRAMES - p) >> 2), x, top - 24); g_bonus_puff_on |= (u8)(1 << k); }
+        if (p) { bonus_piece((u16)(BONUS_PUFF_SPRITE + 2 * k), ARCADE_PIECE_PUFF_FIRST + puff_frame(ARC_BONUS_PUFF_FRAMES - p), x, top - 24); g_bonus_puff_on |= (u8)(1 << k); }
         else if (g_bonus_puff_on & (1 << k)) { obs_hide_slot((u16)(BONUS_PUFF_SPRITE + 2 * k)); obs_hide_slot((u16)(BONUS_PUFF_SPRITE + 2 * k + 1)); g_bonus_puff_on &= (u8)~(1 << k); }
     }
 }

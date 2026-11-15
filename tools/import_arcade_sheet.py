@@ -34,9 +34,12 @@ STRIPS = [
     ("drop_a_strip.png", 16, 16, [("drop_a", 6)]),
 ]
 # Bonus stage nozzle art (thoughts/spot/drafts/2026-11-13-bonus-nozzles/, variant A): one image with 4 nozzles of different heights
-# (bottom aligned in the image), the mouth puff (4 frames) and the floor tile (left 32 of 64). One unpinned "nozzle" group, so it
+# (bottom aligned in the image), the gum burst (13 frames) and the floor tile (left 32 of 64). One unpinned "nozzle" group, so it
 # gets its own palette appended after the pinned ones and no existing arcade palette index moves.
 NOZZLE_DIR = os.path.join(ROOT, "thoughts/spot/drafts/2026-11-13-bonus-nozzles")
+# Gum burst (variant A "tight pop", picked 2026-11-15; draft thoughts/shared/drafts/2026-11-15-gum-burst/): 13 frames of 32x32, ticks per frame at 60 Hz.
+BURST_DIR = os.path.join(ROOT, "assets/arcade")
+BURST_TICKS = [3, 3, 2, 2, 2, 2, 3, 3, 3, 3, 3, 4, 4]
 NOZZLE_X = [0, 36, 72, 108]; NOZZLE_W = 32; NOZZLE_H = [24, 40, 32, 36]
 # animation -> palette it is pinned to (sources: triphaz storm, sootling player/cpu, island roof)
 PINS = {"storm": ["body_a", "body_b", "spark_a", "spark_b", "smoke_light", "smoke_dark", "flash", "air", "hatch"],
@@ -44,8 +47,8 @@ PINS = {"storm": ["body_a", "body_b", "spark_a", "spark_b", "smoke_light", "smok
         "computer": ["blow", "caught"],
         "roof": ["island_a", "island_b"]}
 META = {
-    "defines": {"ISLAND48_ART_W": 48, "VENT_ART_W": 32, "VENT_FRAMES": 5, "SPARK_ART_W": 16, "SPARK_FRAMES": 8, "SPARK_HIT_X0": 3, "SPARK_HIT_Y0": 3, "SPARK_HIT_X1": 13, "SPARK_HIT_Y1": 13, "VENT_LOOP_TICKS": 336, "PARTICLE_ART_W": 16, "FLIPPER_ART_W": 40, "FLIPPER_FRAMES": 8, "FLIPPER_A_HIT_R": 14, "FLIPPER_B_HIT_R": 12, "GRABBER_ART_W": 40, "GRABBER_ART_H": 44, "GRABBER_FRAMES": 12, "BLOW_ART_W": 24, "BLOW_ART_H": 32, "DROP_ART_W": 16, "DROP_FRAMES": 6},
-    "tables": {"grabber_frame_ticks": [7, 6, 4, 4, 8, 3, 4, 13, 5, 5, 5, 7], "spark_frame_ticks": [4], "caught_frame_ticks": [6, 10]},
+    "defines": {"ISLAND48_ART_W": 48, "VENT_ART_W": 32, "VENT_FRAMES": 5, "SPARK_ART_W": 16, "SPARK_FRAMES": 8, "SPARK_HIT_X0": 3, "SPARK_HIT_Y0": 3, "SPARK_HIT_X1": 13, "SPARK_HIT_Y1": 13, "VENT_LOOP_TICKS": 336, "PARTICLE_ART_W": 16, "FLIPPER_ART_W": 40, "FLIPPER_FRAMES": 8, "FLIPPER_A_HIT_R": 14, "FLIPPER_B_HIT_R": 12, "GRABBER_ART_W": 40, "GRABBER_ART_H": 44, "GRABBER_FRAMES": 12, "BLOW_ART_W": 24, "BLOW_ART_H": 32, "DROP_ART_W": 16, "DROP_FRAMES": 6, "PUFF_TOTAL_TICKS": sum(BURST_TICKS)},
+    "tables": {"grabber_frame_ticks": [7, 6, 4, 4, 8, 3, 4, 13, 5, 5, 5, 7], "spark_frame_ticks": [4], "caught_frame_ticks": [6, 10], "puff_frame_ticks": BURST_TICKS},
     "hitbox": {"spark": {"x": 3, "y": 3, "w": 10, "h": 10}, "flipper_a": {"x": 6, "y": 6, "w": 28, "h": 28}, "flipper_b": {"x": 8, "y": 8, "w": 24, "h": 24}, "grabber": {"x": 12, "y": 6, "w": 16, "h": 38}}}
 
 
@@ -87,8 +90,8 @@ def build(out):
             anims[name] = [{"x": x + i * fw, "y": y, "w": fw, "h": fh} for i in range(n)]
             x += n * fw
         y += im.height
-    for f in ("nozzles_A_1x.png", "puff_A_1x.png", "floor_A_1x.png"):
-        im = snap5(Image.open(os.path.join(NOZZLE_DIR, f)).convert("RGBA"))
+    for f in ("nozzles_A_1x.png", "gum_burst_a_strip.png", "floor_A_1x.png"):
+        im = snap5(Image.open(os.path.join(BURST_DIR if f.startswith("gum_burst") else NOZZLE_DIR, f)).convert("RGBA"))
         y = sheet.height
         grown = Image.new("RGBA", (max(sheet.width, im.width), y + im.height), (0, 0, 0, 0))
         grown.paste(sheet, (0, 0)); grown.paste(im, (0, y)); sheet = grown
@@ -96,9 +99,9 @@ def build(out):
             assert im.size == (140, 40)
             for i in range(4):
                 anims["nozzle%d" % i] = [{"x": NOZZLE_X[i], "y": y + 40 - NOZZLE_H[i], "w": NOZZLE_W, "h": NOZZLE_H[i]}]
-        elif f.startswith("puff"):
-            assert im.size == (128, 24)
-            anims["puff"] = [{"x": i * 32, "y": y, "w": 32, "h": 24} for i in range(4)]
+        elif f.startswith("gum_burst"):
+            assert im.size == (32 * len(BURST_TICKS), 32)
+            anims["puff"] = [{"x": i * 32, "y": y, "w": 32, "h": 32} for i in range(len(BURST_TICKS))]
         else:
             assert im.size == (64, 16)
             anims["floor"] = [{"x": 0, "y": y, "w": 32, "h": 16}]
