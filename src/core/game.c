@@ -445,18 +445,23 @@ void game_step_arena(Game *g, uint8_t input)
     uint8_t bodies;
     uint8_t a_edge = (uint8_t)((input & IN_A) && !g->cont_a);
     g->cont_a = (input & IN_A) ? 1 : 0;
+    uint8_t start_edge = (uint8_t)(g->start_in && !g->cont_start);
+    g->cont_start = g->start_in;
     if (g->over) {
         camera_follow(g);
         return;
     }
     if (g->mode == GAME_MODE_ARCADE && g->lives.state == ARC_LIFE_CONTINUE) {
-        /* Continue screen: the world is frozen. A press continues; credits are a constant 1 here (shortcut: the real credit
-         * path is a later task); the countdown running out ends the run. */
-        if (arc_continue_step(&g->lives, a_edge, 1)) {
+        /* Continue screen: the world is frozen. Start continues (owner 2026-11-15); each A press drops the count by one;
+         * credits are a constant 1 here (shortcut: the real credit path is a later task); the countdown running out ends the run. */
+        if (arc_continue_step(&g->lives, start_edge, 1)) {
             g->score = g->lives.score;
             player_spawn(g);
-        } else if (g->lives.state == ARC_LIFE_ENDED) {
-            g->over = 1;
+        } else {
+            if (a_edge) arc_continue_skip(&g->lives);
+            if (g->lives.state == ARC_LIFE_ENDED) {
+                g->over = 1;
+            }
         }
         camera_follow(g);
         return;

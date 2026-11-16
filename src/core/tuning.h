@@ -70,6 +70,9 @@
 #endif
 
 /* Game over screen length. */
+#ifndef GAMEOVER_SKIP_FRAMES
+#define GAMEOVER_SKIP_FRAMES 30 /* A or Start skips the GAME OVER text only after this many frames, so a flap mash does not skip it */
+#endif
 #ifndef GAMEOVER_FRAMES
 #define GAMEOVER_FRAMES 180
 #endif

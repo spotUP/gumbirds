@@ -174,4 +174,9 @@ int arc_continue_step(ArcLives *l, int start_pressed, int credits) {
     if (--l->countdown <= 0) { l->countdown = 0; l->state = ARC_LIFE_ENDED; }
     return 0;
 }
+void arc_continue_skip(ArcLives *l) {
+    if (l->state != ARC_LIFE_CONTINUE) return;
+    l->countdown -= 60; /* arc_continue_seconds = ceil(countdown / 60): 60 frames is exactly one count */
+    if (l->countdown <= 0) { l->countdown = 0; l->state = ARC_LIFE_ENDED; }
+}
 int arc_continue_seconds(const ArcLives *l) { return (l->countdown + 59) / 60; }
