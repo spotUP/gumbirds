@@ -23,7 +23,7 @@ void ai_init(Ai *a, Rng *r, int rank) {
     Ai z = {0};
     *a = z;
     a->state = AI_CHASE;
-    a->think_cut = (uint8_t)((rank > 1 ? rank - 1 : 0) * AI_RANK_THINK_STEP);
+    a->think_cut = (int8_t)((rank - 1) * AI_RANK_THINK_STEP);
     a->timer = next_timer(a, r);
 }
 

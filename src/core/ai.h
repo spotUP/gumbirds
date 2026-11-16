@@ -23,7 +23,7 @@ typedef struct {
     uint16_t timer;   /* frames until the next think */
     int8_t dir;       /* held between thinks */
     uint32_t thinks;  /* think count (test sentinel) */
-    uint8_t think_cut;/* frames shaved off every think period by the arcade rank */
+    int8_t think_cut;/* frames shaved off every think period by the rank; negative = slower than the arena value (party Slow Thinkers) */
 } Ai;
 
 /* rank 1 is the arena AI; higher arcade ranks (arcade.h) think sooner. */
