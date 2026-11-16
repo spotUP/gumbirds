@@ -350,6 +350,20 @@ static void splash_view_digest(void)
     }
 }
 
+/* Co-op: P1 flies right alone with P2 parked, so the soft wall and camera margin decide where both end up. */
+static void coop_digest(void)
+{
+    static Game g;
+    int f;
+    game_reset(&g, 1);
+    game_start_p2(&g);
+    g.hero[0].x = FL_PX(40); g.hero[1].x = FL_PX(190); /* camera starts at 32: P1 begins inside the margin */
+    for (f = 0; f < 600; f++) {
+        game_step_arena(&g, IN_RIGHT | IN_A);
+        if (f % 10 == 0) { mix((uint32_t)game_camera_px(&g)); mix((uint32_t)g.hero[0].x); }
+    }
+}
+
 int main(void)
 {
     trip_island_digest();
@@ -364,6 +378,7 @@ int main(void)
     flier_view_digest();
     gum_view_digest();
     splash_view_digest();
+    coop_digest();
     printf("%08x\n", (unsigned)h);
     return 0;
 }

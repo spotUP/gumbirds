@@ -276,6 +276,10 @@
 #define CAM_MAX_STEP_PX 2 /* at most this many pixels per frame (twice the human top speed) */
 #endif
 
+#ifndef CAM_EDGE_MARGIN_PX
+#define CAM_EDGE_MARGIN_PX 24 /* co-op: both humans stay this far inside the screen edges (soft wall) */
+#endif
+
 /* Arena scoring (design 3.3, NOT IN REFERENCE, placeholders for the user to tune). */
 #ifndef SCORE_STOMP_POP
 #define SCORE_STOMP_POP 500 /* player stomp pops a computer balloon */

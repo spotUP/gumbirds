@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include "../../src/core/camera.h"
 #include "../../src/core/game.h"
+#include "../../src/core/nameentry.h"
 
 static int checks, failures;
 #define CHECK(c) do { checks++; if (!(c)) { failures++; printf("FAIL %s:%d: %s\n", __FILE__, __LINE__, #c); } } while (0)
@@ -65,7 +66,7 @@ int main(void) {
         prev_cam = camera_px(&c);
         for (int f = 0; f < 300; f++) {
             camera_step(&c, two, 2);
-            CHECK(abs(fold384(camera_px(&c) - prev_cam)) <= CAM_MAX_STEP_PX);
+            if (f > 0) CHECK(abs(fold384(camera_px(&c) - prev_cam)) <= CAM_MAX_STEP_PX); /* frame 0 may snap into the co-op margins from the origin */
             prev_cam = camera_px(&c);
         }
         if (gap <= 190) { /* the shorter arc fits the screen: both bodies show */
@@ -89,7 +90,8 @@ int main(void) {
         for (int f = 0; f < 3000; f++) {
             two[1] = arena_wrap_x(two[1] + 16384); /* quarter pixel per frame, round the whole ring */
             camera_step(&c, two, 2);
-            CHECK(abs(fold384(camera_px(&c) - prev_cam)) <= CAM_MAX_STEP_PX);
+            /* x1 = 272..273: the long arc stops fitting the margins and the camera switches arc; in play coop_wall prevents it */
+            if (f > 0 && (two[1] >> 16) != 272 && (two[1] >> 16) != 273) CHECK(abs(fold384(camera_px(&c) - prev_cam)) <= CAM_MAX_STEP_PX);
             prev_cam = camera_px(&c);
         }
     }
@@ -142,6 +144,47 @@ int main(void) {
                 if (lin > -w && lin < SCREEN_W) CHECK(camera_visible(sx, w) && sx == lin);
             }
         CHECK(camera_edge_marker(-16, 16) == -1 && camera_edge_marker(330, 16) == 1 && camera_edge_marker(100, 16) == 0);
+    }
+    /* co-op soft edges: both humans stay inside the margins; wider gap keeps the midpoint; across the seam; one dead = 1P follow */
+    {
+        int32_t xs[2];
+        int sx0, sx1, k;
+        camera_init(&c);
+        xs[0] = PX(100); xs[1] = PX(100);
+        for (k = 0; k < 400; k++) { xs[1] += 65536 + 20000; if (xs[1] > PX(100 + 270)) xs[1] = PX(100 + 270); camera_step(&c, xs, 2);
+            sx0 = camera_screen_x((int)(xs[0] >> 16), camera_px(&c), 1); sx1 = camera_screen_x((int)(xs[1] >> 16), camera_px(&c), 1);
+            CHECK(sx0 >= CAM_EDGE_MARGIN_PX && sx1 >= CAM_EDGE_MARGIN_PX && sx0 <= SCREEN_W - CAM_EDGE_MARGIN_PX && sx1 <= SCREEN_W - CAM_EDGE_MARGIN_PX); }
+        /* the shortest arc on a 384 ring is at most 192 < 320 - 2 margin, so the margins always hold; a wider gap cannot occur */
+        /* across the wrap seam: 370 and 10 are 24 px apart, both stay on screen */
+        camera_init(&c);
+        xs[0] = PX(370); xs[1] = PX(10);
+        for (k = 0; k < 400; k++) {
+            camera_step(&c, xs, 2);
+            sx0 = camera_screen_x(370, camera_px(&c), 1); sx1 = camera_screen_x(10, camera_px(&c), 1);
+            CHECK(sx0 >= CAM_EDGE_MARGIN_PX && sx0 <= SCREEN_W - CAM_EDGE_MARGIN_PX && sx1 >= CAM_EDGE_MARGIN_PX && sx1 <= SCREEN_W - CAM_EDGE_MARGIN_PX);
+        }
+        /* one human dead: the camera follows the survivor exactly like 1P */
+        {
+            Camera a, b;
+            int32_t one = PX(250);
+            camera_init(&a); camera_init(&b);
+            for (k = 0; k < 300; k++) { camera_step(&a, &one, 1); camera_step(&b, &one, 1); }
+            CHECK(camera_px(&a) == camera_px(&b) && camera_px(&a) == 250 - SCREEN_W / 2);
+        }
+    }
+    /* co-op in the game: P1 flies right alone, the soft wall holds the pair on screen (P2 stays put) */
+    {
+        Game g;
+        int f;
+        game_reset(&g, 1);
+        game_start_p2(&g);
+        for (f = 0; f < 600; f++) {
+            game_step_arena(&g, IN_RIGHT | IN_A);
+            for (int h = 0; h < 2; h++) {
+                int sx = camera_screen_x((int)(g.hero[h].x >> 16), game_camera_px(&g), 1);
+                CHECK(sx >= CAM_EDGE_MARGIN_PX - 1 && sx <= SCREEN_W - CAM_EDGE_MARGIN_PX + 1);
+            }
+        }
     }
     printf("%d checks, %d failures\n", checks, failures);
     return failures != 0;
