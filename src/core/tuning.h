@@ -302,6 +302,22 @@
 #ifndef SCORE_ROOST_TICK
 #define SCORE_ROOST_TICK 100 /* Roost Rule: a sole stander on the roost, per tick */
 #endif
+/* Hot Gum (PARTY_HOT). Placeholders for the owner to tune. */
+#ifndef HOT_FUSE_FRAMES
+#define HOT_FUSE_FRAMES 720 /* frames from a new carrier until the gum pops one balloon: 12 s in the first round */
+#endif
+#ifndef HOT_FUSE_STEP
+#define HOT_FUSE_STEP 90 /* the fuse is this much shorter for every round won */
+#endif
+#ifndef HOT_FUSE_MIN
+#define HOT_FUSE_MIN 360 /* shortest fuse */
+#endif
+#ifndef HOT_PASS_COOLDOWN
+#define HOT_PASS_COOLDOWN 60 /* frames after a pass before the gum can be passed again (stops ping-pong on a long contact) */
+#endif
+#ifndef SCORE_HOT_PASS
+#define SCORE_HOT_PASS 200 /* a human passes the hot gum */
+#endif
 #ifndef SCORE_STOMP_POP
 #define SCORE_STOMP_POP 500 /* player stomp pops a computer balloon */
 #endif

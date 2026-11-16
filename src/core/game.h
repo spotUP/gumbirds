@@ -86,6 +86,13 @@ typedef struct {
     Flier mark;        /* AI target: rests where a standing flier's centre rests; not a fighter */
 } Roost;
 
+/* Hot Gum state: the carrier fighter index (humans first, 0xFF none), frames of fuse left, frames before the gum can pass again. */
+typedef struct {
+    uint8_t carrier;
+    uint8_t cool;
+    uint16_t fuse;
+} Hot;
+
 typedef struct {
     Rng rng;
     uint32_t frame;      /* frames since reset */
@@ -145,6 +152,7 @@ typedef struct {
     ArcBonus bonus;      /* Arcade bonus stage, live while arc.state == ARC_BONUS after the banner hold */
     Result res;          /* Result screen after the bonus stage (result.h): active while it shows; arc.state stays ARC_BONUS */
     Roost roost;         /* Roost Rule state (party_rule == PARTY_ROOST), reset by match_start */
+    Hot hot;             /* Hot Gum state (party_rule == PARTY_HOT), reset by match_start */
     Camera camera;       /* follows the living human fliers, stepped every game_step_arena; view reads game_camera_px */
 } Game;
 
@@ -200,6 +208,8 @@ const char *game_round_start_text(const Game *g, int line);
 const char *game_party_howto(uint8_t rule, int line);
 /* Roost Rule: the roost platform's world rectangle (left x, top y, width) for the marker; returns 0 when the rule is not running. */
 int game_roost_rect(const Game *g, int *x, int *top, int *w);
+/* Hot Gum: the flier carrying the hot gum, or 0 when the rule is not running or the carrier is out of the air. */
+const Flier *game_hot_carrier(const Game *g);
 /* BANNER_* flags for the round banner: 0 in the arena, BANNER_STAGE in arcade, BANNER_BONUS while the arcade bonus stage runs. */
 int game_banner_flags(const Game *g);
 /* 1 while the hazard strip animation must hold: a round start phase or a round end hold/pan. Arena only. */
