@@ -26,7 +26,7 @@ void vq_invalidate(VramQueue *q) {
     for (u16 i = 0; i < VQ_FIX_COLS * VQ_FIX_ROWS; i++) { q->fix_hw[i] = 0xFFFF; q->fix_want[i] = 0xFFFF; }
     for (u16 i = 0; i < VQ_FIX_COLS; i++) q->fix_dirty[i] = 0;
     q->fix_any = 0;
-    for (u16 i = 0; i < VQ_SCB_WORDS / 8; i++) q->scb_valid[i] = 0;
+    for (u16 i = 0; i < VQ_SCB_WORDS; i++) q->scb_valid[i] = 0;
     for (u16 i = 0; i < VQ_SPRITES; i++) q->strip[i].tiles = 0;
 }
 
@@ -45,7 +45,7 @@ int vq_scb_word_push(VramQueue *q, u16 addr, u16 val) {
     op->tiles = 0; op->a = addr; op->b = val; op->c = 0; op->kind = VQ_WORD; op->rows = 0; op->cost = VQ_US_OP;
     q->count++;
     q->scb_hw[i] = val;
-    q->scb_valid[i >> 3] |= (u8)(1u << (i & 7));
+    q->scb_valid[i] = 1;
     return 1;
 }
 
@@ -53,28 +53,26 @@ int vq_scb_run(VramQueue *q, u16 addr, u16 mod, const u16 *vals, u8 n) {
     u16 i = (u16)(addr - VQ_SCB_BASE);
     if (!n || !mod || i >= VQ_SCB_WORDS || (u16)(i + (n - 1) * mod) >= VQ_SCB_WORDS) return 0;
     if (q->count >= VQ_CAP) return 0;  /* checked before the shadow changes: a failed call changes nothing */
-    /* Per-frame path (the pool view sends 2 runs of POOL_MAX words): walk the shadow by pointer, the valid bit
-     * only for a word whose value matches (an unchanged word is the common case and needs both tests). */
-    /* The loop keeps every value in a register (int-sized index and counters, the valid bit computed only for a
-     * word that needs it). The earlier form spilled first/last/mod/n to the stack and built the bit and byte
-     * pointer for every word: about 250 cycles per word, 21 scanlines a frame for the pool's 64 words. */
-    int first = -1, last = 0, k;
-    unsigned idx = i;
+    /* Per-frame path (the pool view sends 2 runs of POOL_MAX words; the hazard strip 2-4 runs of 24). An index-and-bit
+     * form spilled its counters and cost about 250 cycles per word, 21 scanlines a frame for the pool's 64 words. */
+    /* Pointer walk with a byte valid flag: no index, bit or spilled counter per word (vblank-demo.md Part 6). */
     const unsigned step = mod;
     u16 *hw = &q->scb_hw[i];
-    u8 *valid = q->scb_valid;
-    for (k = 0; k < n; k++, idx += step, hw += step) {
-        u16 val = vals[k];
-        if (*hw == val) {
-            if (valid[idx >> 3] & (u8)(1u << (idx & 7))) continue;
-        } else {
-            *hw = val;
-        }
-        valid[idx >> 3] |= (u8)(1u << (idx & 7));
-        if (first < 0) first = k;
-        last = k;
-    }
-    if (first < 0) return 1;
+    u8 *valid = &q->scb_valid[i];
+    /* Two loops, so no first/last flag is tested per word: gcc kept fp/lp and the strides on the stack in the single loop,
+     * about 150 cycles per changed word, 9 scanlines for the island SCB4 run alone (vblank-demo.md Part 7). */
+    const u16 *v = vals, *const vend = vals + n, *fp, *lp;
+    for (; v != vend; v++, hw += step, valid += step)
+        if (*hw != *v || !*valid) break;
+    if (v == vend) return 1;
+    fp = v;
+    do {
+        *hw = *v;
+        *valid = 1;
+        lp = v;
+        do { v++; hw += step; valid += step; } while (v != vend && *hw == *v && *valid);
+    } while (v != vend);
+    int first = (int)(fp - vals), last = (int)(lp - vals);
     u16 a = (u16)(addr + (u16)first * mod);
     u8 words = (u8)(last - first + 1);
     VqOp op = { &q->scb_hw[a - VQ_SCB_BASE], a, mod, 0, VQ_RUN, words, (u16)(VQ_US_RUN + VQ_US_RUN_WORD * words), 0 };
@@ -82,7 +80,7 @@ int vq_scb_run(VramQueue *q, u16 addr, u16 mod, const u16 *vals, u8 n) {
 }
 
 void vq_scb_forget(VramQueue *q, u16 addr, u16 n) {
-    for (u16 i = (u16)(addr - VQ_SCB_BASE); n && i < VQ_SCB_WORDS; i++, n--) q->scb_valid[i >> 3] &= (u8)~(1u << (i & 7));
+    for (u16 i = (u16)(addr - VQ_SCB_BASE); n && i < VQ_SCB_WORDS; i++, n--) q->scb_valid[i] = 0;
 }
 
 int vq_scb_ramp(VramQueue *q, u16 addr, u8 n, u8 split, u16 v1, u16 v2) {

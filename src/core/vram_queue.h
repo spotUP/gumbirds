@@ -98,7 +98,7 @@ typedef struct {
     uint32_t fix_dirty[VQ_FIX_COLS];  /* per column, bit y: the wanted cell of row y changed since it was last queued (VQ_FIX_ROWS == 32) */
     u8 fix_any;                       /* some fix_dirty bit is set: a commit with no change returns at once (tests/host/test_vram_queue.c) */
     u16 scb_hw[VQ_SCB_WORDS];
-    u8 scb_valid[VQ_SCB_WORDS / 8];
+    u8 scb_valid[VQ_SCB_WORDS];       /* 1: scb_hw[i] holds the VRAM word. A byte, not a bit: the bit test was a variable shift per word, ~2x the run loop (vblank-demo.md Part 6) */
     VqStripKey strip[VQ_SPRITES];
 } VramQueue;
 
@@ -111,7 +111,7 @@ int vq_scb_word_push(VramQueue *q, u16 addr, u16 val);   /* vq_scb_word without 
  * part of the frame (PC profile, thoughts/shared/research/2026-11-09_test-laser-hit-fix.md). */
 static inline int vq_scb_same(const VramQueue *q, u16 addr, u16 val) {
     u16 i = (u16)(addr - VQ_SCB_BASE);
-    return i < VQ_SCB_WORDS && q->scb_hw[i] == val && (q->scb_valid[i >> 3] & (u8)(1u << (i & 7)));
+    return i < VQ_SCB_WORDS && q->scb_hw[i] == val && q->scb_valid[i];
 }
 static inline int vq_scb_word(VramQueue *q, u16 addr, u16 val) {
     return vq_scb_same(q, addr, val) ? 1 : vq_scb_word_push(q, addr, val);

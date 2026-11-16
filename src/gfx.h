@@ -21,6 +21,7 @@ extern volatile u16 g_swap_count;     /* bank swaps done by gfx_flush since boot
  * counter (see gfx_flush). show_word is the head SCB3 word of the shown strip. Both heads must be hidden (0). */
 void gfx_swap_arm(u16 head0, u16 head1, u8 cols, u16 show_word); /* cols: SCB3 words per bank, the first at head */
 void gfx_swap_disarm(void);
+u8 gfx_swap_shown(void); /* bank (0 or 1) whose SCB3 words the last swap wrote with the show word; 1 before the first swap */
 void gfx_init(void);                /* forget the hardware state (boot, BIOS resume) */
 #include "core/vram_queue.h"
 extern VramQueue g_gfx_q;
@@ -50,6 +51,7 @@ void gfx_cls(void);
 void gfx_commit_all(void);          /* commit every changed fix cell now (init and reset paths, outside the frame budget) */
 void gfx_commit(void);              /* fold the fix layer changes into the queue (end of the frame's logic) */
 void gfx_wait_vblank(void);         /* park until the next vblank; the vblank callback flushes the queue */
+u8 gfx_frame_wrapped(void);         /* 1 when a vblank passed since the last park: this frame's logic overran into the next frame */
 void gfx_flush(void);               /* runs only from the vblank callback in gfx.c */
 void gfx_drain(void);               /* init only: wait vblank and flush until the queue is empty */
 u16 gfx_last_flush_us(void);         /* estimated time of the last flush */

@@ -86,7 +86,7 @@ int main(void)
             CHECK(op->kind == VQ_RAMP && op->a == a && op->rows == COLS[p] && op->cost == VQ_US_RAMP + VQ_US_RAMP_WORD * COLS[p]);
             vq_ramp_expand(op, out);
             for (c = 0; c < COLS[p]; c++) CHECK(out[c] == VQ_SCB4_X(bg_column_x(u, c, W)));
-            for (c = 0; c < VQ_SCB_WORDS / 8; c++) CHECK(q.scb_valid[c] == 0);
+            for (c = 0; c < VQ_SCB_WORDS; c++) CHECK(q.scb_valid[c] == 0);
             CHECK(r.split < COLS[p]);
         }
     }

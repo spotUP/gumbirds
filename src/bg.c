@@ -116,8 +116,12 @@ static const u16 g_scb3_zero[BG_SPRITE_TOTAL];
  * ran the stage start; logic then ended past line 224). A palette starts only before line 170 (raw LSPC 0x110 + 170), so the frame
  * still ends in time; the levels left behind are written on the next frames (fade_sync rewrites whatever differs). */
 #define BG_FADE_LATE_RAW (0x110u + 170u)
-/* Raw lines 0x1F0 and up are the vblank the frame starts in: early, not late. */
-static u8 fade_late(void) { u16 l = VQ_RASTER_LINE(*REG_LSPCMODE); return l >= BG_FADE_LATE_RAW && l < 0x1F0u; }
+/* Raw lines 0x1F0 and up are the vblank the frame starts in: early, not late. The raw line alone cannot tell a frame that wrapped
+ * past the next vblank (raw 0xF8-0x10F again) from one that starts in vblank: gfx_frame_wrapped does (demo rematch, frame 736). */
+static u8 fade_late(void) {
+    u16 l = VQ_RASTER_LINE(*REG_LSPCMODE);
+    return gfx_frame_wrapped() || (l >= BG_FADE_LATE_RAW && l < 0x1F0u);
+}
 #define BG_PAL_TOTAL (CITY_PALETTE_COUNT + DUSK_PALETTE_COUNT + STORM_PALETTE_COUNT)
 static BgFade g_fade;
 static u8 g_pal_lvl[BG_PAL_TOTAL];
@@ -232,7 +236,8 @@ static void mood_step(void) {
     if (g_step < BG_SPRITE_TOTAL) {
         u8 end = (u8)(g_step + BG_MOOD_COLS_PER_FRAME);
         if (end > BG_SPRITE_TOTAL) end = BG_SPRITE_TOTAL;
-        for (; g_step < end; g_step++) column_strip(g_want, (u8)(BG_SKY_SPRITE + g_step));
+        /* a late frame (live play under the swap) stops after one strip; the rest go out on the next frames */
+        for (u8 first = g_step; g_step < end && (g_step == first || !fade_late()); g_step++) column_strip(g_want, (u8)(BG_SKY_SPRITE + g_step));
         return;
     }
     if (g_hidden)
