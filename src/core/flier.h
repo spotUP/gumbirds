@@ -34,7 +34,7 @@
 #define FLIER_GROUND_JUMP_VY_ONE   (-FLIER_FLAP_IMPULSE_ONE_GUM) /* one gum: one one-gum flap impulse (derived) */
 #define FLIER_GROUND_JUMP_VY_NOBAL (-2 * FLIER_FLAP_IMPULSE) /* no gum: twice that, old ratio 2.0 (derived) */
 #define FLIER_FALL_START_VY        (-27307) /* 50 px/s up when a fall starts (3.5) */
-#define FLIER_PARACHUTE_GRAVITY    1024     /* half the with-gum gravity (user decision 2026-11-12) */
+#define FLIER_PARACHUTE_GRAVITY    2048     /* same as the with-gum gravity: a parachute falls twice as fast as before (user decision 2026-11-16; was 1024) */
 #define FLIER_PARACHUTE_SWAY       17476    /* 32 px/s sway amplitude (3.5) */
 /* Lerp weights (parachute sway 0.1) is the shift-add function in flier.c. */
 #define FLIER_INVINCIBLE_POP       FLIER_HIT_COOLDOWN /* frames of immunity after losing a balloon (4.2; tuning.h, was 60) */

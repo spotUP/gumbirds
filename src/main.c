@@ -227,6 +227,7 @@ static void hero_show(const Game *g, int cam_px) {
     if (!game_flier_visible(g) || !flier_body_visible(fl) || (feet > SCREEN_H && fl->state < FLIER_FALLING)) { hero_hide(); dead_release(DEAD_OWNER_HERO(0)); return; }
     int flip;
     u8 shown = flier_anim_step(&g_hero_anim[0], fl, &k_clips, &flip);
+    if (arc_pump_in_window(&g->hpump[0]) && fl->state == FLIER_ALIVE) shown = flier_pump_frame(&k_clips, arc_pump_progress(&g->hpump[0])); /* landed from a parachute: pump frame */
     g_soot_view[0] = g_hero_anim[0].clip;
     g_soot_view[1] = shown;
     g_soot_view[2] = g_hero_anim[0].tick;
@@ -464,6 +465,7 @@ static void pool_sync_p2(const Game *g) {
     }
     int flip;
     b->type = flier_anim_step(&g_hero_anim[1], fl, &k_clips, &flip);
+    if (arc_pump_in_window(&g->hpump[1]) && fl->state == FLIER_ALIVE) b->type = flier_pump_frame(&k_clips, arc_pump_progress(&g->hpump[1]));
     if (flip) b->flags |= POOL_F_FLIP; else b->flags &= (u8)~POOL_F_FLIP;
     b->x = fl->x; b->y = feet;
     if (flier_view_visible(fl, g->frame)) b->flags &= (u8)~POOL_F_BLINK; else b->flags |= POOL_F_BLINK;
