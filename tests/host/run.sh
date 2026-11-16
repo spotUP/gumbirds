@@ -144,6 +144,8 @@ tail -n 1 "$OUT/test_islands.log"; grep -E 'FAIL|ERROR' "$OUT/test_islands.log" 
 # Looping planes: column W-1 next to column 0 of far, mid A, mid B and near in the generated sheet
 (cd "$ROOT" && nice -n 19 "$PYTHON" -I tests/host/test_city_join.py >"$OUT/test_city_join.log" 2>&1) || fail=1
 tail -n 1 "$OUT/test_city_join.log"; grep -E 'FAIL|ERROR' "$OUT/test_city_join.log" | head -n 10
+(cd "$ROOT" && nice -n 19 "$PYTHON" -I tests/host/test_attract_pal.py >"$OUT/test_attract_pal.log" 2>&1) || fail=1
+tail -n 1 "$OUT/test_attract_pal.log"
 
 # Knob completeness: every #define in tuning.h (except documented exemptions) has an override.
 # Exemptions: STAGE_ / FLIER_START_ are layout and spawn constants (stage.c table, game_reset).
