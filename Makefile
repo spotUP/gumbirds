@@ -347,6 +347,8 @@ test-srom: cart
 	head -c `wc -c < $(BUILDDIR)/gen/fix_font.fix` $$f | cmp -s - $(BUILDDIR)/gen/fix_font.fix || { echo "[FAIL] test-srom: $$f does not start with fix_font.fix"; exit 1; }; \
 	blank() { dd if=$$f bs=32 skip=$$1 count=1 2>/dev/null | tr -d '\000' | wc -c | tr -d ' '; }; \
 	for t in 65 321 577; do [ `blank $$t` -ne 0 ] || { echo "[FAIL] test-srom: ASCII tile $$t (0x41 / 0x141 / 0x241) is blank, UniBIOS text needs it"; exit 1; }; done; \
+	for t in `seq 512 543` 576 606; do [ `blank $$t` -eq 0 ] || { echo "[FAIL] test-srom: UniBIOS boot slot $$t must stay blank (tiles 0x200-0x21F, 0x240, 0x25E)"; exit 1; }; done; \
+	for t in 278 279 320 350 752; do [ `blank $$t` -ne 0 ] || { echo "[FAIL] test-srom: tile $$t (0x116/0x117 rule, tall '@'/'^' top 0x140/0x15E, moved @ bottom 0x2F0) is blank"; exit 1; }; done; \
 	[ `blank 255` -eq 0 ] || { echo "[FAIL] test-srom: tile 0xFF is not blank"; exit 1; }; \
 	echo "[OK] test-srom: S-ROM is the Gumdrop font at tile 0x300, ASCII pages 0..2 and blank 0xFF, $(SROMSIZE) bytes"
 # Compile-only check of the debug header build (DEBUG_HEADER=1): src/main.c with -DGUMBIRDS_DEBUG_HEADER into its own object dir,
