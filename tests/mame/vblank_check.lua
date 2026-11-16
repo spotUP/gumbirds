@@ -450,22 +450,23 @@ emu.register_frame_done(function()
       for _, dm in pairs(demo_mode) do if dm.frames < DEMO_MIN_FRAMES then ready = false end end
     end
     if ready then
-      local ok, parts = bad_vram == 0 and bad_pal == 0 and total_vram > 0, {}
+      local ok, parts, fails = bad_vram == 0 and bad_pal == 0 and total_vram > 0, {}, {}   -- fails: what failed, for the headline
+      if not ok then fails[1] = total_vram == 0 and "no VRAM writes seen" or "VRAM or palette writes outside vblank" end
       for name, m in pairs({ arena = K_ARENA, trip = K_TRIP, arcade = K_ARCADE }) do
         local dm = demo_mode[m]
         local bad = dm.frames < DEMO_MIN_FRAMES or dm.lmax >= LOGIC_LIMIT or dm.us > FLUSH_BUDGET_US or dm.pwords > PAL_WORDS_MAX
-        if bad then ok = false end
+        if bad then ok = false; fails[#fails + 1] = string.format("demo %s %s", name, dm.frames < DEMO_MIN_FRAMES and string.format("only %d frames sampled", dm.frames) or dm.lmax >= LOGIC_LIMIT and string.format("logic end %.1f at demo frame %d, %d frames over line %d", dm.lmax, dm.idx_lmax, dm.over, LOGIC_LIMIT) or dm.us > FLUSH_BUDGET_US and string.format("flush %d us over %d", dm.us, FLUSH_BUDGET_US) or string.format("palette words %d over %d", dm.pwords, PAL_WORDS_MAX)) end
         parts[#parts + 1] = string.format("demo %s: frames %d, logic end max %.1f at demo frame %d (limit %d; frames over %d, first at demo frame %s; max after frame 3: %.1f), flush max %d us (limit %d; after frame 3: %d), VRAM data words per frame max %d (after frame 3: %d), palette words per flush max %d (limit %d), demo frame 1 (exempt, screen held) %.1f, reveal frame (exempt, background held) %.1f, held frames with planes hidden (exempt, flat backdrop) %.1f%s",
           name, dm.frames, dm.lmax, dm.idx_lmax, LOGIC_LIMIT, dm.over, tostring(dm.first_over), dm.lmax_late, dm.us, FLUSH_BUDGET_US, dm.us_late, dm.vwords, dm.vw_late, dm.pwords, PAL_WORDS_MAX, dm.l1 or 0, dm.lrev or 0, dm.lblank or 0, bad and " [OVER]" or "")
       end
       local late = syms.g_bg_late and mem:read_u16(syms.g_bg_late) or -1   -- world frames shown over an incomplete background (main.c bg hold)
-      if late ~= 0 then ok = false end
+      if late ~= 0 then ok = false; fails[#fails + 1] = string.format("%d world frames over an incomplete background", late) end
       parts[#parts + 1] = string.format("demo run: world frames over an incomplete background %d (limit 0)%s", late, late ~= 0 and " [LATE]" or "")
       local palmax = mem:read_u16(palmax_addr)   -- g_pal_words_frame_max over the whole demo run, boot included
-      if palmax > PAL_WORDS_MAX then ok = false end
+      if palmax > PAL_WORDS_MAX then ok = false; fails[#fails + 1] = string.format("palette words per flush %d over %d", palmax, PAL_WORDS_MAX) end
       parts[#parts + 1] = string.format("demo run: palette words per flush max %d (limit %d)%s", palmax, PAL_WORDS_MAX, palmax > PAL_WORDS_MAX and " [OVER]" or "")
       table.sort(parts)
-      finish(ok, string.format("demo run at frame %d, vram writes %d (outside vblank %d), palette writes %d (outside vblank %d)%s\n%s", n, total_vram, bad_vram, total_pal, bad_pal,
+      finish(ok, string.format("demo run at frame %d: %s; vram writes %d (outside vblank %d), palette writes %d (outside vblank %d)%s\n%s", n, ok and "all limits met" or table.concat(fails, "; "), total_vram, bad_vram, total_pal, bad_pal,
         first_bad and (", first bad: " .. first_bad) or "", table.concat(parts, "\n")), bucket_report())
     end
     return
