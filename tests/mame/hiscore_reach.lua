@@ -26,6 +26,7 @@ local O_STATE, O_LAST, O_TNAME, O_TSCORE, O_ENAME, O_ESYM, O_EPOS, O_EDONE = tab
 local O_FX, O_FVX, O_FGROUND, O_SCORE = table.unpack(lay, 9, 12)
 local O_FY, O_FVY, O_CX, O_CY, O_CSTATE, O_CBALL = table.unpack(lay, 13, 18)
 local O_EIDLE, NAME_TIMEOUT = table.unpack(lay, 19, 20)   -- entry.idle offset; NAME_TIMEOUT_FRAMES value
+local O_CCOUNT, CPU_STRIDE = table.unpack(lay, 21, 22)    -- game.cpu_count offset; sizeof(Flier) (cpu[] stride)
 local cd_frames, cd_bad, cd_max, cd_note = 0, 0, 0, ""      -- name entry countdown: frames checked, mismatches, max shown   -- stomp teleport: flier y, vy; cpu[0] x, y, state, balloons   -- arena slice: flier x, vx (16.16), on_ground; game score
 local mem    = manager.machine.devices[":maincpu"].spaces["program"]
 local ports  = manager.machine.ioport.ports
@@ -99,7 +100,7 @@ emu.register_frame_done(function()
     return
   end
   if not (coin and start and abtn and bbtn and cbtn and ubtn) then finish(false, "missing input field") return end
-  if not (phase_no and frame_addr and hs_addr and saves_addr and O_SCORE and result and expect) then
+  if not (phase_no and frame_addr and hs_addr and saves_addr and O_SCORE and CPU_STRIDE and result and expect) then
     finish(false, "missing env (phase/addresses/layout/files)") return
   end
   local state = mem:read_u8(flow_addr + O_STATE)
@@ -153,13 +154,19 @@ emu.register_frame_done(function()
       -- horizontal speed is gone, and fall into the water (same manoeuvre as tests/mame/flier_check.lua).
       if not idle_play then
         release_all()
-        -- Test input instead of a rule change: put the player's feet on the first computer balloon (same
-        -- placement as tests/host/stomp_assist.h) so the game's own stomp code scores; state <= 1 is alive/parachute.
-        if mem:read_u8(flow_addr + O_CSTATE) <= 1 and mem:read_u8(flow_addr + O_CBALL) > 0 then
-          mem:write_u32(flow_addr + O_FX, g32(O_CX))
-          mem:write_u32(flow_addr + O_FY, g32(O_CY) - 26 * 65536)
-          mem:write_u32(flow_addr + O_FVX, 0)
-          mem:write_u32(flow_addr + O_FVY, 0)
+        -- Test input instead of a rule change: put the player's feet on the first computer flier that still has gum (cpu[0], then
+        -- cpu[1], ...; same placement as tests/host/stomp_assist.h and score_check.lua) so the game's own stomp code scores; state
+        -- <= 1 is alive/parachute. One rival defeat pays exactly TABLE_MIN (a tie, ranks below), so the score must pass it on a
+        -- second rival: since the window defeat no longer pays twice (98ba858) cpu[0] alone stops at 1000.
+        for k = 0, mem:read_u8(flow_addr + O_CCOUNT) - 1 do
+          local b = flow_addr + k * CPU_STRIDE
+          if mem:read_u8(b + O_CSTATE) <= 1 and mem:read_u8(b + O_CBALL) > 0 then
+            mem:write_u32(flow_addr + O_FX, mem:read_u32(b + O_CX))
+            mem:write_u32(flow_addr + O_FY, mem:read_u32(b + O_CY) - 26 * 65536)
+            mem:write_u32(flow_addr + O_FVX, 0)
+            mem:write_u32(flow_addr + O_FVY, 0)
+            break
+          end
         end
       else
         local fx = s32(g32(O_FX)) / 65536
