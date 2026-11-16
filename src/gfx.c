@@ -40,6 +40,7 @@ void gfx_swap_arm(u16 head0, u16 head1, u8 cols, u16 show_word) {
     g_swap_on = 1;
 }
 void gfx_swap_disarm(void) { g_swap_on = 0; }
+u8 gfx_swap_shown(void) { return g_swap_vis; }
 volatile u32 g_vq_ramp_ops;
 volatile u16 g_swap_count;
 
@@ -93,7 +94,10 @@ void gfx_wait_vblank(void) {
     g_parked = 1;
     while (!g_vb_flag) { }
     g_parked = 0;
+    g_vb_flag = 0; /* set again only by a vblank that comes before the next park: gfx_frame_wrapped */
 }
+
+u8 gfx_frame_wrapped(void) { return g_vb_flag; }
 
 void gfx_drain(void) {
     while (vq_pending(&g_gfx_q)) gfx_wait_vblank();

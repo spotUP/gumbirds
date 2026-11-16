@@ -20,7 +20,6 @@ static u8 g_next = HZ_WATER; /* kind of the next strip: main.c passes it from wo
 static u8 g_restart;  /* a new round: hide the strip and start the next kind in the same step */
 static int g_placed_cam = -1; /* camera the columns were last placed for: place() is a pure function of it (-1: unknown) */
 static u8 g_running;
-static u16 g_tiles[2][HAZARD_STRIP_COLS * HAZARD_STRIP_ROWS];
 
 #define BANK_SPRITE(b) ((u16)(HAZARD_SPRITE + (b) * HAZARD_STRIP_COLS))
 
@@ -38,14 +37,18 @@ static const u16 k_hidden[HAZARD_COUNT]; /* SCB3 height 0 hides a column */
 /* Banks of kind g_pre_kind already loaded (hidden) by hazard_preload; start() loads only the rest. */
 static u8 g_pre_kind = 0xFF, g_pre_banks;
 
+/* Only the shown bank's 24 words differ from the shadow: the swap writes the show word there and 0 (the shadow value) to the
+ * other bank, and before the first swap both banks hold 0. So forget and send just that bank (half the words of the round
+ * restart's hide, thoughts/spot/reports/vblank-demo.md Part 5). The other bank's words are deduped or, when unknown, sent. */
 static void hide_banks(void) {
     gfx_swap_disarm();
-    gfx_scb_forget((u16)(ADDR_SCB3 + HAZARD_SPRITE), HAZARD_COUNT);
+    gfx_scb_forget((u16)(ADDR_SCB3 + BANK_SPRITE(gfx_swap_shown())), HAZARD_STRIP_COLS);
     gfx_scb_run((u16)(ADDR_SCB3 + HAZARD_SPRITE), 1, k_hidden, HAZARD_COUNT);
 }
 
 void hazard_init(void) {
     hazard_load_palettes();
+    gfx_scb_forget((u16)(ADDR_SCB3 + HAZARD_SPRITE), HAZARD_COUNT); /* VRAM may be reset: both banks unknown */
     hide_banks();
     g_hazard_kind = 0xFF;
     g_running = 0;
@@ -72,19 +75,23 @@ static void place(int cam_px) {
         for (u8 b = 0; b < 2; b++) gfx_scb_run((u16)(ADDR_SCB4 + BANK_SPRITE(b)), 1, words, HAZARD_STRIP_COLS);
 }
 
-/* The tiles of one bank (SCB1 and the hidden size words): the heavy part of a strip start, about 66 raster lines a bank. */
+/* The tiles of one bank (SCB1 and the hidden size words): the heavy part of a strip start, about 26 raster lines a bank (MAME). */
+/* One variant per group of 4 columns, cycling through nv: the group's 4 x ROWS tiles are contiguous in the frame's run of
+ * hazard_tile_index, so each group is queued straight from ROM (no copy). The variant is a counter, not (c / 4) % nv: that `%` on
+ * an int is a libgcc __modsi3 call per column, a large part of the ~38 lines a bank cost on the demo rematch restart
+ * (thoughts/spot/reports/vblank-demo.md, Parts 3 and 4). */
+_Static_assert(HAZARD_STRIP_COLS % 4 == 0, "hazard variants come in groups of 4 columns");
 static void load_bank(u8 kind, u8 b) {
-    u8 nv = k_variants[kind];
-    u16 attr = 0;
-    for (u8 c = 0; c < HAZARD_STRIP_COLS; c++) {
-        u8 anim = (u8)(k_first_anim[kind] + 2 * ((c / 4) % nv) + b);
-        const HazardFrame *f = &hazard_frames[hazard_anims[anim].first_frame];
-        /* the first frame's tile of each cell is the base of the cell's run of 8 consecutive frames */
-        for (u8 r = 0; r < HAZARD_STRIP_ROWS; r++)
-            g_tiles[b][c * HAZARD_STRIP_ROWS + r] = hazard_tile_index[f->tile_offset + (c % 4) * HAZARD_STRIP_ROWS + r];
-        attr = (u16)(((HAZARD_PAL_SLOT + f->palette) << 8) | 0x08); /* bit 3: 8-frame auto-animation */
+    u8 nv = k_variants[kind], v = 0;
+    const HazardFrame *f[HAZARD_STRIP_COLS / 4];
+    for (u8 g = 0; g < HAZARD_STRIP_COLS / 4; g++) {
+        f[g] = &hazard_frames[hazard_anims[k_first_anim[kind] + 2 * v + b].first_frame];
+        if (++v == nv) v = 0;
     }
-    gfx_sprite_strips(BANK_SPRITE(b), HAZARD_STRIP_COLS, HAZARD_STRIP_ROWS, g_tiles[b], HAZARD_TILE_BASE, attr);
+    u16 attr = (u16)(((HAZARD_PAL_SLOT + f[HAZARD_STRIP_COLS / 4 - 1]->palette) << 8) | 0x08); /* bit 3: 8-frame auto-animation; the last column's palette */
+    /* the first frame's tile of each cell is the base of the cell's run of 8 consecutive frames */
+    for (u8 g = 0; g < HAZARD_STRIP_COLS / 4; g++)
+        gfx_sprite_strips((u16)(BANK_SPRITE(b) + 4 * g), 4, HAZARD_STRIP_ROWS, &hazard_tile_index[f[g]->tile_offset], HAZARD_TILE_BASE, attr);
     gfx_sprite_unchained(BANK_SPRITE(b), HAZARD_STRIP_COLS);
     gfx_scb_run((u16)(ADDR_SCB3 + BANK_SPRITE(b)), 1, k_hidden, HAZARD_STRIP_COLS); /* deduped: hide_banks sent them since the last swap */
 }
