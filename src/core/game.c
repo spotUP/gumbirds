@@ -38,12 +38,36 @@ static void player_spawn_h(Game *g, int h)
     flier_set_hazard(&g->hero[h], g->hazard_kind);
 }
 
-/* Stage start and rematch: every human still in the run is back at the spawn (a player waiting on the continue screen stays out). */
+int game_lives_mode(const Game *g)
+{
+    return g->mode == GAME_MODE_ARCADE || (g->mode == GAME_MODE_ARENA && g->players == 2);
+}
+
+int game_banner_winner(const Game *g)
+{
+    if (g->mode == GAME_MODE_ARENA && g->players == 2) return g->round_winner;
+    return g->players == 2 && g->last_popper == 1 ? BANNER_P2 : BANNER_P1;
+}
+
+/* Stage start and rematch: every human still in the run is back at the spawn (a player waiting on the continue screen stays out).
+ * An Arena P2 Start banked mid-round joins here, at the round start. */
 static void player_spawn(Game *g)
 {
     int h;
+    if (g->p2_pending) {
+        g->p2_pending = 0;
+        if (g->players == 1) {
+            arc_lives_start(&g->lives[0]);
+            g->lives[0].score = g->score;
+        }
+        g->players = 2;
+        arc_lives_start(&g->lives[1]);
+    }
     for (h = 0; h < g->players; h++) {
-        if (g->mode != GAME_MODE_ARCADE || g->lives[h].state == ARC_LIFE_PLAY) player_spawn_h(g, h);
+        if (!game_lives_mode(g) || g->lives[h].state == ARC_LIFE_PLAY) {
+            player_spawn_h(g, h);
+            g->out_mask &= (uint8_t)~(1u << h);
+        }
     }
 }
 
@@ -57,6 +81,9 @@ void game_start_p2(Game *g)
 /* P2 may join now: arcade play with no round end pan, no result screen, no run over, and the P2 side free (never joined, or out of lives). */
 int game_can_join_p2(const Game *g)
 {
+    if (g->mode == GAME_MODE_ARENA) { /* banked now, joins at the next round start (game_join_p2) */
+        return g->rounds && !g->over && !g->p2_pending && g->cpu_count > 0 && (g->players == 1 || g->lives[1].state == ARC_LIFE_ENDED);
+    }
     return g->mode == GAME_MODE_ARCADE && !g->over && g->round_end == RE_NONE && !g->res.active && g->arc.state == ARC_PLAY &&
            g->cpu_count > 0 && (g->players == 1 || g->lives[1].state == ARC_LIFE_ENDED);
 }
@@ -67,6 +94,7 @@ int game_join_p2(Game *g)
 {
     int32_t x;
     if (!game_can_join_p2(g)) return 0;
+    if (g->mode == GAME_MODE_ARENA) { g->p2_pending = 1; return 1; }
     x = g->camera.cam + (int32_t)(SCREEN_W / 2) * 65536;
     while (x >= ARENA_W16) x -= ARENA_W16;
     g->players = 2;
@@ -570,7 +598,7 @@ void game_step_arena(Game *g, uint8_t input)
         camera_follow(g);
         return;
     }
-    if (g->mode == GAME_MODE_ARCADE) {
+    if (game_lives_mode(g)) {
         int cont = 0, frozen = 1;
         for (h = 0; h < g->players; h++) {
             cont |= g->lives[h].state == ARC_LIFE_CONTINUE;
@@ -586,7 +614,7 @@ void game_step_arena(Game *g, uint8_t input)
                 if (arc_continue_step(&g->lives[h], start_edge_h[h], g->credits)) {
                     g->credits_spent++;
                     if (h == 0) g->score = g->lives[0].score;
-                    player_spawn_h(g, h);
+                    if (g->mode == GAME_MODE_ARCADE) player_spawn_h(g, h); /* Arena versus: back in at the next round */
                 } else if (a_edge_h[h]) {
                     arc_continue_skip(&g->lives[h]);
                 }
@@ -742,6 +770,10 @@ void game_step_arena(Game *g, uint8_t input)
                                 score_add_h(g, popper, SCORE_STOMP_POP);
                                 score_add_h(g, popper, (was_up && v->state > FLIER_PARACHUTE) ? SCORE_CPU_DEFEAT : 0);
                             }
+                        } else if (popper < g->players && g->mode == GAME_MODE_ARENA) { /* versus: a human stomp scores like a computer stomp */
+                            g->last_popper = (uint8_t)popper;
+                            score_add_h(g, popper, SCORE_STOMP_POP);
+                            score_add_h(g, popper, (was_up && v->state > FLIER_PARACHUTE) ? SCORE_CPU_DEFEAT : 0);
                         }
                     }
                 }
@@ -769,10 +801,13 @@ void game_step_arena(Game *g, uint8_t input)
     }
     {
         int up = 0, alive = 0; /* humans on the stage before this frame's life loss handling */
+        int versus = g->mode == GAME_MODE_ARENA && g->players == 2;
+        int settled = 1, win = 0, cpu_up = 0;
         for (h = 0; h < g->players; h++) {
             if (g->hero[h].state != FLIER_GONE) {
                 up++;
                 alive += g->hero[h].state < FLIER_FALLING;
+                if (g->hero[h].state >= FLIER_FALLING) settled = 0;
             }
         }
         for (h = 0; h < g->players; h++) {
@@ -782,14 +817,24 @@ void game_step_arena(Game *g, uint8_t input)
                 if (g->lives[h].state == ARC_LIFE_PLAY) {
                     player_spawn_h(g, h); /* next life on the same stage */
                 }   /* else the continue screen runs from the next step (top of this function) */
+            } else if (versus) { /* one life per death; the human waits for the next round */
+                if (!(g->out_mask & (1u << h))) { g->out_mask |= (uint8_t)(1u << h); arc_lose_life(&g->lives[h]); }
             } else {
                 g->over = 1; /* the dead hero has left the screen: the run ends now, not at the kill */
             }
         }
-        if (up > 0) { /* the partner of a lost player plays on */
+        if (versus) { /* the round ends when one flier is left, computer fliers counted (or no human is left) */
+            for (i = 0; i < g->cpu_count; i++) {
+                cpu_up += g->cpu[i].state < FLIER_FALLING;
+                if (g->cpu[i].state >= FLIER_FALLING && g->cpu[i].state < FLIER_DROWNED) settled = 0;
+            }
+            win = settled && bodies == 0 && (alive == 0 || alive + cpu_up <= 1);
+            if (win) g->round_winner = (uint8_t)(alive == 0 ? (cpu_up ? BANNER_CPU : BANNER_DRAW) : cpu_up ? BANNER_CPU : (g->hero[0].state < FLIER_FALLING ? BANNER_P1 : BANNER_P2));
+        }
+        if (up > 0 || versus) { /* the partner of a lost player plays on */
             g->distance += SPEED_BASE;
             /* the match is won when no computer flier lives and the last hazard body has left the screen (cpu_alive counts FALLING bodies as alive) */
-            if (g->cpu_alive == 0 && bodies == 0 && alive > 0) {
+            if (versus ? win : (g->cpu_alive == 0 && bodies == 0 && alive > 0)) {
                 g->matches_won++;
                 if (g->mode == GAME_MODE_ARCADE) {
                     arc_stage_cleared(&g->arc); /* arc_interlude runs the CLEAR frames and the bonus stage from the next frame */

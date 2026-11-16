@@ -68,6 +68,9 @@ tail -n 1 "$OUT/test_arc_gap.log"; grep FAIL "$OUT/test_arc_gap.log" | head -n 1
 $CC -o "$OUT/test_coop" "$HERE/test_coop.c" $SRC -lm >"$OUT/build.log" 2>&1 || { echo "[ERROR] coop build failed"; tail -n 20 "$OUT/build.log"; exit 1; }
 nice -n 19 "$OUT/test_coop" >"$OUT/test_coop.log" 2>&1 || fail=1
 tail -n 1 "$OUT/test_coop.log"; grep FAIL "$OUT/test_coop.log" | head -n 10
+$CC -o "$OUT/test_arena2p" "$HERE/test_arena2p.c" $SRC -lm >"$OUT/build.log" 2>&1 || { echo "[ERROR] arena2p build failed"; tail -n 20 "$OUT/build.log"; exit 1; }
+nice -n 19 "$OUT/test_arena2p" >"$OUT/test_arena2p.log" 2>&1 || fail=1
+tail -n 1 "$OUT/test_arena2p.log"; grep FAIL "$OUT/test_arena2p.log" | head -n 10
 
 $CC -o "$OUT/test_ai" "$HERE/test_ai.c" $SRC -lm >"$OUT/build.log" 2>&1 || { echo "[ERROR] ai build failed"; tail -n 20 "$OUT/build.log"; exit 1; }
 nice -n 19 "$OUT/test_ai" >"$OUT/test_ai.log" 2>&1 || fail=1

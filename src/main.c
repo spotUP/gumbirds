@@ -955,7 +955,7 @@ static void hero_and_mode(const FlowView *v) {
         hero_show(v->game, game_flier_cam_px(v->game));
         if (v->game->mode == GAME_MODE_TRIP) pool_sync_trip(v->game, game_trip_ready(v->game));
         pool_sync_cpus(v->game);
-        if (v->game->mode == GAME_MODE_ARCADE) pool_sync_p2(v->game);
+        if (v->game->mode == GAME_MODE_ARCADE || v->game->mode == GAME_MODE_ARENA) pool_sync_p2(v->game);
         if (v->game->mode == GAME_MODE_TRIP) pool_sync_rivals(v->game);
         if (g_pool_stress) pool_stress();
         pool_show();
@@ -1443,7 +1443,8 @@ static void draw(const FlowView *v) {
         /* Per-frame HUD: resend a side only when its values moved (or first frame of the state with a game). */
         if (v->game) {
             const Game *g = v->game;
-            u8 arc = g->mode == GAME_MODE_ARCADE && v->state != FLOW_ATTRACT_DEMO;
+            u8 arc = game_lives_mode(g) && v->state != FLOW_ATTRACT_DEMO;
+            u8 p2hud = (g->mode == GAME_MODE_ARCADE || g->mode == GAME_MODE_ARENA) && v->state != FLOW_ATTRACT_DEMO; /* the P2 side: PRESS / INSERT / stats */
             u8 b0 = (u8)g->hero[0].balloons;
             u8 l0 = (u8)g->lives[0].lives;
             /* P1: the old block (score, balloons; no balloons row in Gum Trip), plus lives in the arcade */
@@ -1451,10 +1452,10 @@ static void draw(const FlowView *v) {
                 hud_side_stats(0, g->score, b0, l0, arc, g->mode != GAME_MODE_TRIP);
                 g_hud[0].kind = HUD_KIND_STATS; g_hud[0].score = g->score; g_hud[0].balloons = b0; g_hud[0].lives = l0;
             }
-            if (arc) {
+            if (p2hud) {
                 u8 in = g->players == 2;
                 u8 cr = g->credits;
-                u8 out = !in || g->lives[1].state == ARC_LIFE_ENDED; /* never joined, or out of lives and continues */
+                u8 out = (!in || g->lives[1].state == ARC_LIFE_ENDED) && !g->p2_pending; /* never joined, or out of lives and continues */
                 if (out && v->state == FLOW_PLAYING) hud_side(1, cr > 0 ? HUD_KIND_PRESS : HUD_KIND_INSERT, 0, 0, 0, 0, 0);
                 else if (in) hud_side(1, HUD_KIND_STATS, g->lives[1].score, (u8)g->hero[1].balloons, (u8)g->lives[1].lives, 1, 1);
                 else hud_side(1, HUD_KIND_BLANK, 0, 0, 0, 0, 0);
@@ -1522,7 +1523,7 @@ static void draw(const FlowView *v) {
              * (P1 left, P2 right, under the HUD); the words, then the seconds left. Redrawn once a second, per side. */
             for (u8 h = 0; h < HUMANS; h++) {
                 const ArcLives *l = v->game ? &v->game->lives[h] : 0;
-                u8 key = (v->state == FLOW_PLAYING && l && v->game->mode == GAME_MODE_ARCADE && l->state == ARC_LIFE_CONTINUE)
+                u8 key = (v->state == FLOW_PLAYING && l && game_lives_mode(v->game) && l->state == ARC_LIFE_CONTINUE)
                              ? (u8)(1 + arc_continue_seconds(l) + (v->game->credits ? 0x80 : 0)) : 0;
                 u8 x0 = h ? 24 : 3, row;
                 if (key == g_cont_key[h]) continue;
@@ -1550,7 +1551,7 @@ static void draw(const FlowView *v) {
                 u8 rows, rows_left = BANNER_ROWS_PER_FRAME;
                 int f;
                 int fr = MATCH_END_FRAMES - (int)v->game->round_timer;
-                bc.winner = (uint8_t)(v->game->players == 2 && v->game->last_popper == 1 ? BANNER_P2 : BANNER_P1); bc.round = (uint16_t)game_round_number(v->game); bc.last = (uint8_t)game_banner_flags(v->game);
+                bc.winner = (uint8_t)game_banner_winner(v->game); bc.round = (uint16_t)game_round_number(v->game); bc.last = (uint8_t)game_banner_flags(v->game);
                 blank = banner_cell(0, &bc, BANNER_W, 0); /* outside the panel: what an undrawn cell is */
                 if (fr < 0) fr = 0;
                 if (fr > 119) fr = 119;
