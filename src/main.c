@@ -1178,18 +1178,6 @@ static void title_soot_step(int active) {
     }
 }
 
-/* Backed text padded with spaces to w columns, so a shorter line fully overwrites a longer one. */
-static void text_padded(u8 x, u8 y, u8 pal, const char *s, u8 w) {
-    u8 n = 0;
-    char blanks[PARTY_GOAL_W + 1];
-    while (s[n]) n++;
-    gfx_text_backed(x, y, pal, s);
-    if (n >= w) return;
-    for (u8 i = 0; i < w - n; i++) blanks[i] = ' ';
-    blanks[w - n] = 0;
-    gfx_text_backed((u8)(x + n), y, pal, blanks);
-}
-
 static void draw_mode_select(u8 open, u8 mode, u8 rule) {
     u8 key = open ? (u8)(1 + mode + (mode == GAME_MODE_PARTY ? rule * 8 : 0)) : 0;
     if (key == g_title.select) return;
@@ -1201,10 +1189,23 @@ static void draw_mode_select(u8 open, u8 mode, u8 rule) {
     gfx_text_backed(17, TITLE_SELECT_ROW + 1, mode == GAME_MODE_TRIP ? PAL_HIGH : PAL_TEXT, "GUM TRIP");
     gfx_text_backed(15, TITLE_SELECT_ROW + 2, PAL_HIGH, mode == GAME_MODE_ARCADE ? ">" : " ");
     gfx_text_backed(17, TITLE_SELECT_ROW + 2, mode == GAME_MODE_ARCADE ? PAL_HIGH : PAL_TEXT, "ARCADE  ");
-    gfx_text_backed(15, TITLE_SELECT_ROW + 3, PAL_HIGH, mode == GAME_MODE_PARTY ? ">" : " ");
-    gfx_text_backed(17, TITLE_SELECT_ROW + 3, mode == GAME_MODE_PARTY ? PAL_HIGH : PAL_TEXT, "PARTY");
-    text_padded(23, TITLE_SELECT_ROW + 3, PAL_TEXT, mode == GAME_MODE_PARTY ? game_party_name(rule) : "", 17);
-    text_padded(2, TITLE_GOAL_ROW, PAL_TEXT, mode == GAME_MODE_PARTY ? game_party_goal(rule) : "", PARTY_GOAL_W);
+    /* PARTY row and goal line: centred, so the row is cleared to the open sky first (unbacked blanks), then drawn backed */
+    text(2, TITLE_SELECT_ROW + 3, PAL_TEXT, BANNER_BLANK);
+    text(2, TITLE_GOAL_ROW, PAL_TEXT, BANNER_BLANK);
+    if (mode == GAME_MODE_PARTY) {
+        const char *name = game_party_name(rule), *goal = game_party_goal(rule);
+        u8 n = 0, g = 0;
+        while (name[n]) n++;
+        while (goal[g]) g++;
+        u8 x = (u8)((VQ_FIX_COLS - 6 - n) / 2); /* "PARTY " + rule name */
+        gfx_text_backed((u8)(x - 2), TITLE_SELECT_ROW + 3, PAL_HIGH, ">");
+        gfx_text_backed(x, TITLE_SELECT_ROW + 3, PAL_HIGH, "PARTY ");
+        gfx_text_backed((u8)(x + 6), TITLE_SELECT_ROW + 3, PAL_TEXT, name);
+        gfx_text_backed((u8)((VQ_FIX_COLS - g) / 2), TITLE_GOAL_ROW, PAL_TEXT, goal);
+    } else {
+        gfx_text_backed(15, TITLE_SELECT_ROW + 3, PAL_HIGH, " ");
+        gfx_text_backed(17, TITLE_SELECT_ROW + 3, PAL_TEXT, "PARTY");
+    }
 }
 
 static void draw_title(const FlowView *v) {
