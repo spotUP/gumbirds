@@ -1438,7 +1438,7 @@ static void draw(const FlowView *v) {
         draw_title(v);
         break;
     case FLOW_ATTRACT_TABLE:
-        draw_table(v->table, v->table_mode, v->highlight, 8);
+        draw_table(v->table, v->table_mode, v->highlight, 12); /* caption row 10, entries 12..21: centered in visible rows 2..29 */
         break;
     case FLOW_ATTRACT_DEMO:
     case FLOW_PLAYING:
