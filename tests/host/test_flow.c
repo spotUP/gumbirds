@@ -384,6 +384,7 @@ static void test_cycle_and_demo(void)
         rig_until(&r, FLOW_ATTRACT_TITLE, 0, 100000);
         rig_until(&r, FLOW_ATTRACT_DEMO, 0, 100000);
         for (i = 0; i < ATTRACT_DEMO_FRAMES - 1 && r.f.state == FLOW_ATTRACT_DEMO; i++) rig_tick(&r, 0, 0);
+        if (r.f.game.over) printf("DBG run %d mode %d i %d bal %d y %d gum %d px %d dy %d\n", run, r.f.game.mode, i, r.f.game.flier.balloons, (int)(r.f.game.flier.y>>16), r.f.game.trip.gum, (int)r.f.game.trip.px, (int)(r.f.game.flier.vy>>16));
         CHECK(r.f.state == FLOW_ATTRACT_DEMO && !r.f.game.over && r.f.game.flier.state == FLIER_ALIVE && r.f.game.flier_steps > 0);
     }
 
@@ -392,6 +393,38 @@ static void test_cycle_and_demo(void)
     rig_tick(&r, 0, 1);
     CHECK(r.f.state == FLOW_PLAYING && !r.f.demo && r.f.game.frame == 0 && r.f.game.rounds == 1);
     /* a real run that dies still saves nothing without a rank (table full of big scores) */
+}
+
+/* The demo pilot is the rival AI, not a script: the same start gives the same input trace, and the trace is not the old fixed
+ * sweep (left/right switching every DEMO_SWEEP_FRAMES): over three demos the stick changes sides at other frames too. */
+static uint32_t demo_trace(int *off_script)
+{
+    Rig r;
+    uint32_t h = 2166136261u;
+    int i, n, prev = -1;
+    memset(&r, 0, sizeof r);
+    flow_init(&r.f, NULL, 0);
+    *off_script = 0;
+    for (n = 0; n < 3; n++) {
+        rig_until(&r, FLOW_ATTRACT_DEMO, 0, 100000);
+        for (i = 0; i < ATTRACT_DEMO_FRAMES - 1 && r.f.state == FLOW_ATTRACT_DEMO; i++) {
+            int side = (r.f.demo_in & IN_LEFT) ? 1 : (r.f.demo_in & IN_RIGHT) ? 2 : 0;
+            rig_tick(&r, 0, 0);
+            if (prev != -1 && side != prev && r.f.timer % DEMO_SWEEP_FRAMES != 0) (*off_script)++;
+            prev = side;
+            h = (h ^ r.f.demo_in) * 16777619u;
+        }
+        rig_until(&r, FLOW_ATTRACT_TITLE, 0, 100000);
+    }
+    return h;
+}
+
+static void test_demo_pilot(void)
+{
+    int a, b;
+    uint32_t h1 = demo_trace(&a), h2 = demo_trace(&b);
+    CHECK(h1 == h2 && a == b);
+    CHECK(a > 0);
 }
 
 /* DUSK-1: every pass through the attract title shows another mood than the pass before, and every mood shows. */
@@ -829,6 +862,7 @@ int main(void)
     test_nameentry_stuck_button();
     test_full_flow();
     test_cycle_and_demo();
+    test_demo_pilot();
     test_demo_modes();
     test_operator_reset();
     test_mode_select();
