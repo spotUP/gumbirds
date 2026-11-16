@@ -119,6 +119,8 @@ emu.register_frame_done(function()
       if hero1(P2.bal) ~= 2 then finish(false, "hero[1] balloons " .. hero1(P2.bal) .. " after the chute, want 2") return end
       local tile, attr = fix[P2.spr * 64] or 0, fix[P2.spr * 64 + 1] or 0
       if tile < 0x728 or (attr >> 8) ~= PAL.soot2 then finish(false, string.format("P2 body sprite %d tile %x attr %x, want a sheet tile in palette slot %d", P2.spr, tile, attr, PAL.soot2)) return end
+      -- C2c. P2's gum bubble (sprites 116..117, SCB3 at 0x8200 + slot, height in the low 6 bits) is drawn above the bird
+      if ((fix[0x8200 + 116] or 0) & 0x3f) == 0 then finish(false, "P2 gum bubble sprite 116 has SCB3 height 0, want the bubble drawn") return end
       phase = "refuse"; t0 = n
     end
   elseif phase == "refuse" then

@@ -260,6 +260,7 @@ static void hero_show(const Game *g, int cam_px) {
  * the computer fliers (pool_sync_cpus) and the pool stress test hook. The arena platforms are the island sprites (src/island.c).
  */
 _Static_assert(POOL_SPRITE_COUNT == POOL_SPRITES, "pool sprite range size");
+_Static_assert(GUM_SPRITE + GUM_COUNT <= SPLASH_SPRITE && SPLASH_SPRITE + SPLASH_COUNT <= GUM_P2_SPRITE && GUM_P2_SPRITE + GUM_COUNT <= ISLAND_SPRITE, "player 2 gum sprites overlap the splash or the islands");
 _Static_assert(BG_SPRITE_END <= GUM_SPRITE && GUM_SPRITE + GUM_COUNT <= ISLAND_SPRITE, "gum sprites overlap the background or the islands");
 _Static_assert(ISLAND_SPRITE + ISLAND_COUNT <= POOL_SPRITE_BASE, "island sprites overlap the object pool");
 /* Player 2 draws from the last two pool objects (body, parachute), claimed in pool_sync_p2; the computer fliers allocate
@@ -556,6 +557,7 @@ static void pool_show_hero(PoolObj *p, u8 i, u16 *scb3) {
     u16 slot = obj_pool_sprite(&g_pool, i);
     if (!camera_visible(x, SOOT_COLUMNS * 16)) { pool_hide_run(i); return; }
     int top = obj_pool_px(p->y) - f->tiles_h * 16;
+    if (p2) { g_gum_pose[1].drawn = 1; g_gum_pose[1].frame = p->type; g_gum_pose[1].flip = (u8)flip; g_gum_pose[1].cx = x + SOOT_COLUMNS * 8; g_gum_pose[1].top = top; }
     const u16 *tiles = &sootling_tile_index[f->tile_offset];
     u8 key = (u8)(p->type + 1 + (flip ? 128 : 0)); /* frame and mirror state the strips hold; the computer palette only, so the clip frame is unique */
     if (g_pool_drawn[i] != key) {
@@ -615,6 +617,7 @@ static void pool_show_haz(PoolObj *p, u8 i, u16 *scb3) {
 static void pool_show(void) {
     u16 scb3[POOL_MAX];
     u32 m = obj_pool_take_hidden(&g_pool);
+    g_gum_pose[1].drawn = 0;   /* set again by pool_show_hero when the player 2 body is drawn */
     for (u8 i = 0; m; i++, m >>= 1) if (m & 1) pool_hide_run(i);
     PoolObj *p = g_pool.obj;
     u8 top = 0; /* objects 0..top-1 go out in the runs: above the last live one every head SCB3 is already 0 (pool_hide_run) and x unchanged */
@@ -1896,7 +1899,8 @@ static void game_loop(void) {
             trip_pickup_step(trip_game ? &view.game->trip_gen : 0, trip_game ? view.game->trip.px : 0, trip_game ? view.game->trip.steps : 0, trip_game && game_trip_ready(view.game));
             /* Arena: the bubble is always full size (no gum value, no pop); Gum Trip: its gum meter. */
             u8 arena = world && (view.game->mode == GAME_MODE_ARENA || view.game->mode == GAME_MODE_ARCADE);
-            gum_step(arena || (trip && game_trip_ready(view.game)), trip ? view.game->trip.gum : GUM_MAX, (trip || arena) ? view.game->frame : 0, g_gum_pose[0].drawn, g_gum_pose[0].frame, g_gum_pose[0].flip, g_gum_pose[0].cx, g_gum_pose[0].top);
+            gum_step(0, arena || (trip && game_trip_ready(view.game)), trip ? view.game->trip.gum : GUM_MAX, (trip || arena) ? view.game->frame : 0, g_gum_pose[0].drawn, g_gum_pose[0].frame, g_gum_pose[0].flip, g_gum_pose[0].cx, g_gum_pose[0].top);
+            gum_step(1, arena && view.game->players == 2, GUM_MAX, view.game->frame, g_gum_pose[1].drawn, g_gum_pose[1].frame, g_gum_pose[1].flip, g_gum_pose[1].cx, g_gum_pose[1].top);
             {   /* the splash starts from the same crossing that plays the splosh sound; it keeps running through Game Over */
                 const SoundEvents *se = sound_events();
                 const Game *sg = view.game;   /* Gum Trip: its own floor death starts the gum splat (the splosh edge needs a water or lava kind) */
