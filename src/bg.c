@@ -232,7 +232,8 @@ static void mood_step(void) {
     if (g_step < BG_SPRITE_TOTAL) {
         u8 end = (u8)(g_step + BG_MOOD_COLS_PER_FRAME);
         if (end > BG_SPRITE_TOTAL) end = BG_SPRITE_TOTAL;
-        for (; g_step < end; g_step++) column_strip(g_want, (u8)(BG_SKY_SPRITE + g_step));
+        /* a late frame (live play under the swap) stops after one strip; the rest go out on the next frames */
+        for (u8 first = g_step; g_step < end && (g_step == first || !fade_late()); g_step++) column_strip(g_want, (u8)(BG_SKY_SPRITE + g_step));
         return;
     }
     if (g_hidden)
