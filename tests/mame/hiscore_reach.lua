@@ -27,6 +27,9 @@ local O_FX, O_FVX, O_FGROUND, O_SCORE = table.unpack(lay, 9, 12)
 local O_FY, O_FVY, O_CX, O_CY, O_CSTATE, O_CBALL = table.unpack(lay, 13, 18)
 local O_EIDLE, NAME_TIMEOUT = table.unpack(lay, 19, 20)   -- entry.idle offset; NAME_TIMEOUT_FRAMES value
 local O_CCOUNT, CPU_STRIDE = table.unpack(lay, 21, 22)    -- game.cpu_count offset; sizeof(Flier) (cpu[] stride)
+local O_FMODE, MODE_PARTY, TSZ = table.unpack(lay, 23, 25)  -- Flow.mode offset, GAME_MODE_PARTY, sizeof(HiscoreTable)
+local PARTY = os.getenv("BRAWL_PARTY") == "1"       -- 1: the run is a PARTY run (title pick PARTY): name entry scores into the party table
+local TMODE = PARTY and MODE_PARTY or 0
 local cd_frames, cd_bad, cd_max, cd_note = 0, 0, 0, ""      -- name entry countdown: frames checked, mismatches, max shown   -- stomp teleport: flier y, vy; cpu[0] x, y, state, balloons   -- arena slice: flier x, vx (16.16), on_ground; game score
 local mem    = manager.machine.devices[":maincpu"].spaces["program"]
 local ports  = manager.machine.ioport.ports
@@ -74,7 +77,7 @@ end
 
 -- Backup RAM image: 6 header bytes, then 10 x (8 name bytes + u32 score), big endian.
 local function image_row(i)
-  local a = hs_addr + 6 + i * 12
+  local a = hs_addr + 6 + TMODE * 120 + i * 12
   return str(a, 8), mem:read_u32(a + 8)
 end
 
@@ -125,7 +128,7 @@ emu.register_frame_done(function()
       finish(false, string.format("boot 2 backup RAM row %d is '%s' %d, expected '%s' %d", row, iname, iscore, name, score))
       return
     end
-    local tname, tscore = str(flow_addr + O_TNAME + row * 8, 8), g32(O_TSCORE + row * 4)
+    local tname, tscore = str(flow_addr + O_TNAME + TMODE * TSZ + row * 8, 8), g32(O_TSCORE + TMODE * TSZ + row * 4)
     if tname ~= name or tscore ~= score then
       finish(false, string.format("boot 2 flow table row %d is '%s' %d, expected '%s' %d", row, tname, tscore, name, score))
       return
@@ -148,6 +151,7 @@ emu.register_frame_done(function()
 
   if phase == "play" then
     if state == FLOW_PLAYING then
+      if PARTY then mem:write_u8(flow_addr + O_FMODE, MODE_PARTY) end -- the title pick PARTY: game over scores into the party table (last_mode)
       if not idle_play and g32(O_SCORE) > TABLE_MIN + 200 then idle_play = true end
       -- Arena slice autoplay: stomp a computer balloon, then stand on the island (no input after the stomp teleport) until the score
       -- passes the table minimum, then walk off the right edge, steer back over the gap with left + flap until the
@@ -208,7 +212,7 @@ emu.register_frame_done(function()
     if score <= 0 then finish(false, "score is 0") return end
     -- Expected row from the pre-insert table: number of rows with score >= ours (ties rank below).
     exp_row, exp_score = 0, score
-    for i = 0, 9 do if g32(O_TSCORE + i * 4) >= score then exp_row = exp_row + 1 end end
+    for i = 0, 9 do if g32(O_TSCORE + TMODE * TSZ + i * 4) >= score then exp_row = exp_row + 1 end end
     if exp_row > 9 then finish(false, string.format("score %d does not rank", score)) return end
     phase = "name"
     return

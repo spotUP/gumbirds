@@ -3,7 +3,8 @@
  * flow_state, last_score, table.name, table.score, entry.name, entry.sym, entry.pos, entry.done,
  * then the arena slice: flier x, vx, on_ground, game.score, then the stomp-teleport slice: flier y, flier vy, cpu[0].x, cpu[0].y, cpu[0].state, cpu[0].balloons (the test puts the player on a computer balloon so a real stomp scores),
  * then entry.idle and the NAME_TIMEOUT_FRAMES value (a constant, not an offset) for the countdown check,
- * then cpu_count and sizeof(Flier) (a constant: the cpu[] stride) so the stomp can walk every computer flier. */
+ * then cpu_count and sizeof(Flier) (a constant: the cpu[] stride) so the stomp can walk every computer flier,
+ * then Flow.mode, GAME_MODE_PARTY and sizeof(HiscoreTable) (BRAWL_PARTY=1: the run is scored into the party table). */
 #include <stddef.h>
 #include "../../src/core/flow.h"
 #define G(m) (offsetof(Flow, game) + offsetof(Game, m))
@@ -21,4 +22,5 @@ unsigned int probe[] = {
     G(cpu) + offsetof(Flier, state), G(cpu) + offsetof(Flier, balloons),
     offsetof(Flow, entry) + offsetof(NameEntry, idle), NAME_TIMEOUT_FRAMES,
     G(cpu_count), sizeof(Flier),
+    offsetof(Flow, mode), GAME_MODE_PARTY, sizeof(HiscoreTable),
 };
