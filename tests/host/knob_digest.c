@@ -157,7 +157,7 @@ static void party_howto_digest(void)
     uint32_t fr;
     flow_init(&f, 0, 0);
     f.mode = GAME_MODE_PARTY; f.party_rule = PARTY_ROUND;
-    for (fr = 1; fr <= 900u; fr++) {
+    for (fr = 1; fr <= 1800u; fr++) {
         flow_step(&f, 0, fr == 1, fr);
         mix(f.state); mix(f.howto); mix(f.timer); mix(f.game.rounds); mix(f.game.round_start); mix(f.game.round_start_timer); mix(f.game.frame); mix(f.game.twist);
     }

@@ -81,7 +81,7 @@ emu.register_frame_done(function()
       rs_frames = rs_frames + 1
       if lit(12) >= 5 and lit(13) >= 19 and lit(11) >= 5 then banner = { tw, lit(11), lit(12), lit(13) } end
     elseif rs == K.rs_go and banner then
-      if rs_frames < 170 or rs_frames > 190 then finish(false, "twist banner held " .. rs_frames .. " frames, want about 180") return end
+      if rs_frames < 350 or rs_frames > 370 then finish(false, "twist banner held " .. rs_frames .. " frames, want about 360") return end
       phase = "go"; t0 = n
     elseif n - t0 > 1500 then finish(false, "banner never lit: round_start " .. rs) end
   elseif phase == "go" then

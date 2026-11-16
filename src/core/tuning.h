@@ -318,10 +318,10 @@
 #define ROUND_START_TEXT_FRAMES 60 /* "ROUND nn" shown with everything frozen (user decision 2026-11-11) */
 #endif
 #ifndef PARTY_ROUND_START_TEXT_FRAMES
-#define PARTY_ROUND_START_TEXT_FRAMES 180 /* PARTY round banner (rule or twist explanation) hold, A or Start skips (owner decision 2026-11-16) */
+#define PARTY_ROUND_START_TEXT_FRAMES 360 /* PARTY round banner (rule or twist explanation) hold, A or Start skips (owner 2026-11-16: 180 was too fast to read) */
 #endif
 #ifndef PARTY_HOWTO_FRAMES
-#define PARTY_HOWTO_FRAMES 480 /* PARTY how-to demo before round 1, A or Start skips (owner decision 2026-11-16) */
+#define PARTY_HOWTO_FRAMES 900 /* PARTY how-to demo before round 1, A or Start skips (owner 2026-11-16: 480 was too fast to read) */
 #endif
 #ifndef PARTY_HOWTO_SEED
 #define PARTY_HOWTO_SEED 0x4857u /* fixed seed: the how-to demo plays the same match every time */
