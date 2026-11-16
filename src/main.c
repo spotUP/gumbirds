@@ -1100,10 +1100,13 @@ static void hud_side(u8 side, u8 kind, u32 score, u8 balloons, u8 lives, u8 show
 /* Title screen (art: assets/font/draw_hud_title_final.py title_final(), art row r = fix row r + 2). Everything is drawn
  * once after the fix layer clear and again only when its value changes; draw() resets the cache on a state change. */
 #define HUD_STAGE_ROW 5      /* arcade "STAGE n" / BONUS, centred between the score block (columns 2..15) and the right edge */
+/* Blank line wide enough to erase any round-start banner line (the party goal lines are PARTY_GOAL_W wide). */
+#define BANNER_BLANK "                                    "
 #define TITLE_HI_ROW 3
 #define TITLE_PLATE_ROW 22
 #define TITLE_SELECT_ROW 23   /* rows 23 to 26: the mode select, drawn only while it is open */
 #define TITLE_PLAYERS_ROW 27
+#define TITLE_GOAL_ROW 28     /* PARTY rule goal line, cols 2..37; free: players plate is row 27, credits plate row 29 */
 #define TITLE_CREDIT_ROW 29
 #define TITLE_BLINK_ON 3      /* the plate line shows for 3 of every 5 logo animation steps */
 #define BIOS_COMPULSION_S ((volatile u8 *)0x10fdda) /* BIOS_COMPULSION_TIMER, BCD seconds; 0x10fddb counts its frames */
@@ -1175,15 +1178,23 @@ static void title_soot_step(int active) {
     }
 }
 
-static const char *const party_rule_names[PARTY_RULE_COUNT] = {
-    "", "RULE OF THE ROUND", "ROOST RULE       ", "HOT GUM         ", "HAZARD ROULETTE "
-};
+/* Backed text padded with spaces to w columns, so a shorter line fully overwrites a longer one. */
+static void text_padded(u8 x, u8 y, u8 pal, const char *s, u8 w) {
+    u8 n = 0;
+    char blanks[PARTY_GOAL_W + 1];
+    while (s[n]) n++;
+    gfx_text_backed(x, y, pal, s);
+    if (n >= w) return;
+    for (u8 i = 0; i < w - n; i++) blanks[i] = ' ';
+    blanks[w - n] = 0;
+    gfx_text_backed((u8)(x + n), y, pal, blanks);
+}
 
 static void draw_mode_select(u8 open, u8 mode, u8 rule) {
     u8 key = open ? (u8)(1 + mode + (mode == GAME_MODE_PARTY ? rule * 8 : 0)) : 0;
     if (key == g_title.select) return;
     g_title.select = key;
-    if (!open) { text(15, TITLE_SELECT_ROW, PAL_TEXT, "          "); text(15, TITLE_SELECT_ROW + 1, PAL_TEXT, "          "); text(15, TITLE_SELECT_ROW + 2, PAL_TEXT, "          "); text(15, TITLE_SELECT_ROW + 3, PAL_TEXT, "                          "); return; }
+    if (!open) { text(15, TITLE_SELECT_ROW, PAL_TEXT, "          "); text(15, TITLE_SELECT_ROW + 1, PAL_TEXT, "          "); text(15, TITLE_SELECT_ROW + 2, PAL_TEXT, "          "); text(15, TITLE_SELECT_ROW + 3, PAL_TEXT, "                          "); text(2, TITLE_GOAL_ROW, PAL_TEXT, "                                    "); return; }
     gfx_text_backed(15, TITLE_SELECT_ROW, PAL_HIGH, mode == GAME_MODE_ARENA ? ">" : " ");
     gfx_text_backed(17, TITLE_SELECT_ROW, mode == GAME_MODE_ARENA ? PAL_HIGH : PAL_TEXT, "ARENA   ");
     gfx_text_backed(15, TITLE_SELECT_ROW + 1, PAL_HIGH, mode == GAME_MODE_TRIP ? ">" : " ");
@@ -1192,7 +1203,8 @@ static void draw_mode_select(u8 open, u8 mode, u8 rule) {
     gfx_text_backed(17, TITLE_SELECT_ROW + 2, mode == GAME_MODE_ARCADE ? PAL_HIGH : PAL_TEXT, "ARCADE  ");
     gfx_text_backed(15, TITLE_SELECT_ROW + 3, PAL_HIGH, mode == GAME_MODE_PARTY ? ">" : " ");
     gfx_text_backed(17, TITLE_SELECT_ROW + 3, mode == GAME_MODE_PARTY ? PAL_HIGH : PAL_TEXT, "PARTY");
-    gfx_text_backed(23, TITLE_SELECT_ROW + 3, PAL_TEXT, rule < PARTY_RULE_COUNT ? party_rule_names[rule] : "");
+    text_padded(23, TITLE_SELECT_ROW + 3, PAL_TEXT, mode == GAME_MODE_PARTY ? game_party_name(rule) : "", 17);
+    text_padded(2, TITLE_GOAL_ROW, PAL_TEXT, mode == GAME_MODE_PARTY ? game_party_goal(rule) : "", PARTY_GOAL_W);
 }
 
 static void draw_title(const FlowView *v) {
@@ -1490,10 +1502,18 @@ static void draw(const FlowView *v) {
             if (rs != g_rs_drawn || rn != g_rs_num) {
                 const char *l0 = rs == RS_ROUND ? game_round_start_text(v->game, 0) : 0;
                 if (rs == RS_ROUND && l0) {
-                    gfx_center_text(12, PAL_TEXT, "                  ");
-                    gfx_center_text(13, PAL_TEXT, "                  ");
+                    const char *l1 = game_round_start_text(v->game, 1);
+                    gfx_center_text(11, PAL_TEXT, BANNER_BLANK);
+                    gfx_center_text(12, PAL_TEXT, BANNER_BLANK);
+                    gfx_center_text(13, PAL_TEXT, BANNER_BLANK);
+                    if (v->game->party_rule != PARTY_NONE) { /* party: ROUND nn above the rule or twist name and its goal line */
+                        char rb[10] = "ROUND ";
+                        rb[6] = (char)('0' + (rn / 10) % 10); rb[7] = (char)('0' + rn % 10); rb[8] = 0;
+                        if (rb[6] == '0') { rb[6] = rb[7]; rb[7] = 0; }
+                        gfx_center_text(11, PAL_TEXT, rb);
+                    }
                     gfx_center_text(12, PAL_TEXT, l0);
-                    gfx_center_text(13, PAL_TEXT, game_round_start_text(v->game, 1));
+                    gfx_center_text(13, PAL_TEXT, l1);
                 } else if (rs == RS_ROUND) {
                     char rb[10] = "ROUND ";
                     if (v->game->mode == GAME_MODE_ARCADE) { rb[0] = 'S'; rb[1] = 'T'; rb[2] = 'A'; rb[3] = 'G'; rb[4] = 'E'; }
@@ -1502,11 +1522,14 @@ static void draw(const FlowView *v) {
                     gfx_center_text(13, PAL_TEXT, "           ");
                     gfx_center_text(13, PAL_TEXT, rb);
                 } else if (rs == RS_GO) {
-                    gfx_center_text(12, PAL_TEXT, "                  ");
-                    gfx_center_text(13, PAL_TEXT, "                  ");
+                    gfx_center_text(11, PAL_TEXT, BANNER_BLANK);
+                    gfx_center_text(12, PAL_TEXT, BANNER_BLANK);
+                    gfx_center_text(13, PAL_TEXT, BANNER_BLANK);
                     gfx_center_text(13, PAL_TEXT, "GO!");
                 } else {
-                    gfx_center_text(13, PAL_TEXT, "           ");
+                    gfx_center_text(11, PAL_TEXT, BANNER_BLANK);
+                    gfx_center_text(12, PAL_TEXT, BANNER_BLANK);
+                    gfx_center_text(13, PAL_TEXT, BANNER_BLANK);
                 }
                 g_rs_drawn = rs; g_rs_num = rn;
             }

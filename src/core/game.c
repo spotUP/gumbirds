@@ -11,6 +11,9 @@ typedef char near_mask_fits_uint8[(HUMANS + STAGE_SPAWN_COUNT <= 8) ? 1 : -1];
 
 /* Broad phase reach in half pixels: the widest pair contact (two wide gums, flier.h FLIER_PAIR_REACH_HALF). */
 #define BROAD_REACH_HALF FLIER_PAIR_REACH_HALF
+#define PARTY_WIND_ACCEL 400  /* Windy twist: 16.16 vx added per frame to each airborne flier (0.006 px/frame^2) */
+#define PARTY_SLOW_RANK -3    /* Slow Thinkers: ai rank below the arena value 1 (think period +24 frames) */
+#define PARTY_QUICK_RANK 4    /* Quick Thinkers: arcade rank 4 (think period -18 frames) */
 
 /* Zero a struct without libc. Byte loop; the compiler may turn it into a memset call, which
  * the ngdevkit libc provides. */
@@ -222,10 +225,21 @@ void game_next_mood(Game *g)
     g->mood = (uint8_t)m;
 }
 
+/* Rule of the Round: this round's twist, drawn from the game Rng and never the one just played. */
+static void twist_draw(Game *g)
+{
+    int first = g->twist == TWIST_NONE; /* no previous twist: all TWIST_COUNT-1 are open, otherwise skip the previous one */
+    uint8_t t = (uint8_t)(1 + rng_range(&g->rng, (uint32_t)(TWIST_COUNT - (first ? 1 : 2))));
+    if (!first && t >= g->twist) t++;
+    g->twist = t;
+}
+
 static void match_start(Game *g)
 {
     int arcade = g->mode == GAME_MODE_ARCADE;
     int rank = arcade ? arc_rank_for(g->arc.stage, g->arc.loops) : 1;
+    int ai_rank = rank;
+    int h;
     int n = CPU_START_COUNT + (int)g->matches_won;
     int i;
     if (n > CPU_MAX) {
@@ -244,13 +258,22 @@ static void match_start(Game *g)
         }
         game_next_mood(g); /* arena: each part varies on its own (world.h) */
     }
+    if (g->party_rule == PARTY_ROUND) {
+        twist_draw(g);
+        if (g->twist == TWIST_CROWDED) n = CPU_MAX;
+        if (g->twist == TWIST_SLOW) ai_rank = PARTY_SLOW_RANK;
+        if (g->twist == TWIST_QUICK) ai_rank = PARTY_QUICK_RANK;
+        for (h = 0; h < g->players; h++) {
+            if (g->twist == TWIST_ONE_GUM && g->hero[h].state != FLIER_GONE) g->hero[h].balloons = 1;
+        }
+    }
     g->cpu_count = (uint8_t)n;
     g->cpu_alive = (uint8_t)n;
     for (i = 0; i < STAGE_SPAWN_COUNT; i++) {
         if (i < n) {
-            flier_init(&g->cpu[i], FL_PX(stage_spawns[i].x), FL_PX(stage_spawns[i].y), FLIER_START_BALLOONS, g->mode == GAME_MODE_ARCADE); /* arcade: the last gum lost in the air opens a parachute (re-pump rule) */
+            flier_init(&g->cpu[i], FL_PX(stage_spawns[i].x), FL_PX(stage_spawns[i].y), g->twist == TWIST_ONE_GUM ? 1 : FLIER_START_BALLOONS, g->mode == GAME_MODE_ARCADE); /* arcade: the last gum lost in the air opens a parachute (re-pump rule) */
             g->cpu[i].rival = 1;
-            ai_init(&g->ai[i], &g->rng, rank);
+            ai_init(&g->ai[i], &g->rng, ai_rank);
             arc_pump_start(&g->pump[i], rank, 1); g->pump[i].two = (uint8_t)(g->players == 2); /* every layout spawn stands just above a platform top */
         } else {
             flier_init(&g->cpu[i], 0, 0, 0, 0);
@@ -338,8 +361,22 @@ int game_banner_flags(const Game *g)
     return (g->arc.state == ARC_BONUS || (g->arc.state == ARC_CLEAR && g->arc.stage % ARC_BONUS_EVERY == 0)) ? BANNER_BONUS : BANNER_STAGE;
 }
 
+/* The party rule table: name, goal line (owner-approved 2026-11-16). Index = PARTY_*; twist names index = TWIST_*. */
+static const char *const party_names[PARTY_RULE_COUNT] = { "", "RULE OF THE ROUND", "ROOST RULE", "HOT GUM", "HAZARD ROULETTE" };
+static const char *const party_goals[PARTY_RULE_COUNT] = {
+    "", "A NEW TWIST EVERY ROUND", "STAND ON THE GLOWING ISLAND TO SCORE", "PASS THE HOT GUM BEFORE IT POPS", "NEW HAZARD EVERY ROUND"
+};
+static const char *const twist_names[TWIST_COUNT] = { "", "ONE GUM EACH", "CROWDED SKY", "SLOW THINKERS", "QUICK THINKERS", "MIRROR STICK", "WINDY" };
+const char *game_party_name(uint8_t rule) { return rule < PARTY_RULE_COUNT ? party_names[rule] : ""; }
+const char *game_party_goal(uint8_t rule) { return rule < PARTY_RULE_COUNT ? party_goals[rule] : ""; }
+const char *game_twist_name(uint8_t twist) { return twist < TWIST_COUNT ? twist_names[twist] : ""; }
+
 const char *game_round_start_text(const Game *g, int line)
 {
+    if (g->party_rule != PARTY_NONE && g->mode == GAME_MODE_ARENA) {
+        if (line == 0) return g->party_rule == PARTY_ROUND ? game_twist_name(g->twist) : game_party_name(g->party_rule);
+        return line == 1 ? game_party_goal(g->party_rule) : 0;
+    }
     if (g->mode != GAME_MODE_ARCADE || g->arc.state != ARC_BONUS) {
         return 0;
     }
@@ -399,6 +436,10 @@ static void arena_flier_step(const Game *g, Flier *f, const FlierInput *in) {
     FlierSolid so[STAGE_SOLIDS_MAX + ARC_POSTS_MAX];
     int n;
     flier_step(f, in, stage_floor_y(f->x, f->y + flier_half_h(f)));
+    if (g->twist == TWIST_WINDY && f->state == FLIER_ALIVE && !f->on_ground) { /* one add per flier; the push stops at the air speed cap, no drag to bound it */
+        int32_t w = (g->matches_won & 1) ? -PARTY_WIND_ACCEL : PARTY_WIND_ACCEL;
+        if (w > 0 ? f->vx < FLIER_TOP_AIR_SPEED : f->vx > -FLIER_TOP_AIR_SPEED) f->vx += w;
+    }
     n = stage_solids_near(f->x, so, STAGE_SOLIDS_MAX);
     if (g->mode == GAME_MODE_ARCADE) n = add_post_solids(f->x, so, n);
     flier_collide_solids(f, px, py, so, n);
@@ -634,6 +675,7 @@ void game_step_arena(Game *g, uint8_t input)
         if (hf->state == FLIER_GONE) continue; /* out of lives or waiting on its continue screen */
         in.flap = (ins[h] & IN_A) ? 1 : 0;
         in.dir = (int8_t)(((ins[h] & IN_RIGHT) ? 1 : 0) - ((ins[h] & IN_LEFT) ? 1 : 0));
+        if (g->twist == TWIST_MIRROR) in.dir = (int8_t)-in.dir; /* play input only: flow and name entry never reach here */
         if (in.flap && !hf->flap_prev && hf->state < FLIER_DROWNED) {
             g->flaps[h]++;
         }

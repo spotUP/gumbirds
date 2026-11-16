@@ -54,6 +54,14 @@ typedef enum {
 
 /* PARTY rules (Left/Right on the PARTY title row). PARTY_NONE = not a party game. Order = on-screen cycle order. */
 enum { PARTY_NONE = 0, PARTY_ROUND, PARTY_ROOST, PARTY_HOT, PARTY_ROULETTE, PARTY_RULE_COUNT };
+/* Rule of the Round twists, one per round (Game.twist). TWIST_NONE outside that rule. */
+enum { TWIST_NONE = 0, TWIST_ONE_GUM, TWIST_CROWDED, TWIST_SLOW, TWIST_QUICK, TWIST_MIRROR, TWIST_WINDY, TWIST_COUNT };
+/* Widest rule goal line in fix-layer columns (PARTY_GOAL_W); the title pads shorter lines to it. */
+#define PARTY_GOAL_W 36
+/* Rule name and goal line (the one table; owner-approved wording), twist name; "" for an unknown value. */
+const char *game_party_name(uint8_t rule);
+const char *game_party_goal(uint8_t rule);
+const char *game_twist_name(uint8_t twist);
 
 /* Round end (arena, real game): HOLD shows the banner for MATCH_END_FRAMES, PAN slides the camera back to the spawn with
  * the flier hidden, then the next round starts. Zero is RE_NONE so game_reset needs no init. */
@@ -67,7 +75,8 @@ typedef struct {
     uint32_t distance;   /* 8.8 pixels travelled */
     uint32_t score;      /* total score: stomps, drowned and defeated computer fliers, match bonuses */
     uint8_t mode;        /* GameMode; ARENA after game_reset (PARTY runs as ARENA) */
-    uint8_t party_rule;  /* PARTY_NONE unless a PARTY game; set by flow after game_set_mode, unused by gameplay in phase 0 */
+    uint8_t party_rule;  /* PARTY_NONE unless a PARTY game; set by flow after game_set_mode */
+    uint8_t twist;       /* TWIST_* of the current round (PARTY_ROUND only); match_start draws it, never the same twice in a row */
     uint8_t mood;        /* background mood (GAME_MOOD_*) the screen shows; game_reset keeps it, game_next_mood changes it */
     uint8_t over;        /* 1 when the player flier is DROWNED or GONE */
     uint8_t players;     /* 1 or 2 humans in play (game_reset sets 1) */
@@ -165,7 +174,8 @@ int game_flier_visible(const Game *g);
 /* Round start phase (RoundStart) and the round number to show (matches_won + 1). */
 int game_round_start_phase(const Game *g);
 int game_round_number(const Game *g);
-/* Text of the round-start phase when it is not "STAGE nn": line 0 and 1 of the bonus stage announcement, else 0. */
+/* Text of the round-start phase when it is not "ROUND nn": line 0 and 1 of the bonus stage announcement, or of a PARTY game
+ * (rule or twist name, then goal line; the view draws ROUND nn above it), else 0. */
 const char *game_round_start_text(const Game *g, int line);
 /* BANNER_* flags for the round banner: 0 in the arena, BANNER_STAGE in arcade, BANNER_BONUS while the arcade bonus stage runs. */
 int game_banner_flags(const Game *g);
