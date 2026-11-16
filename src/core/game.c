@@ -6,6 +6,9 @@
 #include "banner.h"
 #include "world.h"
 
+/* near[] holds one bit per fighter in a uint8_t */
+typedef char near_mask_fits_uint8[(HUMANS + STAGE_SPAWN_COUNT <= 8) ? 1 : -1];
+
 /* Broad phase reach in half pixels: the widest pair contact (two wide gums, flier.h FLIER_PAIR_REACH_HALF). */
 #define BROAD_REACH_HALF FLIER_PAIR_REACH_HALF
 
@@ -30,16 +33,18 @@ static void flier_set_hazard(Flier *f, uint8_t kind)
  * nothing of the last match (position, speed, facing, invincibility, lost balloons) carries over. */
 static void player_spawn(Game *g)
 {
-    flier_init(&g->flier, FL_PX(FLIER_START_X), FL_PX(FLIER_START_Y), FLIER_START_BALLOONS, 0);
-    flier_spawn_protect(&g->flier);
-    flier_set_hazard(&g->flier, g->hazard_kind);
+    flier_init(&g->hero[0], FL_PX(FLIER_START_X), FL_PX(FLIER_START_Y), FLIER_START_BALLOONS, 0);
+    flier_spawn_protect(&g->hero[0]);
+    flier_set_hazard(&g->hero[0], g->hazard_kind);
 }
 
 void game_set_hazard(Game *g, uint8_t kind)
 {
     int i;
     g->hazard_kind = kind;
-    flier_set_hazard(&g->flier, kind);
+    for (i = 0; i < HUMANS; i++) {
+        flier_set_hazard(&g->hero[i], kind);
+    }
     for (i = 0; i < STAGE_SPAWN_COUNT; i++) {
         flier_set_hazard(&g->cpu[i], kind);
     }
@@ -55,6 +60,10 @@ void game_reset(Game *g, uint32_t seed)
     trip_init(&g->trip);
     stage_select(0);
     stage_set_level(0);
+    g->players = 1;
+    flier_init(&g->hero[1], 0, 0, 0, 0); /* player 2 slot: GONE until a join (Phase 1 and later) */
+    g->hero[1].state = FLIER_GONE;
+    flier_set_hazard(&g->hero[1], g->hazard_kind);
     player_spawn(g);
 }
 
@@ -63,14 +72,15 @@ void game_set_mode(Game *g, uint8_t mode)
     g->mode = mode == GAME_MODE_TRIP || mode == GAME_MODE_ARCADE ? mode : GAME_MODE_ARENA;
     if (g->mode == GAME_MODE_ARCADE) {
         arc_start(&g->arc);
-        arc_lives_start(&g->lives); /* the arena step builds stage 1 at its first frame (match_start) */
+        arc_lives_start(&g->lives[0]); /* the arena step builds stage 1 at its first frame (match_start) */
+        g->lives[1].state = ARC_LIFE_ENDED; /* player 2 is out until a join */
     }
     if (g->mode == GAME_MODE_TRIP) {
-        flier_init(&g->flier, FL_PX(TRIP_START_X), FL_PX(TRIP_START_Y), 2, 0);
-        flier_spawn_protect(&g->flier);
-        flier_set_hazard(&g->flier, g->hazard_kind);
-        g->flier.solid_kill = 0; /* Gum Trip draws no spike strip: the dead body just falls */
-        g->flier.no_wrap = 1;
+        flier_init(&g->hero[0], FL_PX(TRIP_START_X), FL_PX(TRIP_START_Y), 2, 0);
+        flier_spawn_protect(&g->hero[0]);
+        flier_set_hazard(&g->hero[0], g->hazard_kind);
+        g->hero[0].solid_kill = 0; /* Gum Trip draws no spike strip: the dead body just falls */
+        g->hero[0].no_wrap = 1;
         trip_init(&g->trip);
         tripgen_init(&g->trip_gen, rng_next(&g->rng)); /* course seed: next draw of the run's seed (game_reset(seed) at Start) */
         trip_rivals_init(&g->trip_rivals, &g->trip, rng_next(&g->rng)); /* rival seed: the draw after the course seed */
@@ -99,10 +109,10 @@ int game_begin(Game *g)
     return 1;
 }
 
-/* Fighter i: 0 is the player, 1..cpu_count the computer fliers. */
+/* Fighter i: 0..HUMANS-1 are the humans, then the computer fliers (cpu_count of them). */
 static Flier *fighter(Game *g, int i)
 {
-    return i == 0 ? &g->flier : &g->cpu[i - 1];
+    return i < HUMANS ? &g->hero[i] : &g->cpu[i - HUMANS];
 }
 
 /* Score add: the arcade clamps at SCORE_CAP (FQ10), the other modes add as before. */
@@ -111,11 +121,11 @@ static void score_add(Game *g, uint32_t pts)
     g->score = g->mode == GAME_MODE_ARCADE ? arc_score_add(g->score, pts) : g->score + pts;
 }
 
-/* ArcPump of fighter index i (0 is the player, which never pumps: a window-less static). */
+/* ArcPump of fighter index i (a human never pumps: a window-less static). */
 static const ArcPump *pump_of(const Game *g, int i)
 {
     static const ArcPump none = { ARC_PUMP_IDLE, 1, 0 };
-    return i > 0 ? &g->pump[i - 1] : &none;
+    return i >= HUMANS ? &g->pump[i - HUMANS] : &none;
 }
 
 /* The player touched a pumping rival: pop it at once (all gum, even through the pop protection) and pay its window defeat. */
@@ -187,13 +197,15 @@ static void match_start(Game *g)
     }
 }
 
-/* The camera follows the living human fliers. Only the player exists today; a second human adds an entry here. */
+/* The camera follows the living human fliers (hero[1] is GONE while players == 1). */
 static void camera_follow(Game *g)
 {
-    int32_t humans[1];
-    int n = 0;
-    if (g->flier.state < FLIER_DROWNED) {
-        humans[n++] = g->flier.x;
+    int32_t humans[HUMANS];
+    int n = 0, i;
+    for (i = 0; i < HUMANS; i++) {
+        if (g->hero[i].state < FLIER_DROWNED) {
+            humans[n++] = g->hero[i].x;
+        }
     }
     camera_step(&g->camera, humans, n);
 }
@@ -320,7 +332,7 @@ static void arc_element_apply(const ArcElements *a, Flier *f)
 static void arc_note_low_fliers(Game *g)
 {
     int i;
-    if (g->flier.state == FLIER_ALIVE && g->flier.balloons && !g->flier.on_ground) arc_elements_note_low(&g->elems, (int)(g->flier.x >> 16), (int)(g->flier.y >> 16));
+    if (g->hero[0].state == FLIER_ALIVE && g->hero[0].balloons && !g->hero[0].on_ground) arc_elements_note_low(&g->elems, (int)(g->hero[0].x >> 16), (int)(g->hero[0].y >> 16));
     for (i = 0; i < g->cpu_count; i++) {
         const Flier *c = &g->cpu[i];
         if (c->state == FLIER_ALIVE && c->balloons && !c->on_ground) arc_elements_note_low(&g->elems, (int)(c->x >> 16), (int)(c->y >> 16));
@@ -352,7 +364,7 @@ static int round_phase_step(Game *g)
             }
         } else {
             int32_t humans[1];
-            humans[0] = g->flier.x;
+            humans[0] = g->hero[0].x; /* shortcut: player 1 only, the pan target of two humans comes with the join (Phase 1) */
             if (camera_arrived(&g->camera, humans, 1)) {
                 g->round_end = RE_NONE;
                 match_start(g);
@@ -424,12 +436,12 @@ static int arc_interlude(Game *g, uint8_t input, uint8_t a_edge)
             arc_enter_stage(g);
         }
     } else {
-        int cx = (int)(g->flier.x >> 16), cy = (int)(g->flier.y >> 16);
+        int cx = (int)(g->hero[0].x >> 16), cy = (int)(g->hero[0].y >> 16);
         in.flap = (input & IN_A) ? 1 : 0;
         in.dir = (int8_t)(((input & IN_RIGHT) ? 1 : 0) - ((input & IN_LEFT) ? 1 : 0));
-        arena_flier_step(g, &g->flier, &in);
-        arc_bonus_step(&g->bonus, g->flier.state == FLIER_ALIVE && g->flier.balloons > 0, cx - ARC_BONUS_CATCH_HALF_W, cy - ARC_BONUS_CATCH_HALF_H, 2 * ARC_BONUS_CATCH_HALF_W, 2 * ARC_BONUS_CATCH_HALF_H);
-        if (g->flier.state == FLIER_GONE) {
+        arena_flier_step(g, &g->hero[0], &in);
+        arc_bonus_step(&g->bonus, g->hero[0].state == FLIER_ALIVE && g->hero[0].balloons > 0, cx - ARC_BONUS_CATCH_HALF_W, cy - ARC_BONUS_CATCH_HALF_H, 2 * ARC_BONUS_CATCH_HALF_W, 2 * ARC_BONUS_CATCH_HALF_H);
+        if (g->hero[0].state == FLIER_GONE) {
             player_spawn(g); /* a bonus stage costs no life */
         }
         if (g->bonus.over) res_start(&g->res, g->bonus.caught, g->bonus.number, g->bonus.perfect, g->score); /* the result screen adds the score */
@@ -443,23 +455,23 @@ void game_step_arena(Game *g, uint8_t input)
     FlierInput in;
     int i, j, n;
     uint8_t bodies;
-    uint8_t a_edge = (uint8_t)((input & IN_A) && !g->cont_a);
-    g->cont_a = (input & IN_A) ? 1 : 0;
-    uint8_t start_edge = (uint8_t)(g->start_in && !g->cont_start);
-    g->cont_start = g->start_in;
+    uint8_t a_edge = (uint8_t)((input & IN_A) && !g->cont_a[0]);
+    g->cont_a[0] = (input & IN_A) ? 1 : 0;
+    uint8_t start_edge = (uint8_t)(g->start_in[0] && !g->cont_start[0]);
+    g->cont_start[0] = g->start_in[0];
     if (g->over) {
         camera_follow(g);
         return;
     }
-    if (g->mode == GAME_MODE_ARCADE && g->lives.state == ARC_LIFE_CONTINUE) {
+    if (g->mode == GAME_MODE_ARCADE && g->lives[0].state == ARC_LIFE_CONTINUE) {
         /* Continue screen: the world is frozen. Start continues (owner 2026-11-15); each A press drops the count by one;
          * credits are a constant 1 here (shortcut: the real credit path is a later task); the countdown running out ends the run. */
-        if (arc_continue_step(&g->lives, start_edge, 1)) {
-            g->score = g->lives.score;
+        if (arc_continue_step(&g->lives[0], start_edge, 1)) {
+            g->score = g->lives[0].score;
             player_spawn(g);
         } else {
-            if (a_edge) arc_continue_skip(&g->lives);
-            if (g->lives.state == ARC_LIFE_ENDED) {
+            if (a_edge) arc_continue_skip(&g->lives[0]);
+            if (g->lives[0].state == ARC_LIFE_ENDED) {
                 g->over = 1;
             }
         }
@@ -479,12 +491,12 @@ void game_step_arena(Game *g, uint8_t input)
     }
     in.flap = (input & IN_A) ? 1 : 0;
     in.dir = (int8_t)(((input & IN_RIGHT) ? 1 : 0) - ((input & IN_LEFT) ? 1 : 0));
-    if (in.flap && !g->flier.flap_prev && g->flier.state < FLIER_DROWNED) {
-        g->flaps++;
+    if (in.flap && !g->hero[0].flap_prev && g->hero[0].state < FLIER_DROWNED) {
+        g->flaps[0]++;
     }
-    arena_flier_step(g, &g->flier, &in);
+    arena_flier_step(g, &g->hero[0], &in);
     g->flier_steps++;
-    if (g->mode == GAME_MODE_ARCADE) arc_element_apply(&g->elems, &g->flier);
+    if (g->mode == GAME_MODE_ARCADE) arc_element_apply(&g->elems, &g->hero[0]);
     for (i = 0; i < g->cpu_count; i++) {
         Flier *c = &g->cpu[i];
         FlierInput ci;
@@ -507,7 +519,7 @@ void game_step_arena(Game *g, uint8_t input)
             ci.dir = 0; /* stands, then sits and pumps: no AI, no input until the window ends */
             ci.flap = 0;
         } else if (c->state <= FLIER_PARACHUTE) {
-            ai_step(&g->ai[i], &g->rng, c, ai_nearest(c, &g->flier, g->cpu, g->cpu_count), &ci);
+            ai_step(&g->ai[i], &g->rng, c, ai_nearest(c, g->hero, HUMANS, g->cpu, g->cpu_count), &ci);
             if (g->mode == GAME_MODE_ARCADE) {
                 int away = arc_elements_avoid_dir(&g->elems, (int)(c->x >> 16), (int)(c->y >> 16), FLIER_HALF_W, (int)(flier_half_h(c) >> 16), c->vx);
                 if (away) {
@@ -548,18 +560,20 @@ void game_step_arena(Game *g, uint8_t input)
        passes do not move a flier horizontally (they change velocities, state and at most y), so the near set computed
        here holds for both, and they keep the (i, j) order. Distances are measured across the arena seam (arena_dx_half):
        fliers wrap at 384 px, so x 382 and x 2 are 4 px apart. */
-    n = g->cpu_count + 1;
+    n = HUMANS + g->cpu_count;
     {
-        Flier *f[STAGE_SPAWN_COUNT + 1];
-        int32_t hx[STAGE_SPAWN_COUNT + 1];
-        uint8_t near[STAGE_SPAWN_COUNT + 1];      /* pairs within contact reach */
+        Flier *f[HUMANS + STAGE_SPAWN_COUNT];
+        int32_t hx[HUMANS + STAGE_SPAWN_COUNT];
+        uint8_t near[HUMANS + STAGE_SPAWN_COUNT];      /* pairs within contact reach; one bit per fighter, so at most 8 */
         for (i = 0; i < n; i++) {
             f[i] = fighter(g, i);
             hx[i] = f[i]->x >> 15;
             near[i] = 0;
         }
         for (i = 0; i < n; i++) {
+            if (i >= g->players && i < HUMANS) continue; /* a human slot not in play (hero[1] while players == 1) takes no part */
             for (j = i + 1; j < n; j++) {
+                if (j >= g->players && j < HUMANS) continue;
                 int32_t d = arena_dx_half(hx[i], hx[j]);
                 if (d <= BROAD_REACH_HALF && d >= -BROAD_REACH_HALF) {
                     near[i] = (uint8_t)(near[i] | (1u << j));
@@ -579,15 +593,15 @@ void game_step_arena(Game *g, uint8_t input)
                     if (act == FLP_NONE || arena_pair_blocked(f[i], f[j])) continue;
                     /* A pumping rival is harmless and still: the player's contact (any height) defeats it, nothing bounces or pops. */
                     if (arc_pump_in_window(pump_of(g, i)) || arc_pump_in_window(pump_of(g, j))) {
-                        if (i == 0) {
-                            pump_defeat(g, f[j], &g->pump[j - 1]);
+                        if (i < HUMANS) {
+                            pump_defeat(g, f[j], &g->pump[j - HUMANS]);
                         }
                         continue;
                     }
                     /* Computer fliers never pop each other (BR-D3): a gum-on-gum contact between two of them is a bounce.
                        flier_pair stays pure; the rule lives here, where the indices say who is the player. (In Gum Trip
                        the rivals never meet each other, so this is arena only.) */
-                    if (i > 0 && j > 0 && (act == FLP_POP_A || act == FLP_POP_B)) act = FLP_BOUNCE;
+                    if (i >= HUMANS && j >= HUMANS && (act == FLP_POP_A || act == FLP_POP_B)) act = FLP_BOUNCE;
                     if (act == FLP_BOUNCE) {
                         flier_pair_apply(f[i], f[j], act);
                         g->bounces++;
@@ -595,10 +609,10 @@ void game_step_arena(Game *g, uint8_t input)
                     }
                     if (flier_pair_apply(f[i], f[j], act)) {
                         g->stomps++;
-                        if (popper == 0) {
+                        if (popper < HUMANS) {
                             /* Points only for the player's own pops on a computer flier (design 3.3). */
                             if (g->mode == GAME_MODE_ARCADE) {
-                                const ArcRank *rk = arc_rank(g->pump[popped_idx - 1].rank);
+                                const ArcRank *rk = arc_rank(g->pump[popped_idx - HUMANS].rank);
                                 score_add(g, rk->pop_score + ((was_up && v->state > FLIER_PARACHUTE) ? rk->defeat_score : 0));
                             } else {
                                 score_add(g, SCORE_STOMP_POP);
@@ -613,8 +627,8 @@ void game_step_arena(Game *g, uint8_t input)
             for (j = 0; j < n; j++) {
                 if (near[i] & (1u << j)) {
                     int killed = flier_body_touching(f[i], f[j]) && !arena_pair_blocked(f[i], f[j]) && flier_body_kill(f[i], f[j]);
-                    if (killed && j == 0 && i > 0) {
-                        score_add(g, g->mode == GAME_MODE_ARCADE ? arc_rank(g->pump[i - 1].rank)->defeat_score : SCORE_CPU_DEFEAT); /* the player's body touched a balloon-less computer flier */
+                    if (killed && j < HUMANS && i >= HUMANS) {
+                        score_add(g, g->mode == GAME_MODE_ARCADE ? arc_rank(g->pump[i - HUMANS].rank)->defeat_score : SCORE_CPU_DEFEAT); /* the player's body touched a balloon-less computer flier */
                     }
                 }
             }
@@ -626,10 +640,10 @@ void game_step_arena(Game *g, uint8_t input)
         g->cpu_alive = (uint8_t)(g->cpu_alive + (g->cpu[i].state < FLIER_DROWNED ? 1 : 0));
         bodies = (uint8_t)(bodies + (g->cpu[i].state == FLIER_DROWNED ? 1 : 0));
     }
-    if (g->flier.state == FLIER_GONE) {
+    if (g->hero[0].state == FLIER_GONE) {
         if (g->mode == GAME_MODE_ARCADE) {
-            arc_lose_life(&g->lives);
-            if (g->lives.state == ARC_LIFE_PLAY) {
+            arc_lose_life(&g->lives[0]);
+            if (g->lives[0].state == ARC_LIFE_PLAY) {
                 player_spawn(g); /* next life on the same stage */
             }   /* else the continue screen runs from the next step (top of this function) */
         } else {
@@ -638,13 +652,13 @@ void game_step_arena(Game *g, uint8_t input)
     } else {
         g->distance += SPEED_BASE;
         /* the match is won when no computer flier lives and the last hazard body has left the screen (cpu_alive counts FALLING bodies as alive) */
-        if (g->cpu_alive == 0 && bodies == 0 && g->flier.state < FLIER_FALLING) {
+        if (g->cpu_alive == 0 && bodies == 0 && g->hero[0].state < FLIER_FALLING) {
             g->matches_won++;
             if (g->mode == GAME_MODE_ARCADE) {
                 arc_stage_cleared(&g->arc); /* arc_interlude runs the CLEAR frames and the bonus stage from the next frame */
             }
             score_add(g, SCORE_MATCH_WIN);
-            if (g->flier.balloons >= FLIER_START_BALLOONS) {
+            if (g->hero[0].balloons >= FLIER_START_BALLOONS) {
                 score_add(g, SCORE_MATCH_CLEAN); /* no balloon lost in the match: the player cannot gain any in play */
             }
             if (g->rounds) {
@@ -684,20 +698,20 @@ void game_step_trip(Game *g, uint8_t input)
     g->frame++;
     in.flap = (input & IN_A) ? 1 : 0;
     in.dir = (int8_t)(((input & IN_RIGHT) ? 1 : 0) - ((input & IN_LEFT) ? 1 : 0));
-    if (in.flap && !g->flier.flap_prev && g->flier.state < FLIER_DROWNED) {
-        g->flaps++;
+    if (in.flap && !g->hero[0].flap_prev && g->hero[0].state < FLIER_DROWNED) {
+        g->flaps[0]++;
     }
-    g->flier.no_wrap = 1;
-    was_alive = g->flier.state < FLIER_FALLING;
+    g->hero[0].no_wrap = 1;
+    was_alive = g->hero[0].state < FLIER_FALLING;
     {
-        int32_t px = g->flier.x, py = g->flier.y;
+        int32_t px = g->hero[0].x, py = g->hero[0].y;
         FlierSolid so[TRIP_SOLIDS_MAX];
-        flier_step(&g->flier, &in, trip_hit_floor_y(&g->trip, &g->trip_gen, &g->flier));
-        flier_collide_solids(&g->flier, px, py, so, trip_hit_solids(&g->trip, &g->trip_gen, &g->flier, so, TRIP_SOLIDS_MAX));
+        flier_step(&g->hero[0], &in, trip_hit_floor_y(&g->trip, &g->trip_gen, &g->hero[0]));
+        flier_collide_solids(&g->hero[0], px, py, so, trip_hit_solids(&g->trip, &g->trip_gen, &g->hero[0], so, TRIP_SOLIDS_MAX));
     }
     g->flier_steps++;
     step = g->trip.speed; /* the step trip_step scrolls by this frame */
-    trip_step(&g->trip, &g->flier);
+    trip_step(&g->trip, &g->hero[0]);
     tripgen_advance(&g->trip_gen, g->trip.px);
     /* Walls first (hero: the bottom and the top rock both kill), so the strip hit test below never sees the hero inside the
      * rock; then the hazard hit (gum loss, cooldown), the push-out and bounce off the hazard, and the walls again (a push into
@@ -705,31 +719,31 @@ void game_step_trip(Game *g, uint8_t input)
      * floor death: a roof death splats when the falling body reaches the floor line (trip_roof_fall); a mid-air gum death
      * makes no splat. */
     {
-        unsigned side = trip_hit_hero_walls(&g->trip, &g->trip_gen, &g->flier);
+        unsigned side = trip_hit_hero_walls(&g->trip, &g->trip_gen, &g->hero[0]);
         unsigned ev = side ? TRIP_EV_HIT : 0u;
         int floor_kill = side == TRIP_WALL_BOTTOM, roof_kill = side == TRIP_WALL_TOP;
         int32_t lo, hi;
-        ev |= trip_collide(&g->trip, &g->trip_gen, &g->flier);
-        trip_hit_haz_bounce(&g->trip, &g->trip_gen, &g->flier);
-        side = trip_hit_hero_walls(&g->trip, &g->trip_gen, &g->flier);
+        ev |= trip_collide(&g->trip, &g->trip_gen, &g->hero[0]);
+        trip_hit_haz_bounce(&g->trip, &g->trip_gen, &g->hero[0]);
+        side = trip_hit_hero_walls(&g->trip, &g->trip_gen, &g->hero[0]);
         if (side) ev |= TRIP_EV_HIT;
         floor_kill |= side == TRIP_WALL_BOTTOM;
         roof_kill |= side == TRIP_WALL_TOP;
         g->trip_events = (uint8_t)ev;
         /* a death at the floor: the bottom rock, or the kill line reached alive (DROWNED); a mid-air gum death falls on and makes no splat */
-        g->trip_splat = (uint8_t)(was_alive && g->flier.state >= FLIER_FALLING && (floor_kill || g->flier.state == FLIER_DROWNED));
-        if (was_alive && g->flier.state == FLIER_FALLING && roof_kill && !floor_kill) {
+        g->trip_splat = (uint8_t)(was_alive && g->hero[0].state >= FLIER_FALLING && (floor_kill || g->hero[0].state == FLIER_DROWNED));
+        if (was_alive && g->hero[0].state == FLIER_FALLING && roof_kill && !floor_kill) {
             g->trip_roof_fall = 1;   /* a roof death splats later, where the falling body reaches the floor line (owner 2026-11-15) */
         } else if (g->trip_roof_fall) {
             /* the floor line is the floor-death line (window hi): the first frame below it is the landing, splat placed as a floor death */
-            if (g->flier.state != FLIER_FALLING) g->trip_roof_fall = 0;
-            else if (trip_hit_window(&g->trip, &g->trip_gen, &g->flier, &lo, &hi) && g->flier.y > hi) g->trip_splat = 1, g->trip_roof_fall = 0;
+            if (g->hero[0].state != FLIER_FALLING) g->trip_roof_fall = 0;
+            else if (trip_hit_window(&g->trip, &g->trip_gen, &g->hero[0], &lo, &hi) && g->hero[0].y > hi) g->trip_splat = 1, g->trip_roof_fall = 0;
         }
-        g->trip_splat_y = (int16_t)((g->flier.y + flier_half_h(&g->flier)) >> 16);
+        g->trip_splat_y = (int16_t)((g->hero[0].y + flier_half_h(&g->hero[0])) >> 16);
     }
-    g->trip_rival_events = (uint8_t)trip_rivals_step(&g->trip_rivals, &g->trip, &g->trip_gen, &g->flier);
+    g->trip_rival_events = (uint8_t)trip_rivals_step(&g->trip_rivals, &g->trip, &g->trip_gen, &g->hero[0]);
     camera_scroll(&g->camera, step);
     g->distance = g->trip.px;
     g->score = trip_score(&g->trip);
-    g->over = (uint8_t)trip_over(&g->flier);
+    g->over = (uint8_t)trip_over(&g->hero[0]);
 }

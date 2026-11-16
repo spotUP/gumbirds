@@ -116,7 +116,7 @@ int main(void) {
         Game g;
         game_reset(&g, 1);
         CHECK(game_camera_px(&g) == 32);
-        g.flier.x = PX(380); g.flier.y = PX(100);
+        g.hero[0].x = PX(380); g.hero[0].y = PX(100);
         for (int i = 0; i < 60; i++) game_step_arena(&g, 0);
         CHECK(game_camera_px(&g) > 32);
     }

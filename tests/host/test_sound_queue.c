@@ -41,7 +41,7 @@ int main(void)
         SoundEvents e;
         Game g;
         FlowView v;
-        memset(&g, 0, sizeof g);
+        memset(&g, 0, sizeof g); g.players = 1;
         memset(&v, 0, sizeof v);
         v.game = &g;
         se_init(&e);
@@ -49,15 +49,15 @@ int main(void)
         CHECK(se_step(&e, &v) == SE_TITLE);                /* boot cues the title music */
         CHECK(se_step(&e, &v) == 0);
         v.state = FLOW_ATTRACT_DEMO;
-        g.flaps = 3;
+        g.flaps[0] = 3;
         CHECK(se_step(&e, &v) == 0);                       /* table and demo keep it, demo flaps are silent */
-        v.state = FLOW_PLAYING; g.flaps = 0;
+        v.state = FLOW_PLAYING; g.flaps[0] = 0;
         CHECK(se_step(&e, &v) == SE_START);
         CHECK(se_step(&e, &v) == 0);
-        g.flaps = 1;
+        g.flaps[0] = 1;
         CHECK(se_step(&e, &v) == SE_FLAP);
         CHECK(se_step(&e, &v) == 0);                       /* no new press edge */
-        g.flaps = 2;
+        g.flaps[0] = 2;
         CHECK(se_step(&e, &v) == SE_FLAP);
         g.matches_won = 1;
         CHECK(se_step(&e, &v) == SE_ROUND);
@@ -74,27 +74,27 @@ int main(void)
         FlowView v;
         NameEntry n;
         memset(&e, 0, sizeof e);
-        memset(&g, 0, sizeof g);
+        memset(&g, 0, sizeof g); g.players = 1;
         memset(&v, 0, sizeof v);
         memset(&n, 0, sizeof n);
         v.game = &g; v.state = FLOW_PLAYING;
-        g.flier.on_ground = 1;
+        g.hero[0].on_ground = 1;
         se_init(&e); se_step(&e, &v); se_step(&e, &v);
-        g.flier.on_ground = 0; g.flier.vy = SE_DROP_VY - 1;
+        g.hero[0].on_ground = 0; g.hero[0].vy = SE_DROP_VY - 1;
         CHECK(se_step(&e, &v) == 0);                       /* a hop: slower than the drop speed, silent */
-        g.flier.vy = SE_DROP_VY;
+        g.hero[0].vy = SE_DROP_VY;
         CHECK(se_step(&e, &v) == SE_FALL && e.n_fall == 1);
         CHECK(se_step(&e, &v) == 0);                       /* once per drop */
-        g.flier.on_ground = 1; g.flier.vy = 0;
+        g.hero[0].on_ground = 1; g.hero[0].vy = 0;
         CHECK(se_step(&e, &v) == 0);
-        g.flier.on_ground = 0; g.flier.vy = SE_DROP_VY;
+        g.hero[0].on_ground = 0; g.hero[0].vy = SE_DROP_VY;
         CHECK(se_step(&e, &v) == SE_FALL);                 /* landing re-arms it */
-        g.flier.on_ground = 1; g.flier.vy = 0; g.flier.balloons = 1;
+        g.hero[0].on_ground = 1; g.hero[0].vy = 0; g.hero[0].balloons = 1;
         se_step(&e, &v);
-        g.flier.on_ground = 0; g.flier.vy = SE_DROP_VY;
+        g.hero[0].on_ground = 0; g.hero[0].vy = SE_DROP_VY;
         CHECK(se_step(&e, &v) == 0);                       /* with a balloon it floats: no fall sound */
 
-        g.flier.on_ground = 1; g.flier.vy = 0;
+        g.hero[0].on_ground = 1; g.hero[0].vy = 0;
         se_step(&e, &v);
         g.bounces = 1;
         se_step(&e, &v); CHECK(e.cues == 1ul << SC_BUMP);
@@ -106,7 +106,7 @@ int main(void)
         g.round_start = RS_NONE;
         se_step(&e, &v); CHECK(e.cues == 0);
 
-        memset(&g, 0, sizeof g);                           /* Gum Trip: pickup, streak pickup, gum low */
+        memset(&g, 0, sizeof g); g.players = 1;                           /* Gum Trip: pickup, streak pickup, gum low */
         g.mode = GAME_MODE_TRIP; g.trip.gum = GUM_MAX;
         se_init(&e); se_step(&e, &v); se_step(&e, &v);
         g.trip_events = TRIP_EV_PICKUP; g.trip.streak = 1;
@@ -117,9 +117,9 @@ int main(void)
         se_step(&e, &v); CHECK(e.cues == 1ul << SC_GUM_LOW);
         se_step(&e, &v); CHECK(e.cues == 0);               /* once per crossing */
 
-        memset(&g, 0, sizeof g);                           /* arcade vent: one warning per timer step, none on a frozen timer */
+        memset(&g, 0, sizeof g); g.players = 1;                           /* arcade vent: one warning per timer step, none on a frozen timer */
         g.mode = GAME_MODE_ARCADE; g.elems.n = 1; g.elems.el[0].kind = ARC_EL_VENT; g.elems.el[0].timer = ARC_VENT_TELEGRAPH - 1;
-        g.flier.state = FLIER_GONE;
+        g.hero[0].state = FLIER_GONE;
         se_init(&e); se_step(&e, &v); se_step(&e, &v);
         g.elems.el[0].timer = ARC_VENT_TELEGRAPH;
         se_step(&e, &v); CHECK(e.cues == 1ul << SC_VENT_WARN);
@@ -141,7 +141,7 @@ int main(void)
         SoundEvents e;
         Game g;
         FlowView v;
-        memset(&g, 0, sizeof g);
+        memset(&g, 0, sizeof g); g.players = 1;
         memset(&v, 0, sizeof v);
         v.game = &g;
         se_init(&e);
@@ -171,18 +171,18 @@ int main(void)
         Game g;
         FlowView v;
         int i;
-        memset(&g, 0, sizeof g);
+        memset(&g, 0, sizeof g); g.players = 1;
         memset(&v, 0, sizeof v);
         v.game = &g; v.state = FLOW_PLAYING;
         g.cpu_count = 2;
-        g.flier.balloons = 2;
+        g.hero[0].balloons = 2;
         for (i = 0; i < 2; i++) g.cpu[i].balloons = 2;
         se_init(&e);
         CHECK(se_step(&e, &v) == SE_START);
         CHECK(se_step(&e, &v) == 0 && !e.n_die && !e.n_fall && !e.n_splosh && !e.n_spike);
-        g.flier.balloons = 1;                              /* a pop that leaves a balloon is not a death */
+        g.hero[0].balloons = 1;                              /* a pop that leaves a balloon is not a death */
         CHECK(se_step(&e, &v) == 0);
-        g.flier.balloons = 0; g.flier.state = FLIER_FALLING;   /* player stomped to death */
+        g.hero[0].balloons = 0; g.hero[0].state = FLIER_FALLING;   /* player stomped to death */
         CHECK(se_step(&e, &v) == (SE_DIE | SE_FALL) && e.n_die == 1 && e.n_fall == 1);
         CHECK(se_step(&e, &v) == 0 && !e.n_die && !e.n_fall);  /* once per death */
         g.cpu[0].balloons = 0; g.cpu[0].state = FLIER_FALLING;  /* two rivals die in one frame: both counted */
@@ -192,22 +192,22 @@ int main(void)
         g.cpu[0].state = FLIER_DROWNED;                    /* a dead body crossing the line is no new event */
         CHECK(se_step(&e, &v) == 0);
 
-        memset(&g, 0, sizeof g);                           /* parachute: dies, does not fall */
-        g.flier.balloons = 1; g.cpu_count = 0;
+        memset(&g, 0, sizeof g); g.players = 1;                           /* parachute: dies, does not fall */
+        g.hero[0].balloons = 1; g.cpu_count = 0;
         se_init(&e); se_step(&e, &v); se_step(&e, &v);
-        g.flier.balloons = 0; g.flier.state = FLIER_PARACHUTE;
+        g.hero[0].balloons = 0; g.hero[0].state = FLIER_PARACHUTE;
         CHECK(se_step(&e, &v) == SE_DIE && e.n_fall == 0);
 
         {   /* hazard line: the sound follows the hazard kind; no die or fall for a hazard death */
             static const uint8_t kinds[4] = { HZ_SPIKES, HZ_FIRE, HZ_WATER, HZ_LAVA };
             static const uint16_t want[4] = { SE_SPIKE, SE_SIZZLE, SE_SPLOSH, SE_SPLOSH };
             for (i = 0; i < 4; i++) {
-                memset(&g, 0, sizeof g);
+                memset(&g, 0, sizeof g); g.players = 1;
                 g.hazard_kind = kinds[i]; g.cpu_count = 2;
-                g.flier.balloons = 2; g.cpu[0].balloons = 2; g.cpu[1].balloons = 2;
+                g.hero[0].balloons = 2; g.cpu[0].balloons = 2; g.cpu[1].balloons = 2;
                 se_init(&e); se_step(&e, &v); se_step(&e, &v);
-                g.flier.x = 111 << 16; g.cpu[1].x = 222 << 16;
-                g.flier.state = FLIER_DROWNED; g.flier.balloons = 0;
+                g.hero[0].x = 111 << 16; g.cpu[1].x = 222 << 16;
+                g.hero[0].state = FLIER_DROWNED; g.hero[0].balloons = 0;
                 g.cpu[1].state = FLIER_DROWNED; g.cpu[1].balloons = 0;
                 CHECK(se_step(&e, &v) == want[i]);
                 CHECK(e.n_die == 0 && e.n_fall == 0);
@@ -223,10 +223,10 @@ int main(void)
                 for (arcade = 0; arcade < 2; arcade++) {
                     int slot = arcade ? CPU_MAX : 0;
                     Flier *f;
-                    memset(&g, 0, sizeof g);
+                    memset(&g, 0, sizeof g); g.players = 1;
                     g.hazard_kind = kinds2[i]; g.cpu_count = arcade ? CPU_MAX + 1 : 0;
                     if (arcade) g.mode = GAME_MODE_ARCADE;
-                    f = arcade ? &g.cpu[slot] : &g.flier;
+                    f = arcade ? &g.cpu[slot] : &g.hero[0];
                     f->balloons = 2; f->x = 77 << 16;
                     se_init(&e); se_step(&e, &v); se_step(&e, &v);
                     f->balloons = 0; f->state = FLIER_FALLING;
@@ -242,8 +242,8 @@ int main(void)
             }
         }
         {   /* rivals outside cpu_count are ignored; Gum Trip rivals count when active */
-            memset(&g, 0, sizeof g);
-            g.cpu_count = 1; g.cpu[1].balloons = 2; g.flier.balloons = 2; g.cpu[0].balloons = 2;
+            memset(&g, 0, sizeof g); g.players = 1;
+            g.cpu_count = 1; g.cpu[1].balloons = 2; g.hero[0].balloons = 2; g.cpu[0].balloons = 2;
             se_init(&e); se_step(&e, &v); se_step(&e, &v);
             g.cpu[1].balloons = 0; g.cpu[1].state = FLIER_FALLING;
             CHECK(se_step(&e, &v) == 0);
@@ -254,14 +254,14 @@ int main(void)
             CHECK(se_step(&e, &v) == (SE_DIE | SE_FALL));
         }
         {   /* pop: every balloon burst (also the non-final), once per burst per flier; the Trip player pops at gum 0 only */
-            memset(&g, 0, sizeof g);
-            g.cpu_count = 2; g.flier.balloons = 2; g.cpu[0].balloons = 2; g.cpu[1].balloons = 2;
+            memset(&g, 0, sizeof g); g.players = 1;
+            g.cpu_count = 2; g.hero[0].balloons = 2; g.cpu[0].balloons = 2; g.cpu[1].balloons = 2;
             se_init(&e); se_step(&e, &v); se_step(&e, &v);
             CHECK(e.n_pop == 0);
-            g.flier.balloons = 1;
+            g.hero[0].balloons = 1;
             CHECK(se_step(&e, &v) == 0 && e.n_pop == 1);          /* non-final burst: pop, no die */
             CHECK(se_step(&e, &v) == 0 && e.n_pop == 0);
-            g.flier.balloons = 0; g.flier.state = FLIER_FALLING;
+            g.hero[0].balloons = 0; g.hero[0].state = FLIER_FALLING;
             CHECK(se_step(&e, &v) == (SE_DIE | SE_FALL) && e.n_pop == 1 && e.n_die == 1);   /* last burst: pop then die */
             g.cpu[0].balloons = 1; g.cpu[1].balloons = 1;
             se_step(&e, &v);
@@ -270,31 +270,31 @@ int main(void)
             se_step(&e, &v);
             CHECK(e.n_pop == 0);
 
-            memset(&g, 0, sizeof g);
-            g.mode = GAME_MODE_TRIP; g.trip.gum = 40; g.flier.balloons = 3;
+            memset(&g, 0, sizeof g); g.players = 1;
+            g.mode = GAME_MODE_TRIP; g.trip.gum = 40; g.hero[0].balloons = 3;
             se_init(&e); se_step(&e, &v); se_step(&e, &v);
-            g.trip.gum = 20; g.flier.balloons = 2;                 /* balloons follow the gum: no pop */
+            g.trip.gum = 20; g.hero[0].balloons = 2;                 /* balloons follow the gum: no pop */
             se_step(&e, &v);
             CHECK(e.n_pop == 0);
-            g.trip.gum = 0; g.flier.balloons = 0; g.flier.state = FLIER_FALLING;
+            g.trip.gum = 0; g.hero[0].balloons = 0; g.hero[0].state = FLIER_FALLING;
             se_step(&e, &v);
             CHECK(e.n_pop == 1);                                   /* gum 0: once */
             se_step(&e, &v);
             CHECK(e.n_pop == 0);
 
-            memset(&g, 0, sizeof g);                           /* attract demo: silent */
-            g.flier.balloons = 2; v.state = FLOW_ATTRACT_DEMO;
+            memset(&g, 0, sizeof g); g.players = 1;                           /* attract demo: silent */
+            g.hero[0].balloons = 2; v.state = FLOW_ATTRACT_DEMO;
             se_init(&e); se_step(&e, &v);
-            g.flier.balloons = 1;
+            g.hero[0].balloons = 1;
             se_step(&e, &v);
             CHECK(e.n_pop == 0);
             v.state = FLOW_PLAYING;
         }
-        memset(&g, 0, sizeof g);                           /* not PLAYING: silent (demo, title) */
-        g.flier.balloons = 2;
+        memset(&g, 0, sizeof g); g.players = 1;                           /* not PLAYING: silent (demo, title) */
+        g.hero[0].balloons = 2;
         v.state = FLOW_ATTRACT_DEMO;
         se_init(&e); se_step(&e, &v);
-        g.flier.balloons = 0; g.flier.state = FLIER_FALLING;
+        g.hero[0].balloons = 0; g.hero[0].state = FLIER_FALLING;
         CHECK(se_step(&e, &v) == 0 && !e.n_die);
         v.state = FLOW_ATTRACT_TITLE; v.game = 0;
         CHECK(se_step(&e, &v) == 0 && !e.n_fall);
@@ -305,10 +305,10 @@ int main(void)
         FlowView v;
         int slot;
         for (slot = 0; slot < STAGE_SPAWN_COUNT; slot += STAGE_SPAWN_COUNT - 1) {
-            memset(&e, 0, sizeof e); memset(&g, 0, sizeof g); memset(&v, 0, sizeof v);
+            memset(&e, 0, sizeof e); memset(&g, 0, sizeof g); g.players = 1; memset(&v, 0, sizeof v);
             v.game = &g; v.state = FLOW_PLAYING;
             g.mode = GAME_MODE_ARCADE; g.cpu_count = STAGE_SPAWN_COUNT; g.hazard_kind = HZ_WATER;
-            g.flier.state = FLIER_GONE;
+            g.hero[0].state = FLIER_GONE;
             g.cpu[slot].state = FLIER_ALIVE; g.cpu[slot].balloons = 1;
             se_init(&e); se_step(&e, &v); se_step(&e, &v);
             g.cpu[slot].balloons = 0; g.cpu[slot].state = FLIER_FALLING;

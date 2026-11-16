@@ -119,7 +119,7 @@ static int32_t demo_haz_aim(const Game *g, const Flier *fl, int32_t ty, int32_t 
 static uint8_t demo_input(Flow *f)
 {
     Game *g = &f->game;
-    const Flier *fl = &g->flier;
+    const Flier *fl = &g->hero[0];
     int32_t lo = 0, hi = 0, tx, ty;
     uint8_t side = (uint8_t)(f->demo_in & (IN_LEFT | IN_RIGHT)), in;
     const Flier *t;
@@ -137,7 +137,7 @@ static uint8_t demo_input(Flow *f)
         ty = demo_haz_aim(g, fl, ty, lo, hi);
         return (uint8_t)(side | (can_flap && py > ty ? IN_A : 0));
     }
-    t = g->mode == GAME_MODE_TRIP ? 0 : ai_nearest(fl, fl, g->cpu, g->cpu_count); /* none while the last rival falls: hover */
+    t = g->mode == GAME_MODE_TRIP ? 0 : ai_nearest(fl, g->hero, HUMANS, g->cpu, g->cpu_count); /* none while the last rival falls: hover */
     if (t) {
         FlierInput ci;
         int near, k;

@@ -25,7 +25,7 @@ static void mix(uint32_t v) { digest = (digest ^ v) * 16777619u; }
 
 /* 1 when a hazard box of a held chunk lies within reach of the flier (loose bound: half sizes plus the sweep and 8 px). */
 static int near_hazard(const Game *g) {
-    int fx = (int)(g->trip.px + (uint32_t)(g->flier.x >> 16)), fy = (int)(g->flier.y >> 16), k, j;
+    int fx = (int)(g->trip.px + (uint32_t)(g->hero[0].x >> 16)), fy = (int)(g->hero[0].y >> 16), k, j;
     for (k = 0; k < TRIP_GEN_RING; k++) {
         const TripChunk *q = &g->trip_gen.ring[k];
         for (j = 0; j < q->n_haz; j++) {
@@ -227,13 +227,13 @@ int main(void) {
         uint32_t n = 600, gum_model = GUM_START, pk_seen = 0;
         game_reset(&g, 7);
         game_set_mode(&g, GAME_MODE_TRIP);
-        CHECK(g.mode == GAME_MODE_TRIP && g.flier.no_wrap && g.flier.balloons == 2 && g.trip.gum == GUM_START);
-        CHECK(g.flier.spawn_inv == FLIER_SPAWN_INVINCIBLE);   /* SI: protected from the start of a run */
+        CHECK(g.mode == GAME_MODE_TRIP && g.hero[0].no_wrap && g.hero[0].balloons == 2 && g.trip.gum == GUM_START);
+        CHECK(g.hero[0].spawn_inv == FLIER_SPAWN_INVINCIBLE);   /* SI: protected from the start of a run */
         /* frame budget: the mode switch builds no chunk; the run-start hold builds one chunk per game step and moves
          * nothing (no flier, scroll, camera, collision, frame count) until the first screen is covered */
         CHECK(g.trip_gen.made == 0 && g.trip_gen.count == 0 && !game_trip_ready(&g) && g.trip_hold == 0);
         {
-            int32_t fx = g.flier.x, fy = g.flier.y, cam = g.camera.cam;
+            int32_t fx = g.hero[0].x, fy = g.hero[0].y, cam = g.camera.cam;
             uint32_t made_b;
             int hold_steps = 0;
             while (!game_trip_ready(&g) && hold_steps < 10) {
@@ -241,8 +241,8 @@ int main(void) {
                 game_step(&g, IN_A | IN_RIGHT);
                 hold_steps++;
                 CHECK(g.trip_gen.made - made_b == 1);
-                CHECK(g.flier.x == fx && g.flier.y == fy && g.camera.cam == cam);
-                CHECK(g.trip.px == 0 && g.trip.steps == 0 && g.flier_steps == 0 && g.frame == 0 && g.flaps == 0);
+                CHECK(g.hero[0].x == fx && g.hero[0].y == fy && g.camera.cam == cam);
+                CHECK(g.trip.px == 0 && g.trip.steps == 0 && g.flier_steps == 0 && g.frame == 0 && g.flaps[0] == 0);
                 CHECK(g.trip_events == 0 && !g.over);
             }
             CHECK(hold_steps >= 1 && hold_steps <= 3 && g.trip_hold == hold_steps);   /* hold length: 2 */
@@ -262,19 +262,19 @@ int main(void) {
             CHECK(g.trip.steps == (uint32_t)(i + 1) && g.flier_steps == (uint32_t)(i + 1));
             CHECK(g.trip.px == (acc >> 16) && g.distance == g.trip.px);
             CHECK(g.score == trip_score(&g.trip));
-            CHECK(g.flier.x >= 0 && g.flier.x <= FL_PX(319));
+            CHECK(g.hero[0].x >= 0 && g.hero[0].x <= FL_PX(319));
         }
         CHECK(g.trip.hits == 0 && g.trip.pickups >= 1);
         mix(g.trip.px); mix(g.score); mix(g.trip.gum);
         /* run end through game_step: gum to zero ends the run */
         g.trip.gum = 1;
         for (i = 0; i < 4000 && !g.over; i++) game_step(&g, trip_steer(&g, STEER_AVOID));
-        CHECK(g.over && (g.flier.state == FLIER_DROWNED || g.flier.state == FLIER_GONE));
+        CHECK(g.over && (g.hero[0].state == FLIER_DROWNED || g.hero[0].state == FLIER_GONE));
         /* arena: the trip core never runs and the flier wraps */
         game_reset(&g, 7);
         game_set_mode(&g, GAME_MODE_ARENA);
         for (i = 0; i < 300; i++) game_step(&g, 0);
-        CHECK(g.mode == GAME_MODE_ARENA && g.trip.steps == 0 && g.trip.px == 0 && g.flier_steps == 300 && !g.flier.no_wrap);
+        CHECK(g.mode == GAME_MODE_ARENA && g.trip.steps == 0 && g.trip.px == 0 && g.flier_steps == 300 && !g.hero[0].no_wrap);
         CHECK(g.distance == 300u * SPEED_BASE);
     }
 
@@ -357,18 +357,18 @@ int main(void) {
                 CHECK(g.trip.hits == hit_before + 1 && (g.trip_events & TRIP_EV_HIT));
                 if (!(g.trip_events & TRIP_EV_PICKUP) && gum_prev > (uint32_t)GUM_HIT_CHUNK + 1u)
                     CHECK(lost == (uint32_t)GUM_HIT_CHUNK || lost == (uint32_t)GUM_HIT_CHUNK + 1u); /* chunk, plus the decay unit of this frame */
-                CHECK(g.trip.streak == 0 && g.flier.invincible > 0 || g.flier.state != FLIER_ALIVE);
+                CHECK(g.trip.streak == 0 && g.hero[0].invincible > 0 || g.hero[0].state != FLIER_ALIVE);
                 if (near_hazard(&g)) hit_by_haz++;
             }
             CHECK(g.trip.bonus == bonus_want);
             CHECK(g.score == trip_score(&g.trip));
             CHECK(g.trip.gum <= GUM_MAX);
-            if (g.flier.on_ground) { land_frames++; if (trip_hit_floor_y(&g.trip, &g.trip_gen, &g.flier) != FLIER_NO_FLOOR) landed_chunk_ok++; }
+            if (g.hero[0].on_ground) { land_frames++; if (trip_hit_floor_y(&g.trip, &g.trip_gen, &g.hero[0]) != FLIER_NO_FLOOR) landed_chunk_ok++; }
             gum_prev = g.trip.gum; pickups_prev = g.trip.pickups; hits_prev = g.trip.hits;
             /* phases: collect 3 pickups, land once, take one hit, then drain */
             if (phase == 0 && g.trip.pickups >= 3 && g.trip.px > 700) phase = 1;
             else if (phase == 1 && land_frames > 20) phase = 2;
-            else if (phase == 2 && hit_by_haz >= 1 && g.flier.invincible == 0) {
+            else if (phase == 2 && hit_by_haz >= 1 && g.hero[0].invincible == 0) {
                 phase = 3;   /* drain: leave one gum unit so the run ends by the decay, unless the hit already took the last of it */
                 if (g.trip.gum > 0) g.trip.gum = 1;
                 gum_prev = g.trip.gum;
@@ -380,7 +380,7 @@ int main(void) {
         CHECK(land_frames > 20 && landed_chunk_ok == land_frames); /* landed on an island: on_ground only with an island floor */
         CHECK(ev_hit >= 1 && g.trip.hits >= 1);     /* hit taken */
         CHECK(phase == 3);
-        CHECK(g.over && g.trip.gum == 0 && (g.flier.state == FLIER_DROWNED || g.flier.state == FLIER_GONE)); /* run ends at gum 0 */
+        CHECK(g.over && g.trip.gum == 0 && (g.hero[0].state == FLIER_DROWNED || g.hero[0].state == FLIER_GONE)); /* run ends at gum 0 */
         mix(made_seen); mix(ev_pick); mix(ev_hit);
         CHECK(hit_by_haz >= 1);                     /* the hit came from a hazard box, not only a strip */
     }
@@ -395,20 +395,20 @@ int main(void) {
         game_reset(&g, 2024);
         game_set_mode(&g, GAME_MODE_TRIP);
         for (f = 0; f < 3000 && !g.over; f++) {
-            int was_alive = g.flier.state < FLIER_FALLING;
-            int32_t lo, hi, y0 = g.flier.y;
+            int was_alive = g.hero[0].state < FLIER_FALLING;
+            int32_t lo, hi, y0 = g.hero[0].y;
             game_step(&g, (uint8_t)(flap && !died && (f & 3) == 0 ? IN_A : 0));
             splats += g.trip_splat;
-            if (was_alive && g.flier.state >= FLIER_FALLING) {
+            if (was_alive && g.hero[0].state >= FLIER_FALLING) {
                 died = 1;
                 kill_f = f;
                 CHECK(g.trip_events & TRIP_EV_HIT);   /* a wall kill on both runs */
-                if (flap) CHECK(g.flier.y < ((int32_t)TRIP_START_Y << 16) && !g.trip_splat);
-                else CHECK(g.trip_splat && g.trip_splat_y > TRIP_START_Y && g.trip_splat_y == (g.flier.y + flier_half_h(&g.flier)) >> 16);
-            } else if (flap && died && land_f < 0 && trip_hit_window(&g.trip, &g.trip_gen, &g.flier, &lo, &hi) && g.flier.y > hi) {
+                if (flap) CHECK(g.hero[0].y < ((int32_t)TRIP_START_Y << 16) && !g.trip_splat);
+                else CHECK(g.trip_splat && g.trip_splat_y > TRIP_START_Y && g.trip_splat_y == (g.hero[0].y + flier_half_h(&g.hero[0])) >> 16);
+            } else if (flap && died && land_f < 0 && trip_hit_window(&g.trip, &g.trip_gen, &g.hero[0], &lo, &hi) && g.hero[0].y > hi) {
                 land_f = f;   /* the landing frame: the body is below the floor line for the first time */
-                CHECK(y0 <= hi && g.flier.state == FLIER_FALLING);
-                CHECK(g.trip_splat && g.trip_splat_y > TRIP_START_Y && g.trip_splat_y == (g.flier.y + flier_half_h(&g.flier)) >> 16);
+                CHECK(y0 <= hi && g.hero[0].state == FLIER_FALLING);
+                CHECK(g.trip_splat && g.trip_splat_y > TRIP_START_Y && g.trip_splat_y == (g.hero[0].y + flier_half_h(&g.hero[0])) >> 16);
             } else if (g.trip_splat) {
                 CHECK(0);     /* a splat on any other frame */
             }
@@ -427,11 +427,11 @@ int main(void) {
         game_set_mode(&g, GAME_MODE_TRIP);
         for (f = 0; f < 3000 && !game_trip_ready(&g); f++) game_step(&g, 0);
         for (f = 0; f < 5; f++) { game_step(&g, 0); CHECK(!g.trip_splat); }
-        CHECK(g.flier.state == FLIER_ALIVE);
-        g.flier.kill_y = g.flier.y + flier_half_h(&g.flier) - FL_PX(4);   /* above the feet: reached this step whatever vy is */
+        CHECK(g.hero[0].state == FLIER_ALIVE);
+        g.hero[0].kill_y = g.hero[0].y + flier_half_h(&g.hero[0]) - FL_PX(4);   /* above the feet: reached this step whatever vy is */
         game_step(&g, 0);
-        CHECK(g.flier.state == FLIER_DROWNED && !(g.trip_events & TRIP_EV_HIT));
-        CHECK(g.trip_splat && g.trip_splat_y == (g.flier.y + flier_half_h(&g.flier)) >> 16);
+        CHECK(g.hero[0].state == FLIER_DROWNED && !(g.trip_events & TRIP_EV_HIT));
+        CHECK(g.trip_splat && g.trip_splat_y == (g.hero[0].y + flier_half_h(&g.hero[0])) >> 16);
         game_step(&g, 0);
         CHECK(!g.trip_splat);
     }

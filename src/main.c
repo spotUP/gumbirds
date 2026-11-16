@@ -219,7 +219,7 @@ static void chute_place(u16 slot, u8 anim, u8 n, int flip, int left, int top) {
 }
 
 static void hero_show(const Game *g, int cam_px) {
-    const Flier *fl = &g->flier;
+    const Flier *fl = &g->hero[0];
     int feet = (int)((fl->y + flier_half_h(fl)) >> 16);
     if (!game_flier_visible(g) || !flier_body_visible(fl) || (feet > SCREEN_H && fl->state < FLIER_FALLING)) { hero_hide(); dead_release(DEAD_OWNER_HERO); return; }
     int flip;
@@ -846,7 +846,7 @@ void player_start(void) {
 static void edge_marker(const Game *g, int cam_px) {
     int dir = 0, row = 0;
     if (g) {
-        const Flier *fl = &g->flier;
+        const Flier *fl = &g->hero[0];
         int w = SOOT_COLUMNS * 16;
         int sx = camera_screen_x((int)(fl->x >> 16) - FLIER_HALF_W - SOOT_BOX_DX, cam_px, w);
         if (fl->state != FLIER_GONE) dir = camera_edge_marker(sx, w);
@@ -1349,15 +1349,15 @@ static void draw(const FlowView *v) {
             break;
         }
         /* Per-frame HUD: resend only when score or lives moved (or first frame of the state with a game). */
-        if (v->game && (!g_hud_game || v->game->score != g_hud_score || v->game->flier.balloons != g_hud_lives)) {
+        if (v->game && (!g_hud_game || v->game->score != g_hud_score || v->game->hero[0].balloons != g_hud_lives)) {
             g_hud_game = 1;
             g_hud_score = v->game->score;
-            g_hud_lives = v->game->flier.balloons;
+            g_hud_lives = v->game->hero[0].balloons;
             text(2, 5, PAL_TEXT, "SCORE");
             draw_number(8, 5, PAL_TEXT, v->game->score, 8);
             if (v->game->mode != GAME_MODE_TRIP) {
                 text(2, 6, PAL_TEXT, "Balloons");
-                draw_number(11, 6, PAL_TEXT, v->game->flier.balloons, 1);
+                draw_number(11, 6, PAL_TEXT, v->game->hero[0].balloons, 1);
             }
         }
         if (v->game && v->game->mode == GAME_MODE_TRIP) draw_gum_meter(v->game->trip.gum);
@@ -1419,8 +1419,8 @@ static void draw(const FlowView *v) {
         }
         {
             /* Arcade continue screen (game_step_arena freezes the world): a plate with the words and the seconds left; redrawn once a second */
-            u8 key = (v->state == FLOW_PLAYING && v->game && v->game->mode == GAME_MODE_ARCADE && v->game->lives.state == ARC_LIFE_CONTINUE)
-                         ? (u8)(1 + arc_continue_seconds(&v->game->lives)) : 0;
+            u8 key = (v->state == FLOW_PLAYING && v->game && v->game->mode == GAME_MODE_ARCADE && v->game->lives[0].state == ARC_LIFE_CONTINUE)
+                         ? (u8)(1 + arc_continue_seconds(&v->game->lives[0])) : 0;
             if (key != g_cont_key) {
                 u8 row;
                 char sb[16] = "TIME LEFT   ";
@@ -1676,7 +1676,7 @@ static void game_loop(void) {
         __asm__ volatile ("move.w #0x2000,%%sr" ::: "memory");
         if (coined && !start) flow_coin(&g_flow);
         if (a_edge && !start && g_flow.state <= FLOW_ATTRACT_DEMO && bios_user_mode == 1 && (in & FLOW_RESET_COMBO) != FLOW_RESET_COMBO && take_credit()) start = 1;
-        g_flow.game.start_in = (u8)(g_flow.state == FLOW_PLAYING && (bios_statchange & 1)); /* arcade continue: Start continues, A only counts down */
+        g_flow.game.start_in[0] = (u8)(g_flow.state == FLOW_PLAYING && (bios_statchange & 1)); /* arcade continue: Start continues, A only counts down */
         /* Start also ends the result screen and the GAME OVER text, and confirms a name entry letter like A (player_start refuses Start there) */
         if ((bios_statchange & 1) && ((g_flow.state == FLOW_PLAYING && g_flow.game.res.active) || g_flow.state == FLOW_GAME_OVER || g_flow.state == FLOW_NAME_ENTRY)) in |= IN_A;
         g_flow.credit_hold = (u8)(credits_now() > 0); /* owner rule "never force start": credits hold the PRESS START title */
@@ -1771,7 +1771,7 @@ static void game_loop(void) {
                 const Game *sg = view.game;   /* Gum Trip: its own floor death starts the gum splat (the splosh edge needs a water or lava kind) */
                 splash_update(splash_enabled((world || view.state == FLOW_GAME_OVER) && sg, trip_game),
                               trip_game ? sg->trip_splat : se->n_splosh > 0, trip_game ? SPLASH_KIND_GUM : sg ? sg->hazard_kind : 0,
-                              trip_game ? sg->flier.x >> 16 : se->splosh_x, trip_game ? sg->trip_splat_y : 0, g_cam_px);
+                              trip_game ? sg->hero[0].x >> 16 : se->splosh_x, trip_game ? sg->trip_splat_y : 0, g_cam_px);
             }
             logo_step(view.state == FLOW_ATTRACT_TITLE);
             title_soot_step(view.state == FLOW_ATTRACT_TITLE);

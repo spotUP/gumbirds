@@ -14,7 +14,7 @@ typedef enum { STEER_AVOID = 0, STEER_LAND, STEER_HIT } SteerMode;
 /* Target y (whole px) and landing flag for this frame; x wishes are returned through *dir. */
 static uint8_t trip_steer(const Game *g, SteerMode mode)
 {
-    const Flier *f = &g->flier;
+    const Flier *f = &g->hero[0];
     uint32_t px = g->trip.px;
     int fx = (int)(f->x >> 16), fy = (int)(f->y >> 16);
     uint32_t wxf = px + (uint32_t)fx;

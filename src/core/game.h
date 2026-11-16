@@ -24,6 +24,8 @@
 #include "arc_elements.h"
 #include "result.h"
 
+#define HUMANS 2 /* human fighter slots: fighter index 0..HUMANS-1 are humans, computer fliers follow from HUMANS */
+
 /* Input bits, active when set. Buttons A..D map to the Neo Geo A, B, C, D buttons. */
 #define IN_A 0x01u /* flap (press); name entry: accept */
 #define IN_B 0x02u /* name entry: back; unused in play */
@@ -63,11 +65,13 @@ typedef struct {
     uint8_t mode;        /* GameMode; ARENA after game_reset */
     uint8_t mood;        /* background mood (GAME_MOOD_*) the screen shows; game_reset keeps it, game_next_mood changes it */
     uint8_t over;        /* 1 when the player flier is DROWNED or GONE */
+    uint8_t players;     /* 1 or 2 humans in play (game_reset sets 1) */
+    uint8_t input2;      /* player 2 input byte (main.c sets it like start_in); unused while players == 1 */
 
     /* Arena slice: the flier replaces the runner hero in play. flier_steps counts flier_step calls (test sentinel). */
-    Flier flier;
+    Flier hero[HUMANS];  /* the humans: hero[0] is player 1; hero[1] stays GONE while players == 1 */
     uint32_t flier_steps;
-    uint32_t flaps;      /* flap press edges while the flier lives (sound event source) */
+    uint32_t flaps[HUMANS];      /* flap press edges while the flier lives (sound event source) */
 
     /* Computer fliers (src/core/ai.c). cpu[i] is live while state < FLIER_DROWNED; slots at or above cpu_count stay GONE.
      * Sentinels for tests: stomps, matches_won, cpu_alive, and the per-AI think counters. */
@@ -94,10 +98,10 @@ typedef struct {
     uint8_t trip_roof_fall; /* 1 from a roof death until the falling body reaches the floor line (its trip_splat frame) */
     uint8_t trip_hold;   /* hold steps taken at run start while the first screen chunks are built (one per game_step_trip), sentinel */
     ArcRun arc;          /* Arcade run (stage table, arcade.h), live in GAME_MODE_ARCADE; the arena step runs it */
-    uint8_t cont_a;      /* A was held on the previous arena step (press edge for the arcade continue) */
-    uint8_t start_in;    /* Start button changed to pressed this frame (main.c sets it from the BIOS); the arcade continue reads its edge */
-    uint8_t cont_start;  /* start_in on the previous arena step */
-    ArcLives lives;      /* Arcade lives: a flier death loses one, none left ends the run (continue screen: game_step_arena) */
+    uint8_t cont_a[HUMANS];      /* A was held on the previous arena step (press edge for the arcade continue) */
+    uint8_t start_in[HUMANS];    /* Start button changed to pressed this frame (main.c sets it from the BIOS); the arcade continue reads its edge */
+    uint8_t cont_start[HUMANS];  /* start_in on the previous arena step */
+    ArcLives lives[HUMANS];      /* Arcade lives: a flier death loses one, none left ends the run (continue screen: game_step_arena) */
     ArcPump pump[STAGE_SPAWN_COUNT]; /* per computer flier: blow-up window that decides its stomp score */
     ArcElements elems;   /* Arcade stage elements of the current stage (arc_elements.h), built by match_start, stepped in play only */
     ArcBonus bonus;      /* Arcade bonus stage, live while arc.state == ARC_BONUS after the banner hold */

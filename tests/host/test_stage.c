@@ -124,16 +124,16 @@ int main(void) {
     game_reset(&g, 1);
     for (i = 0; i < 120; i++) game_step_arena(&g, 0);
     CHECK(g.flier_steps == 120);
-    CHECK(g.flier.on_ground && g.flier.state == FLIER_ALIVE && !g.over);
+    CHECK(g.hero[0].on_ground && g.hero[0].state == FLIER_ALIVE && !g.over);
     CHECK(g.matches_won == 0); /* survival time no longer scores (design 3.3) */
     /* Over the gap between islands (x 100 has no platform below): the flier falls into the water and the run ends. */
-    g.flier.x = FL_PX(100);
-    g.flier.y = FL_PX(100);
-    g.flier.on_ground = 0;
+    g.hero[0].x = FL_PX(100);
+    g.hero[0].y = FL_PX(100);
+    g.hero[0].on_ground = 0;
     for (i = 0; i < 2000 && !g.over; i++) game_step_arena(&g, 0);
     CHECK(g.over);
     /* behaviour change approved by the user (dead flier hazard hunt): the run ends when the body is GONE; was FLIER_DROWNED */
-    CHECK(g.flier.state == FLIER_GONE);
+    CHECK(g.hero[0].state == FLIER_GONE);
     {
         uint32_t n = g.flier_steps;
         game_step_arena(&g, 0);
@@ -143,9 +143,9 @@ int main(void) {
     game_reset(&g, 1);
     for (i = 0; i < 60; i++) game_step_arena(&g, 0);
     {
-        int32_t y0 = g.flier.y;
+        int32_t y0 = g.hero[0].y;
         for (i = 0; i < 20; i++) game_step_arena(&g, (i & 1) ? 0 : IN_A);
-        CHECK(g.flier.y < y0);
+        CHECK(g.hero[0].y < y0);
     }
     /* Layout rotation (ROT1): every layout in the table passes the R01 range checks; the player start stands on island 0 of each; a real game's round n plays layout (n - 1) mod count. */
     CHECK(stage_layout_count() == 12);

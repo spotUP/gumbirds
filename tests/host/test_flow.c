@@ -231,8 +231,8 @@ static void scenario_full(const HiscoreTable *pre, const char *want_name)
     CHECK(r.f.state == FLOW_PLAYING && !r.f.demo);
     /* Arena slice: put the flier over the gap between islands (x 100 has no platform below) so it drowns. */
     earn_score(&r, 1500);                       /* stomps give the points; the table minimum is 1000 */
-    r.f.game.flier.x = FL_PX(120);
-    r.f.game.flier.y = FL_PX(100);
+    r.f.game.hero[0].x = FL_PX(120);
+    r.f.game.hero[0].y = FL_PX(100);
     rig_until(&r, FLOW_GAME_OVER, IN_A, 60000);
     CHECK(r.f.state == FLOW_GAME_OVER);
     CHECK(r.f.game.over && r.f.last_score == r.f.game.score && r.f.last_score > 0);
@@ -330,8 +330,8 @@ static void test_full_flow(void)
         }
         rig_begin(&r, 424242);
         earn_score(&r, 1500);
-        r.f.game.flier.x = FL_PX(120);
-        r.f.game.flier.y = FL_PX(100);
+        r.f.game.hero[0].x = FL_PX(120);
+        r.f.game.hero[0].y = FL_PX(100);
         rig_until(&r, FLOW_GAME_OVER, IN_A, 60000);
         rig_ticks(&r, 0, GAMEOVER_FRAMES);
         CHECK(r.f.state == FLOW_ATTRACT_TITLE && r.saves == 0 && r.f.new_row == -1);
@@ -384,7 +384,7 @@ static void test_cycle_and_demo(void)
         rig_until(&r, FLOW_ATTRACT_TITLE, 0, 100000);
         rig_until(&r, FLOW_ATTRACT_DEMO, 0, 100000);
         for (i = 0; i < ATTRACT_DEMO_FRAMES - 1 && r.f.state == FLOW_ATTRACT_DEMO; i++) rig_tick(&r, 0, 0);
-        CHECK(r.f.state == FLOW_ATTRACT_DEMO && !r.f.game.over && r.f.game.flier.state == FLIER_ALIVE && r.f.game.flier_steps > 0);
+        CHECK(r.f.state == FLOW_ATTRACT_DEMO && !r.f.game.over && r.f.game.hero[0].state == FLIER_ALIVE && r.f.game.flier_steps > 0);
     }
 
     /* BG4 (changed by the coin item): a taken credit during the demo starts a game at once, no second press */
@@ -484,11 +484,11 @@ static void test_demo_modes(void)
         rig_until(&r, FLOW_ATTRACT_DEMO, 0, 100000);
         for (i = 0; i < 3 && r.f.game.mode != GAME_MODE_ARCADE; i++) { r.f.state = FLOW_ATTRACT_TABLE; r.f.timer = ATTRACT_TABLE_FRAMES; rig_until(&r, FLOW_ATTRACT_DEMO, 0, 100000); }
         rig_ticks(&r, 0, 120);
-        r.f.game.score = 777; r.f.game.lives.lives = 1; r.f.game.arc.stage = 5;
+        r.f.game.score = 777; r.f.game.lives[0].lives = 1; r.f.game.arc.stage = 5;
         r.f.mode = c ? GAME_MODE_ARCADE : GAME_MODE_ARENA;
         rig_tick(&r, 0, 1);
         CHECK(r.f.state == FLOW_PLAYING && !r.f.demo && r.f.game.mode == r.f.mode && r.f.game.score == 0 && r.f.game.frame == 0);
-        if (c) CHECK(r.f.game.arc.stage == 1 && r.f.game.lives.lives == ARC_LIVES_START);
+        if (c) CHECK(r.f.game.arc.stage == 1 && r.f.game.lives[0].lives == ARC_LIVES_START);
         r.f.state = FLOW_ATTRACT_TABLE; r.f.timer = ATTRACT_TABLE_FRAMES; r.f.demo = 0;
     }
 }
@@ -595,13 +595,13 @@ static void test_mode_select(void)
     }
     /* Start begins the selected mode through the real path; the trip core runs (sentinel), the arena core does not */
     rig_begin(&r, 0);
-    CHECK(r.f.state == FLOW_PLAYING && r.f.game.mode == GAME_MODE_TRIP && r.f.game.flier.no_wrap);
+    CHECK(r.f.state == FLOW_PLAYING && r.f.game.mode == GAME_MODE_TRIP && r.f.game.hero[0].no_wrap);
     for (i = 0; i < 30; i++) rig_tick(&r, 0, 0);
     /* the run-start hold (one chunk build per tick, at most 3, none in the Start tick) takes ticks without a trip step */
     CHECK(r.f.game.trip_hold >= 1 && r.f.game.trip_hold <= 3 && game_trip_ready(&r.f.game));
     CHECK(r.f.game.trip.steps == 30 - r.f.game.trip_hold && r.f.game.flier_steps == r.f.game.trip.steps && r.f.game.cpu_count == 0);
     /* game over returns to the title with the selection kept */
-    r.f.game.flier.state = FLIER_GONE;
+    r.f.game.hero[0].state = FLIER_GONE;
     rig_tick(&r, 0, 0);
     CHECK(r.f.state == FLOW_GAME_OVER);
     rig_until(&r, FLOW_ATTRACT_TITLE, 0, 3000);
@@ -619,7 +619,7 @@ static void test_mode_select(void)
     rig_begin(&r, 0);
     for (i = 0; i < 30 + ROUND_START_TEXT_FRAMES + ROUND_GO_TEXT_FRAMES; i++) rig_tick(&r, 0, 0);   /* round 1 starts frozen (ME18) */
     CHECK(r.f.state == FLOW_PLAYING && r.f.game.mode == GAME_MODE_ARENA && r.f.game.trip.steps == 0 && r.f.game.flier_steps == 30);
-    CHECK(!r.f.game.flier.no_wrap);
+    CHECK(!r.f.game.hero[0].no_wrap);
     /* the reset combo still works and does not toggle the mode */
     memset(&r, 0, sizeof r);
     flow_init(&r.f, NULL, 0);

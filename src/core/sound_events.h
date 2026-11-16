@@ -4,7 +4,7 @@
  * Turns the game state (read only FlowView) into sound events by edge detection, so main.c needs one call
  * per frame and the rules are host-tested. Events only fire in a real run (FLOW_PLAYING); the attract
  * demo is silent. The coin blip is not a flow event: the BIOS coin vector counts coins and coin_drain turns them into blips.
- * SE_FLAP fires on every flap press edge (Game.flaps).
+ * SE_FLAP fires on every flap press edge (Game.flaps[0]).
  */
 #include <stdint.h>
 #include "flow.h"
@@ -46,15 +46,15 @@ enum {
    2 * FLIER_FLAP_IMPULSE plus at most one gravity step, so a jump on level ground stays under it. */
 #define SE_DROP_VY (2 * FLIER_FLAP_IMPULSE + 2 * FLIER_GRAVITY_NO_BALLOON)
 
-/* Fliers watched: the player, the arena computer fliers, the Gum Trip rivals (sharing the cpu slots' space is not needed: one mode at a time). */
-#define SE_WATCHED (1 + STAGE_SPAWN_COUNT + TRIP_RIVAL_MAX)
+/* Fliers watched: the humans, the arena computer fliers, the Gum Trip rivals (sharing the cpu slots' space is not needed: one mode at a time). */
+#define SE_WATCHED (HUMANS + STAGE_SPAWN_COUNT + TRIP_RIVAL_MAX)
 #define SE_UNSEEN  0xFF
 #define SE_UNSEEN_GUM 0xFFFF
 
 typedef struct {
     uint8_t prev_state, primed;
     uint32_t prev_matches;              /* Game.matches_won last frame while playing */
-    uint32_t prev_flaps;
+    uint32_t prev_flaps[HUMANS];
     uint8_t seen_state[SE_WATCHED];     /* last FlierState per watched flier, SE_UNSEEN when it was not live last frame */
     uint8_t seen_balloons[SE_WATCHED];
     /* Counts of the last se_step (a mask bit says "at least one"; several fliers can die in one frame, each is one sound). */
@@ -65,10 +65,10 @@ typedef struct {
     uint8_t drop[SE_WATCHED];           /* 1 while a balloon-less walker's drop has made its fall sound; cleared on the ground */
     /* last frame's values for the cue edges */
     uint8_t prev_round_start, prev_pump[STAGE_SPAWN_COUNT] /* state << 4 | progress */, prev_touch /* bit 0 flipper, bit 1 grate */;
-    uint8_t prev_life_state, prev_seconds, ne_seen, ne_pos, ne_sym, ne_done;
+    uint8_t prev_life_state[HUMANS], prev_seconds[HUMANS], ne_seen, ne_pos, ne_sym, ne_done;
     uint16_t prev_el[ARC_ELEM_MAX];
     uint32_t prev_bounces;
-    int prev_lives, prev_spawned, prev_caught;
+    int prev_lives[HUMANS], prev_spawned, prev_caught;
 } SoundEvents;
 
 void se_init(SoundEvents *e);
