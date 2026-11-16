@@ -4,7 +4,7 @@
 --   L2. 0 credits: the "PRESS START" cell at fix col 14 row 22 (tile of 'P') is never written; the "INSERT COIN" cell ('I') is;
 --   L3. the BIOS credit byte 0x10FE00 reads 0 before and 1 after one coin; after the coin "PRESS START" is written;
 --   L4. kill strips (slots shared with the logo, 323..354): in each of two Gum Trips (title, play, title, play) every visible sprite of
---       TRIP_STRIP_SPRITE..+COUNT carries a tripstrip tile and none a logo tile; back on the title the logo is visible again.
+--       TRIP_STRIP_SPRITE..+COUNT carries a tripstrip tile and none a logo tile; back on the title (after the BIOS hand-off) the logo is visible again.
 -- Fix cells and sprite words come from a tap on the VRAM ports (what the game wrote), not from game variables.
 -- Env: BRAWL_FLOW_ADDR, BRAWL_LOGODRAWS_ADDR, BRAWL_FIXFONT_H, BRAWL_LOGO_LAYOUT (logo_probe.c), BRAWL_RESULT.
 local flow_addr = tonumber(os.getenv("BRAWL_FLOW_ADDR"), 16)
@@ -143,9 +143,10 @@ emu.register_frame_done(function()
     end
   elseif phase == "back" then
     if n - t0 == 1 and (state() ~= 0 or mem:read_u8(CREDIT) ~= 0) then fail(string.format("L4 title after trip %d: flow state %d, credit byte %02x (a banked credit starts a game at once)", trips_done, state(), mem:read_u8(CREDIT))) return end
-    if n - t0 == 40 then   -- early: a paid title starts the next game by itself when its timer runs out
-      local ok, s = logo_visible()
-      if not ok then fail("L4 logo sprite " .. s .. " hidden when back on the title after trip " .. trips_done .. " (flow state " .. state() .. ", scb3 " .. string.format("%x", vram[0x8200 + s] or 0) .. ")") return end
+    -- Game end is a SYSTEM_RETURN (d4ab3e5): the BIOS clears the sprites and keeps the CPU ~40 frames. Judge the first frame the logo is
+    -- visible again (its tiles must be there on that frame), early: a paid title starts the next game by itself when its timer runs out.
+    if n - t0 > 120 then local _, s = logo_visible(); fail("L4 logo sprite " .. s .. " hidden 120 frames after the return to the title after trip " .. trips_done .. " (flow state " .. state() .. ", scb3 " .. string.format("%x", vram[0x8200 + s] or 0) .. ")") return end
+    if logo_visible() then
       for _, e in ipairs(tiles_of(LG_SPR, LG_N)) do
         if not in_range(e[2], LG_BASE, LG_COUNT) then fail(string.format("L4 back on the title: slot %d tile %d is not a logo tile", e[1], e[2])) return end
       end
