@@ -67,7 +67,12 @@ uint16_t result_cell(const Result *r, uint8_t col, uint8_t row)
         if (i < 5) return plate(FIXFONT_PAL_PINK, i == 3 ? 'X' : 0);
         return num_cell(FIXFONT_PAL_PINK, r->each, 3, (uint8_t)(i - 5), 0);
     }
+    if (row == 20 && r->two && in(col, 11, 27)) {
+        if (in(col, 19, 26)) return num_cell(FIXFONT_PAL_PINK, r->score2, 8, (uint8_t)(col - 19), 1);
+        return plate(FIXFONT_PAL_WHITE, str_cell("PLAYER 2", 11, col));
+    }
     if (row == 19 && in(col, 11, 27)) {
+        if (r->two && !in(col, 19, 26)) return plate(FIXFONT_PAL_WHITE, str_cell("PLAYER 1", 11, col));
         if (in(col, 19, 26)) return num_cell(FIXFONT_PAL_PINK, r->score_shown, 8, (uint8_t)(col - 19), 1);
         return plate(FIXFONT_PAL_WHITE, str_cell("SCORE", 12, col));
     }
@@ -86,7 +91,7 @@ void result_region(uint8_t bit, uint8_t *row0, uint8_t *row1, uint8_t *col0, uin
     switch (bit) {
     case RES_DIRTY_POPPED: *row0 = *row1 = 4; *col0 = 10; *col1 = 29; break;
     case RES_DIRTY_MACHINE: *row0 = *row1 = 13; *col0 = 25; *col1 = 32; break;
-    case RES_DIRTY_SCORE: *row0 = *row1 = 19; *col0 = 12; *col1 = 26; break;
+    case RES_DIRTY_SCORE: *row0 = 19; *row1 = 20; *col0 = 11; *col1 = 26; break;
     default: *row0 = 22; *row1 = 24; *col0 = 10; *col1 = 30; break; /* ticket text (and the unused cage bit) */
     }
 }

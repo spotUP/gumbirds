@@ -38,6 +38,8 @@ typedef struct {
     uint32_t bonus;        /* perfect bonus, 0 when not perfect */
     uint32_t total_left;   /* tally still to add; shown as the total */
     uint32_t score_shown;
+    uint8_t two;           /* player 2 is in: the screen shows both totals */
+    uint32_t score2;       /* player 2 total, already paid (game.c) */
     /* Moving parts (sprites, main.c draw_result_fx). All of it follows the fields above; none of it changes the timing. */
     uint16_t t;            /* frames since the start */
     uint8_t pop[RES_SLOTS]; /* per bubble: 0 whole, 1..6 popping, 7 gone */
