@@ -37,7 +37,7 @@ local O_AMODE, K_DEMO, K_ARENA, K_TRIP, K_ARCADE = AL[4], AL[6], AL[7], AL[8], A
 local O_AFLOW = AL[1]
 local DEMO_MIN_FRAMES = 150   -- logic frames sampled per mode before the demo run may end
 local LOGIC_LIMIT = 224       -- logic end must stay below the visible lines, else the flush is skipped
-local FLUSH_BUDGET_US = 2000  -- GFX_FLUSH_BUDGET_US
+local FLUSH_BUDGET_US = 1800  -- GFX_FLUSH_BUDGET_US
 local demo_mode = {}          -- per mode (arena/trip/arcade): frames, logic end max, flush us max, vram words max, palette words max
 for _, m in ipairs({ K_ARENA or -1, K_TRIP or -2, K_ARCADE or -3 }) do demo_mode[m] = { frames = 0, lmax = 0, us = 0, vwords = 0, pwords = 0, us_late = 0, vw_late = 0, over = 0, first_over = nil, lmax_late = 0, idx_lmax = 0 } end
 local prev_held = 0
