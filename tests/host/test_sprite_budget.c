@@ -160,19 +160,27 @@ static void test_arcade_elements(void) {
     for (int st = 1; st <= 12; st++) {
         ArcElements a;
         ArcSprite s[ARC_VIEW_MAX];
-        int sw = 0;
+        int sw = 0, peak = 0;
         stage_select(arc_stage_layout(st));
         arc_elements_init(&a, st - 1);
         for (int t = 0; t < 700; t++, arc_elements_step(&a)) {
             int n = arc_view_build(&a, (unsigned)t, s), cols = 0;
             for (int i = 0; i < n; i++) cols += ARC_VIEW_COLS[s[i].piece];
             CHECK(cols <= ARC_ELEM_COUNT); /* every block gets its columns, also the spark of the last vent */
+            if (cols > peak) peak = cols;
+            int killing = 0, sparks = 0;
+            for (int i = 0; i < a.n; i++)
+                if (a.el[i].kind == ARC_EL_VENT && a.el[i].timer >= ARC_VENT_LAUNCH && a.el[i].timer < ARC_VENT_LAUNCH + ARC_VENT_BURST_TICKS) killing++;
+            for (int i = 0; i < n; i++) if (s[i].piece == ARCV_SPARK) sparks++;
+            CHECK(sparks == killing); /* a plume that can kill always has its spark sprite (no invisible kill) */
             for (int y = 0; y < SB_LINES; y++) {
                 int c = sprite_budget_line(0, y, 0) + arc_view_line(s, n, y);
                 if (c > sw) sw = c;
             }
         }
         printf(" %d", sw);
+        CHECK(peak <= ARC_ELEM_COUNT); /* element columns of the stage fit the range (R10 needs exactly 15 of 15) */
+        CHECK(st != 10 || peak == 15);
         CHECK(sw <= SB_LIMIT);
         if (sw > worst) worst = sw;
     }
