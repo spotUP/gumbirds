@@ -8,9 +8,9 @@
 #include <ngdevkit/neogeo.h>
 
 /* Flush time per vblank in microseconds. Vblank is 40 lines of 64 us = 2560 us from the interrupt ack; the flush
- * starts about 30 us after it. 2000 us leaves about 8 lines of margin for cost estimate error
+ * starts about 30 us after it. 1800 us leaves about 12 lines of margin for cost estimate error
  * (thoughts/shared/research/2026-11-09_vblank-writes.md). */
-#define GFX_FLUSH_BUDGET_US 2000u
+#define GFX_FLUSH_BUDGET_US 1800u
 
 #define GFX_AUTOANIM_DEFAULT_FRAMES 1 /* counter speed at boot and when no auto-animated strip is shown */
 void gfx_autoanim_speed(u8 frames_per_step); /* LSPC auto-animation: counter steps every N video frames (REG_LSPCMODE bits 15..8 = N-1) */
