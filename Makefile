@@ -926,6 +926,8 @@ test-left-column: cart
 	@set -e; for M in arena trip; do T=$$(mktemp -d $(BUILDDIR)/test-run.XXXXXX); \
 	BRAWL_FLOW_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flow"{print $$1}') \
 	BRAWL_FRAME_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_frame_counter"{print $$1}') \
+	BRAWL_MOOD_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_want"{print $$1}') \
+	BRAWL_BACKDROP_ADDR=$$($(NM) $(ELF) | awk -v T=$$([ $$M = trip ] && echo TRIP_BACKDROP || echo BACKDROP) '$$3==T{print $$1}') \
 	BRAWL_LC_MODE=$$M BRAWL_RESULT=$$T/result.txt \
 	SDL_VIDEODRIVER=dummy nice -n 19 $(MAME) -window -nomaximize -video none -sound none -nothrottle -seconds_to_run $(TEST_SECONDS) -noautosave -skip_gameinfo -hash $(ROM) -rp $(ROM) -nvram_directory $$T -autoboot_script tests/mame/left_column_check.lua neogeo -cart1 $(GAMEROM) > $$T/mame.log 2>&1 || true; \
 	if [ ! -f $$T/result.txt ]; then tail -n 15 $$T/mame.log; echo "[FAIL] no result from left column Lua script ($$M)"; exit 1; fi; \
