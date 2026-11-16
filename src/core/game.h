@@ -194,6 +194,8 @@ int game_round_number(const Game *g);
 /* Text of the round-start phase when it is not "ROUND nn": line 0 and 1 of the bonus stage announcement, or of a PARTY game
  * (rule or twist name, then goal line; the view draws ROUND nn above it), else 0. */
 const char *game_round_start_text(const Game *g, int line);
+/* How-to overlay line 0..2 of a PARTY rule (PARTY_*), shown before round 1; "" for an unknown rule or line. */
+const char *game_party_howto(uint8_t rule, int line);
 /* Roost Rule: the roost platform's world rectangle (left x, top y, width) for the marker; returns 0 when the rule is not running. */
 int game_roost_rect(const Game *g, int *x, int *top, int *w);
 /* BANNER_* flags for the round banner: 0 in the arena, BANNER_STAGE in arcade, BANNER_BONUS while the arcade bonus stage runs. */

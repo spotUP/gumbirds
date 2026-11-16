@@ -132,6 +132,8 @@ volatile u16 g_round_end_s[4];
 volatile u16 g_banner_calls, g_banner_cells; /* round clear banner draws, for the MAME tests */
 /* Round start text on the fix layer: phase drawn (RS_*) and the round number shown, so the cells are written and cleared once. */
 static u8 g_rs_drawn = RS_NONE;
+static u8 g_howto_up; /* PARTY how-to overlay (fix rows HOWTO_ROW..) is on screen */
+#define HOWTO_ROW 22
 static u8 g_stage_key = 0xFF; /* arcade HUD stage text: 0 none, 254 bonus, else stage number; 0xFF = not drawn since the last clear */
 static u8 g_over_up; /* GAME OVER text drawn since the last clear */
 static u8 g_cont_key[HUMANS] = { 0xFF, 0xFF }; /* arcade continue plate per side on the fix layer: 0 none, else 1 + seconds left (+ 0x80 with a credit) */
@@ -1472,7 +1474,7 @@ static void draw(const FlowView *v) {
         g_draw_state = (int)v->state;
         g_hud[0].kind = g_hud[1].kind = HUD_KIND_NONE;
         g_ov_stage = 0; g_ov_key = AO_NONE; g_ov_part = 0;
-        g_rs_drawn = RS_NONE; g_rs_num = 0; g_banner_up = 0; g_cont_key[0] = g_cont_key[1] = 0xFF; g_stage_key = 0xFF; g_over_up = 0;
+        g_rs_drawn = RS_NONE; g_rs_num = 0; g_banner_up = 0; g_howto_up = 0; g_cont_key[0] = g_cont_key[1] = 0xFF; g_stage_key = 0xFF; g_over_up = 0;
         g_meter_step = METER_NONE;
 #ifdef GUMBIRDS_DEBUG_HEADER /* gmake DEBUG_HEADER=1; the normal build leaves the top rows to the HUD */
         text(2, 2, PAL_TEXT, "GUMBIRDS");
@@ -1519,6 +1521,18 @@ static void draw(const FlowView *v) {
         }
         if (v->game && v->game->mode == GAME_MODE_TRIP) draw_gum_meter(v->game->trip.gum);
         if (v->state == FLOW_ATTRACT_DEMO && v->game) draw_overlay(v);
+        {
+            /* PARTY how-to: rule name, three lines and the skip prompt, written when the screen changes only */
+            u8 up = (v->state == FLOW_PLAYING && v->game && v->howto) ? 1 : 0;
+            if (up != g_howto_up) {
+                u8 i;
+                u8 rule = v->game->party_rule;
+                g_howto_up = up;
+                gfx_center_text(HOWTO_ROW, PAL_TEXT, up ? game_party_name(rule) : BANNER_BLANK);
+                for (i = 0; i < 3; i++) gfx_center_text((u8)(HOWTO_ROW + 1 + i), PAL_TEXT, up ? game_party_howto(rule, i) : BANNER_BLANK);
+                gfx_center_text(HOWTO_ROW + 5, PAL_TEXT, up ? "PRESS A OR START TO SKIP" : BANNER_BLANK);
+            }
+        }
         {
             /* ROUND nn then GO! (arena game only: the demo and Gum Trip report RS_NONE); fix font, no panel; cleared when the phase ends */
             u8 rs = (v->state == FLOW_PLAYING && v->game) ? (u8)game_round_start_phase(v->game) : (u8)RS_NONE;

@@ -42,7 +42,7 @@ int main(void) {
         CHECK(g.twist > TWIST_NONE && g.twist < TWIST_COUNT);
         if (i) CHECK(seq[i] != seq[i - 1]);
         seen[g.twist] = 1;
-        CHECK(game_round_start_text(&g, 0) == game_twist_name(g.twist) && game_round_start_text(&g, 1) == game_party_goal(PARTY_ROUND));
+        CHECK(game_round_start_text(&g, 0) == game_twist_name(g.twist) && game_round_start_text(&g, 1) && strlen(game_round_start_text(&g, 1)) <= 36 && game_round_start_text(&g, 1) != game_party_goal(PARTY_ROUND));
         next_round();
     }
     for (k = 1; k < TWIST_COUNT; k++) CHECK(seen[k]);

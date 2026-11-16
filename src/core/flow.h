@@ -69,6 +69,8 @@ typedef struct {
     uint8_t entry_h;         /* human whose ranking score the name entry is taking (P1 then P2) */
     uint8_t party_rule;      /* PARTY_* picked on the PARTY title row (Left/Right); kept across runs */
     uint8_t last_rule;       /* PARTY_* of the last real run: tag of its PARTY table entry */
+    uint8_t howto;           /* 1 while the PARTY how-to demo runs inside FLOW_PLAYING (computer bird, no rounds); A or Start ends it */
+    uint8_t howto_a2;        /* P2 A held last frame (press edge for the how-to skip) */
     uint8_t last_mode;       /* GameMode of the last real run: its table is scored and shown after the run */
     ScoreTables tables;      /* one table per GameMode (score_table.h) */
     Game game;
@@ -91,6 +93,7 @@ typedef struct {
     uint8_t mode;            /* GameMode highlighted on the title */
     uint8_t party_rule;      /* PARTY_* highlighted on the PARTY row */
     uint8_t select_open;     /* title: mode select opened by a start press */
+    uint8_t howto;           /* PLAYING: the PARTY how-to demo is running (draw the overlay for party_rule of game) */
     uint8_t ov_key;          /* ATTRACT_DEMO: AttractOverlay key (AO_*), AO_NONE before the first demo frame */
 } FlowView;
 
