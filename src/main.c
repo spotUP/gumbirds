@@ -96,11 +96,9 @@ static const u8 k_clip_loop[SOOTLING_CLIP_COUNT] = SOOTLING_TABLE_CLIP_LOOP;
 static const u8 k_frame_ticks[SOOTLING_FRAMES] = SOOTLING_TABLE_FRAME_TICKS;
 static const FlierClips k_clips = {
     k_clip_first, k_clip_count, k_clip_loop, k_frame_ticks,
-    SOOTLING_CLIP_FLAP2, SOOTLING_CLIP_FLAP1, SOOTLING_CLIP_POP2, SOOTLING_CLIP_POP1, SOOTLING_CLIP_INFLATE,
-    SOOTLING_CLIP_FALL, SOOTLING_CLIP_IDLE,
-    { SOOTLING_CLIP_WALK0, SOOTLING_CLIP_WALK1, SOOTLING_CLIP_WALK2 },
-    { SOOTLING_CLIP_LAND0, SOOTLING_CLIP_LAND1, SOOTLING_CLIP_LAND2 },
-    { SOOTLING_CLIP_BREATHE0, SOOTLING_CLIP_BREATHE1, SOOTLING_CLIP_BREATHE2 }
+    SOOTLING_CLIP_FLAP, SOOTLING_CLIP_FLY, SOOTLING_CLIP_SETTLE, SOOTLING_CLIP_IDLE, SOOTLING_CLIP_PUMP,
+    SOOTLING_CLIP_INFLATE, SOOTLING_CLIP_FALL, SOOTLING_CLIP_POP2, SOOTLING_CLIP_POP1,
+    SOOTLING_CLIP_WALK, SOOTLING_CLIP_LAND, SOOTLING_CLIP_BREATHE
 };
 static FlierAnim g_hero_anim[HUMANS]; /* per human: [1] steps the P2 body drawn from pool objects P2_OBJ_BODY / P2_OBJ_CHUTE */
 
@@ -1080,8 +1078,17 @@ static int g_draw_state = -1;
 #define METER_COL 2
 static u8 g_meter_step = METER_NONE;
 volatile u16 g_meter_draws;
+static u8 g_distress = 0;
+/* Gum Trip distress: the player's cheeks go red in 3 stages as the gum runs out (extra palettes 1..3); stage 0 restores the player palette. */
+static void set_distress(u8 stage) {
+    if (stage == g_distress) return;
+    g_distress = stage;
+    for (int i = 0; i < 16; i++)
+        gfx_pal(SOOT_PAL_SLOT * 16 + i, stage ? sootling_extra_palettes[stage][i] : sootling_palettes[0][i]);
+}
 static void draw_gum_meter(u16 gum) {
     u8 step = (u8)trip_view_meter_step((int)gum);
+    set_distress((u8)trip_view_distress(step));
     if (step == g_meter_step) return;
     g_meter_step = step;
     for (u8 c = 0; c < TRIPMETER_CELLS; c++) gfx_fix_tile((u8)(METER_COL + c), METER_ROW, PAL_TEXT, tripmeter_cell[step][c]);
@@ -1482,6 +1489,7 @@ static void draw(const FlowView *v) {
         g_ov_stage = 0; g_ov_key = AO_NONE; g_ov_part = 0;
         g_rs_drawn = RS_NONE; g_rs_num = 0; g_banner_up = 0; g_howto_up = 0; g_mode_key = 0xFF; g_cont_key[0] = g_cont_key[1] = 0xFF; g_stage_key = 0xFF; g_over_up = 0;
         g_meter_step = METER_NONE;
+        set_distress(0);
 #ifdef GUMBIRDS_DEBUG_HEADER /* gmake DEBUG_HEADER=1; the normal build leaves the top rows to the HUD */
         text(2, 2, PAL_TEXT, "GUMBIRDS");
         text(2, 3, PAL_TEXT, STATE_NAME[v->state]);
@@ -1526,6 +1534,7 @@ static void draw(const FlowView *v) {
             }
         }
         if (v->game && v->game->mode == GAME_MODE_TRIP) draw_gum_meter(v->game->trip.gum);
+        else set_distress(0);
         if (v->state == FLOW_ATTRACT_DEMO && v->game) draw_overlay(v);
         {
             /* mode name in the bottom-left corner while playing, written when the mode or rule changes only */

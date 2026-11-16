@@ -46,6 +46,9 @@ int trip_view_meter_step(int gum);
 int trip_view_meter_cell(int step, int c);
 /* 1 when the meter is down to two steps or less (blink). */
 int trip_view_warning(int step);
+/* Cheek distress stage of the gum in the beak: 0 healthy (meter step 5..8), 1 at step 4, 2 at step 3, 3 at step 2 or less
+ * (the same steps as the warning blink). The view swaps the player palette for sootling_extra_palettes[stage]. */
+int trip_view_distress(int step);
 
 /* Sprite columns that trip objects put on screen line y (0..179): hazards (cloud 3 columns 48 tall, vent 2 columns 48
  * tall, coal 2 columns 32 tall, centred on the swept position), pickups (2 columns, 24 tall), islands (width / 16

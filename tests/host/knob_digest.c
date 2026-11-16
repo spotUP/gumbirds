@@ -322,7 +322,7 @@ static void ai_probe(void)
 
 /* Flier view part: scripted runs of flier_anim_step for 2, 1 and 0 balloons. Standing, walking at two speeds (one between
  * the default and the overridden walk threshold), a landing, and in the air one flap press with rest frames around it, so
- * the walk, landing, breathing, walk threshold and flap hold knobs all change a frame number. */
+ * the walk, landing, breathing and walk threshold knobs all change a frame number. */
 static void flier_view_digest(void)
 {
     static const uint8_t k_first[] = SOOTLING_TABLE_CLIP_FIRST;
@@ -330,11 +330,9 @@ static void flier_view_digest(void)
     static const uint8_t k_loop[] = SOOTLING_TABLE_CLIP_LOOP;
     static const uint8_t k_ticks[] = SOOTLING_TABLE_FRAME_TICKS;
     static const FlierClips clips = { k_first, k_count, k_loop, k_ticks,
-        SOOTLING_CLIP_FLAP2, SOOTLING_CLIP_FLAP1, SOOTLING_CLIP_POP2, SOOTLING_CLIP_POP1,
-        SOOTLING_CLIP_INFLATE, SOOTLING_CLIP_FALL, SOOTLING_CLIP_IDLE,
-        { SOOTLING_CLIP_WALK0, SOOTLING_CLIP_WALK1, SOOTLING_CLIP_WALK2 },
-        { SOOTLING_CLIP_LAND0, SOOTLING_CLIP_LAND1, SOOTLING_CLIP_LAND2 },
-        { SOOTLING_CLIP_BREATHE0, SOOTLING_CLIP_BREATHE1, SOOTLING_CLIP_BREATHE2 } };
+        SOOTLING_CLIP_FLAP, SOOTLING_CLIP_FLY, SOOTLING_CLIP_SETTLE, SOOTLING_CLIP_IDLE, SOOTLING_CLIP_PUMP,
+        SOOTLING_CLIP_INFLATE, SOOTLING_CLIP_FALL, SOOTLING_CLIP_POP2, SOOTLING_CLIP_POP1,
+        SOOTLING_CLIP_WALK, SOOTLING_CLIP_LAND, SOOTLING_CLIP_BREATHE };
     static const int32_t speeds[3] = { 0, 40000, 91750 }; /* 0, 0.61 and 1.4 px per frame */
     int b, seg, i, flip;
     for (b = 2; b >= 0; b--) {

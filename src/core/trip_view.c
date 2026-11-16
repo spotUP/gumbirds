@@ -29,6 +29,10 @@ int trip_view_warning(int step) {
     return step <= 2;
 }
 
+int trip_view_distress(int step) {
+    return step >= 5 ? 0 : (step >= 2 ? 5 - step : 3);
+}
+
 /* Columns of a sprite block (left edge sx, cols columns of 16 px) that lie on screen. */
 static int cols_on_screen(int sx, int cols) {
     int k, n = 0;

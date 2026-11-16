@@ -1,4 +1,7 @@
 #include "gum_view.h"
+#include "gen/sootling_tables.h"
+
+typedef char gum_view_bird_frames_match_sheet[(GUM_VIEW_BIRD_FRAMES == SOOTLING_FRAMES) ? 1 : -1];
 
 /* One level is GUM_MAX / 16 gum; a power of two keeps the per frame mapping division free on the 68000 (the compiler turns it into a shift). */
 #define STEP (GUM_MAX / GUM_VIEW_LEVELS)
@@ -35,33 +38,19 @@ uint8_t gum_view_frame(GumState state, uint32_t t)
 
 int gum_view_pop_done(uint32_t t) { return t >= (uint32_t)GUM_VIEW_POP_SHEET * GUM_POP_FRAMES; }
 
-/* Per bird frame (sootling_anims[PLAYER], Sootling E): bubble bob and whether the frame carries a string. Generated from
- * thoughts/spot/drafts/2026-11-12-degummed-sootling-r2/bubble_motion.json (subtle.dy.player, shows_bubble.player). */
-typedef struct { int8_t dy; uint8_t show; } BirdBob;
-static const BirdBob bobs[GUM_VIEW_BIRD_FRAMES] = {
-    {4, 1}, {4, 1}, {2, 1}, {0, 1}, {0, 1}, {1, 1}, {2, 1},
-    {3, 1}, {4, 1}, {4, 1}, {2, 1}, {0, 1}, {0, 1}, {1, 1},
-    {2, 1}, {3, 1}, {2, 1}, {3, 1}, {4, 1}, {4, 1}, {4, 1},
-    {2, 1}, {2, 1}, {2, 1}, {2, 1}, {3, 1}, {3, 1}, {4, 1},
-    {2, 1}, {3, 0}, {4, 0}, {3, 0}, {3, 0}, {1, 0}, {0, 0},
-    {0, 0}, {0, 0}, {0, 0}, {2, 0}, {3, 0}, {5, 0}, {5, 0},
-    {5, 0}, {4, 1}, {2, 1}, {2, 1}, {2, 1}, {1, 1}, {1, 1},
-    {1, 1}, {2, 1}, {3, 1}, {0, 0}, {1, 0}, {0, 0}, {-1, 0},
-    {0, 0}, {0, 0}, {1, 0}, {0, 0}, {-1, 0}, {0, 0}, {3, 0},
-    {2, 0}, {1, 0}, {0, 0}, {0, 0}, {2, 0}, {1, 0}, {0, 0},
-    {0, 0}, {3, 0}, {3, 0}, {3, 0}, {2, 0}, {1, 0}, {2, 0},
-    {2, 1}, {1, 1}, {1, 1}, {1, 1}, {2, 1}, {1, 1}, {1, 1},
-    {1, 1}, {3, 1}, {3, 1}, {3, 1}, {2, 1}, {1, 1}, {2, 1},
-    {2, 1}, {1, 1}, {1, 1}, {1, 1}, {2, 1}, {1, 1}, {1, 1},
-    {1, 1}, {3, 1}, {3, 1}, {3, 1}, {2, 1}, {1, 1}, {2, 1},
-};
+/* Per bird frame (the player animation of the Sootling sheet), from tools/import_gum_mouth_sheet.py through the build:
+ * gum_dx = grip column - sprite centre column, gum_dy = rows the frame was shifted down to its feet relative to the hanging
+ * poses (so the bubble keeps its place on the beak), gum_show = 0 in the pop poses (strain, burst), where the gum is gone. */
+static const int8_t k_gum_dx[GUM_VIEW_BIRD_FRAMES] = SOOTLING_TABLE_GUM_DX;
+static const int8_t k_gum_dy[GUM_VIEW_BIRD_FRAMES] = SOOTLING_TABLE_GUM_DY;
+static const uint8_t k_gum_show[GUM_VIEW_BIRD_FRAMES] = SOOTLING_TABLE_GUM_SHOW;
 
 GumOffset gum_view_offset(uint8_t bird_frame, int flip)
 {
     GumOffset o = { 0, 0, 0 };
     if (bird_frame >= GUM_VIEW_BIRD_FRAMES) return o;
-    o.dx = (int8_t)(flip ? GUM_BIRD_DX_FLIP : GUM_BIRD_DX);
-    o.dy = (int8_t)(GUM_BIRD_ROW + bobs[bird_frame].dy);
-    o.show = bobs[bird_frame].show;
+    o.dx = (int8_t)(flip ? GUM_BIRD_DX_FLIP - k_gum_dx[bird_frame] : GUM_BIRD_DX + k_gum_dx[bird_frame]);
+    o.dy = (int8_t)(GUM_BIRD_ROW + k_gum_dy[bird_frame]);
+    o.show = k_gum_show[bird_frame];
     return o;
 }

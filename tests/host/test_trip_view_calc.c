@@ -35,6 +35,9 @@ static void meter_tests(void) {
         }
         CHECK(sum == step);
         CHECK(trip_view_warning(step) == (step <= 2));
+        CHECK(trip_view_distress(step) == (step >= 5 ? 0 : step >= 2 ? 5 - step : 3));
+        CHECK(trip_view_distress(step) >= 0 && trip_view_distress(step) <= 3);
+        CHECK((trip_view_distress(step) == 3) == trip_view_warning(step));
     }
     for (gum = 1; gum <= 128; gum++) CHECK(trip_view_meter_step(gum) == 1);
     CHECK(trip_view_meter_step(129) == 2);
