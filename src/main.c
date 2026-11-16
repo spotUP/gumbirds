@@ -1501,7 +1501,7 @@ static void draw(const FlowView *v) {
         /* Per-frame HUD: resend a side only when its values moved (or first frame of the state with a game). */
         if (v->game) {
             const Game *g = v->game;
-            u8 arc = game_lives_mode(g) && v->state != FLOW_ATTRACT_DEMO;
+            u8 arc = game_lives_mode(g) && g->party_rule != PARTY_ROOST && v->state != FLOW_ATTRACT_DEMO; /* Roost Rule: no lives, so no counter */
             u8 p2hud = (g->mode == GAME_MODE_ARCADE || g->mode == GAME_MODE_ARENA) && v->state != FLOW_ATTRACT_DEMO; /* the P2 side: PRESS / INSERT / stats */
             u8 b0 = (u8)g->hero[0].balloons;
             u8 l0 = (u8)g->lives[0].lives;
@@ -1515,7 +1515,7 @@ static void draw(const FlowView *v) {
                 u8 cr = g->credits;
                 u8 out = (!in || g->lives[1].state == ARC_LIFE_ENDED); /* never joined, or out of lives and continues */
                 if (out && v->state == FLOW_PLAYING) hud_side(1, cr > 0 ? HUD_KIND_PRESS : HUD_KIND_INSERT, 0, 0, 0, 0, 0);
-                else if (in) hud_side(1, HUD_KIND_STATS, g->lives[1].score, (u8)g->hero[1].balloons, (u8)g->lives[1].lives, 1, 1);
+                else if (in) hud_side(1, HUD_KIND_STATS, g->lives[1].score, (u8)g->hero[1].balloons, (u8)g->lives[1].lives, g->party_rule != PARTY_ROOST, 1);
                 else hud_side(1, HUD_KIND_BLANK, 0, 0, 0, 0, 0);
             }
         }

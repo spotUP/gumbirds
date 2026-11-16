@@ -146,7 +146,7 @@ static void roost_digest(void)
             g.hero[0].vx = 0; g.hero[0].vy = 0; g.hero[0].on_ground = 1; g.hero[0].state = FLIER_ALIVE;
         }
         game_step(&g, 0);
-        mix(g.score); mix(g.roost.ticks[0]); mix(g.roost.timer);
+        mix(g.score); mix(g.roost.ticks[0]); mix(g.roost.timer); mix(g.over); mix(g.roost.total[0]); /* ROOST_TARGET_SCORE ends the match */
     }
 }
 

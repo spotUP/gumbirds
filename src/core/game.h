@@ -82,6 +82,7 @@ typedef struct {
     uint16_t acc;      /* frames the current sole stander has stood */
     uint8_t sole;      /* fighter index standing alone (0xFF = nobody or shared) */
     uint8_t ticks[ROOST_FIGHTERS]; /* ticks per fighter this round (humans first, then computer fliers) */
+    uint16_t total[ROOST_FIGHTERS]; /* ticks per fighter over the whole match: ROOST_TARGET_SCORE ends it */
     Flier mark;        /* AI target: rests where a standing flier's centre rests; not a fighter */
 } Roost;
 
