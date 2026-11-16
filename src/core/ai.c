@@ -27,12 +27,12 @@ void ai_init(Ai *a, Rng *r, int rank) {
     a->timer = next_timer(a, r);
 }
 
-const Flier *ai_nearest(const Flier *self, const Flier *player, const Flier *cpus, int cpu_count) {
+const Flier *ai_nearest(const Flier *self, const Flier *humans, int human_count, const Flier *cpus, int cpu_count) {
     const Flier *best = 0;
     int32_t bd = 0;
     int i;
-    for (i = -1; i < cpu_count; i++) {
-        const Flier *c = i < 0 ? player : &cpus[i];
+    for (i = -human_count; i < cpu_count; i++) {
+        const Flier *c = i < 0 ? &humans[human_count + i] : &cpus[i];
         int32_t d;
         if (c == self || c->state > FLIER_PARACHUTE) continue;
         d = dist2(self, c);

@@ -10,7 +10,7 @@
 unsigned int probe[] = {
     HAZARD_KINDS, HAZARD_KILL_SPIKES, HAZARD_KILL_FIRE, HAZARD_KILL_WATER, HAZARD_KILL_LAVA,
     HAZARD_STRIP_TOP_Y, FLIER_HALF_H16_BALLOON,
-    offsetof(Flow, game) + offsetof(Game, flier) + offsetof(Flier, kill_y),
+    offsetof(Flow, game) + offsetof(Game, hero) + offsetof(Flier, kill_y),
     offsetof(Flow, game) + offsetof(Game, hazard_kind),
     HERO_SPRITE, HERO_SPRITE_COUNT, HAZARD_SPRITE, HAZARD_STRIP_COLS,
     FLIER_HALF_H16_NOBAL, FLIER_REMOVE_FEET_Y, FLIER_ART_H, SCREEN_H, HAZARD_COUNT, DEAD_BODY_SPRITE, DEAD_BODY_COUNT,

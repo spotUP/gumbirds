@@ -55,7 +55,7 @@ int main(void) {
         { int d = game_camera_px(&g) - prev; if (d < 0) d += ARENA_W; CHECK(d == (int)(g.trip.px - px_before)); }
         if (game_camera_px(&g) != prev) changed++;
         prev = game_camera_px(&g);
-        CHECK(g.flier.x >= 0 && (g.flier.x >> 16) < SCREEN_W);
+        CHECK(g.hero[0].x >= 0 && (g.hero[0].x >> 16) < SCREEN_W);
         CHECK(camera_unwrapped_px(&g.camera) % ARENA_W == game_camera_px(&g));
     }
     CHECK(g.trip.px > 1000);

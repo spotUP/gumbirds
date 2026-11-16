@@ -29,13 +29,13 @@ static void pump_tests(int mode) {
     CHECK(arc_pump_in_window(&g.pump[0]));
     x0 = (int)(g.cpu[0].x >> 16);
     for (i = 0; i < 30; i++) {
-        g.flier.x = g.cpu[0].x + FL_PX(150); g.flier.y = FL_PX(20); g.flier.vx = 0; g.flier.vy = 0; /* keep the player out of the way */
+        g.hero[0].x = g.cpu[0].x + FL_PX(150); g.hero[0].y = FL_PX(20); g.hero[0].vx = 0; g.hero[0].vy = 0; /* keep the player out of the way */
         game_step(&g, 0);
         CHECK((int)(g.cpu[0].x >> 16) == x0 && g.cpu[0].vx == 0 && g.cpu[0].state == FLIER_ALIVE);
     }
     frames = 31; /* the opening game_step counted */
     while (arc_pump_in_window(&g.pump[0]) && frames < 400) {
-        g.flier.x = g.cpu[0].x + FL_PX(150); g.flier.y = FL_PX(20); g.flier.vx = 0; g.flier.vy = 0;
+        g.hero[0].x = g.cpu[0].x + FL_PX(150); g.hero[0].y = FL_PX(20); g.hero[0].vx = 0; g.hero[0].vy = 0;
         game_step(&g, 0); frames++;
     }
     CHECK(frames == arc_rank(g.pump[0].rank)->pump_frames);
@@ -43,16 +43,16 @@ static void pump_tests(int mode) {
     /* a level side contact defeats it (no height test); the player keeps both gum and is not bounced */
     game_reset(&g, 7); game_set_mode(&g, mode); if (mode == GAME_MODE_ARCADE) g.arc.stage = 1;
     game_step(&g, 0);
-    g.flier.x = g.cpu[0].x - FL_PX(6); g.flier.y = g.cpu[0].y; g.flier.vx = FL_PX(1); g.flier.vy = 0;
+    g.hero[0].x = g.cpu[0].x - FL_PX(6); g.hero[0].y = g.cpu[0].y; g.hero[0].vx = FL_PX(1); g.hero[0].vy = 0;
     s0 = g.score;
     game_step(&g, 0);
-    CHECK(g.cpu[0].state > FLIER_PARACHUTE && !arc_pump_in_window(&g.pump[0]) && g.flier.balloons == FLIER_START_BALLOONS);
+    CHECK(g.cpu[0].state > FLIER_PARACHUTE && !arc_pump_in_window(&g.pump[0]) && g.hero[0].balloons == FLIER_START_BALLOONS);
     CHECK(g.score - s0 == (mode == GAME_MODE_ARCADE ? arc_rank(g.pump[0].rank)->defeat_score : (uint32_t)SCORE_CPU_DEFEAT));
 }
 
 /* Arcade re-pump: keeps the player out of the way for one step. */
 static void away_step(Game *g) {
-    g->flier.x = g->cpu[0].x + FL_PX(150); g->flier.y = FL_PX(20); g->flier.vx = 0; g->flier.vy = 0;
+    g->hero[0].x = g->cpu[0].x + FL_PX(150); g->hero[0].y = FL_PX(20); g->hero[0].vx = 0; g->hero[0].vy = 0;
     game_step(g, 0);
 }
 
@@ -92,7 +92,7 @@ static void repump_tests(void) {
     CHECK(g.cpu[0].on_ground && flier_lose_balloon(&g.cpu[0]) && g.cpu[0].state == FLIER_ALIVE);
     for (n = 0; !arc_pump_in_window(&g.pump[0]) && n < 200; n++) away_step(&g);
     CHECK(n == ARC_REPUMP_STAND_FRAMES + 1 && arc_pump_in_window(&g.pump[0])); /* +1: the step that notices it standing */
-    g.flier.x = g.cpu[0].x - FL_PX(6); g.flier.y = g.cpu[0].y; g.flier.vx = FL_PX(1); g.flier.vy = 0;
+    g.hero[0].x = g.cpu[0].x - FL_PX(6); g.hero[0].y = g.cpu[0].y; g.hero[0].vx = FL_PX(1); g.hero[0].vy = 0;
     s0 = g.score;
     game_step(&g, 0);
     CHECK(g.cpu[0].state > FLIER_PARACHUTE && g.pump[0].state == ARC_PUMP_DEFEATED && g.score - s0 == arc_rank(rank)->defeat_score);
@@ -159,7 +159,7 @@ int main(void) {
         }
     }
     start(&g, 1);
-    CHECK(g.mode == GAME_MODE_ARCADE && g.arc.stage == 1 && g.lives.lives == ARC_LIVES_START);
+    CHECK(g.mode == GAME_MODE_ARCADE && g.arc.stage == 1 && g.lives[0].lives == ARC_LIVES_START);
     CHECK(stage_layout_index() == arc_stage_layout(1) && g.cpu_count > 0);
     CHECK(stage_look() == STAGE_LOOK_ROOF); /* arcade stage 1 is the roof look */
     CHECK(g.pump[0].state == ARC_PUMP_PUMPING && g.pump[0].rank == arc_rank_for(1, 0));
@@ -174,40 +174,40 @@ int main(void) {
     CHECK(stage_look() == STAGE_LOOK_ROOF); /* stage 2: still the moon block (WORLD-1) */
 
     /* a death loses a life and respawns; the last one ends the run */
-    g.flier.state = FLIER_GONE;
+    g.hero[0].state = FLIER_GONE;
     game_step(&g, 0);
-    CHECK(g.lives.lives == ARC_LIVES_START - 1 && !g.over && g.flier.state == FLIER_ALIVE);
-    for (i = 0; i < ARC_LIVES_START; i++) { g.flier.state = FLIER_GONE; game_step(&g, 0); }
-    CHECK(g.lives.lives == 0 && g.lives.state == ARC_LIFE_CONTINUE && !g.over);
+    CHECK(g.lives[0].lives == ARC_LIVES_START - 1 && !g.over && g.hero[0].state == FLIER_ALIVE);
+    for (i = 0; i < ARC_LIVES_START; i++) { g.hero[0].state = FLIER_GONE; game_step(&g, 0); }
+    CHECK(g.lives[0].lives == 0 && g.lives[0].state == ARC_LIFE_CONTINUE && !g.over);
     /* continue screen: the world is frozen, the countdown runs, A continues on the same stage with fresh lives */
     {
-        int c0 = g.lives.countdown;
+        int c0 = g.lives[0].countdown;
         uint32_t fr = g.frame;
         game_step(&g, 0);
-        CHECK(g.lives.countdown == c0 - 1 && g.frame == fr && g.lives.state == ARC_LIFE_CONTINUE);
+        CHECK(g.lives[0].countdown == c0 - 1 && g.frame == fr && g.lives[0].state == ARC_LIFE_CONTINUE);
         /* CONTINUE-SKIP: each A press drops the count by one second, a held A drops nothing more; Start continues */
         {
-            int s0 = arc_continue_seconds(&g.lives);
+            int s0 = arc_continue_seconds(&g.lives[0]);
             game_step(&g, IN_A);
-            CHECK(arc_continue_seconds(&g.lives) == s0 - 1 && g.lives.state == ARC_LIFE_CONTINUE);
+            CHECK(arc_continue_seconds(&g.lives[0]) == s0 - 1 && g.lives[0].state == ARC_LIFE_CONTINUE);
             game_step(&g, IN_A);
-            CHECK(arc_continue_seconds(&g.lives) == s0 - 1);
+            CHECK(arc_continue_seconds(&g.lives[0]) == s0 - 1);
             game_step(&g, 0); game_step(&g, IN_A);
-            CHECK(arc_continue_seconds(&g.lives) == s0 - 2 && g.lives.state == ARC_LIFE_CONTINUE && !g.over);
+            CHECK(arc_continue_seconds(&g.lives[0]) == s0 - 2 && g.lives[0].state == ARC_LIFE_CONTINUE && !g.over);
         }
-        g.start_in = 1;
+        g.start_in[0] = 1;
         game_step(&g, 0);
-        g.start_in = 0;
-        CHECK(g.lives.state == ARC_LIFE_PLAY && g.lives.lives == ARC_LIVES_START && g.score == 0 && g.arc.stage == 2 && g.flier.state == FLIER_ALIVE && !g.over);
+        g.start_in[0] = 0;
+        CHECK(g.lives[0].state == ARC_LIFE_PLAY && g.lives[0].lives == ARC_LIVES_START && g.score == 0 && g.arc.stage == 2 && g.hero[0].state == FLIER_ALIVE && !g.over);
         /* the countdown running out ends the run */
-        for (i = 0; i < ARC_LIVES_START; i++) { g.flier.state = FLIER_GONE; game_step(&g, 0); }
+        for (i = 0; i < ARC_LIVES_START; i++) { g.hero[0].state = FLIER_GONE; game_step(&g, 0); }
         for (i = 0; i < ARC_CONTINUE_FRAMES + 2; i++) game_step(&g, 0);
-        CHECK(g.lives.state == ARC_LIFE_ENDED && g.over);
+        CHECK(g.lives[0].state == ARC_LIFE_ENDED && g.over);
         /* A presses alone skip the whole countdown to the end of the run: 10 presses, never a continue */
         start(&g, 2);
-        for (i = 0; i < ARC_LIVES_START; i++) { g.flier.state = FLIER_GONE; game_step(&g, 0); }
+        for (i = 0; i < ARC_LIVES_START; i++) { g.hero[0].state = FLIER_GONE; game_step(&g, 0); }
         for (i = 0; i < ARC_CONTINUE_SECONDS && !g.over; i++) { game_step(&g, IN_A); game_step(&g, 0); }
-        CHECK(g.lives.state == ARC_LIFE_ENDED && g.over && i <= ARC_CONTINUE_SECONDS);
+        CHECK(g.lives[0].state == ARC_LIFE_ENDED && g.over && i <= ARC_CONTINUE_SECONDS);
     }
 
     /* stomp inside the pump window pays the rank defeat score (rank 2 at stage 6) */
@@ -260,19 +260,19 @@ int main(void) {
         /* a vent plume at launch kills the player; the same spot while idle does not */
         start(&e, 1);
         e.elems.el[0].timer = ARC_VENT_LAUNCH - 1;
-        e.flier.x = FL_PX(e.elems.el[0].x); e.flier.y = FL_PX(e.elems.el[0].y - 20); e.flier.vx = 0; e.flier.vy = 0; e.flier.invincible = 0; e.flier.spawn_inv = 0;
+        e.hero[0].x = FL_PX(e.elems.el[0].x); e.hero[0].y = FL_PX(e.elems.el[0].y - 20); e.hero[0].vx = 0; e.hero[0].vy = 0; e.hero[0].invincible = 0; e.hero[0].spawn_inv = 0;
         game_step(&e, 0);
-        CHECK(e.flier.state >= FLIER_DROWNED || e.lives.lives < ARC_LIVES_START);
+        CHECK(e.hero[0].state >= FLIER_DROWNED || e.lives[0].lives < ARC_LIVES_START);
         start(&e, 1);
-        e.flier.x = FL_PX(e.elems.el[0].x); e.flier.y = FL_PX(e.elems.el[0].y - 20); e.flier.vx = 0; e.flier.vy = 0;
+        e.hero[0].x = FL_PX(e.elems.el[0].x); e.hero[0].y = FL_PX(e.elems.el[0].y - 20); e.hero[0].vx = 0; e.hero[0].vy = 0;
         game_step(&e, 0);
-        CHECK(e.flier.state < FLIER_DROWNED);
+        CHECK(e.hero[0].state < FLIER_DROWNED);
         /* gum post of N05 (stage 3, post under island 3 at x 232..248, y 104..144) is a solid through flier_collide_solids */
         start(&e, 3);
         hits0 = g_flier_solid_hits;
-        e.flier.x = FL_PX(222); e.flier.y = FL_PX(124); e.flier.vx = FL_PX(3); e.flier.vy = 0; e.flier.invincible = 0;
+        e.hero[0].x = FL_PX(222); e.hero[0].y = FL_PX(124); e.hero[0].vx = FL_PX(3); e.hero[0].vy = 0; e.hero[0].invincible = 0;
         for (i = 0; i < 4; i++) game_step(&e, 0);
-        CHECK((int)g_flier_solid_hits > hits0 && (e.flier.x >> 16) < 232);
+        CHECK((int)g_flier_solid_hits > hits0 && (e.hero[0].x >> 16) < 232);
     }
     /* WIRE3a: CLEAR frames, then the BONUS stage (stage 3), its banner flag, then stage 4 */
     {
@@ -383,7 +383,7 @@ int main(void) {
                         else if (sg.pump[k].state == ARC_PUMP_FLYING && sg.cpu[k].balloons > 0) down[k] = 0;
                         prev[k] = sg.cpu[k].state;
                     }
-                    if (sg.arc.state != ARC_PLAY || sg.lives.state != ARC_LIFE_PLAY || sg.over) break;
+                    if (sg.arc.state != ARC_PLAY || sg.lives[0].state != ARC_LIFE_PLAY || sg.over) break;
                 }
                 if (sg.arc.state == ARC_CLEAR) { clears++; if (!stomps) { nostomp++; per_stage_nostomp[st]++; } }
             }

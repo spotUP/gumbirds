@@ -111,16 +111,16 @@ int main(void) {
     {
         Flier player = mk(0, 0, 2), cpus[3];
         cpus[0] = mk(100, 100, 2); cpus[1] = mk(30, 0, 2); cpus[2] = mk(10, 0, 2);
-        CHECK(ai_nearest(&cpus[0], &player, cpus, 3) == &cpus[1]);
+        CHECK(ai_nearest(&cpus[0], &player, 1, cpus, 3) == &cpus[1]);
         cpus[1].state = FLIER_FALLING;
-        CHECK(ai_nearest(&cpus[0], &player, cpus, 3) == &cpus[2]);
+        CHECK(ai_nearest(&cpus[0], &player, 1, cpus, 3) == &cpus[2]);
         cpus[1].state = FLIER_ALIVE;
         /* across the seam: a rival at x 380 is 4 px from a flier at x 0, nearer than one at x 100 */
         {
             Flier me = mk(0, 100, 2), rival[2], other;
             rival[0] = mk(100, 100, 2); rival[1] = mk(380, 100, 2);
             other = mk(200, 100, 2);
-            CHECK(ai_nearest(&me, &other, rival, 2) == &rival[1]);
+            CHECK(ai_nearest(&me, &other, 1, rival, 2) == &rival[1]);
             CHECK(ai_decide(&me, &rival[1]) == AI_FLEE);   /* 4 px away: flee, not the 380 px a linear distance gives */
             {
                 static Rng r; Ai a; FlierInput in;
@@ -129,11 +129,11 @@ int main(void) {
                 CHECK(in.dir == 1);   /* flee from a rival to the left across the seam: run right */
             }
         }
-        CHECK(ai_nearest(&cpus[1], &player, cpus, 3) == &cpus[2]); /* self is excluded */
+        CHECK(ai_nearest(&cpus[1], &player, 1, cpus, 3) == &cpus[2]); /* self is excluded */
         cpus[2].state = FLIER_FALLING;
-        CHECK(ai_nearest(&cpus[1], &player, cpus, 3) == &player);
+        CHECK(ai_nearest(&cpus[1], &player, 1, cpus, 3) == &player);
         cpus[0].state = cpus[1].state = FLIER_DROWNED; player.state = FLIER_DROWNED;
-        CHECK(ai_nearest(&cpus[1], &player, cpus, 3) == 0);
+        CHECK(ai_nearest(&cpus[1], &player, 1, cpus, 3) == 0);
     }
 
     /* Hazard kill line through the game entry: game_set_hazard(kind) puts the player and every rival on that kind's
@@ -147,26 +147,26 @@ int main(void) {
             game_reset(&g, 4);
             game_set_hazard(&g, (uint8_t)k);
             game_step_arena(&g, 0); /* match_start runs here: rivals spawn with the game's kind */
-            CHECK(g.flier.kill_y == FL_PX(line) && g.cpu[0].kill_y == FL_PX(line) && g.cpu[CPU_MAX - 1].kill_y == FL_PX(line));
-            g.flier.on_ground = 0; g.flier.vx = 0; g.flier.vy = 0;
-            g.flier.x = FL_PX(100);
-            g.flier.y = FL_PX(line) - flier_half_h(&g.flier) - FL_PX(1);
+            CHECK(g.hero[0].kill_y == FL_PX(line) && g.cpu[0].kill_y == FL_PX(line) && g.cpu[CPU_MAX - 1].kill_y == FL_PX(line));
+            g.hero[0].on_ground = 0; g.hero[0].vx = 0; g.hero[0].vy = 0;
+            g.hero[0].x = FL_PX(100);
+            g.hero[0].y = FL_PX(line) - flier_half_h(&g.hero[0]) - FL_PX(1);
             g.cpu[0].on_ground = 0; g.cpu[0].vx = 0; g.cpu[0].vy = 0;
             g.cpu[0].x = FL_PX(300);
             g.cpu[0].y = FL_PX(line) - flier_half_h(&g.cpu[0]);
             score0 = g.score;
             game_step_arena(&g, 0);
-            CHECK(g.flier.state == FLIER_ALIVE);
+            CHECK(g.hero[0].state == FLIER_ALIVE);
             CHECK(g.cpu[0].state == FLIER_DROWNED);
             CHECK(g.score == score0 + SCORE_CPU_DROWN); /* one rival drowned on the line: scored once */
             game_step_arena(&g, 0);
             CHECK(g.score == score0 + SCORE_CPU_DROWN); /* and not again while it stays drowned */
-            g.flier.y = FL_PX(line) - flier_half_h(&g.flier);
+            g.hero[0].y = FL_PX(line) - flier_half_h(&g.hero[0]);
             game_step_arena(&g, 0);
             /* behaviour change approved by the user (dead flier hazard hunt): touching the line starts the fall, the run ends when the body is GONE; was CHECK(DROWNED && g.over) at once */
-            CHECK(g.flier.state == FLIER_DROWNED && !g.over);
+            CHECK(g.hero[0].state == FLIER_DROWNED && !g.over);
             for (i = 0; i < 400 && !g.over; i++) game_step_arena(&g, 0);
-            CHECK(g.flier.state == FLIER_GONE && g.over);
+            CHECK(g.hero[0].state == FLIER_GONE && g.over);
             /* Rematch: win match 1 under this kind; player_spawn and match_start must keep the kind's line. */
             game_reset(&g, 4);
             game_set_hazard(&g, (uint8_t)k);
@@ -174,7 +174,7 @@ int main(void) {
             for (i = 0; i < g.cpu_count; i++) g.cpu[i].state = FLIER_GONE;
             game_step_arena(&g, 0);
             CHECK(g.matches_won == 1 && g.cpu_alive == g.cpu_count);
-            CHECK(g.flier.kill_y == FL_PX(line));
+            CHECK(g.hero[0].kill_y == FL_PX(line));
             for (i = 0; i < g.cpu_count; i++) CHECK(g.cpu[i].kill_y == FL_PX(line));
         }
     }
@@ -206,17 +206,17 @@ int main(void) {
         for (m = 1; m <= CPU_MAX; m++) {
             int expect = CPU_START_COUNT + m;
             if (expect > CPU_MAX) expect = CPU_MAX;
-            g.flier.balloons = 1;
+            g.hero[0].balloons = 1;
             for (i = 0; i < g.cpu_count; i++) g.cpu[i].state = FLIER_GONE;
             game_step_arena(&g, 0);
             CHECK(g.matches_won == (uint32_t)m);
             CHECK(g.cpu_count == expect && g.cpu_alive == expect);
-            CHECK(g.flier.balloons == FLIER_START_BALLOONS);
+            CHECK(g.hero[0].balloons == FLIER_START_BALLOONS);
             CHECK(!g.over);
         }
         CHECK(g.cpu_count == CPU_MAX);
         /* Player death ends the run, no respawn. */
-        g.flier.state = FLIER_GONE; /* behaviour change approved by the user (dead flier hazard hunt): was FLIER_DROWNED; the run ends when the body is gone */
+        g.hero[0].state = FLIER_GONE; /* behaviour change approved by the user (dead flier hazard hunt): was FLIER_DROWNED; the run ends when the body is gone */
         game_step_arena(&g, 0);
         CHECK(g.over);
     }

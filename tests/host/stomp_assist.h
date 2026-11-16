@@ -12,10 +12,10 @@ static int stomp_assist(Game *g)
     for (i = 0; i < g->cpu_count; i++) {
         const Flier *c = &g->cpu[i];
         if (c->state <= FLIER_PARACHUTE && c->balloons > 0) {
-            g->flier.x = c->x;
-            g->flier.y = c->y - FL_PX(26);
-            g->flier.vx = 0;
-            g->flier.vy = FL_PX(1); /* falling onto the target: a pop needs the pair to close */
+            g->hero[0].x = c->x;
+            g->hero[0].y = c->y - FL_PX(26);
+            g->hero[0].vx = 0;
+            g->hero[0].vy = FL_PX(1); /* falling onto the target: a pop needs the pair to close */
             return 1;
         }
     }

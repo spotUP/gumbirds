@@ -8,7 +8,7 @@ static void forget_fliers(SoundEvents *e)
 
 void se_init(SoundEvents *e)
 {
-    e->prev_state = 0xff; e->prev_matches = 0; e->primed = 0; e->prev_flaps = 0; e->prev_gum = SE_UNSEEN_GUM;
+    e->prev_state = 0xff; e->prev_matches = 0; e->primed = 0; e->prev_flaps[0] = e->prev_flaps[1] = 0; e->prev_gum = SE_UNSEEN_GUM;
     e->n_die = e->n_fall = e->n_splosh = e->n_spike = e->n_pop = 0;
     e->cues = 0; e->ne_seen = 0;
     forget_fliers(e);
@@ -57,12 +57,13 @@ static uint16_t death_events(SoundEvents *e, const Game *g, uint8_t playing)
     int i;
     e->n_die = e->n_fall = e->n_splosh = e->n_spike = e->n_pop = 0;
     if (!playing) { forget_fliers(e); e->prev_gum = SE_UNSEEN_GUM; return 0; }
-    ev |= flier_edges(e, 0, &g->flier, playing, g->hazard_kind, g->mode != GAME_MODE_TRIP);   /* Trip: balloons follow the gum, the pop is the gum edge below */
+    for (i = 0; i < HUMANS; i++) /* the Trip: balloons follow the gum, the pop is the gum edge below; a human not in play stays unseen */
+        ev |= flier_edges(e, i, &g->hero[i], playing && i < g->players, g->hazard_kind, g->mode != GAME_MODE_TRIP);
     for (i = 0; i < STAGE_SPAWN_COUNT; i++) /* arena and arcade computer fliers; other modes leave these slots unseen */
-        ev |= flier_edges(e, 1 + i, &g->cpu[i], playing && (g->mode == GAME_MODE_ARENA || g->mode == GAME_MODE_ARCADE) && i < g->cpu_count, g->hazard_kind, 1);
+        ev |= flier_edges(e, HUMANS + i, &g->cpu[i], playing && (g->mode == GAME_MODE_ARENA || g->mode == GAME_MODE_ARCADE) && i < g->cpu_count, g->hazard_kind, 1);
     if (g->mode == GAME_MODE_TRIP) {   /* outside the Trip these slots stay unseen (forget_fliers), so the loop is skipped: frame time */
         for (i = 0; i < TRIP_RIVAL_MAX; i++)
-            ev |= flier_edges(e, 1 + STAGE_SPAWN_COUNT + i, &g->trip_rivals.r[i].f, g->trip_rivals.r[i].active, g->hazard_kind, 1);
+            ev |= flier_edges(e, HUMANS + STAGE_SPAWN_COUNT + i, &g->trip_rivals.r[i].f, g->trip_rivals.r[i].active, g->hazard_kind, 1);
         if (e->prev_gum != SE_UNSEEN_GUM && e->prev_gum > 0 && g->trip.gum == 0) e->n_pop++;   /* the player's bubble bursts */
         if (e->prev_gum != SE_UNSEEN_GUM && e->prev_gum >= SE_GUM_LOW && g->trip.gum < SE_GUM_LOW && g->trip.gum > 0) e->cues |= 1ul << SC_GUM_LOW;
         e->prev_gum = g->trip.gum;
@@ -106,8 +107,8 @@ static void cue_events(SoundEvents *e, const Game *g, uint8_t emit)
                 else if (arc_elements_grab_frame(t) == ARC_GRAB_HIT_FIRST && arc_elements_grab_frame(was) != ARC_GRAB_HIT_FIRST) c |= 1ul << SC_GRAB_BITE;
             }
         }
-        if (g->elems.n && g->flier.state < FLIER_FALLING) {   /* the same boxes game.c arc_element_apply uses; the speeds go to scratch */
-            int cx = (int)(g->flier.x >> 16), cy = (int)(g->flier.y >> 16), hh = (int)(flier_half_h(&g->flier) >> 16);
+        if (g->elems.n && g->hero[0].state < FLIER_FALLING) {   /* the same boxes game.c arc_element_apply uses; the speeds go to scratch */
+            int cx = (int)(g->hero[0].x >> 16), cy = (int)(g->hero[0].y >> 16), hh = (int)(flier_half_h(&g->hero[0]) >> 16);
             int32_t vx = 0, vy = 0;
             if (arc_elements_bounce(&g->elems, cx, cy, FLIER_HALF_W, hh, &vx, &vy)) touch |= 1;
             if (arc_elements_lift(&g->elems, cx, cy, FLIER_HALF_W, hh)) touch |= 2;
@@ -118,13 +119,16 @@ static void cue_events(SoundEvents *e, const Game *g, uint8_t emit)
         if (g->bonus.spawned > e->prev_spawned) c |= 1ul << SC_BUBBLE_PUFF;
         if (g->bonus.caught > e->prev_caught && emit) e->n_pop++;   /* a caught bonus bubble bursts */
         e->prev_spawned = g->bonus.spawned; e->prev_caught = g->bonus.caught;
-        if (g->lives.lives < e->prev_lives) c |= 1ul << SC_LIFE_LOST;
-        if (g->lives.state == ARC_LIFE_CONTINUE) {
-            uint8_t s = (uint8_t)arc_continue_seconds(&g->lives);
-            if (e->prev_life_state != ARC_LIFE_CONTINUE || s != e->prev_seconds) c |= 1ul << SC_CONTINUE_TICK;
-            e->prev_seconds = s;
-        } else if (g->lives.state == ARC_LIFE_PLAY && e->prev_life_state == ARC_LIFE_CONTINUE) c |= 1ul << SC_CONTINUE_YES;
-        e->prev_lives = g->lives.lives; e->prev_life_state = (uint8_t)g->lives.state;
+        for (i = 0; i < g->players; i++) {
+            const ArcLives *l = &g->lives[i];
+            if (l->lives < e->prev_lives[i]) c |= 1ul << SC_LIFE_LOST;
+            if (l->state == ARC_LIFE_CONTINUE) {
+                uint8_t s = (uint8_t)arc_continue_seconds(l);
+                if (e->prev_life_state[i] != ARC_LIFE_CONTINUE || s != e->prev_seconds[i]) c |= 1ul << SC_CONTINUE_TICK;
+                e->prev_seconds[i] = s;
+            } else if (l->state == ARC_LIFE_PLAY && e->prev_life_state[i] == ARC_LIFE_CONTINUE) c |= 1ul << SC_CONTINUE_YES;
+            e->prev_lives[i] = l->lives; e->prev_life_state[i] = (uint8_t)l->state;
+        }
     } else if (g->mode == GAME_MODE_TRIP) {
         if (g->trip_events & TRIP_EV_PICKUP) c |= 1ul << (g->trip.streak >= SE_STREAK_MIN ? SC_PICKUP_STREAK : SC_PICKUP);
         if (g->trip_rival_events & TRIP_RIV_EV_SPAWN) c |= 1ul << SC_RIVAL_WARN;
@@ -154,7 +158,7 @@ uint16_t se_step(SoundEvents *e, const FlowView *v)
     if (playing && e->prev_state != FLOW_PLAYING) {
         ev |= SE_START;
     } else if (playing && e->primed) {
-        if (v->game->flaps > e->prev_flaps) ev |= SE_FLAP;
+        if (v->game->flaps[0] > e->prev_flaps[0] || v->game->flaps[1] > e->prev_flaps[1]) ev |= SE_FLAP;
         if (v->game->trip_events & TRIP_EV_HIT) ev |= SE_HIT;
     }
     if (!playing && e->prev_state == FLOW_PLAYING && v->state == FLOW_GAME_OVER) ev |= SE_GAME_OVER;
@@ -166,7 +170,8 @@ uint16_t se_step(SoundEvents *e, const FlowView *v)
     name_entry_cues(e, v);
     e->prev_state = (uint8_t)v->state;
     e->primed = playing;
-    e->prev_flaps = playing ? v->game->flaps : 0;
+    e->prev_flaps[0] = playing ? v->game->flaps[0] : 0;
+    e->prev_flaps[1] = playing ? v->game->flaps[1] : 0;
     return ev;
 }
 
