@@ -992,7 +992,7 @@ static void hero_and_mode(const FlowView *v) {
          * attract, saw the refused start and stopped calling the VBlank callback; game_loop
          * waited for vblank forever (frozen last frame, a coin woke it). An accepted start
          * keeps mode 2 until flow_step sees it. Guarded by make test-unibios (two coins). */
-        if ((v->state > FLOW_ATTRACT_DEMO && v->state != FLOW_SAVE_REMINDER) || g_start_pending) bios_user_mode = 2; /* BG2: the reminder screen allows the BIOS save */
+        if (v->state > FLOW_ATTRACT_DEMO || g_start_pending) bios_user_mode = 2; /* the reminder is still the game: a credit left in mode 1 froze the loop; its save return ignores the mode */
         else bios_user_mode = 1;
         g_cam_px = 0;
         g_cam_unwrapped = 0;
@@ -1976,7 +1976,7 @@ static void game_loop(void) {
         gfx_commit();
         g_frame_counter++;
         gfx_wait_vblank(); /* the vblank callback flushes the queue: the only VRAM and palette writes of the frame */
-        if (g_bram_unsaved && bios_user_mode == 1) {
+        if (g_bram_unsaved && (bios_user_mode == 1 || g_flow.state == FLOW_SAVE_REMINDER)) {
             g_bram_unsaved = 0;
             return; /* to the BIOS: SYSTEM_RETURN, backup RAM save, USER again (see above) */
         }

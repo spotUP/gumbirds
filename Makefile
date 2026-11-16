@@ -527,13 +527,14 @@ test-small-sootling: cart
 # through SYSTEM_RETURN. Stock ngdevkit nullbios writes backup RAM without REG_SRAMUNLOCK, so nothing persists
 # there (see thoughts/shared/research/2026-11-09_p51-reachability.md). Needs the UNIBIOS file.
 REACH_SECONDS?=300
+REACH_PARTY?=0
 REACH_BIOS_FLAGS?=-rp "$(UNIBIOS_DIR);$(ROM)" -bios unibios40
 test-reach: cart bios
 	@if [ ! -f "$(UNIBIOS)" ]; then echo "[SKIP] UNIBIOS file not found: $(UNIBIOS)"; exit 0; fi
 	@$(MAKE) --no-print-directory $(UNIBIOS_DIR)/neogeo.zip
 	@set -e; T=$$(mktemp -d $(BUILDDIR)/test-run.XXXXXX); \
 	for PH in 1 2; do \
-	BRAWL_PHASE=$$PH \
+	BRAWL_PHASE=$$PH BRAWL_PARTY=$(REACH_PARTY) \
 	BRAWL_FLOW_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flow"{print $$1}') \
 	BRAWL_FRAME_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_frame_counter"{print $$1}') \
 	BRAWL_HISCORE_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_hiscore_image"{print $$1}') \
@@ -546,6 +547,10 @@ test-reach: cart bios
 	cat $$T/result$$PH.txt; \
 	grep -q '^PASS' $$T/result$$PH.txt || { echo "[FAIL] make test-reach boot $$PH, log kept in $$T"; exit 1; }; \
 	done; rm -rf $$T; echo "[OK] make test-reach passed"
+
+# Same run as test-reach with the run scored as a PARTY run (name entry into the party table, then the BIOS save and return).
+test-reach-party:
+	@$(MAKE) --no-print-directory test-reach REACH_PARTY=1
 
 # Vblank write reachability (tests/mame/vblank_check.lua): taps the LSPC VRAM registers and palette RAM during
 # a real run (attract, coin, start, scrolling) and asserts every write after boot lands in vblank.
@@ -852,6 +857,22 @@ test-party-roost: cart bios
 	cat $$T/result.txt; \
 	if grep -q '^PASS' $$T/result.txt; then rm -rf $$T; echo "[OK] make test-party-roost passed"; else echo "[FAIL] make test-party-roost, log kept in $$T"; exit 1; fi
 
+# PARTY two-player name entry (tests/mame/party_name_check.lua): UniBIOS, 2P PARTY game over with both scores ranking, both players type a name;
+# both names reach the saved table, the game loop keeps running and the screen is not blank afterwards. `make test-party-name` alone.
+test-party-name: cart bios
+	@if [ ! -f "$(UNIBIOS)" ]; then echo "[FAIL] UNIBIOS file not found: $(UNIBIOS)"; exit 1; fi
+	@$(MAKE) --no-print-directory $(UNIBIOS_DIR)/neogeo.zip
+	@set -e; T=$$(mktemp -d $(BUILDDIR)/test-run.XXXXXX); \
+	BRAWL_FLOW_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flow"{print $$1}') \
+	BRAWL_FRAME_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_frame_counter"{print $$1}') \
+	BRAWL_HISCORE_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_hiscore_image"{print $$1}') \
+	BRAWL_NAME_LAYOUT="$$($(M68KGCC) $(NGCFLAGS) -Ibuild -std=c99 -S -o - tests/mame/party_name_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
+	BRAWL_RESULT=$$T/result.txt \
+	SDL_VIDEODRIVER=dummy nice -n 19 $(MAME) -window -nomaximize -video none -sound none -nothrottle -seconds_to_run 400 -noautosave -skip_gameinfo -hash $(ROM) -rp "$(UNIBIOS_DIR);$(ROM)" -bios unibios40 -nvram_directory $${PN_NVRAM:-$$T} -autoboot_script tests/mame/party_name_check.lua neogeo -cart1 $(GAMEROM) > $$T/mame.log 2>&1 || true; \
+	if [ ! -f $$T/result.txt ]; then tail -n 15 $$T/mame.log; echo "[FAIL] no result from party name Lua script"; exit 1; fi; \
+	cat $$T/result.txt; \
+	if grep -q '^PASS' $$T/result.txt; then rm -rf $$T; echo "[OK] make test-party-name passed"; else echo "[FAIL] make test-party-name, log kept in $$T"; exit 1; fi
+
 # Ring reachability (tests/mame/ring_check.lua): holds Left until the player's world x wraps across the seam, then Right
 # back; every PLAYING frame the flier is on screen (ring maths with g_cam_px), the hero SCB3 height is non-zero, the
 # camera moves at most CAM_MAX_STEP_PX per frame (ring distance), and both seam crossings happened. `make test-ring` alone.
@@ -1018,7 +1039,7 @@ test-logo: cart bios
 	cat $$T/result.txt; \
 	if grep -q '^PASS' $$T/result.txt; then rm -rf $$T; echo "[OK] make test-logo passed"; else echo "[FAIL] make test-logo, log kept in $$T"; exit 1; fi
 
-.PHONY: run test test-mood test-arcade test-arcade-walk test-arcade-bonus test-crom test-srom test-debug-header test-camera test-sprite-peak test-left-column test-flier test-small-sootling test-reach test-vblank test-scroll test-slots test-hazard test-hazard-kill test-soft-reset test-ring test-solid test-trip test-score test-sound test-unibios test-coop test-arena-join test-party test-party-roost test-logo
+.PHONY: run test test-mood test-arcade test-arcade-walk test-arcade-bonus test-crom test-srom test-debug-header test-camera test-sprite-peak test-left-column test-flier test-small-sootling test-reach test-vblank test-scroll test-slots test-hazard test-hazard-kill test-soft-reset test-ring test-solid test-trip test-score test-sound test-unibios test-coop test-arena-join test-party test-party-roost test-party-name test-logo
 
 # Header dependencies from -MMD (build/**/*.d): a changed header rebuilds every object that includes it.
 -include $(shell find $(BUILDDIR) -name '*.d' 2>/dev/null)
