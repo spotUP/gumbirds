@@ -73,7 +73,7 @@ int arc_view_build(const ArcElements *a, unsigned tick, ArcSprite *out) {
             ArcSprite *s = &out[n++];
             s->piece = ARCV_SPARK; s->frame = (uint8_t)((dt / ARC_VIEW_SPARK_TICKS) & 7);
             s->x = (int16_t)(e->x - ARC_VIEW_W[ARCV_SPARK] / 2);
-            s->y = (int16_t)(e->y - ARC_VIEW_H[ARCV_BODY] - (int)(dt * 13 / 5));
+            s->y = (int16_t)(e->y - ARC_VIEW_H[ARCV_BODY] - (int)((dt % ARC_VIEW_SPARK_RISE_TICKS) * 13 / 5)); /* loops: the plume kills 40 ticks, one rise stays inside its 48 px box for 16 */
         }
     }
     return n;

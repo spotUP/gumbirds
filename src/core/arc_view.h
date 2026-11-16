@@ -18,6 +18,7 @@ typedef struct { uint8_t piece; uint8_t frame; int16_t x, y; } ArcSprite;   /* f
 #define ARC_VIEW_MAX (2 * ARC_ELEM_MAX)   /* a body plus a spark per element at most */
 #define ARC_VIEW_HEAT_STEPS 8             /* vent glow steps (table vent_heat of the arcade sheet, asserted in main.c) */
 #define ARC_VIEW_SPARK_TICKS 4            /* ticks per spark frame (art table, asserted in main.c) */
+#define ARC_VIEW_SPARK_RISE_TICKS 16      /* ticks per spark rise before it restarts at the vent (keeps it inside the 48 px plume box) */
 #define ARC_VIEW_FLIP_TICKS 4             /* ticks per flipper frame */
 
 /* Source art size in px (asserted against the generated ARCADE_*_ART_W/H in main.c) and sprite columns (16 px each). */
