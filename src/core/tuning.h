@@ -206,6 +206,9 @@
 #ifndef FLIER_START_BALLOONS
 #define FLIER_START_BALLOONS 2
 #endif
+#ifndef ARC_REPUMP_STAND_FRAMES
+#define ARC_REPUMP_STAND_FRAMES 60 /* arcade: a rival standing alive with no gum waits this long, then pumps (stage-start window) (user decision 2026-11-16) */
+#endif
 
 /* Computer fliers (src/core/ai.c, design doc 3.1 and 5.1). Distances are screen pixels: the reference values (50, 75,
  * 32) halved for the 0.5 reference scale. Angles are Q15 components of the unit direction to the target. */
