@@ -124,9 +124,11 @@ static void pump_defeat(Game *g, Flier *v, ArcPump *p)
     uint32_t win = arc_pump_resolve(p);
     v->invincible = 0;
     v->spawn_inv = 0;
+    v->has_parachute = 0; /* a window defeat is a defeat: no arcade parachute on the way down */
     while (flier_lose_balloon(v)) {
         v->invincible = 0;
     }
+    if (v->state == FLIER_ALIVE) flier_start_falling(v); /* grounded: popping leaves it standing, and the body pass would pay the defeat twice */
     g->stomps++;
     score_add(g, g->mode == GAME_MODE_ARCADE ? win : SCORE_CPU_DEFEAT);
 }
@@ -169,7 +171,7 @@ static void match_start(Game *g)
     g->cpu_alive = (uint8_t)n;
     for (i = 0; i < STAGE_SPAWN_COUNT; i++) {
         if (i < n) {
-            flier_init(&g->cpu[i], FL_PX(stage_spawns[i].x), FL_PX(stage_spawns[i].y), FLIER_START_BALLOONS, 0);
+            flier_init(&g->cpu[i], FL_PX(stage_spawns[i].x), FL_PX(stage_spawns[i].y), FLIER_START_BALLOONS, g->mode == GAME_MODE_ARCADE); /* arcade: the last gum lost in the air opens a parachute (re-pump rule) */
             g->cpu[i].rival = 1;
             ai_init(&g->ai[i], &g->rng, rank);
             arc_pump_start(&g->pump[i], rank, 1); /* every layout spawn stands just above a platform top */
@@ -482,14 +484,22 @@ void game_step_arena(Game *g, uint8_t input)
         Flier *c = &g->cpu[i];
         FlierInput ci;
         uint8_t was = c->state;
-        int pumping;
+        int pumping, sitting;
         if (c->state == FLIER_GONE) {
             continue;
         }
         pumping = arc_pump_in_window(&g->pump[i]);
+        sitting = g->pump[i].state == ARC_PUMP_STANDING;
+        if (sitting && c->state != FLIER_ALIVE) g->pump[i].state = ARC_PUMP_FLYING; /* killed while standing: no pump */
         arc_pump_step(&g->pump[i]);
-        if (pumping) {
-            ci.dir = 0; /* sits and pumps: no AI, no input until the window ends */
+        if (sitting && arc_pump_in_window(&g->pump[i])) {
+            /* Re-pump window opens: full gum now, so the window plays exactly as at stage start (pump frame drawn, rivals
+               bounce off, the player's touch defeats it through pump_defeat); it lifts off with it at window end. */
+            while (c->balloons < FLIER_START_BALLOONS && flier_add_balloon(c)) {}
+        }
+        sitting = sitting || pumping;
+        if (sitting) {
+            ci.dir = 0; /* stands, then sits and pumps: no AI, no input until the window ends */
             ci.flap = 0;
         } else if (c->state <= FLIER_PARACHUTE) {
             ai_step(&g->ai[i], &g->rng, c, ai_nearest(c, &g->flier, g->cpu, g->cpu_count), &ci);
@@ -513,6 +523,9 @@ void game_step_arena(Game *g, uint8_t input)
             c->vx = 0;
             c->on_ground = 0;
         }
+        /* Arcade re-pump (user decision 2026-11-16): a rival standing alive with no gum (landed on its parachute, or popped
+           while standing) waits ARC_REPUMP_STAND_FRAMES, then pumps the stage-start window at the same rank. */
+        if (g->mode == GAME_MODE_ARCADE && c->state == FLIER_ALIVE && c->on_ground && c->balloons == 0 && arc_pump_restand(&g->pump[i])) c->vx = 0; /* stands still */
         if (c->state == FLIER_DROWNED && was != FLIER_DROWNED) {
             /* A living computer flier reached the hazard (scored once, on entry; it sinks or bounces on from here). A defeated one (FALLING) passes through the water and
                leaves as GONE: its defeat already paid SCORE_CPU_DEFEAT, so it scores nothing more
