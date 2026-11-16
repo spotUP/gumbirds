@@ -134,6 +134,10 @@ volatile u16 g_banner_calls, g_banner_cells; /* round clear banner draws, for th
 static u8 g_rs_drawn = RS_NONE;
 static u8 g_howto_up; /* PARTY how-to overlay (fix rows HOWTO_ROW..) is on screen */
 #define HOWTO_ROW 22
+#define MODE_LABEL_ROW 29 /* last visible fix row, left safe column: the credits plate sits at columns 28..37 */
+#define MODE_LABEL_COL 2
+#define MODE_LABEL_W 17   /* longest name: RULE OF THE ROUND */
+static u8 g_mode_key = 0xFF; /* mode label on screen: 0 none, else mode + 1 or 8 + party rule */
 static u8 g_stage_key = 0xFF; /* arcade HUD stage text: 0 none, 254 bonus, else stage number; 0xFF = not drawn since the last clear */
 static u8 g_over_up; /* GAME OVER text drawn since the last clear */
 static u8 g_cont_key[HUMANS] = { 0xFF, 0xFF }; /* arcade continue plate per side on the fix layer: 0 none, else 1 + seconds left (+ 0x80 with a credit) */
@@ -1474,7 +1478,7 @@ static void draw(const FlowView *v) {
         g_draw_state = (int)v->state;
         g_hud[0].kind = g_hud[1].kind = HUD_KIND_NONE;
         g_ov_stage = 0; g_ov_key = AO_NONE; g_ov_part = 0;
-        g_rs_drawn = RS_NONE; g_rs_num = 0; g_banner_up = 0; g_howto_up = 0; g_cont_key[0] = g_cont_key[1] = 0xFF; g_stage_key = 0xFF; g_over_up = 0;
+        g_rs_drawn = RS_NONE; g_rs_num = 0; g_banner_up = 0; g_howto_up = 0; g_mode_key = 0xFF; g_cont_key[0] = g_cont_key[1] = 0xFF; g_stage_key = 0xFF; g_over_up = 0;
         g_meter_step = METER_NONE;
 #ifdef GUMBIRDS_DEBUG_HEADER /* gmake DEBUG_HEADER=1; the normal build leaves the top rows to the HUD */
         text(2, 2, PAL_TEXT, "GUMBIRDS");
@@ -1521,6 +1525,20 @@ static void draw(const FlowView *v) {
         }
         if (v->game && v->game->mode == GAME_MODE_TRIP) draw_gum_meter(v->game->trip.gum);
         if (v->state == FLOW_ATTRACT_DEMO && v->game) draw_overlay(v);
+        {
+            /* mode name in the bottom-left corner while playing, written when the mode or rule changes only */
+            u8 key = (v->state == FLOW_PLAYING && v->game) ? (v->game->party_rule != PARTY_NONE ? (u8)(8 + v->game->party_rule) : (u8)(1 + v->game->mode)) : 0;
+            if (key != g_mode_key) {
+                char lb[MODE_LABEL_W + 1];
+                const char *name = !key ? "" : key >= 8 ? game_party_name(v->game->party_rule) : v->game->mode == GAME_MODE_TRIP ? "GUM TRIP" : v->game->mode == GAME_MODE_ARCADE ? "ARCADE" : "ARENA";
+                u8 i = 0;
+                g_mode_key = key;
+                while (i < MODE_LABEL_W && name[i]) { lb[i] = name[i]; i++; }
+                while (i < MODE_LABEL_W) lb[i++] = ' ';
+                lb[MODE_LABEL_W] = 0;
+                text(MODE_LABEL_COL, MODE_LABEL_ROW, PAL_TEXT, lb);
+            }
+        }
         {
             /* PARTY how-to: rule name, three lines and the skip prompt, written when the screen changes only */
             u8 up = (v->state == FLOW_PLAYING && v->game && v->howto) ? 1 : 0;
