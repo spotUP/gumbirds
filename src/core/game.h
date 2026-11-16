@@ -119,6 +119,9 @@ void game_next_mood(Game *g);
 void game_set_hazard(Game *g, uint8_t kind);
 /* Arcade: player 2 joins now (players = 2, fresh lives, spawn beside player 1). The drop-in parachute and the credit are later phases. */
 void game_start_p2(Game *g);
+int game_can_join_p2(const Game *g);
+/* Real join (P2 Start mid play): parachute drop-in at the camera centre; 0 = refused. */
+int game_join_p2(Game *g);
 /* Arena step (used by the flow in play and demo): A flaps, left/right steer (nameentry.h bits). The run ends when the
  * flier is DROWNED or GONE. Score is survival time (distance advances SPEED_BASE per frame while alive). */
 void game_step_arena(Game *g, uint8_t input);

@@ -803,6 +803,7 @@ static void arcade_bonus_step(const Game *g) {
 
 /* BIOS_USER_MODE: 1 attract, 2 game in progress (coins then only add credits). */
 static volatile u8 g_start_pending;
+static volatile u8 g_join_p2; /* P2 Start accepted in play (player_start); game_loop joins P2 */
 static u8 read_input(void);
 volatile u8 g_coin_calls; /* coins the BIOS reported (vector 0x134) and game_loop has not yet played a blip for; also read by MAME tests */
 
@@ -828,6 +829,13 @@ void coin_sound(void) { g_coin_calls++; }
  * running past the title timeout after the save).
  */
 void player_start(void) {
+    /* P2 Start in arcade play joins by parachute (game_join_p2 in game_loop). Leaving bit 1 set lets the BIOS take the credit;
+     * P1 Start keeps its refusal below. Refused moments (game_can_join_p2) clear the flag: the credit stays. */
+    if (bios_user_mode == 2 && g_flow.state == FLOW_PLAYING && (bios_start_flag & 2)) {
+        if (game_can_join_p2(&g_flow.game) && !g_join_p2) { bios_start_flag = 2; g_join_p2 = 1; }
+        else bios_start_flag = 0;
+        return;
+    }
     /* Accept only where flow_step starts a game on start (title, table, demo), so a taken
      * credit always becomes a game; refuse during play, game over and name entry. */
     u8 st = g_flow.state;
@@ -931,10 +939,8 @@ static const char *const STATE_NAME[] = {
 
 /* BIOS joypad: UP=1 DOWN=2 LEFT=4 RIGHT=8 A=0x10 B=0x20 C=0x40 D=0x80.
  * Core: A..D = 0x01..0x08, UP=0x10, DOWN=0x20, LEFT=0x40, RIGHT=0x80. */
-static u8 read_input(void) {
-    u8 cur = bios_p1current;
-    return (u8)(((cur >> 4) & 0x0F) | ((cur & 0x0F) << 4));
-}
+static u8 pad_to_core(u8 cur) { return (u8)(((cur >> 4) & 0x0F) | ((cur & 0x0F) << 4)); }
+static u8 read_input(void) { return pad_to_core(bios_p1current); }
 
 /* Decimal, right aligned in `width` columns, space padded. */
 /* Digits by subtracting powers of ten: draw() runs it every frame, and a 32-bit `/` or `%` is a libgcc call
@@ -1676,6 +1682,8 @@ static void game_loop(void) {
         __asm__ volatile ("move.w #0x2000,%%sr" ::: "memory");
         if (coined && !start) flow_coin(&g_flow);
         if (a_edge && !start && g_flow.state <= FLOW_ATTRACT_DEMO && bios_user_mode == 1 && (in & FLOW_RESET_COMBO) != FLOW_RESET_COMBO && take_credit()) start = 1;
+        g_flow.game.input2 = pad_to_core(bios_p2current);
+        if (g_join_p2) { g_join_p2 = 0; if (g_flow.state == FLOW_PLAYING) game_join_p2(&g_flow.game); }
         g_flow.game.start_in[0] = (u8)(g_flow.state == FLOW_PLAYING && (bios_statchange & 1)); /* arcade continue: Start continues, A only counts down */
         /* Start also ends the result screen and the GAME OVER text, and confirms a name entry letter like A (player_start refuses Start there) */
         if ((bios_statchange & 1) && ((g_flow.state == FLOW_PLAYING && g_flow.game.res.active) || g_flow.state == FLOW_GAME_OVER || g_flow.state == FLOW_NAME_ENTRY)) in |= IN_A;

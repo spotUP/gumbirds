@@ -54,6 +54,30 @@ void game_start_p2(Game *g)
     player_spawn_h(g, 1);
 }
 
+/* P2 may join now: arcade play with no round end pan, no result screen, no run over, and the P2 side free (never joined, or out of lives). */
+int game_can_join_p2(const Game *g)
+{
+    return g->mode == GAME_MODE_ARCADE && !g->over && g->round_end == RE_NONE && !g->res.active && g->arc.state == ARC_PLAY &&
+           g->cpu_count > 0 && (g->players == 1 || g->lives[1].state == ARC_LIFE_ENDED);
+}
+
+/* P2 Start in play (a credit was taken): fresh lives, and hero[1] drops in on its parachute from the top at the camera centre.
+ * It flies out of the parachute on its first flap (flier_step). Returns 0 when refused (the caller keeps the credit). */
+int game_join_p2(Game *g)
+{
+    int32_t x;
+    if (!game_can_join_p2(g)) return 0;
+    x = g->camera.cam + (int32_t)(SCREEN_W / 2) * 65536;
+    while (x >= ARENA_W16) x -= ARENA_W16;
+    g->players = 2;
+    arc_lives_start(&g->lives[1]);
+    flier_init(&g->hero[1], x, FL_PX(FLIER_START_JOIN_Y), FLIER_START_BALLOONS, 1);
+    g->hero[1].state = FLIER_PARACHUTE;
+    flier_spawn_protect(&g->hero[1]);
+    flier_set_hazard(&g->hero[1], g->hazard_kind);
+    return 1;
+}
+
 void game_set_hazard(Game *g, uint8_t kind)
 {
     int i;

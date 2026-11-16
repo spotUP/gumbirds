@@ -207,6 +207,9 @@
 #ifndef FLIER_START_GAP
 #define FLIER_START_GAP 24 /* px between the player 1 and player 2 spawn points */
 #endif
+#ifndef FLIER_START_JOIN_Y
+#define FLIER_START_JOIN_Y 8 /* px: where a joining player 2 appears (top of the screen) */
+#endif
 #ifndef FLIER_START_Y
 #define FLIER_START_Y 158
 #endif

@@ -285,6 +285,9 @@ void flier_step(Flier *f, const FlierInput *in, int32_t floor_y) {
         f->vy += f->balloons ? FLIER_GRAVITY_BALLOON : FLIER_GRAVITY_NO_BALLOON;
     }
 
+    /* a drop-in parachute (balloons still up, game_join_p2) is released by a flap */
+    if (f->state == FLIER_PARACHUTE && f->balloons && edge) { f->state = FLIER_ALIVE; f->invincible = 0; }
+
     /* flap and horizontal control (3.2, 3.3) */
     if (f->state == FLIER_ALIVE) {
         if (f->on_ground) {
