@@ -961,7 +961,6 @@ void game_step_arena(Game *g, uint8_t input)
                     int killed;
                     if (i < g->players && j < g->players) continue; /* partners never body-kill each other */
                     killed = flier_body_touching(f[i], f[j]) && !arena_pair_blocked(f[i], f[j]) &&
-                             !(i < g->players && (g->hpump[i].state == ARC_PUMP_STANDING || arc_pump_in_window(&g->hpump[i]))) && /* a human standing or pumping after a landing is safe */
                              flier_body_kill(f[i], f[j]);
                     if (killed && j < g->players && i >= g->players) {
                         g->last_popper = (uint8_t)j;
