@@ -1175,7 +1175,9 @@ static void resfx_frame(u16 slot, u8 anim, u8 k) {
 }
 
 static void resfx_hide(void) {
-    for (u16 s = RES_GLASS_SPRITE; s < RES_SPRITE_END; s++) gfx_word((u16)(ADDR_SCB3 + s), 0);
+    /* one run, not one word op per sprite (about 34 raster lines on the stage entry after the bonus, reports/stage-spike.md) */
+    static const u16 k_zero[RES_SPRITE_END - RES_GLASS_SPRITE];
+    gfx_scb_run((u16)(ADDR_SCB3 + RES_GLASS_SPRITE), 1, k_zero, (u8)(RES_SPRITE_END - RES_GLASS_SPRITE));
 }
 
 /* The moving parts of the result screen: cage glass, falling bubbles, counter wheels, crank, ticket, and the sky colours.
@@ -1635,7 +1637,16 @@ static void game_loop(void) {
         sound_tick();
         draw(&view);
         /* The result screen's fix scene covers the world: its steps wait, so the fill frames keep their budget. */
-        if (view.state == FLOW_PLAYING && view.game && view.game->res.active) goto world_done;
+        if (view.state == FLOW_PLAYING && view.game && view.game->res.active) {
+            /* Bonus result screen (it covers the world): hide the strip and load the next stage's strip tiles once the fill is done,
+             * so the stage entry frame's hazard start only places it (two banks there cost about 113 lines, reports/stage-spike.md). */
+            if (g_res_filled == RESV_W * RESV_H) {
+                hazard_step(0, g_cam_px);
+                hazard_game_restart(world_get(world_of_stage(arc_next_stage(view.game->arc.stage)))->hazard);
+                hazard_preload();
+            }
+            goto world_done;
+        }
         hero_and_mode(&view);
         {
             u8 world = world_shown(&view);

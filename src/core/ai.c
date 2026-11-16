@@ -51,12 +51,27 @@ AiState ai_decide(const Flier *self, const Flier *target) {
 }
 
 /* Vertical aim: the direction to the target as a Q15 sine (y down), negated when fleeing. Same maths for the steering
- * decision at a think and for the flap decision every frame. */
+ * decision at a think; the flap decision every frame asks ai_flap_wanted, which gives the same answer cheaper. */
 static void aim(AiState s, const Flier *self, const Flier *target, int16_t *cx, int16_t *cy) {
     uint8_t ang = flier_angle((int32_t)arena_dx(px(target->x), px(self->x)), (int32_t)(px(target->y) - px(self->y)));
     *cx = flier_cos(ang);
     *cy = flier_sin(ang);
     if (s == AI_FLEE) { *cx = (int16_t)-*cx; *cy = (int16_t)-*cy; }
+}
+
+/* aim()'s flap test, dir.y < AI_FLAP_MAX, without the 7-step angle search (about 5 raster lines a rival a frame on the 68000).
+ * y is down: a target above (chase) or below (flee) gives dir.y <= 0, always a flap. Otherwise dir.y >= 0.5 means
+ * flier_angle in [AI_FLAP_A0, AI_FLAP_A1] (sin_tab[22] is the first entry >= AI_FLAP_MAX), and the angle search returns
+ * at least c exactly when cross(c) >= 0, so two products decide. tests/host/test_ai.c checks it against the angle search. */
+#define AI_FLAP_A0 22
+#define AI_FLAP_A1 106
+static int32_t cross(uint8_t c, int16_t x, int16_t y) { return m16(flier_cos(c), y) - m16(flier_sin(c), x); }
+
+int ai_flap_wanted(AiState s, int32_t dx, int32_t dy) {
+    if (dy == 0 || (dy < 0) != (s == AI_FLEE)) return 1;
+    if (dy < 0) { dx = -dx; dy = -dy; } /* fleeing a target above: flier_angle's half turn, and the flee negation undoes it */
+    while (dx > 20000 || dx < -20000 || dy > 20000) { dx >>= 1; dy >>= 1; } /* as flier_angle */
+    return cross(AI_FLAP_A0, (int16_t)dx, (int16_t)dy) < 0 || cross(AI_FLAP_A1 + 1, (int16_t)dx, (int16_t)dy) >= 0;
 }
 
 void ai_step(Ai *a, Rng *r, const Flier *self, const Flier *target, FlierInput *out) {
@@ -81,9 +96,7 @@ void ai_step(Ai *a, Rng *r, const Flier *self, const Flier *target, FlierInput *
     /* The flap decision runs every frame (additive flight model: one flap cancels only part of a think period of gravity):
      * flap on a fresh press while the target is above (dir.y < AI_FLAP_MAX) and the cooldown has run out. */
     if (target && a->state != AI_FILL && self->flap_cd == 0 && !self->flap_prev) {
-        int16_t cx, cy;
-        aim((AiState)a->state, self, target, &cx, &cy);
-        if (cy < AI_FLAP_MAX) {
+        if (ai_flap_wanted((AiState)a->state, arena_dx(px(target->x), px(self->x)), (int32_t)(px(target->y) - px(self->y)))) {
             /* Flapping up into the underside of an island only bounces: steer out from under it first. */
             int8_t away = (int8_t)stage_overhead_edge_dir(self->x, self->y - flier_half_h(self));
             out->flap = 1;

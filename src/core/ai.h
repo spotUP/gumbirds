@@ -36,5 +36,7 @@ AiState ai_decide(const Flier *self, const Flier *target);
 /* One frame: counts the timer down; on zero thinks (state, dir) and re-arms with jitter. target may be
  * NULL (idle). Fills *out for flier_step. */
 void ai_step(Ai *a, Rng *r, const Flier *self, const Flier *target, FlierInput *out);
+/* The per-frame flap test: dir.y (Q15, y down, negated when fleeing) of the direction (dx, dy) < AI_FLAP_MAX. */
+int ai_flap_wanted(AiState s, int32_t dx, int32_t dy);
 
 #endif

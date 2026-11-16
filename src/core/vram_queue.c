@@ -174,12 +174,22 @@ void vq_fix_text(VramQueue *q, u8 x, u8 y, u16 hi, const u16 *map, const char *s
 
 /* Marks only the cells whose wanted value changes: a clear of a screen that is mostly blank already must not hand the
  * commit 1280 cells to compare (tests/host/test_vram_queue.c). */
+/* Two cells per compare and store: the cell-by-cell loop cost about 99 raster lines for a full clear (the arcade stage entry after
+ * the bonus result screen, thoughts/spot/reports/stage-spike.md). Only a pair that differs pays the per-cell check, so the dirty bits stay exact. */
+typedef uint32_t __attribute__((may_alias)) vq_pair;
 void vq_fix_fill(VramQueue *q, u16 cell) {
-    u16 *w = q->fix_want;
+    vq_pair *w = (vq_pair *)q->fix_want;
+    const vq_pair cc = ((vq_pair)cell << 16) | cell;
     for (u16 x = 0; x < VQ_FIX_COLS; x++) {
-        uint32_t m = 0, bit = 1;
-        for (u16 y = 0; y < VQ_FIX_ROWS; y++, w++, bit <<= 1)
-            if (*w != cell) { *w = cell; m |= bit; }
+        uint32_t m = 0, bit = 1; /* row 2y; bit << 1 is row 2y + 1 (no mask maths per pair: a full clear of the result screen
+                                     differs on most pairs and cost about 127 raster lines on the stage entry frame) */
+        for (u16 y = 0; y < VQ_FIX_ROWS / 2; y++, w++, bit <<= 2)
+            if (*w != cc) {
+                const u16 *h = (const u16 *)w;
+                if (h[0] != cell) m |= bit;
+                if (h[1] != cell) m |= bit + bit;
+                *w = cc;
+            }
         q->fix_dirty[x] |= m;
         if (m) q->fix_any = 1;
     }
