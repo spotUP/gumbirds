@@ -204,6 +204,9 @@
 #ifndef FLIER_START_X
 #define FLIER_START_X 40
 #endif
+#ifndef FLIER_START_GAP
+#define FLIER_START_GAP 24 /* px between the player 1 and player 2 spawn points */
+#endif
 #ifndef FLIER_START_Y
 #define FLIER_START_Y 158
 #endif

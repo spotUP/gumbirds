@@ -137,7 +137,7 @@ static uint8_t demo_input(Flow *f)
         ty = demo_haz_aim(g, fl, ty, lo, hi);
         return (uint8_t)(side | (can_flap && py > ty ? IN_A : 0));
     }
-    t = g->mode == GAME_MODE_TRIP ? 0 : ai_nearest(fl, g->hero, HUMANS, g->cpu, g->cpu_count); /* none while the last rival falls: hover */
+    t = g->mode == GAME_MODE_TRIP ? 0 : ai_nearest(fl, g->hero, g->players, g->cpu, g->cpu_count); /* none while the last rival falls: hover */
     if (t) {
         FlierInput ci;
         int near, k;
