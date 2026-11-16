@@ -7,6 +7,7 @@
 #include "gen/logo_sprites.h"
 #include "../../src/core/arcade.h"
 #include "../../src/core/arc_view.h"
+#include "../../src/core/obj_pool.h"
 
 static int checks, failures;
 #define CHECK(c) do { checks++; if (!(c)) { failures++; printf("FAIL %s:%d: %s\n", __FILE__, __LINE__, #c); } } while (0)
@@ -155,6 +156,9 @@ static void test_title(void) {
    test adds their columns to the arena's line sum: every arcade stage, every tick of a long run (vent phases, sparks, grabber), worst line. */
 static void test_arcade_elements(void) {
     int worst = 0;
+    /* Co-op: the P2 body and parachute are pool objects 30 and 31 and sit inside the gameplay reserve. */
+    CHECK(POOL_SPRITE_BASE + POOL_MAX * POOL_COLS <= HERO_SPRITE);
+    CHECK(sprite_budget_line(0, 100, 0) <= SB_LIMIT);
     CHECK(ARC_ELEM_SPRITE >= FG_RAIN_SPRITE && ARC_ELEM_SPRITE + ARC_ELEM_COUNT == TRIP_STRIP_SPRITE + 1); /* rain, spray and the first strip slot, idle in arcade stages */
     printf("arcade worst scanline per stage 1..12:");
     for (int st = 1; st <= 12; st++) {
