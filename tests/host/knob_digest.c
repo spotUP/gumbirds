@@ -100,7 +100,7 @@ static void flow_digest(void)
     }
     mix(title_visits); mix(entry_visits);
 #ifdef KNOB_DEBUG
-    fprintf(stderr, "title %u entry %u last %u\n", (unsigned)title_visits, (unsigned)entry_visits, (unsigned)f.last_score);
+    fprintf(stderr, "title %u entry %u last %u\n", (unsigned)title_visits, (unsigned)entry_visits, (unsigned)f.last_score[0]);
 #endif
 }
 
@@ -350,6 +350,22 @@ static void splash_view_digest(void)
     }
 }
 
+/* Pump windows per rank and player count: the 2P variants shape the digest through the step counts. */
+static void pump_digest(void)
+{
+    int rank, two, n;
+    for (rank = 1; rank <= ARC_RANK_MAX; rank++)
+        for (two = 0; two <= 1; two++) {
+            ArcPump p;
+            arc_pump_start(&p, rank, 1); p.two = (uint8_t)two;
+            for (n = 0; arc_pump_in_window(&p) && n < 1000; n++) arc_pump_step(&p);
+            mix((uint32_t)n);
+            arc_pump_start(&p, rank, 0); p.two = (uint8_t)two; arc_pump_restand(&p);
+            for (n = 0; p.state == ARC_PUMP_STANDING && n < 1000; n++) arc_pump_step(&p);
+            mix((uint32_t)n);
+        }
+}
+
 /* Co-op: P1 flies right alone with P2 parked, so the soft wall and camera margin decide where both end up. */
 static void coop_digest(void)
 {
@@ -379,6 +395,7 @@ int main(void)
     gum_view_digest();
     splash_view_digest();
     coop_digest();
+    pump_digest();
     printf("%08x\n", (unsigned)h);
     return 0;
 }

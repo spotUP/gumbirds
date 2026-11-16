@@ -228,7 +228,19 @@
 #ifndef ARC_REPUMP_STAND_FRAMES
 #define ARC_REPUMP_STAND_FRAMES 60 /* arcade: a rival standing alive with no gum waits this long, then pumps (stage-start window) (user decision 2026-11-16) */
 #endif
-
+/* Two humans in play: rivals pump up and stand up sooner, same rival count (owner 2026-11-16). Pump frames per rank 1..3. */
+#ifndef ARC_PUMP_FRAMES_2P_R1
+#define ARC_PUMP_FRAMES_2P_R1 110
+#endif
+#ifndef ARC_PUMP_FRAMES_2P_R2
+#define ARC_PUMP_FRAMES_2P_R2 90
+#endif
+#ifndef ARC_PUMP_FRAMES_2P_R3
+#define ARC_PUMP_FRAMES_2P_R3 65
+#endif
+#ifndef ARC_REPUMP_STAND_FRAMES_2P
+#define ARC_REPUMP_STAND_FRAMES_2P 40
+#endif
 /* Computer fliers (src/core/ai.c, design doc 3.1 and 5.1). Distances are screen pixels: the reference values (50, 75,
  * 32) halved for the 0.5 reference scale. Angles are Q15 components of the unit direction to the target. */
 #ifndef CPU_START_COUNT

@@ -235,10 +235,10 @@ static void scenario_full(const HiscoreTable *pre, const char *want_name)
     r.f.game.hero[0].y = FL_PX(100);
     rig_until(&r, FLOW_GAME_OVER, IN_A, 60000);
     CHECK(r.f.state == FLOW_GAME_OVER);
-    CHECK(r.f.game.over && r.f.last_score == r.f.game.score && r.f.last_score > 0);
+    CHECK(r.f.game.over && r.f.last_score[0] == r.f.game.score && r.f.last_score[0] > 0);
     CHECK(r.saves == 0);                        /* nothing saved before the entry */
-    learned_score = r.f.last_score;
-    row = expect_row(&before, r.f.last_score);
+    learned_score = r.f.last_score[0];
+    row = expect_row(&before, r.f.last_score[0]);
     CHECK(row >= 0);
 
     /* GAME OVER text: an early A press is ignored, A after GAMEOVER_SKIP_FRAMES skips to the name entry */
@@ -369,7 +369,7 @@ static void test_cycle_and_demo(void)
     CHECK(saw_table && saw_demo && saw_title_again);
     CHECK(r.saves == 0 && !r.f.dirty);
     CHECK(memcmp(&before, &r.f.tables.t[0], sizeof before) == 0);
-    CHECK(r.f.last_score == 0 && r.f.new_row == -1);
+    CHECK(r.f.last_score[0] == 0 && r.f.new_row == -1);
 
     /* the demo actually plays: input moves the game */
     rig_until(&r, FLOW_ATTRACT_DEMO, 0, 100000);
@@ -500,6 +500,7 @@ static void test_operator_reset(void)
     int i;
     FlowView v;
     memset(&r, 0, sizeof r);
+    memset(&def, 0, sizeof def); /* zero the tail padding so memcmp is deterministic */
     score_tables_defaults(&def);
     flow_init(&r.f, NULL, 0);
     hiscore_insert(&r.f.tables.t[0], "MINE", 50000);
@@ -534,6 +535,7 @@ static void test_operator_reset(void)
     /* the saved image is the defaults */
     {
         Flow g;
+        memset(&g, 0, sizeof g);
         flow_init(&g, r.backup, sizeof r.backup);
         CHECK(memcmp(&g.tables, &def, sizeof def) == 0);
     }
@@ -674,7 +676,7 @@ static void run_mode_to_table(Rig *r, uint8_t m, uint32_t score)
     r->f.game.score = score;
     r->f.game.over = 1;
     rig_tick(r, 0, 0);
-    CHECK(r->f.state == FLOW_GAME_OVER && r->f.last_mode == m && r->f.last_score == score);
+    CHECK(r->f.state == FLOW_GAME_OVER && r->f.last_mode == m && r->f.last_score[0] == score);
     rig_until(r, FLOW_NAME_ENTRY, 0, 3000);
     CHECK(r->f.state == FLOW_NAME_ENTRY);
     rig_ticks(r, 0, NAME_TIMEOUT_FRAMES + 5);
@@ -881,6 +883,43 @@ static void test_name_entry_start(void)
     CHECK(r.f.entry.pos == 1);
 }
 
+/* Two humans, both scores rank: P1 enters first with its own input, then P2 with input2 and start_in[1]; one reminder after both. */
+static void test_two_entries(void)
+{
+    Rig r;
+    memset(&r, 0, sizeof r);
+    flow_init(&r.f, NULL, 0);
+    rig_until(&r, FLOW_ATTRACT_TITLE, 0, 10000);
+    rig_begin(&r, 0);
+    r.f.game.players = 2;
+    r.f.game.score = 900000;
+    r.f.game.lives[1].score = 800000;
+    r.f.game.over = 1;
+    rig_tick(&r, 0, 0);
+    CHECK(r.f.last_players == 2 && r.f.last_score[0] == 900000 && r.f.last_score[1] == 800000);
+    rig_until(&r, FLOW_NAME_ENTRY, 0, 3000);
+    CHECK(r.f.state == FLOW_NAME_ENTRY && r.f.entry_h == 0);
+    r.f.game.input2 = IN_UP; /* P2's stick must not move P1's entry */
+    rig_tick(&r, 0, 0);
+    r.f.game.input2 = 0;
+    CHECK(r.f.entry.sym[0] == 0 && r.f.entry.pos == 0);
+    rig_press(&r, IN_A);
+    CHECK(r.f.entry.pos == 1 && r.f.entry.name[0] == 'A');
+    { int i; for (i = 0; i < NAME_LEN + 2 && r.f.entry_h == 0; i++) rig_press(&r, IN_A); }
+    CHECK(r.f.state == FLOW_NAME_ENTRY && r.f.entry_h == 1 && r.f.entry.pos == 0 && !r.f.entry.done);
+    CHECK(r.f.tables.t[r.f.last_mode].score[0] == 900000);
+    { FlowView v; flow_view(&r.f, &v); CHECK(v.entry_h == 1 && v.players == 2 && v.score == 800000); }
+    rig_tick(&r, IN_UP, 0); /* P1's stick must not move P2's entry */
+    rig_tick(&r, 0, 0);
+    CHECK(r.f.entry.sym[0] == 0);
+    r.f.game.input2 = IN_UP; rig_tick(&r, 0, 0); r.f.game.input2 = 0; rig_tick(&r, 0, 0);
+    CHECK(r.f.entry.sym[0] != 0);
+    r.f.game.start_in[1] = 1; rig_tick(&r, 0, 0); r.f.game.start_in[1] = 0; rig_tick(&r, 0, 0); /* P2 Start confirms a letter */
+    CHECK(r.f.entry.pos == 1);
+    rig_ticks(&r, 0, NAME_TIMEOUT_FRAMES + 5);
+    CHECK(r.f.state == FLOW_SAVE_REMINDER && r.f.tables.t[r.f.last_mode].score[1] == 800000);
+}
+
 int main(void)
 {
     test_nameentry();
@@ -895,6 +934,7 @@ int main(void)
     test_menu_buttons();
     test_score_modes();
     test_name_entry_start();
+    test_two_entries();
     printf("test_flow: %d checks, %d failures\n", checks, failures);
     return failures ? 1 : 0;
 }

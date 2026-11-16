@@ -200,7 +200,7 @@ static void score_add_h(Game *g, int h, uint32_t pts)
 /* ArcPump of fighter index i (a human never pumps: a window-less static). */
 static const ArcPump *pump_of(const Game *g, int i)
 {
-    static const ArcPump none = { ARC_PUMP_IDLE, 1, 0 };
+    static const ArcPump none = { ARC_PUMP_IDLE, 1, 0, 0 };
     return i >= g->players ? &g->pump[i - g->players] : &none;
 }
 
@@ -261,7 +261,7 @@ static void match_start(Game *g)
             flier_init(&g->cpu[i], FL_PX(stage_spawns[i].x), FL_PX(stage_spawns[i].y), FLIER_START_BALLOONS, g->mode == GAME_MODE_ARCADE); /* arcade: the last gum lost in the air opens a parachute (re-pump rule) */
             g->cpu[i].rival = 1;
             ai_init(&g->ai[i], &g->rng, rank);
-            arc_pump_start(&g->pump[i], rank, 1); /* every layout spawn stands just above a platform top */
+            arc_pump_start(&g->pump[i], rank, 1); g->pump[i].two = (uint8_t)(g->players == 2); /* every layout spawn stands just above a platform top */
         } else {
             flier_init(&g->cpu[i], 0, 0, 0, 0);
             g->cpu[i].state = FLIER_GONE;
@@ -662,6 +662,7 @@ void game_step_arena(Game *g, uint8_t input)
         pumping = arc_pump_in_window(&g->pump[i]);
         sitting = g->pump[i].state == ARC_PUMP_STANDING;
         if (sitting && c->state != FLIER_ALIVE) g->pump[i].state = ARC_PUMP_FLYING; /* killed while standing: no pump */
+        g->pump[i].two = (uint8_t)(g->players == 2); /* a P2 join mid-stage speeds the running windows */
         arc_pump_step(&g->pump[i]);
         if (arc_pump_in_window(&g->pump[i]) && c->balloons < FLIER_START_BALLOONS) {
             /* Re-pump window (user decision 2026-11-16): the gum grows with the pump stages, one gum inside the window, the second

@@ -103,6 +103,21 @@ int main(void) {
             CHECK(arc_pump_resolve(&p) == arc_rank(rk)->defeat_score && p.state == ARC_PUMP_DEFEATED && !arc_pump_in_window(&p));
             CHECK(arc_pump_resolve(&p) == 0); /* pays once */
         }
+        /* Two humans: shorter pump window per rank and a shorter re-pump stand, 1P timings untouched. */
+        {
+            static const int want2[3] = { ARC_PUMP_FRAMES_2P_R1, ARC_PUMP_FRAMES_2P_R2, ARC_PUMP_FRAMES_2P_R3 };
+            for (rk = 1; rk <= 3; rk++) {
+                ArcPump p; arc_pump_start(&p, rk, 1); p.two = 1;
+                for (n = 0; arc_pump_in_window(&p) && n < 1000; n++) arc_pump_step(&p);
+                CHECK(n == want2[rk - 1] && n < arc_rank(rk)->pump_frames);
+                arc_pump_start(&p, rk, 0); CHECK(arc_pump_restand(&p));
+                for (n = 0; p.state == ARC_PUMP_STANDING && n < 1000; n++) arc_pump_step(&p);
+                CHECK(n == ARC_REPUMP_STAND_FRAMES && p.state == ARC_PUMP_PUMPING); /* two == 0 after a start */
+                p.two = 1; p.state = ARC_PUMP_STANDING; p.frame = 0;
+                for (n = 0; p.state == ARC_PUMP_STANDING && n < 1000; n++) arc_pump_step(&p);
+                CHECK(n == ARC_REPUMP_STAND_FRAMES_2P && ARC_REPUMP_STAND_FRAMES_2P < ARC_REPUMP_STAND_FRAMES);
+            }
+        }
         { ArcPump p; arc_pump_start(&p, 2, 0); CHECK(!arc_pump_in_window(&p) && p.state == ARC_PUMP_FLYING && arc_pump_progress(&p) == 0 && arc_pump_resolve(&p) == 0); }
         { ArcPump p; arc_pump_start(&p, 1, 1); CHECK(arc_pump_resolve(&p) == 1000); arc_pump_start(&p, 2, 1); CHECK(arc_pump_resolve(&p) == 1500); arc_pump_start(&p, 3, 1); CHECK(arc_pump_resolve(&p) == 2000); }
     }

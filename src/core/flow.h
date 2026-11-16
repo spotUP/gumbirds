@@ -64,7 +64,9 @@ typedef struct {
     uint8_t reset_flash;     /* 1 for the frames after an operator reset (draw a message) */
     uint16_t reset_hold;     /* frames the reset combo has been held */
     uint8_t reset_fired;     /* combo already fired, wait for release */
-    uint32_t last_score;     /* score of the last real run */
+    uint32_t last_score[2];  /* score of each human in the last real run ([1] is 0 unless last_players == 2); [0] first: the probes read its offset */
+    uint8_t last_players;    /* humans in the last real run */
+    uint8_t entry_h;         /* human whose ranking score the name entry is taking (P1 then P2) */
     uint8_t party_rule;      /* PARTY_* picked on the PARTY title row (Left/Right); kept across runs */
     uint8_t last_rule;       /* PARTY_* of the last real run: tag of its PARTY table entry */
     uint8_t last_mode;       /* GameMode of the last real run: its table is scored and shown after the run */
@@ -81,7 +83,9 @@ typedef struct {
     int highlight;           /* -1 unless table_mode is the mode of the run that made the entry */
     const Game *game;        /* valid in PLAYING, GAME_OVER and ATTRACT_DEMO */
     const NameEntry *entry;  /* valid in NAME_ENTRY: name, pos, sym[] */
-    uint32_t score;          /* score to show on game over / name entry / reminder */
+    uint32_t score;          /* score to show on game over / name entry / reminder (the entering human's) */
+    uint8_t players;         /* humans in the last run; 2 draws the entering player's label */
+    uint8_t entry_h;         /* human entering a name (0 or 1) */
     int reset_progress;      /* 0..100 percent of the reset hold, for a progress bar */
     int reset_flash;
     uint8_t mode;            /* GameMode highlighted on the title */
