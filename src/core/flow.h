@@ -65,6 +65,8 @@ typedef struct {
     uint16_t reset_hold;     /* frames the reset combo has been held */
     uint8_t reset_fired;     /* combo already fired, wait for release */
     uint32_t last_score;     /* score of the last real run */
+    uint8_t party_rule;      /* PARTY_* picked on the PARTY title row (Left/Right); kept across runs */
+    uint8_t last_rule;       /* PARTY_* of the last real run: tag of its PARTY table entry */
     uint8_t last_mode;       /* GameMode of the last real run: its table is scored and shown after the run */
     ScoreTables tables;      /* one table per GameMode (score_table.h) */
     Game game;
@@ -83,6 +85,7 @@ typedef struct {
     int reset_progress;      /* 0..100 percent of the reset hold, for a progress bar */
     int reset_flash;
     uint8_t mode;            /* GameMode highlighted on the title */
+    uint8_t party_rule;      /* PARTY_* highlighted on the PARTY row */
     uint8_t select_open;     /* title: mode select opened by a start press */
     uint8_t ov_key;          /* ATTRACT_DEMO: AttractOverlay key (AO_*), AO_NONE before the first demo frame */
 } FlowView;

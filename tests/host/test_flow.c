@@ -561,13 +561,17 @@ static void test_mode_select(void)
     memset(&r, 0, sizeof r);
     flow_init(&r.f, NULL, 0);
     CHECK(r.f.state == FLOW_ATTRACT_TITLE && r.f.mode == GAME_MODE_ARENA);   /* default arena */
-    /* three entries Arena, Gum Trip, Arcade: Down steps forward, Up back, both wrap */
+    /* four entries Arena, Gum Trip, Arcade, Party: Down steps forward, Up back, both wrap */
     rig_press(&r, IN_DOWN);
     CHECK(r.f.mode == GAME_MODE_TRIP);
     rig_press(&r, IN_DOWN);
     CHECK(r.f.mode == GAME_MODE_ARCADE);
     rig_press(&r, IN_DOWN);
+    CHECK(r.f.mode == GAME_MODE_PARTY);
+    rig_press(&r, IN_DOWN);
     CHECK(r.f.mode == GAME_MODE_ARENA);
+    rig_press(&r, IN_UP);
+    CHECK(r.f.mode == GAME_MODE_PARTY);
     rig_press(&r, IN_UP);
     CHECK(r.f.mode == GAME_MODE_ARCADE);
     rig_press(&r, IN_UP);
@@ -585,7 +589,30 @@ static void test_mode_select(void)
     rig_press(&r, IN_UP | IN_DOWN);
     CHECK(r.f.mode == GAME_MODE_ARCADE);
     rig_press(&r, IN_DOWN);
-    CHECK(r.f.mode == GAME_MODE_ARENA);
+    CHECK(r.f.mode == GAME_MODE_PARTY);
+    /* Left/Right on the PARTY row cycle the rule, both wrap; the mode does not move */
+    CHECK(r.f.party_rule == PARTY_ROUND);
+    rig_press(&r, IN_RIGHT); CHECK(r.f.party_rule == PARTY_ROOST && r.f.mode == GAME_MODE_PARTY);
+    rig_press(&r, IN_RIGHT); CHECK(r.f.party_rule == PARTY_HOT);
+    rig_press(&r, IN_RIGHT); CHECK(r.f.party_rule == PARTY_ROULETTE);
+    rig_press(&r, IN_RIGHT); CHECK(r.f.party_rule == PARTY_ROUND);
+    rig_press(&r, IN_LEFT); CHECK(r.f.party_rule == PARTY_ROULETTE);
+    {
+        FlowView v;
+        flow_view(&r.f, &v);
+        CHECK(v.party_rule == PARTY_ROULETTE);
+    }
+    /* Start plays PARTY as arena (P2 can join), tagged with the rule; game over scores into table 3 with the tag */
+    rig_begin(&r, 0);
+    CHECK(r.f.state == FLOW_PLAYING && r.f.game.mode == GAME_MODE_ARENA && r.f.game.party_rule == PARTY_ROULETTE && r.f.game.rounds);
+    r.f.game.cpu_count = 1;
+    CHECK(game_can_join_p2(&r.f.game));
+    r.f.game.over = 1; r.f.game.score = 20000;
+    rig_tick(&r, 0, 0);
+    CHECK(r.f.last_mode == GAME_MODE_PARTY && r.f.last_rule == PARTY_ROULETTE);
+    CHECK(score_insert_rule(&r.f.tables, r.f.last_mode, "PTY", 20000, r.f.last_rule) == 0 && r.f.tables.party_rule[0] == PARTY_ROULETTE);
+    memset(&r, 0, sizeof r);
+    flow_init(&r.f, NULL, 0);
     /* the view carries the selection */
     {
         FlowView v;
@@ -628,7 +655,7 @@ static void test_mode_select(void)
     /* Start with ARCADE highlighted begins the arcade run through the real path */
     memset(&r, 0, sizeof r);
     flow_init(&r.f, NULL, 0);
-    rig_press(&r, IN_UP);
+    rig_press(&r, IN_UP); rig_press(&r, IN_UP);   /* Up wraps through PARTY */
     CHECK(r.f.mode == GAME_MODE_ARCADE);
     rig_begin(&r, 0);
     CHECK(r.f.state == FLOW_PLAYING && r.f.game.mode == GAME_MODE_ARCADE && r.f.game.arc.stage == 1);
@@ -730,7 +757,7 @@ static void test_score_modes(void)
     /* the first new entry writes the version 2 image */
     run_mode_to_table(&r, GAME_MODE_TRIP, 4000);
     CHECK(r.saves == 1);
-    { Flow g; flow_init(&g, r.backup, sizeof r.backup); CHECK(memcmp(&g.tables, &r.f.tables, sizeof g.tables) == 0 && g.tables.t[0].score[0] == 424242); }
+    { Flow g; memset(&g, 0, sizeof g); flow_init(&g, r.backup, sizeof r.backup); CHECK(memcmp(&g.tables, &r.f.tables, sizeof g.tables) == 0 && g.tables.t[0].score[0] == 424242); }
 }
 
 /* Menu buttons: A is a second Start on the attract screens (never begins a game by itself), B goes back to the title. */

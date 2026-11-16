@@ -23,6 +23,7 @@ static void start_game(Flow *f, uint32_t seed, int demo)
         f->demo_mode = (uint8_t)(f->demo_mode == GAME_MODE_ARCADE ? GAME_MODE_ARENA : f->demo_mode + 1); /* count and wrap, no % */
     } else {
         game_set_mode(&f->game, f->mode);
+        if (f->mode == GAME_MODE_PARTY) f->game.party_rule = f->party_rule;
     }
     f->demo = (uint8_t)demo;
     f->demo_in = 0;
@@ -48,6 +49,8 @@ void flow_init(Flow *f, const uint8_t *image, size_t len)
     f->select_open = 0;
     f->credit_hold = 0;
     f->mode = GAME_MODE_ARENA;
+    f->party_rule = PARTY_ROUND;
+    f->last_rule = PARTY_NONE;
     f->input_prev = 0;
     f->reset_flash = 0;
     f->reset_hold = 0;
@@ -179,13 +182,16 @@ static void title_reset_combo(Flow *f, uint8_t input)
     }
 }
 
-/* Title mode select: a press edge steps through Arena, Gum Trip, Arcade: Down forward, Up back, both wrap (both on one frame: forward). A held stick does not repeat. */
+/* Title mode select: a press edge steps through Arena, Gum Trip, Arcade, Party: Down forward, Up back, both wrap (both on one frame: forward). A held stick does not repeat. */
 static void title_mode_select(Flow *f, uint8_t input)
 {
-    uint8_t edge = (uint8_t)(input & ~f->input_prev & (IN_UP | IN_DOWN));
-    if (edge) {
-        if (edge & IN_DOWN) f->mode = f->mode == GAME_MODE_ARCADE ? GAME_MODE_ARENA : (uint8_t)(f->mode + 1);
-        else f->mode = f->mode == GAME_MODE_ARENA ? GAME_MODE_ARCADE : (uint8_t)(f->mode - 1);
+    uint8_t edge = (uint8_t)(input & ~f->input_prev & (IN_UP | IN_DOWN | IN_LEFT | IN_RIGHT));
+    if (edge & (IN_UP | IN_DOWN)) {
+        if (edge & IN_DOWN) f->mode = f->mode == GAME_MODE_PARTY ? GAME_MODE_ARENA : (uint8_t)(f->mode + 1);
+        else f->mode = f->mode == GAME_MODE_ARENA ? GAME_MODE_PARTY : (uint8_t)(f->mode - 1);
+    } else if (edge && f->mode == GAME_MODE_PARTY) { /* Left/Right on the PARTY row cycle the rule (Right forward) */
+        if (edge & IN_RIGHT) f->party_rule = f->party_rule == PARTY_RULE_COUNT - 1 ? PARTY_ROUND : (uint8_t)(f->party_rule + 1);
+        else f->party_rule = f->party_rule == PARTY_ROUND ? PARTY_RULE_COUNT - 1 : (uint8_t)(f->party_rule - 1);
     }
 }
 
@@ -263,7 +269,8 @@ void flow_step(Flow *f, uint8_t input, uint8_t start_pressed, uint32_t frame_cou
         game_step(&f->game, input);
         if (f->game.over) {
             f->last_score = f->game.score;
-            f->last_mode = f->game.mode;
+            f->last_mode = f->mode; /* the title pick: PARTY plays as arena, so game.mode would lose the PARTY table */
+            f->last_rule = f->game.party_rule;
             enter(f, FLOW_GAME_OVER);
         }
         break;
@@ -280,7 +287,7 @@ void flow_step(Flow *f, uint8_t input, uint8_t start_pressed, uint32_t frame_cou
     case FLOW_NAME_ENTRY:
         nameentry_step(&f->entry, start_pressed ? (uint8_t)(input | IN_A) : input); /* NE1: Start confirms a letter like A */
         if (f->entry.done) {
-            f->new_row = (int8_t)score_insert(&f->tables, f->last_mode, f->entry.name, f->last_score);
+            f->new_row = (int8_t)score_insert_rule(&f->tables, f->last_mode, f->entry.name, f->last_score, f->last_rule);
             f->highlight = f->new_row;
             f->dirty = 1;
             enter(f, FLOW_SAVE_REMINDER);
@@ -310,6 +317,7 @@ void flow_view(const Flow *f, FlowView *v)
                             : (int)(((uint32_t)f->reset_hold * 100u) / RESET_HOLD_FRAMES);
     v->reset_flash = f->reset_flash;
     v->mode = f->mode;
+    v->party_rule = f->party_rule;
     v->select_open = f->select_open;
     v->ov_key = f->ov.key;
 }

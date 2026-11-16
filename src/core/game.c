@@ -137,6 +137,7 @@ void game_reset(Game *g, uint32_t seed)
 
 void game_set_mode(Game *g, uint8_t mode)
 {
+    g->party_rule = PARTY_NONE;
     g->mode = mode == GAME_MODE_TRIP || mode == GAME_MODE_ARCADE ? mode : GAME_MODE_ARENA;
     if (g->mode == GAME_MODE_ARCADE) {
         arc_start(&g->arc);

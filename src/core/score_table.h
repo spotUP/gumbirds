@@ -13,8 +13,10 @@
  *      6   120    arena table: 10 x (8 name bytes + u32 score)
  *    126   120    trip table, same layout
  *    246   120    arcade table, same layout
- *    366     4    checksum: FNV-1a 32 bit over bytes 0..365
- * Total SCORE_IMAGE_SIZE = 370 bytes. A v1 image (130 bytes) loads as the arena table with
+ *    366   120    party table, same layout
+ *    486    10    party rule tag per party row (PARTY_*)
+ *    496     4    checksum: FNV-1a 32 bit over bytes 0..495
+ * Total SCORE_IMAGE_SIZE = 500 bytes (v3 = 370 bytes, no party table: loads with party defaults). A v1 image (130 bytes) loads as the arena table with
  * the trip defaults.
  */
 #ifndef BRAWL_SCORE_TABLE_H
@@ -25,10 +27,12 @@
 #include "hiscore.h"
 #include "tuning.h"
 
-#define SCORE_MODES 3u           /* index = GameMode: 0 arena, 1 trip, 2 arcade */
+#define SCORE_MODES 4u           /* index = GameMode: 0 arena, 1 trip, 2 arcade, 3 party */
 #define SCORE_CAP 999999u        /* display fact (6 digits): clamp, never wrap */
-#define SCORE_VERSION 3u
-#define SCORE_IMAGE_SIZE 370u
+#define SCORE_VERSION 4u
+#define SCORE_IMAGE_SIZE 500u     /* 6 + 4 x 120 + 10 party rule tags + 4 checksum */
+#define SCORE_VERSION_3 3u        /* load path only: arena + trip + arcade, 370 bytes; party defaults */
+#define SCORE_IMAGE_SIZE_3 370u
 #define SCORE_VERSION_2 2u        /* load path only: arena + trip, 250 bytes */
 #define SCORE_IMAGE_SIZE_2 250u
 #define SCORE_ARCADE_DEFAULT_TOP 10000u
@@ -41,6 +45,7 @@
 
 typedef struct {
     HiscoreTable t[SCORE_MODES];
+    uint8_t party_rule[HISCORE_ENTRIES]; /* PARTY_* tag of each row of the party table (t[GAME_MODE_PARTY]); 0 = none */
 } ScoreTables;
 
 /* Factory rows for both modes. */
@@ -56,13 +61,15 @@ int score_qualifies(const ScoreTables *s, unsigned mode, uint32_t score);
 /* Insert (score clamped to SCORE_CAP first). Returns the 0 based row or -1. Only mode's table
  * changes. */
 int score_insert(ScoreTables *s, unsigned mode, const char *name, uint32_t score);
+/* Same, and for the party table the new row carries rule (the tags shift with the rows). */
+int score_insert_rule(ScoreTables *s, unsigned mode, const char *name, uint32_t score, uint8_t rule);
 
 /* Read a row. Returns 1 and fills name (8 chars, space padded, NOT terminated) and score;
  * 0 for a bad mode or row (outputs untouched). Either output pointer may be NULL. */
 int score_entry(const ScoreTables *s, unsigned mode, unsigned row, char *name8, uint32_t *score);
 
 /* Image round trip. Serialise returns SCORE_IMAGE_SIZE or 0 when cap is too small.
- * Load returns 1 (valid v3), 3 (valid v2: arena + trip, arcade defaults), 2 (valid v1: arena from the image, others defaults) or 0 (anything
+ * Load returns 1 (valid v4), 4 (valid v3: party defaults), 3 (valid v2: arena + trip, arcade defaults), 2 (valid v1: arena from the image, others defaults) or 0 (anything
  * else, including a corrupt block or unsorted rows: both tables set to defaults). */
 size_t score_serialise(const ScoreTables *s, uint8_t *buf, size_t cap);
 int score_load(ScoreTables *s, const uint8_t *buf, size_t len);
