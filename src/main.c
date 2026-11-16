@@ -1787,7 +1787,8 @@ static void game_loop(void) {
         /* Start also ends the result screen and the GAME OVER text, and confirms a name entry letter like A (player_start refuses Start there) */
         if ((bios_statchange & 1) && ((g_flow.state == FLOW_PLAYING && g_flow.game.res.active) || g_flow.state == FLOW_GAME_OVER || g_flow.state == FLOW_NAME_ENTRY)) in |= IN_A;
         g_flow.credit_hold = (u8)(credits_now() > 0); /* owner rule "never force start": credits hold the PRESS START title */
-        g_bg_paused = g_bg_hold && bg_pending();
+        /* The title fades its next mood while it runs (about 100 frames after a Gum Trip run): only a Start, which would enter the world, waits. */
+        g_bg_paused = g_bg_hold && bg_pending() && (g_flow.state != FLOW_ATTRACT_TITLE || start);
         /* The game waits while the entry background loads. A taken credit waits with it: bug fixed here, a Start accepted on
          * the title during the mood rewrite after a Gum Trip run was dropped here (credit gone, no game). make test-black-screen. */
         if (!g_bg_paused) flow_step(&g_flow, in, start, g_frame_counter);

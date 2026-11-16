@@ -835,6 +835,24 @@ test-solid: cart
 	cat $$T/result.txt; \
 	if grep -q '^PASS' $$T/result.txt; then rm -rf $$T; echo "[OK] make test-solid passed"; else echo "[FAIL] make test-solid, log kept in $$T"; exit 1; fi
 
+# Title pause after a run (tests/mame/title_pause_check.lua, UniBIOS 4.0): frames from the run end to a live title, Gum Trip and arcade;
+# the title must start running within 30 frames of being reached. `make test-title-pause`.
+.PHONY: test-title-pause
+test-title-pause: cart bios
+	@if [ ! -f "$(UNIBIOS)" ]; then echo "[FAIL] UNIBIOS file not found: $(UNIBIOS)"; exit 1; fi
+	@$(MAKE) --no-print-directory $(UNIBIOS_DIR)/neogeo.zip
+	@set -e; T=$$(mktemp -d $(BUILDDIR)/test-run.XXXXXX); \
+	for MODE in trip arcade; do \
+	BRAWL_MODE=$$MODE \
+	BRAWL_FLOW_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flow"{print $$1}') \
+	BRAWL_FRAME_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_frame_counter"{print $$1}') \
+	BRAWL_RESULT=$$T/result-$$MODE.txt \
+	SDL_VIDEODRIVER=dummy nice -n 19 $(MAME) -window -nomaximize -video none -sound none -nothrottle -seconds_to_run 600 -noautosave -skip_gameinfo -hash $(ROM) -rp "$(UNIBIOS_DIR);$(ROM)" -bios unibios40 -nvram_directory $$T -autoboot_script tests/mame/title_pause_check.lua neogeo -cart1 $(GAMEROM) > $$T/mame-$$MODE.log 2>&1 || true; \
+	if [ ! -f $$T/result-$$MODE.txt ]; then tail -n 15 $$T/mame-$$MODE.log; echo "[FAIL] no result from title pause Lua script ($$MODE)"; exit 1; fi; \
+	cat $$T/result-$$MODE.txt; \
+	if ! grep -q '^PASS' $$T/result-$$MODE.txt; then echo "[FAIL] make test-title-pause ($$MODE), log kept in $$T"; exit 1; fi; \
+	done; rm -rf $$T; echo "[OK] make test-title-pause passed"
+
 # Gum Trip view (tests/mame/trip_check.lua): coin, Down on the title, Start; over 500 PLAYING frames the mode is TRIP, the distance grows
 # by the scroll speed (49152 raw at distance 0), the camera changes every frame or every second frame, the flier stays on screen,
 # zero game steps are missed and the frame logic ends before the visible lines end. `make test-trip` alone.
