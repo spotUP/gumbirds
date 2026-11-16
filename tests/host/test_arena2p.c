@@ -1,4 +1,4 @@
-/* Host test for Arena two-player versus (game.c): P2 Start banked, P2 appears at the next round, a human stomp on a human scores,
+/* Host test for Arena two-player versus (game.c): P2 Start restarts the match (flow_join_p2), a human stomp on a human scores,
  * the round ends when one flier is left (winner P1, P2 or computer), a dead human waits for the next round. */
 #include <stdio.h>
 #include "../../src/core/game.h"
@@ -33,9 +33,14 @@ static void ready(Flier *f, int x, int y, int vy) {
     f->invincible = 0; f->spawn_inv = 0;
 }
 
-static void start2(void) { /* banked join, round won by P1, P2 in at the next round */
+static void start2(void) { /* the match flow_join_p2 makes: fresh game, both humans in, round won by P1, next round */
     start1();
-    game_join_p2(&g);
+    game_reset(&g, 7);
+    game_set_mode(&g, GAME_MODE_ARENA);
+    g.rounds = 1;
+    arc_lives_start(&g.lives[0]);
+    game_start_p2(&g);
+    next_round();
     kill_cpus();
     game_step(&g, 0);
     next_round();
@@ -45,14 +50,13 @@ int main(void) {
     uint32_t s1;
     start1();
     CHECK(g.players == 1 && game_can_join_p2(&g) && !game_lives_mode(&g));
-    CHECK(game_join_p2(&g) == 1);
-    CHECK(g.players == 1 && g.p2_pending && g.hero[1].state == FLIER_GONE); /* banked, not in play mid-round */
-    CHECK(!game_can_join_p2(&g)); /* one bank at a time */
+    CHECK(game_join_p2(&g) == 0); /* Arena joins restart the match through flow_join_p2 (test_flow) */
     kill_cpus();
     game_step(&g, 0);
     CHECK(g.round_end == RE_HOLD && g.round_winner == BANNER_P1 + 0 && g.players == 1);
     next_round();
-    CHECK(g.players == 2 && !g.p2_pending && g.hero[1].state == FLIER_ALIVE && g.lives[1].lives == ARC_LIVES_START && g.cpu_count > 0);
+    start2();
+    CHECK(g.players == 2 && g.hero[1].state == FLIER_ALIVE && g.lives[1].lives == ARC_LIVES_START && g.cpu_count > 0);
     CHECK(!game_can_join_p2(&g) && game_lives_mode(&g));
 
     /* Gum Trip stays one player */

@@ -49,20 +49,10 @@ int game_banner_winner(const Game *g)
     return g->players == 2 && g->last_popper == 1 ? BANNER_P2 : BANNER_P1;
 }
 
-/* Stage start and rematch: every human still in the run is back at the spawn (a player waiting on the continue screen stays out).
- * An Arena P2 Start banked mid-round joins here, at the round start. */
+/* Stage start and rematch: every human still in the run is back at the spawn (a player waiting on the continue screen stays out). */
 static void player_spawn(Game *g)
 {
     int h;
-    if (g->p2_pending) {
-        g->p2_pending = 0;
-        if (g->players == 1) {
-            arc_lives_start(&g->lives[0]);
-            g->lives[0].score = g->score;
-        }
-        g->players = 2;
-        arc_lives_start(&g->lives[1]);
-    }
     for (h = 0; h < g->players; h++) {
         if (!game_lives_mode(g) || g->lives[h].state == ARC_LIFE_PLAY) {
             player_spawn_h(g, h);
@@ -81,8 +71,8 @@ void game_start_p2(Game *g)
 /* P2 may join now: arcade play with no round end pan, no result screen, no run over, and the P2 side free (never joined, or out of lives). */
 int game_can_join_p2(const Game *g)
 {
-    if (g->mode == GAME_MODE_ARENA) { /* banked now, joins at the next round start (game_join_p2) */
-        return g->rounds && !g->over && !g->p2_pending && g->cpu_count > 0 && (g->players == 1 || g->lives[1].state == ARC_LIFE_ENDED);
+    if (g->mode == GAME_MODE_ARENA) { /* a join restarts the whole match (flow_join_p2) */
+        return g->rounds && !g->over && g->cpu_count > 0 && (g->players == 1 || g->lives[1].state == ARC_LIFE_ENDED);
     }
     return g->mode == GAME_MODE_ARCADE && !g->over && g->round_end == RE_NONE && !g->res.active && g->arc.state == ARC_PLAY &&
            g->cpu_count > 0 && (g->players == 1 || g->lives[1].state == ARC_LIFE_ENDED);
@@ -94,7 +84,7 @@ int game_join_p2(Game *g)
 {
     int32_t x;
     if (!game_can_join_p2(g)) return 0;
-    if (g->mode == GAME_MODE_ARENA) { g->p2_pending = 1; return 1; }
+    if (g->mode == GAME_MODE_ARENA) return 0; /* Arena joins through flow_join_p2: a fresh match */
     x = g->camera.cam + (int32_t)(SCREEN_W / 2) * 65536;
     while (x >= ARENA_W16) x -= ARENA_W16;
     g->players = 2;

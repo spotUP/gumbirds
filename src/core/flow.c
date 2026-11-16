@@ -37,6 +37,19 @@ static void start_game(Flow *f, uint32_t seed, int demo)
     enter(f, demo ? FLOW_ATTRACT_DEMO : FLOW_PLAYING);
 }
 
+/* P2 Start in play (a credit was taken). Arcade: parachute drop-in. Arena and Party: the whole match restarts through start_game with both humans
+ * (scores, rounds, CPUs fresh; party_rule kept). Returns 0 when refused (the caller keeps the credit). */
+int flow_join_p2(Flow *f, uint32_t seed)
+{
+    Game *g = &f->game;
+    if (f->state != FLOW_PLAYING || !game_can_join_p2(g)) return 0;
+    if (g->mode != GAME_MODE_ARENA) return game_join_p2(g);
+    start_game(f, seed, 0);
+    arc_lives_start(&g->lives[0]);
+    game_start_p2(g);
+    return 1;
+}
+
 void flow_init(Flow *f, const uint8_t *image, size_t len)
 {
     f->dirty = 0;
