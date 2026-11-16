@@ -367,6 +367,7 @@ emu.register_frame_done(function()
     local c = g(O_COUNT)
     if wait == 1 and c > K.cont_frames then finish(false, "A4 countdown " .. c .. " above " .. K.cont_frames) return end
     cd0 = cd0 or c
+    if wait == 25 then mem:write_u8(0x10fe00, 1) end -- a continue needs a banked credit; the stock BIOS does not count coins in play, so bank one directly
     if wait == 40 then
       if not (c < cd0) then finish(false, "A4 continue countdown does not run: " .. cd0 .. " -> " .. c) return end
       abtn:set_value(1); ca = c
@@ -377,7 +378,7 @@ emu.register_frame_done(function()
       start:set_value(1)
     elseif wait == 56 then start:set_value(0)
     elseif wait > 56 then
-      finish(false, "A5 Start did not continue: " .. state())
+      finish(false, "A5 Start did not continue: " .. state() .. string.format(" credit %02x", mem:read_u8(0x10fe00)))
     end
     if wait >= 51 and wait <= 56 and g(O_LSTATE) == K.life_play then
       start:set_value(0)

@@ -67,6 +67,8 @@ typedef struct {
     uint8_t over;        /* 1 when the player flier is DROWNED or GONE */
     uint8_t players;     /* 1 or 2 humans in play (game_reset sets 1) */
     uint8_t input2;      /* player 2 input byte (main.c sets it like start_in); unused while players == 1 */
+    uint8_t credits;     /* credits banked (main.c sets it from the BIOS each frame); the arcade continue needs one */
+    uint8_t last_popper; /* human index that last popped or defeated a computer flier: the stage-clear banner winner */
 
     /* Arena slice: the flier replaces the runner hero in play. flier_steps counts flier_step calls (test sentinel). */
     Flier hero[HUMANS];  /* the humans: hero[0] is player 1; hero[1] stays GONE while players == 1 */
