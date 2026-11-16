@@ -58,6 +58,7 @@ emu.register_frame_done(function()
     if ss.step(n, playing, true) then phase = "howto"; t0 = n end
   elseif phase == "howto" then -- the how-to demo: overlay rows 22..27 up, A skips it, the overlay clears and round 1 banner follows
     local k = n - t0
+    if k > 45 and b(O.rs) == K.rs_round then rs_frames = rs_frames + 1 end -- the round banner starts right after the skip, before the banner phase
     if k == 40 then
       if b(O.howto) ~= 1 then finish(false, "how-to not running after Start: Flow.howto " .. b(O.howto)) return end
       if lit(22) < 5 or lit(23) < 20 or lit(24) < 20 or lit(25) < 20 or lit(27) < 15 then
