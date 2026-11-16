@@ -110,6 +110,8 @@ int arc_nozzle_top(int i);               /* top, px; the solid top of the stage.
 void arc_bonus_init(ArcBonus *b, int number, uint32_t seed);
 /* One frame; when armed (the player still has a gum), the caller's rectangle (px) pops bubbles it overlaps. Returns bubbles popped this frame. No score is added. */
 int arc_bonus_step(ArcBonus *b, int armed, int rx, int ry, int rw, int rh);
+/* The catch test alone, for a second catcher after arc_bonus_step moved the bubbles this frame. Returns bubbles popped. */
+int arc_bonus_catch(ArcBonus *b, int armed, int rx, int ry, int rw, int rh);
 
 
 /* ---- rival pump-up (FQ4): one ArcPump per rival slot ---- */

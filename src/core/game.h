@@ -106,6 +106,7 @@ typedef struct {
     ArcLives lives[HUMANS];      /* Arcade lives: a flier death loses one, none left ends the run (continue screen: game_step_arena) */
     ArcPump pump[STAGE_SPAWN_COUNT]; /* per computer flier: blow-up window that decides its stomp score */
     ArcElements elems;   /* Arcade stage elements of the current stage (arc_elements.h), built by match_start, stepped in play only */
+    uint8_t bonus_caught[HUMANS]; /* bubbles each human popped in this bonus stage (bonus.caught is the team total) */
     ArcBonus bonus;      /* Arcade bonus stage, live while arc.state == ARC_BONUS after the banner hold */
     Result res;          /* Result screen after the bonus stage (result.h): active while it shows; arc.state stays ARC_BONUS */
     Camera camera;       /* follows the living human fliers, stepped every game_step_arena; view reads game_camera_px */

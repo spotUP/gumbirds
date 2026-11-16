@@ -87,6 +87,19 @@ void arc_bonus_init(ArcBonus *b, int number, uint32_t seed) {
     for (i = 0; i < ARC_BONUS_LIVE_MAX; i++) { ArcBubble *u = &b->b[i]; u->live = 0; u->age = 0; u->ph = 0; u->amp = 0; u->nozzle = 0; u->x = u->x0 = 0; u->y16 = 0; }
 }
 
+int arc_bonus_catch(ArcBonus *b, int armed, int rx, int ry, int rw, int rh) {
+    int i, popped = 0;
+    if (!armed) return 0;
+    for (i = 0; i < ARC_BONUS_LIVE_MAX; i++) {
+        ArcBubble *u = &b->b[i];
+        int y = (int)(u->y16 >> 16);
+        if (u->live && u->x < rx + rw && rx < u->x + ARC_BONUS_BOX && y < ry + rh && ry < y + ARC_BONUS_BOX) {
+            u->live = 0; b->nlive--; b->caught++; popped++; /* no score here: the result screen tallies caught x value + perfect */
+        }
+    }
+    return popped;
+}
+
 int arc_bonus_step(ArcBonus *b, int armed, int rx, int ry, int rw, int rh) {
     int i, popped = 0;
     if (b->over) return 0;
@@ -115,10 +128,8 @@ int arc_bonus_step(ArcBonus *b, int armed, int rx, int ry, int rw, int rh) {
             u->x = (int16_t)(u->x0 + ((sway_tab[u->ph] * u->amp) >> 4));
         }
         if (y + ARC_BONUS_BOX <= 0) { u->live = 0; b->nlive--; continue; } /* escaped 16 px past the top: freed silently */
-        if (armed && u->x < rx + rw && rx < u->x + ARC_BONUS_BOX && y < ry + rh && ry < y + ARC_BONUS_BOX) {
-            u->live = 0; b->nlive--; b->caught++; popped++; /* no score here: the result screen tallies caught x value + perfect */
-        }
     }
+    popped = arc_bonus_catch(b, armed, rx, ry, rw, rh);
     if (b->spawned == ARC_BONUS_BUBBLES && !b->nlive && !(b->frame & 255)) { /* the reference waits for its frame counter to wrap */
         b->over = 1;
         b->perfect = b->caught == ARC_BONUS_BUBBLES;

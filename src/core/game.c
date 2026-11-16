@@ -489,6 +489,7 @@ static int arc_interlude(Game *g, uint8_t input, uint8_t a_edge)
         g->round_timer = (uint16_t)g->arc.timer;
         if (g->arc.state == ARC_BONUS) {
             arc_bonus_init(&g->bonus, g->arc.bonus_no, rng_next(&g->rng));
+            g->bonus_caught[0] = g->bonus_caught[1] = 0;
             stage_select(ARC_LAYOUT_BONUS); /* floor strip and nozzle tops; arc_enter_stage / match_start selects the next stage's layout */
             g->round_end = RE_NONE; /* ALL POPPED showed once; the bonus is announced by the round-start phase (BONUS STAGE, then GO) */
             if (g->rounds) {
@@ -512,15 +513,38 @@ static int arc_interlude(Game *g, uint8_t input, uint8_t a_edge)
             arc_enter_stage(g);
         }
     } else {
-        int cx = (int)(g->hero[0].x >> 16), cy = (int)(g->hero[0].y >> 16);
-        in.flap = (input & IN_A) ? 1 : 0;
-        in.dir = (int8_t)(((input & IN_RIGHT) ? 1 : 0) - ((input & IN_LEFT) ? 1 : 0));
-        arena_flier_step(g, &g->hero[0], &in);
-        arc_bonus_step(&g->bonus, g->hero[0].state == FLIER_ALIVE && g->hero[0].balloons > 0, cx - ARC_BONUS_CATCH_HALF_W, cy - ARC_BONUS_CATCH_HALF_H, 2 * ARC_BONUS_CATCH_HALF_W, 2 * ARC_BONUS_CATCH_HALF_H);
-        if (g->hero[0].state == FLIER_GONE) {
-            player_spawn(g); /* a bonus stage costs no life */
+        int h;
+        uint8_t ins[HUMANS];
+        ins[0] = input;
+        ins[1] = g->input2;
+        for (h = 0; h < g->players; h++) {
+            Flier *f = &g->hero[h];
+            int cx, cy, armed, n;
+            if (h > 0 && g->lives[h].state != ARC_LIFE_PLAY) continue; /* a player out of lives or on the continue screen sits the bonus out */
+            cx = (int)(f->x >> 16);
+            cy = (int)(f->y >> 16);
+            in.flap = (ins[h] & IN_A) ? 1 : 0;
+            in.dir = (int8_t)(((ins[h] & IN_RIGHT) ? 1 : 0) - ((ins[h] & IN_LEFT) ? 1 : 0));
+            arena_flier_step(g, f, &in);
+            armed = f->state == FLIER_ALIVE && f->balloons > 0;
+            /* the first human steps the bubbles, the partner only tests its box on the moved bubbles; each box credits its own catcher */
+            n = h == 0 ? arc_bonus_step(&g->bonus, armed, cx - ARC_BONUS_CATCH_HALF_W, cy - ARC_BONUS_CATCH_HALF_H, 2 * ARC_BONUS_CATCH_HALF_W, 2 * ARC_BONUS_CATCH_HALF_H)
+                       : arc_bonus_catch(&g->bonus, armed, cx - ARC_BONUS_CATCH_HALF_W, cy - ARC_BONUS_CATCH_HALF_H, 2 * ARC_BONUS_CATCH_HALF_W, 2 * ARC_BONUS_CATCH_HALF_H);
+            g->bonus_caught[h] = (uint8_t)(g->bonus_caught[h] + n);
+            if (f->state == FLIER_GONE) {
+                player_spawn_h(g, h); /* a bonus stage costs no life */
+            }
         }
-        if (g->bonus.over) res_start(&g->res, g->bonus.caught, g->bonus.number, g->bonus.perfect, g->score); /* the result screen adds the score */
+        if (g->bonus.over) {
+            int caught0 = g->players > 1 ? g->bonus_caught[0] : g->bonus.caught;
+            res_start(&g->res, caught0, g->bonus.number, g->bonus.perfect, g->score); /* the result screen adds the score */
+            if (g->players > 1) { /* player 2 is paid at once and shown as a second total */
+                uint32_t pay = (uint32_t)g->bonus_caught[1] * g->res.each + g->res.bonus;
+                g->lives[1].score = arc_score_add(g->lives[1].score, pay);
+                g->res.two = 1;
+                g->res.score2 = g->lives[1].score;
+            }
+        }
     }
     camera_follow(g);
     return 1;

@@ -106,6 +106,30 @@ int main(void) {
     g.start_in[0] = 0;
     CHECK(g.lives[0].state == ARC_LIFE_PLAY && g.hero[0].state != FLIER_GONE);
 
+    /* bonus stage for two: each box credits its own catcher, player 2 is paid and shown as a second total, player 1 screen unchanged */
+    start2(3);
+    for (i = 0; i < g.cpu_count; i++) g.cpu[i].state = FLIER_GONE;
+    for (i = 0; i < 3000 && g.arc.state != ARC_BONUS; i++) game_step(&g, 0);
+    CHECK(g.arc.state == ARC_BONUS);
+    {
+        int f, s0 = 0, s1 = 0, k, bi = -1;
+        uint32_t p1 = g.score, b2 = g.lives[1].score, p2; /* the stage clear already paid both */
+        for (f = 0; f < 6000 && !g.res.active; f++) {
+            for (k = 0, bi = -1; k < ARC_BONUS_LIVE_MAX; k++) if (g.bonus.b[k].live) { bi = k; break; }
+            ready(&g.hero[0], 4, 8, 0); /* park P1 high in the corner, clear of every nozzle column */
+            if (bi >= 0) ready(&g.hero[1], g.bonus.b[bi].x + ARC_BONUS_BOX / 2, (int)(g.bonus.b[bi].y16 >> 16) + ARC_BONUS_BOX / 2, 0);
+            else ready(&g.hero[1], 200, 8, 0);
+            game_step(&g, 0);
+        }
+        s0 = g.bonus_caught[0]; s1 = g.bonus_caught[1];
+        CHECK(g.res.active && g.res.two && s1 > 0 && s0 == 0 && g.bonus.caught == s0 + s1);
+        p2 = g.lives[1].score;
+        CHECK(g.res.score2 == p2 && p2 >= b2 + (uint32_t)s1 * g.res.each && g.res.caught == 0 && g.score == p1);
+        for (f = 0; f < 4000 && g.res.active; f++) game_step(&g, (f & 8) ? IN_A : 0);
+        CHECK(!g.res.active && g.lives[1].score == p2 && g.score == p1 + g.res.bonus); /* P1 caught none: only the team perfect bonus reaches it */
+        CHECK(g.hero[0].state != FLIER_GONE && g.hero[1].state != FLIER_GONE);
+    }
+
     printf("%d checks, %d failures\n", checks, failures);
     return failures ? 1 : 0;
 }
