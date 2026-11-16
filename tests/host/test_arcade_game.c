@@ -182,12 +182,29 @@ int main(void) {
         uint32_t fr = g.frame;
         game_step(&g, 0);
         CHECK(g.lives.countdown == c0 - 1 && g.frame == fr && g.lives.state == ARC_LIFE_CONTINUE);
-        game_step(&g, IN_A);
+        /* CONTINUE-SKIP: each A press drops the count by one second, a held A drops nothing more; Start continues */
+        {
+            int s0 = arc_continue_seconds(&g.lives);
+            game_step(&g, IN_A);
+            CHECK(arc_continue_seconds(&g.lives) == s0 - 1 && g.lives.state == ARC_LIFE_CONTINUE);
+            game_step(&g, IN_A);
+            CHECK(arc_continue_seconds(&g.lives) == s0 - 1);
+            game_step(&g, 0); game_step(&g, IN_A);
+            CHECK(arc_continue_seconds(&g.lives) == s0 - 2 && g.lives.state == ARC_LIFE_CONTINUE && !g.over);
+        }
+        g.start_in = 1;
+        game_step(&g, 0);
+        g.start_in = 0;
         CHECK(g.lives.state == ARC_LIFE_PLAY && g.lives.lives == ARC_LIVES_START && g.score == 0 && g.arc.stage == 2 && g.flier.state == FLIER_ALIVE && !g.over);
         /* the countdown running out ends the run */
         for (i = 0; i < ARC_LIVES_START; i++) { g.flier.state = FLIER_GONE; game_step(&g, 0); }
         for (i = 0; i < ARC_CONTINUE_FRAMES + 2; i++) game_step(&g, 0);
         CHECK(g.lives.state == ARC_LIFE_ENDED && g.over);
+        /* A presses alone skip the whole countdown to the end of the run: 10 presses, never a continue */
+        start(&g, 2);
+        for (i = 0; i < ARC_LIVES_START; i++) { g.flier.state = FLIER_GONE; game_step(&g, 0); }
+        for (i = 0; i < ARC_CONTINUE_SECONDS && !g.over; i++) { game_step(&g, IN_A); game_step(&g, 0); }
+        CHECK(g.lives.state == ARC_LIFE_ENDED && g.over && i <= ARC_CONTINUE_SECONDS);
     }
 
     /* stomp inside the pump window pays the rank defeat score (rank 2 at stage 6) */

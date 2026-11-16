@@ -132,6 +132,8 @@ void arc_lives_start(ArcLives *l);
 /* The player lost a life: lives--, gum heals to ARC_GUM_HEAL for the next life; at 0 lives the continue countdown starts. */
 void arc_lose_life(ArcLives *l);
 /* One frame of the continue state. start_pressed with credits > 0 continues (full lives, score 0, gum healed, same stage: the caller keeps the stage) and returns 1 credit used; timeout ends the run. */
+/* One A press on the continue screen: the count drops by one displayed second; below zero the run ends. */
+void arc_continue_skip(ArcLives *l);
 int arc_continue_step(ArcLives *l, int start_pressed, int credits);
 int arc_continue_seconds(const ArcLives *l); /* digit to show, 10..0 */
 

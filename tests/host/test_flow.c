@@ -241,7 +241,13 @@ static void scenario_full(const HiscoreTable *pre, const char *want_name)
     row = expect_row(&before, r.f.last_score);
     CHECK(row >= 0);
 
-    rig_ticks(&r, 0, GAMEOVER_FRAMES);
+    /* GAME OVER text: an early A press is ignored, A after GAMEOVER_SKIP_FRAMES skips to the name entry */
+    rig_ticks(&r, 0, 5);
+    rig_press(&r, IN_A);
+    CHECK(r.f.state == FLOW_GAME_OVER);
+    rig_ticks(&r, 0, GAMEOVER_SKIP_FRAMES);
+    CHECK(r.f.state == FLOW_GAME_OVER && GAMEOVER_SKIP_FRAMES + 7 < GAMEOVER_FRAMES);
+    rig_press(&r, IN_A);
     CHECK(r.f.state == FLOW_NAME_ENTRY);
     for (i = 0; want_name[i]; i++) {
         int k, target = want_name[i] - 'A';
