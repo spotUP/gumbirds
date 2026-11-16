@@ -181,12 +181,13 @@ void vq_fix_fill(VramQueue *q, u16 cell) {
     vq_pair *w = (vq_pair *)q->fix_want;
     const vq_pair cc = ((vq_pair)cell << 16) | cell;
     for (u16 x = 0; x < VQ_FIX_COLS; x++) {
-        uint32_t m = 0, bits = 3;
-        for (u16 y = 0; y < VQ_FIX_ROWS / 2; y++, w++, bits <<= 2)
+        uint32_t m = 0, bit = 1; /* row 2y; bit << 1 is row 2y + 1 (no mask maths per pair: a full clear of the result screen
+                                     differs on most pairs and cost about 127 raster lines on the stage entry frame) */
+        for (u16 y = 0; y < VQ_FIX_ROWS / 2; y++, w++, bit <<= 2)
             if (*w != cc) {
                 const u16 *h = (const u16 *)w;
-                if (h[0] != cell) m |= bits & (bits >> 1);
-                if (h[1] != cell) m |= bits & (bits << 1);
+                if (h[0] != cell) m |= bit;
+                if (h[1] != cell) m |= bit + bit;
                 *w = cc;
             }
         q->fix_dirty[x] |= m;
