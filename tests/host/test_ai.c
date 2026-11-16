@@ -9,6 +9,13 @@
 static int checks, failures;
 #define CHECK(c) do { checks++; if (!(c)) { failures++; printf("FAIL %s:%d: %s\n", __FILE__, __LINE__, #c); } } while (0)
 
+/* The flap test as ai_step made it before ai_flap_wanted: dir.y of flier_angle, negated when fleeing. */
+static int flap_ref(AiState st, int32_t dx, int32_t dy) {
+    int16_t cy = flier_sin(flier_angle(dx, dy));
+    if (st == AI_FLEE) cy = (int16_t)-cy;
+    return cy < AI_FLAP_MAX;
+}
+
 static Flier mk(int x, int y, int balloons) {
     Flier f;
     flier_init(&f, FL_PX(x), FL_PX(y), (uint8_t)balloons, 0);
@@ -254,6 +261,25 @@ int main(void) {
         }
         CHECK(top_seen && i < 200);                      /* with the steer: 86 frames, 2 bounces; without it: 355 and 13 */
         CHECK((int)g_flier_solid_hits - hits0 < 6);
+    }
+
+    { /* ai_flap_wanted gives the same answer as the angle search: every arena dx against dy over +-2048, then random int16 */
+        int bad = 0, dx, dy, k;
+        uint32_t lcg = 12345u;
+        for (k = 0; k < 2; k++) {
+            AiState st = k ? AI_FLEE : AI_CHASE;
+            for (dx = -191; dx <= 192; dx++)
+                for (dy = -2048; dy <= 2048; dy++)
+                    if (ai_flap_wanted(st, dx, dy) != flap_ref(st, dx, dy)) bad++;
+        }
+        for (k = 0; k < 2000000; k++) {
+            AiState st = (k & 1) ? AI_FLEE : AI_CHASE;
+            lcg = lcg * 1664525u + 1013904223u; dx = (int16_t)(lcg >> 16);
+            lcg = lcg * 1664525u + 1013904223u; dy = (int16_t)(lcg >> 16);
+            if (ai_flap_wanted(st, dx, dy) != flap_ref(st, dx, dy)) bad++;
+        }
+        if (bad) printf("ai_flap_wanted differs on %d inputs\n", bad);
+        CHECK(bad == 0);
     }
 
     printf("ai: %d checks, %d failures\n", checks, failures);
