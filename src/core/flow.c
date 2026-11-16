@@ -192,7 +192,7 @@ void flow_step(Flow *f, uint8_t input, uint8_t start_pressed, uint32_t frame_cou
         }
         break;
     case FLOW_GAME_OVER:
-        if (f->timer >= GAMEOVER_FRAMES) {
+        if (f->timer >= GAMEOVER_FRAMES || (a_edge && f->timer >= GAMEOVER_SKIP_FRAMES)) { /* main.c folds a Start press into A here */
             if (ranks(f, f->last_score)) {
                 nameentry_init(&f->entry);
                 enter(f, FLOW_NAME_ENTRY);

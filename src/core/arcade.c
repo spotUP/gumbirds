@@ -130,7 +130,16 @@ void arc_pump_start(ArcPump *p, int rank, int grounded) {
     p->rank = (uint8_t)(rank < 1 ? 1 : (rank > ARC_RANK_MAX ? ARC_RANK_MAX : rank)); p->frame = 0;
     p->state = grounded ? ARC_PUMP_PUMPING : ARC_PUMP_FLYING;
 }
+int arc_pump_restand(ArcPump *p) {
+    if (p->state != ARC_PUMP_FLYING) return 0;
+    p->state = ARC_PUMP_STANDING; p->frame = 0;
+    return 1;
+}
 void arc_pump_step(ArcPump *p) {
+    if (p->state == ARC_PUMP_STANDING) {
+        if (++p->frame >= ARC_REPUMP_STAND_FRAMES) { p->state = ARC_PUMP_PUMPING; p->frame = 0; }
+        return;
+    }
     if (p->state != ARC_PUMP_PUMPING) return;
     if (++p->frame >= arc_rank(p->rank)->pump_frames) p->state = ARC_PUMP_FLYING;
 }
@@ -164,5 +173,10 @@ int arc_continue_step(ArcLives *l, int start_pressed, int credits) {
     }
     if (--l->countdown <= 0) { l->countdown = 0; l->state = ARC_LIFE_ENDED; }
     return 0;
+}
+void arc_continue_skip(ArcLives *l) {
+    if (l->state != ARC_LIFE_CONTINUE) return;
+    l->countdown -= 60; /* arc_continue_seconds = ceil(countdown / 60): 60 frames is exactly one count */
+    if (l->countdown <= 0) { l->countdown = 0; l->state = ARC_LIFE_ENDED; }
 }
 int arc_continue_seconds(const ArcLives *l) { return (l->countdown + 59) / 60; }

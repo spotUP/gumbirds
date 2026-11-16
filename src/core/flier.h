@@ -136,6 +136,8 @@ void flier_spawn_protect(Flier *f);
 /* Body contact (spec 4.3 item 3, design 1.6 rules 2-3): a standing or flying flier with no balloons that another live
  * body touches starts falling. Returns 1 if it did. */
 int flier_body_kill(Flier *victim, const Flier *other);
+/* Defeat a flier now: it starts its fall (no gum, no parachute). */
+void flier_start_falling(Flier *f);
 /* The test inside flier_body_kill without the effect: 1 when victim would start falling. The arena asks it first so the
  * platform block (flier_pair_blocked) is only evaluated for real body contacts. */
 int flier_body_touching(const Flier *victim, const Flier *other);

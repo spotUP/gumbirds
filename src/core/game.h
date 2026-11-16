@@ -95,6 +95,8 @@ typedef struct {
     uint8_t trip_hold;   /* hold steps taken at run start while the first screen chunks are built (one per game_step_trip), sentinel */
     ArcRun arc;          /* Arcade run (stage table, arcade.h), live in GAME_MODE_ARCADE; the arena step runs it */
     uint8_t cont_a;      /* A was held on the previous arena step (press edge for the arcade continue) */
+    uint8_t start_in;    /* Start button changed to pressed this frame (main.c sets it from the BIOS); the arcade continue reads its edge */
+    uint8_t cont_start;  /* start_in on the previous arena step */
     ArcLives lives;      /* Arcade lives: a flier death loses one, none left ends the run (continue screen: game_step_arena) */
     ArcPump pump[STAGE_SPAWN_COUNT]; /* per computer flier: blow-up window that decides its stomp score */
     ArcElements elems;   /* Arcade stage elements of the current stage (arc_elements.h), built by match_start, stepped in play only */

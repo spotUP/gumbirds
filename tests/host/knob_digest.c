@@ -61,6 +61,9 @@ static void flow_digest(void)
             if (((in_state >> 20) & 3u) == 0u) in |= IN_LEFT;
             else if (((in_state >> 20) & 3u) == 1u) in |= IN_RIGHT;
             break;
+        case FLOW_GAME_OVER:
+            if (f.timer == 20) in = IN_A;   /* early skip, ignored until GAMEOVER_SKIP_FRAMES */
+            break;
         case FLOW_NAME_ENTRY:
             entry_frame++;
             if (entry_visits % 2 == 0) {            /* mash: hold up, confirm, down to END */

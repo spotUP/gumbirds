@@ -131,6 +131,8 @@ volatile u16 g_round_end_s[4];
 volatile u16 g_banner_calls, g_banner_cells; /* round clear banner draws, for the MAME tests */
 /* Round start text on the fix layer: phase drawn (RS_*) and the round number shown, so the cells are written and cleared once. */
 static u8 g_rs_drawn = RS_NONE;
+static u8 g_stage_key = 0xFF; /* arcade HUD stage text: 0 none, 254 bonus, else stage number; 0xFF = not drawn since the last clear */
+static u8 g_over_up; /* GAME OVER text drawn since the last clear */
 static u8 g_cont_key = 0xFF; /* arcade continue panel on the fix layer: 0 none, else 1 + seconds left */
 static u8 g_banner_up; /* the round clear banner is on the fix layer */
 #define BANNER_ROWS_PER_FRAME 2
@@ -942,6 +944,7 @@ static u32 g_hud_lives;
 
 /* Title screen (art: assets/font/draw_hud_title_final.py title_final(), art row r = fix row r + 2). Everything is drawn
  * once after the fix layer clear and again only when its value changes; draw() resets the cache on a state change. */
+#define HUD_STAGE_ROW 5      /* arcade "STAGE n" / BONUS, centred between the score block (columns 2..15) and the right edge */
 #define TITLE_HI_ROW 3
 #define TITLE_PLATE_ROW 22
 #define TITLE_SELECT_ROW 23   /* rows 23 to 25: the mode select, drawn only while it is open */
@@ -1261,7 +1264,7 @@ static void draw(const FlowView *v) {
         g_draw_state = (int)v->state;
         g_hud_game = 0;
         g_ov_stage = 0; g_ov_key = AO_NONE; g_ov_part = 0;
-        g_rs_drawn = RS_NONE; g_rs_num = 0; g_banner_up = 0; g_cont_key = 0xFF;
+        g_rs_drawn = RS_NONE; g_rs_num = 0; g_banner_up = 0; g_cont_key = 0xFF; g_stage_key = 0xFF; g_over_up = 0;
         g_meter_step = METER_NONE;
 #ifdef GUMBIRDS_DEBUG_HEADER /* gmake DEBUG_HEADER=1; the normal build leaves the top rows to the HUD */
         text(2, 2, PAL_TEXT, "GUMBIRDS");
@@ -1327,6 +1330,33 @@ static void draw(const FlowView *v) {
             }
         }
         {
+            /* Arcade HUD: STAGE n top centre, BONUS in a bonus stage; written when the value changes, not per frame */
+            const Game *g = v->game;
+            u8 key = 0;
+            if ((v->state == FLOW_PLAYING || v->state == FLOW_GAME_OVER) && g && g->mode == GAME_MODE_ARCADE)
+                key = g->arc.state == ARC_BONUS ? 254 : (u8)g->arc.stage;
+            if (key != g_stage_key) {
+                char sb[9] = "BONUS   ";
+                if (key && key != 254) {
+                    sb[0] = 'S'; sb[1] = 'T'; sb[2] = 'A'; sb[3] = 'G'; sb[4] = 'E'; sb[5] = ' ';
+                    sb[6] = (char)('0' + (key / 10) % 10); sb[7] = (char)('0' + key % 10);
+                    if (sb[6] == '0') { sb[6] = sb[7]; sb[7] = ' '; }
+                } else if (!key) {
+                    for (u8 i = 0; i < 8; i++) sb[i] = ' ';
+                }
+                if (key || g_stage_key != 0xFF) gfx_center_text(HUD_STAGE_ROW, PAL_TEXT, sb);
+                g_stage_key = key;
+            }
+        }
+        {
+            /* GAME OVER: big text mid screen while the flow holds the state (GAMEOVER_FRAMES, A or Start skips) */
+            u8 on = v->state == FLOW_GAME_OVER;
+            if (on != g_over_up) {
+                if (on) gfx_text_tall_backed(15, 12, PAL_HIGH, "GAME OVER"); /* the state change that ends it clears the fix layer */
+                g_over_up = on;
+            }
+        }
+        {
             /* Arcade continue screen (game_step_arena freezes the world): a plate with the words and the seconds left; redrawn once a second */
             u8 key = (v->state == FLOW_PLAYING && v->game && v->game->mode == GAME_MODE_ARCADE && v->game->lives.state == ARC_LIFE_CONTINUE)
                          ? (u8)(1 + arc_continue_seconds(&v->game->lives)) : 0;
@@ -1334,13 +1364,13 @@ static void draw(const FlowView *v) {
                 u8 row;
                 char sb[16] = "TIME LEFT   ";
                 if (key) {
-                    for (row = 11; row <= 14; row++) plate(13, 26, row);
+                    for (row = 11; row <= 14; row++) plate(8, 30, row);
                     gfx_center_text(11, PAL_HIGH, "CONTINUE");
-                    gfx_center_text(12, PAL_TEXT, "PRESS BUTTON A");
+                    gfx_center_text(12, PAL_TEXT, "PRESS START TO CONTINUE");
                     if (key > 10) { sb[10] = '1'; sb[11] = '0'; } else sb[10] = (char)('0' + key - 1);
                     gfx_center_text(13, PAL_TEXT, sb);
                 } else if (g_cont_key != 0xFF) {
-                    for (row = 11; row <= 14; row++) text(12, row, PAL_TEXT, "                ");
+                    for (row = 11; row <= 14; row++) text(7, row, PAL_TEXT, "                         ");
                 }
                 g_cont_key = key;
             }
@@ -1583,7 +1613,9 @@ static void game_loop(void) {
         __asm__ volatile ("move.w #0x2000,%%sr" ::: "memory");
         if (coined && !start) flow_coin(&g_flow);
         if (a_edge && !start && g_flow.state <= FLOW_ATTRACT_DEMO && bios_user_mode == 1 && (in & FLOW_RESET_COMBO) != FLOW_RESET_COMBO && take_credit()) start = 1;
-        if (g_flow.state == FLOW_PLAYING && g_flow.game.res.active && (bios_statchange & 1)) in |= IN_A; /* Start also ends the result screen */
+        g_flow.game.start_in = (u8)(g_flow.state == FLOW_PLAYING && (bios_statchange & 1)); /* arcade continue: Start continues, A only counts down */
+        /* Start also ends the result screen and the GAME OVER text, and confirms a name entry letter like A (player_start refuses Start there) */
+        if ((bios_statchange & 1) && ((g_flow.state == FLOW_PLAYING && g_flow.game.res.active) || g_flow.state == FLOW_GAME_OVER || g_flow.state == FLOW_NAME_ENTRY)) in |= IN_A;
         g_flow.credit_hold = (u8)(credits_now() > 0); /* owner rule "never force start": credits hold the PRESS START title */
         g_bg_paused = g_bg_hold && bg_pending();
         /* The game waits while the entry background loads. A taken credit waits with it: bug fixed here, a Start accepted on
