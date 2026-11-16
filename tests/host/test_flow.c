@@ -789,7 +789,7 @@ static void test_menu_buttons(void)
     flow_init(&r.f, NULL, 0);
     r.f.credit_hold = 1;
     rig_ticks(&r, 0, 4 * (ATTRACT_TITLE_FRAMES + ATTRACT_TABLE_FRAMES + ATTRACT_DEMO_FRAMES));
-    CHECK(r.f.state == FLOW_ATTRACT_TITLE);
+    CHECK(r.f.state == FLOW_ATTRACT_TITLE && r.f.select_open); /* back from a game with credits banked: the mode list shows */
     r.f.credit_hold = 0;
     rig_until(&r, FLOW_ATTRACT_TABLE, 0, 100000);
     r.f.credit_hold = 1;

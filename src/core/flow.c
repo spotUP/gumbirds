@@ -212,6 +212,8 @@ void flow_step(Flow *f, uint8_t input, uint8_t start_pressed, uint32_t frame_cou
     if (f->credit_hold && !start_pressed && (f->state == FLOW_ATTRACT_TABLE || f->state == FLOW_ATTRACT_DEMO)) flow_coin(f);
     switch (f->state) {
     case FLOW_ATTRACT_TITLE:
+        /* banked credits keep the mode list open, however the title was entered (a game end resets select_open) */
+        if (f->credit_hold) f->select_open = 1;
         title_reset_combo(f, input);
         title_mode_select(f, input);
         if (start_pressed && (input & FLOW_RESET_COMBO) != FLOW_RESET_COMBO) {
