@@ -20,7 +20,7 @@
  *            stage table order, drawn by src/island.c; they sit below the pool so fliers draw in front
  *   161..256 object pool (POOL_SPRITE_COUNT = POOL_MAX x POOL_COLS, src/core/obj_pool.h): object i owns
  *            POOL_SPRITE_BASE + i * POOL_COLS; computer fliers draw through it
- *   257..259 hero (HERO_SPRITE_COUNT)
+ *   257..260 hero (HERO_SPRITE_COUNT): body 257..258, parachute 259..260
  *   261..308 plane 7 hazard strip: two banks of 24 sprites (bank 0 at 261, bank 1 at 285), one visible at a time
  *   309..318 plane 8 rain columns (reserved), 319..322 spray
  */
@@ -56,7 +56,8 @@
 #define POOL_SPRITE_BASE 161
 #define POOL_SPRITE_COUNT 96
 #define HERO_SPRITE 257
-#define HERO_SPRITE_COUNT 3
+#define HERO_SPRITE_COUNT 4 /* body 2 columns + parachute 2 columns (HERO_CHUTE_SPRITE) */
+#define HERO_CHUTE_SPRITE (HERO_SPRITE + 2)
 #define HAZARD_SPRITE 261
 #define HAZARD_COUNT 48
 #define FG_RAIN_SPRITE 309
