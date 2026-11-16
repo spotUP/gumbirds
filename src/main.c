@@ -1137,7 +1137,6 @@ static void draw_title(const FlowView *v) {
         g_title.init = 1;
         gfx_text_backed(11, TITLE_HI_ROW, PAL_HIGH, "HIGH SCORE");
         plate(13, 26, TITLE_PLAYERS_ROW);
-        gfx_text_backed(13, TITLE_PLAYERS_ROW, PAL_TEXT, "1 OR 2 PLAYERS");
         plate(28, 36, TITLE_CREDIT_ROW);
     }
     u32 hi = v->table->score[0];
@@ -1156,6 +1155,8 @@ static void draw_title(const FlowView *v) {
         gfx_text_backed(28, TITLE_CREDIT_ROW, PAL_TEXT, "CREDITS ");
         gfx_text_backed(36, TITLE_CREDIT_ROW, PAL_TEXT, buf + 1);
         if (cr > 9) gfx_text_backed(35, TITLE_CREDIT_ROW, PAL_TEXT, buf);
+        /* Two players need two credits: offer 2 only when they are banked. */
+        gfx_text_backed(13, TITLE_PLAYERS_ROW, PAL_TEXT, cr >= 2 ? "1 OR 2 PLAYERS" : "1 PLAYER      ");
     }
     u8 line = (logo_ticks() % 5) < TITLE_BLINK_ON ? ((cr > 0 || v->select_open) ? TL_PRESS : TL_INSERT) : TL_HIDDEN;
     if (line != g_title.line) {
