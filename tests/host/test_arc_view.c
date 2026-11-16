@@ -90,8 +90,30 @@ static void test_empty(void) {
     CHECK(arc_view_line(s, 0, 100) == 0);
 }
 
+/* Invisible-kill guard: every tick the plume kills, the spark (not the body) must overlap the kill box by at least half its height. */
+static void test_vent_kill_visible(void) {
+    ArcElements a = one(ARC_EL_VENT, 100, 80);
+    unsigned t;
+    for (t = ARC_VENT_LAUNCH; t < ARC_VENT_LAUNCH + ARC_VENT_BURST_TICKS; t++) {
+        ArcSprite s[ARC_VIEW_MAX];
+        int n, i, best = 0, top = 80 - ARC_VENT_PLUME_H, bot = 80;
+        a.el[0].timer = (uint16_t)t;
+        CHECK(arc_elements_kill(&a, 100, 80 - ARC_VENT_PLUME_H / 2, 1, 1));
+        n = arc_view_build(&a, 0, s);
+        for (i = 0; i < n; i++) {
+            int y0, y1, ov;
+            if (s[i].piece != ARCV_SPARK) continue;
+            y0 = s[i].y > top ? s[i].y : top; y1 = s[i].y + ARC_VIEW_H[ARCV_SPARK] < bot ? s[i].y + ARC_VIEW_H[ARCV_SPARK] : bot;
+            ov = y1 - y0;
+            if (s[i].x + ARC_VIEW_W[ARCV_SPARK] > 100 - ARC_VENT_HALF_W && s[i].x < 100 + ARC_VENT_HALF_W && ov > best) best = ov;
+        }
+        if (best < ARC_VIEW_H[ARCV_SPARK] / 2) printf("tick %u: spark overlap %d rows\n", t - ARC_VENT_LAUNCH, best);
+        CHECK(best >= ARC_VIEW_H[ARCV_SPARK] / 2);
+    }
+}
+
 int main(void) {
-    test_vent(); test_others(); test_grab_frame(); test_empty();
+    test_vent(); test_vent_kill_visible(); test_others(); test_grab_frame(); test_empty();
     printf("%d checks, %d failures\n", checks, failures);
     return failures != 0;
 }
