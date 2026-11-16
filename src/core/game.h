@@ -137,6 +137,7 @@ typedef struct {
     uint8_t cont_start[HUMANS];  /* start_in on the previous arena step */
     uint8_t credits_spent;       /* continues taken since main.c last paid them; main.c deducts one BIOS credit per count and clears it */
     ArcLives lives[HUMANS];      /* Arcade lives: a flier death loses one, none left ends the run (continue screen: game_step_arena) */
+    ArcPump hpump[HUMANS]; /* per human: pumps its gum back up after a parachute landing (user decision 2026-11-16) */
     ArcPump pump[STAGE_SPAWN_COUNT]; /* per computer flier: blow-up window that decides its stomp score */
     ArcElements elems;   /* Arcade stage elements of the current stage (arc_elements.h), built by match_start, stepped in play only */
     uint8_t bonus_caught[HUMANS]; /* bubbles each human popped in this bonus stage (bonus.caught is the team total) */

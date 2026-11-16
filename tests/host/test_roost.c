@@ -68,7 +68,7 @@ int main(void) {
     away(&g.cpu[0]);
     g.hero[0].state = FLIER_GONE;
     game_step(&g, 0);
-    CHECK(g.hero[0].state == FLIER_PARACHUTE && g.hero[0].balloons == FLIER_START_BALLOONS);
+    CHECK(g.hero[0].state == FLIER_PARACHUTE && g.hero[0].balloons == 0); /* no gum under a parachute: it pumps on landing */
 
     /* the target ends the round: P1 wins */
     start();

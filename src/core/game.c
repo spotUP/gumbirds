@@ -37,6 +37,7 @@ static void flier_set_hazard(Flier *f, uint8_t kind)
 static void player_spawn_h(Game *g, int h)
 {
     flier_init(&g->hero[h], FL_PX(FLIER_START_X + h * FLIER_START_GAP), FL_PX(FLIER_START_Y), FLIER_START_BALLOONS, 0);
+    arc_pump_start(&g->hpump[h], 1, 0);
     flier_spawn_protect(&g->hero[h]);
     flier_set_hazard(&g->hero[h], g->hazard_kind);
 }
@@ -82,9 +83,10 @@ int game_can_join_p2(const Game *g)
 }
 
 /* A flier drops in on its parachute from the top at world x (the P2 join, and the Roost Rule respawn). It flies out on its first flap. */
-static void chute_drop(Game *g, Flier *f, int32_t x)
+static void chute_drop(Game *g, Flier *f, ArcPump *p, int32_t x)
 {
-    flier_init(f, x, FL_PX(FLIER_START_JOIN_Y), FLIER_START_BALLOONS, 1);
+    flier_init(f, x, FL_PX(FLIER_START_JOIN_Y), 0, 1); /* no gum under a parachute: it pumps up on landing (user decision 2026-11-16) */
+    arc_pump_start(p, 1, 0);
     f->state = FLIER_PARACHUTE;
     flier_spawn_protect(f);
     flier_set_hazard(f, g->hazard_kind);
@@ -106,7 +108,7 @@ int game_join_p2(Game *g)
     if (g->mode == GAME_MODE_ARENA) return 0; /* Arena joins through flow_join_p2: a fresh match */
     g->players = 2;
     arc_lives_start(&g->lives[1]);
-    chute_drop(g, &g->hero[1], camera_centre_x(g));
+    chute_drop(g, &g->hero[1], &g->hpump[1], camera_centre_x(g));
     return 1;
 }
 
@@ -689,10 +691,10 @@ static int roost_stands(const Game *g, const Flier *f)
 static void roost_respawn(Game *g)
 {
     int h, i;
-    for (h = 0; h < g->players; h++) if (g->hero[h].state == FLIER_GONE) chute_drop(g, &g->hero[h], camera_centre_x(g));
+    for (h = 0; h < g->players; h++) if (g->hero[h].state == FLIER_GONE) chute_drop(g, &g->hero[h], &g->hpump[h], camera_centre_x(g));
     for (i = 0; i < g->cpu_count; i++) {
         if (g->cpu[i].state != FLIER_GONE) continue;
-        chute_drop(g, &g->cpu[i], FL_PX(stage_spawns[i].x));
+        chute_drop(g, &g->cpu[i], &g->pump[i], FL_PX(stage_spawns[i].x));
         g->cpu[i].rival = 1;
     }
 }
@@ -805,8 +807,22 @@ void game_step_arena(Game *g, uint8_t input)
         if (in.flap && !hf->flap_prev && hf->state < FLIER_DROWNED) {
             g->flaps[h]++;
         }
-        arena_flier_step(g, hf, &in);
-        if (g->mode == GAME_MODE_ARCADE) arc_element_apply(&g->elems, hf);
+        {   /* parachute landing: stand, pump the gum back up (same windows as the arcade rivals), lift off */
+            ArcPump *hp = &g->hpump[h];
+            int hpumping = arc_pump_in_window(hp), hsit = hp->state == ARC_PUMP_STANDING;
+            if (hf->state != FLIER_ALIVE && (hsit || hpumping)) hp->state = ARC_PUMP_FLYING;
+            hp->two = (uint8_t)(g->players == 2);
+            arc_pump_step(hp);
+            if (arc_pump_in_window(hp) && hf->balloons == 0) flier_add_balloon(hf);
+            if (hsit || hpumping || arc_pump_in_window(hp)) { in.dir = 0; in.flap = 0; }
+            arena_flier_step(g, hf, &in);
+            if (g->mode == GAME_MODE_ARCADE) arc_element_apply(&g->elems, hf);
+            if (hpumping && !arc_pump_in_window(hp)) {
+                while (hf->balloons < FLIER_START_BALLOONS && flier_add_balloon(hf)) {}
+                hf->vy = FLIER_GROUND_JUMP_VY; hf->vx = 0; hf->on_ground = 0;
+            }
+            if (hf->has_parachute && hf->state == FLIER_ALIVE && hf->on_ground && hf->balloons == 0 && arc_pump_restand(hp)) hf->vx = 0;
+        }
     }
     g->flier_steps++;
     for (i = 0; i < g->cpu_count; i++) {
@@ -856,7 +872,7 @@ void game_step_arena(Game *g, uint8_t input)
         }
         /* Arcade re-pump (user decision 2026-11-16): a rival standing alive with no gum (landed on its parachute, or popped
            while standing) waits ARC_REPUMP_STAND_FRAMES, then pumps the stage-start window at the same rank. */
-        if (g->mode == GAME_MODE_ARCADE && c->state == FLIER_ALIVE && c->on_ground && c->balloons == 0 && arc_pump_restand(&g->pump[i])) c->vx = 0; /* stands still */
+        if (c->has_parachute && c->state == FLIER_ALIVE && c->on_ground && c->balloons == 0 && arc_pump_restand(&g->pump[i])) c->vx = 0; /* stands still */
         if (c->state == FLIER_DROWNED && was != FLIER_DROWNED) {
             /* A living computer flier reached the hazard (scored once, on entry; it sinks or bounces on from here). A defeated one (FALLING) passes through the water and
                leaves as GONE: its defeat already paid SCORE_CPU_DEFEAT, so it scores nothing more
@@ -944,7 +960,9 @@ void game_step_arena(Game *g, uint8_t input)
                 if (near[i] & (1u << j)) {
                     int killed;
                     if (i < g->players && j < g->players) continue; /* partners never body-kill each other */
-                    killed = flier_body_touching(f[i], f[j]) && !arena_pair_blocked(f[i], f[j]) && flier_body_kill(f[i], f[j]);
+                    killed = flier_body_touching(f[i], f[j]) && !arena_pair_blocked(f[i], f[j]) &&
+                             !(i < g->players && (g->hpump[i].state == ARC_PUMP_STANDING || arc_pump_in_window(&g->hpump[i]))) && /* a human standing or pumping after a landing is safe */
+                             flier_body_kill(f[i], f[j]);
                     if (killed && j < g->players && i >= g->players) {
                         g->last_popper = (uint8_t)j;
                         score_add_h(g, j, g->mode == GAME_MODE_ARCADE ? arc_rank(g->pump[i - g->players].rank)->defeat_score : SCORE_CPU_DEFEAT); /* the player's body touched a balloon-less computer flier */
