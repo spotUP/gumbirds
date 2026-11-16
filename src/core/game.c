@@ -584,6 +584,7 @@ void game_step_arena(Game *g, uint8_t input)
             for (h = 0; h < g->players; h++) {
                 if (g->lives[h].state != ARC_LIFE_CONTINUE) continue;
                 if (arc_continue_step(&g->lives[h], start_edge_h[h], g->credits)) {
+                    g->credits_spent++;
                     if (h == 0) g->score = g->lives[0].score;
                     player_spawn_h(g, h);
                 } else if (a_edge_h[h]) {

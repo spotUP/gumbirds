@@ -377,15 +377,19 @@ emu.register_frame_done(function()
       if not (c <= ca - 60) or c < ca - 80 or g(O_LSTATE) ~= K.life_cont then finish(false, "A5 one A press: countdown " .. ca .. " -> " .. c .. ", " .. state()) return end
       start:set_value(1)
     elseif wait == 56 then start:set_value(0)
-    elseif wait > 56 then
+    elseif wait > 56 and not paid_at then
       finish(false, "A5 Start did not continue: " .. state() .. string.format(" credit %02x", mem:read_u8(0x10fe00)))
     end
-    if wait >= 51 and wait <= 56 and g(O_LSTATE) == K.life_play then
+    if paid_at and wait >= paid_at then
+      local cr = mem:read_u8(0x10fe00) -- a continue spends the one banked credit (the game deducts it; the BIOS refuses Start in play)
+      if cr ~= 0 then finish(false, string.format("A5b credit byte %02x after the continue, want 00 (one banked, one spent)", cr)) return end
+      finish(true, string.format("arcade entry, stage 1 -> CLEAR (%d frames) -> stage 2, islands differ, %d deaths -> paid continue (credit 1 -> 0) -> resumed; max logic end %.1f of 224", clear_frames, died, logic_max))
+    elseif not paid_at and wait >= 51 and wait <= 56 and g(O_LSTATE) == K.life_play then
       start:set_value(0)
       if g(O_LIVES) ~= K.lives or g(O_SCORE) ~= 0 or g(O_STAGE) ~= 2 then finish(false, "A5 continue state wrong: " .. state() .. " score=" .. g(O_SCORE)) return end
       local ok, why = report()
       if not ok then finish(false, "A6 " .. why) return end
-      finish(true, string.format("arcade entry, stage 1 -> CLEAR (%d frames) -> stage 2, islands differ, %d deaths -> continue -> resumed; max logic end %.1f of 224", clear_frames, died, logic_max))
+      paid_at = wait + 4
     end
   end
 end)

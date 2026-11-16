@@ -1779,6 +1779,7 @@ static void game_loop(void) {
         if (coined && !start) flow_coin(&g_flow);
         if (a_edge && !start && g_flow.state <= FLOW_ATTRACT_DEMO && bios_user_mode == 1 && (in & FLOW_RESET_COMBO) != FLOW_RESET_COMBO && take_credit()) start = 1;
         g_flow.game.input2 = pad_to_core(bios_p2current);
+        while (g_flow.game.credits_spent) { take_credit(); g_flow.game.credits_spent--; } /* a continue costs a credit (BIOS refuses Start in play) */
         g_flow.game.credits = credits_now();
         if (g_join_p2) { g_join_p2 = 0; if (g_flow.state == FLOW_PLAYING) game_join_p2(&g_flow.game); }
         g_flow.game.start_in[1] = (u8)(g_flow.state == FLOW_PLAYING && (bios_statchange & 2)); /* P2 continue */

@@ -103,6 +103,7 @@ typedef struct {
     uint8_t cont_a[HUMANS];      /* A was held on the previous arena step (press edge for the arcade continue) */
     uint8_t start_in[HUMANS];    /* Start button changed to pressed this frame (main.c sets it from the BIOS); the arcade continue reads its edge */
     uint8_t cont_start[HUMANS];  /* start_in on the previous arena step */
+    uint8_t credits_spent;       /* continues taken since main.c last paid them; main.c deducts one BIOS credit per count and clears it */
     ArcLives lives[HUMANS];      /* Arcade lives: a flier death loses one, none left ends the run (continue screen: game_step_arena) */
     ArcPump pump[STAGE_SPAWN_COUNT]; /* per computer flier: blow-up window that decides its stomp score */
     ArcElements elems;   /* Arcade stage elements of the current stage (arc_elements.h), built by match_start, stepped in play only */

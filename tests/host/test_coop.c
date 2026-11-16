@@ -104,7 +104,7 @@ int main(void) {
     g.start_in[0] = 1;
     game_step(&g, 0);
     g.start_in[0] = 0;
-    CHECK(g.lives[0].state == ARC_LIFE_PLAY && g.hero[0].state != FLIER_GONE);
+    CHECK(g.lives[0].state == ARC_LIFE_PLAY && g.hero[0].state != FLIER_GONE && g.credits_spent == 1);
 
     /* bonus stage for two: each box credits its own catcher, player 2 is paid and shown as a second total, player 1 screen unchanged */
     start2(3);
