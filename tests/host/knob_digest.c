@@ -150,6 +150,19 @@ static void roost_digest(void)
     }
 }
 
+/* Party how-to part: a PARTY start runs the how-to demo, then the real match with its long round banner. */
+static void party_howto_digest(void)
+{
+    static Flow f;
+    uint32_t fr;
+    flow_init(&f, 0, 0);
+    f.mode = GAME_MODE_PARTY; f.party_rule = PARTY_ROUND;
+    for (fr = 1; fr <= 900u; fr++) {
+        flow_step(&f, 0, fr == 1, fr);
+        mix(f.state); mix(f.howto); mix(f.timer); mix(f.game.rounds); mix(f.game.round_start); mix(f.game.round_start_timer); mix(f.game.frame); mix(f.game.twist);
+    }
+}
+
 /* Arcade part: a rank 2 stage with a flier left to fall, so the rank AI think period and the lives knob show; 600 frames per life.
  * A second pass on stage 4 (a platform overhead of the rivals) keeps AI_OVERHEAD_PX visible. */
 static void arcade_pass(int stage)
@@ -408,6 +421,7 @@ int main(void)
     ai_probe();
     arena_digest();
     roost_digest();
+    party_howto_digest();
     arcade_digest();
     spawn_digest();
     flier_physics_digest();

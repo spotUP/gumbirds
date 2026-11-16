@@ -606,6 +606,19 @@ static void test_mode_select(void)
     }
     /* Start plays PARTY as arena (P2 can join), tagged with the rule; game over scores into table 3 with the tag */
     rig_begin(&r, 0);
+    /* the how-to demo comes first: no rounds, the pilot plays; A skips it into the real match; a timeout also ends it */
+    CHECK(r.f.howto && r.f.game.party_rule == PARTY_ROULETTE && !r.f.game.rounds && r.f.state == FLOW_PLAYING);
+    rig_ticks(&r, 0, 100);
+    CHECK(r.f.howto && r.f.game.flier_steps > 90 && r.f.timer == 100);
+    rig_tick(&r, IN_A, 0);
+    CHECK(!r.f.howto && r.f.game.rounds && r.f.game.frame == 0 && r.f.game.cont_a[0] == 1);
+    rig_ticks(&r, IN_A, 5); /* the held skip press does not skip the round banner */
+    CHECK(r.f.game.round_start == RS_ROUND && r.f.game.round_start_timer > 3);
+    r.f.howto = 1; r.f.game.rounds = 0; r.f.timer = PARTY_HOWTO_FRAMES - 2; /* the timeout ends the how-to too */
+    rig_tick(&r, 0, 0);
+    CHECK(r.f.howto);
+    rig_tick(&r, 0, 0);
+    CHECK(!r.f.howto && r.f.game.rounds && r.f.game.frame == 0);
     CHECK(r.f.state == FLOW_PLAYING && r.f.game.mode == GAME_MODE_ARENA && r.f.game.party_rule == PARTY_ROULETTE && r.f.game.rounds);
     r.f.game.cpu_count = 1;
     CHECK(game_can_join_p2(&r.f.game));

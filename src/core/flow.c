@@ -26,6 +26,7 @@ static void start_game(Flow *f, uint32_t seed, int demo)
         if (f->mode == GAME_MODE_PARTY) f->game.party_rule = f->party_rule;
     }
     f->demo = (uint8_t)demo;
+    f->howto = 0;
     f->demo_in = 0;
     if (demo) ai_init(&f->demo_ai, &f->game.rng, DEMO_AI_RANK);
     attract_overlay_reset(&f->ov);
@@ -35,6 +36,21 @@ static void start_game(Flow *f, uint32_t seed, int demo)
     f->reset_flash = 0;
     f->select_open = 0;
     enter(f, demo ? FLOW_ATTRACT_DEMO : FLOW_PLAYING);
+}
+
+/* Start on the title or a table screen: a PARTY match opens with the how-to demo (the attract demo pilot, party rule on, fixed seed),
+ * any other mode starts at once. The demo runs as FLOW_PLAYING with howto set and no round phases. */
+static void start_title_game(Flow *f, uint32_t seed)
+{
+    if (f->mode != GAME_MODE_PARTY) {
+        start_game(f, seed, 0);
+        return;
+    }
+    start_game(f, PARTY_HOWTO_SEED, 0);
+    f->game.rounds = 0;
+    ai_init(&f->demo_ai, &f->game.rng, DEMO_AI_RANK);
+    f->howto = 1;
+    f->howto_a2 = 1; /* a P2 A still held from the title does not skip */
 }
 
 /* P2 Start in play (a credit was taken). Arcade: parachute drop-in. Arena and Party: the whole match restarts through start_game with both humans
@@ -58,6 +74,7 @@ void flow_init(Flow *f, const uint8_t *image, size_t len)
     f->demo = 0;
     f->demo_mode = GAME_MODE_ARENA;
     f->demo_in = 0;
+    f->howto = 0;
     attract_overlay_reset(&f->ov);
     f->select_open = 0;
     f->credit_hold = 0;
@@ -253,7 +270,7 @@ void flow_step(Flow *f, uint8_t input, uint8_t start_pressed, uint32_t frame_cou
         title_mode_select(f, input);
         if (start_pressed && (input & FLOW_RESET_COMBO) != FLOW_RESET_COMBO) {
             /* start_pressed means a credit was taken: it always becomes a game, in the highlighted mode */
-            start_game(f, frame_counter, 0);
+            start_title_game(f, frame_counter);
         } else if (a_edge && (input & FLOW_RESET_COMBO) != FLOW_RESET_COMBO) {
             if (!f->select_open) { f->select_open = 1; f->timer = 0; } /* A without a credit only opens the select */
         } else if (f->timer >= ATTRACT_TITLE_FRAMES && !f->credit_hold) {
@@ -266,7 +283,7 @@ void flow_step(Flow *f, uint8_t input, uint8_t start_pressed, uint32_t frame_cou
     case FLOW_ATTRACT_TABLE:
         if (start_pressed) {
             f->highlight = -1;
-            start_game(f, frame_counter, 0);
+            start_title_game(f, frame_counter);
         } else if (a_edge || b_edge) {
             f->highlight = -1;
             enter(f, FLOW_ATTRACT_TITLE);
@@ -278,7 +295,7 @@ void flow_step(Flow *f, uint8_t input, uint8_t start_pressed, uint32_t frame_cou
         break;
     case FLOW_ATTRACT_DEMO:
         if (start_pressed) {
-            start_game(f, frame_counter, 0);
+            start_title_game(f, frame_counter);
         } else if (a_edge || b_edge) {
             f->demo = 0;
             enter(f, FLOW_ATTRACT_TITLE);
@@ -295,6 +312,19 @@ void flow_step(Flow *f, uint8_t input, uint8_t start_pressed, uint32_t frame_cou
         }
         break;
     case FLOW_PLAYING:
+        if (f->howto) {
+            uint8_t a2 = (uint8_t)(f->game.input2 & IN_A);
+            if (start_pressed || a_edge || (a2 && !f->howto_a2) || f->game.start_in[1] || f->timer >= PARTY_HOWTO_FRAMES || f->game.over) {
+                start_game(f, frame_counter, 0); /* the real match, round 1 banner next */
+                f->game.cont_a[0] = (uint8_t)((input & IN_A) ? 1 : 0); /* the skipping press must not also skip the round banner */
+                f->game.cont_start[0] = f->game.start_in[0];
+            } else {
+                f->demo_in = demo_input(f);
+                if (!game_begin(&f->game)) game_step(&f->game, f->demo_in);
+            }
+            f->howto_a2 = a2;
+            break;
+        }
         game_step(&f->game, input);
         if (f->game.over) {
             f->last_players = f->game.players;
@@ -349,5 +379,6 @@ void flow_view(const Flow *f, FlowView *v)
     v->mode = f->mode;
     v->party_rule = f->party_rule;
     v->select_open = f->select_open;
+    v->howto = f->howto;
     v->ov_key = f->ov.key;
 }

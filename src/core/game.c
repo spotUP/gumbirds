@@ -390,10 +390,26 @@ const char *game_party_name(uint8_t rule) { return rule < PARTY_RULE_COUNT ? par
 const char *game_party_goal(uint8_t rule) { return rule < PARTY_RULE_COUNT ? party_goals[rule] : ""; }
 const char *game_twist_name(uint8_t twist) { return twist < TWIST_COUNT ? twist_names[twist] : ""; }
 
+/* One explanation line per twist for the round banner (owner decision 2026-11-16; text awaits owner approval). Max PARTY_GOAL_W. */
+static const char *const twist_lines[TWIST_COUNT] = {
+    "", "EVERY BIRD STARTS WITH ONE GUM", "MORE COMPUTER BIRDS IN THE SKY", "COMPUTER BIRDS REACT SLOWLY",
+    "COMPUTER BIRDS REACT FAST", "LEFT AND RIGHT ARE SWAPPED", "A WIND PUSHES EVERY BIRD SIDEWAYS"
+};
+/* How-to overlay before round 1 of a PARTY match: three lines per rule, index = PARTY_*. */
+static const char *const party_howto[PARTY_RULE_COUNT][3] = {
+    { "", "", "" },
+    { "POP THE OTHER BIRDS' GUM BUBBLES", "THE LAST BIRD FLYING WINS THE ROUND", "EVERY ROUND HAS A NEW TWIST" },
+    { "STAND ALONE ON THE GLOWING ISLAND", "TO EARN POINTS WHILE YOU HOLD IT", "POP RIVALS OFF THE ISLAND" },
+    { "ONE BIRD CARRIES THE HOT GUM", "PASS IT ON BEFORE IT POPS", "TOUCH ANOTHER BIRD TO PASS IT" },
+    { "A NEW HAZARD ARRIVES REGULARLY", "DODGE IT AND POP YOUR RIVALS", "THE LAST BIRD FLYING WINS" }
+};
+const char *game_party_howto(uint8_t rule, int line) { return rule < PARTY_RULE_COUNT && line >= 0 && line < 3 ? party_howto[rule][line] : ""; }
+
 const char *game_round_start_text(const Game *g, int line)
 {
     if (g->party_rule != PARTY_NONE && g->mode == GAME_MODE_ARENA) {
         if (line == 0) return g->party_rule == PARTY_ROUND ? game_twist_name(g->twist) : game_party_name(g->party_rule);
+        if (line == 1 && g->party_rule == PARTY_ROUND && g->twist < TWIST_COUNT) return twist_lines[g->twist];
         return line == 1 ? game_party_goal(g->party_rule) : 0;
     }
     if (g->mode != GAME_MODE_ARCADE || g->arc.state != ARC_BONUS) {
@@ -505,7 +521,7 @@ static int arena_pair_blocked(const Flier *a, const Flier *b)
 
 /* Round end and round start phases of a real game. Returns 1 when the frame is spent (the caller returns). Game.frame
  * keeps counting; the flier, the computer fliers and the pair passes do not run; the camera follows. */
-static int round_phase_step(Game *g)
+static int round_phase_step(Game *g, uint8_t skip)
 {
     if (g->round_end != RE_NONE) {
         g->frame++;
@@ -531,7 +547,8 @@ static int round_phase_step(Game *g)
     if (g->round_start != RS_NONE) {
         g->frame++;
         g->round_start_timer++;
-        if (g->round_start == RS_ROUND && g->round_start_timer >= ROUND_START_TEXT_FRAMES) {
+        if (g->round_start == RS_ROUND && g->party_rule != PARTY_NONE && skip) g->round_start_timer = PARTY_ROUND_START_TEXT_FRAMES; /* A or Start skips the party hold */
+        if (g->round_start == RS_ROUND && g->round_start_timer >= (g->party_rule != PARTY_NONE ? PARTY_ROUND_START_TEXT_FRAMES : ROUND_START_TEXT_FRAMES)) {
             g->round_start = RS_GO;
             g->round_start_timer = 0;
         } else if (g->round_start == RS_GO && g->round_start_timer >= ROUND_GO_TEXT_FRAMES) {
@@ -578,7 +595,7 @@ static int arc_interlude(Game *g, uint8_t input, uint8_t a_edge)
         } else if (started) {
             arc_enter_stage(g);
         }
-    } else if (round_phase_step(g)) {
+    } else if (round_phase_step(g, 0)) {
         return 1; /* the bonus announcement: everything frozen */
     } else if (g->res.active) {
         uint32_t add;
@@ -724,7 +741,7 @@ void game_step_arena(Game *g, uint8_t input)
     int i, j, n, h;
     uint8_t bodies;
     uint8_t ins[HUMANS], a_edge_h[HUMANS], start_edge_h[HUMANS];
-    uint8_t a_edge;
+    uint8_t a_edge, skip;
     ins[0] = input;
     ins[1] = g->input2;
     for (h = 0; h < g->players; h++) {
@@ -770,7 +787,8 @@ void game_step_arena(Game *g, uint8_t input)
     if (g->cpu_count == 0) {
         match_start(g);
     }
-    if (arc_interlude(g, input, a_edge) || round_phase_step(g)) {
+    for (h = 0, skip = 0; h < g->players; h++) skip |= (uint8_t)(a_edge_h[h] | start_edge_h[h]);
+    if (arc_interlude(g, input, a_edge) || round_phase_step(g, skip)) {
         return;
     }
     g->frame++;
