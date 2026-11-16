@@ -68,7 +68,9 @@ void flow_init(Flow *f, const uint8_t *image, size_t len)
     f->reset_flash = 0;
     f->reset_hold = 0;
     f->reset_fired = 0;
-    f->last_score = 0;
+    f->last_score[0] = f->last_score[1] = 0;
+    f->last_players = 1;
+    f->entry_h = 0;
     f->last_mode = GAME_MODE_ARENA;
     /* a version 1 image (arena only) loads with the trip table at defaults; dirty stays 0 so the version 2 image is
      * written back on the first new entry, not at boot (user 2026-11-11) */
@@ -86,6 +88,20 @@ void flow_init(Flow *f, const uint8_t *image, size_t len)
 static int ranks(const Flow *f, uint32_t score)
 {
     return score_qualifies(&f->tables, f->last_mode, score);
+}
+
+/* Start the name entry of the first human from h on whose score ranks (checked against the table as it is now, so P2 sees P1's row). 0 when none. */
+static int next_entry(Flow *f, int h)
+{
+    for (; h < f->last_players; h++) {
+        if (ranks(f, f->last_score[h])) {
+            f->entry_h = (uint8_t)h;
+            nameentry_init(&f->entry);
+            enter(f, FLOW_NAME_ENTRY);
+            return 1;
+        }
+    }
+    return 0;
 }
 
 /* Nearest gum pickup ahead in the Gum Trip chunk ring, as a screen position (x ahead of the flier, y world); 0 when none is built. */
@@ -281,7 +297,10 @@ void flow_step(Flow *f, uint8_t input, uint8_t start_pressed, uint32_t frame_cou
     case FLOW_PLAYING:
         game_step(&f->game, input);
         if (f->game.over) {
-            f->last_score = f->game.score;
+            f->last_players = f->game.players;
+            f->last_score[0] = f->game.score;
+            f->last_score[1] = f->game.players == 2 ? f->game.lives[1].score : 0;
+            f->entry_h = 0;
             f->last_mode = f->mode; /* the title pick: PARTY plays as arena, so game.mode would lose the PARTY table */
             f->last_rule = f->game.party_rule;
             enter(f, FLOW_GAME_OVER);
@@ -289,21 +308,17 @@ void flow_step(Flow *f, uint8_t input, uint8_t start_pressed, uint32_t frame_cou
         break;
     case FLOW_GAME_OVER:
         if (f->timer >= GAMEOVER_FRAMES || (a_edge && f->timer >= GAMEOVER_SKIP_FRAMES)) { /* main.c folds a Start press into A here */
-            if (ranks(f, f->last_score)) {
-                nameentry_init(&f->entry);
-                enter(f, FLOW_NAME_ENTRY);
-            } else {
-                enter(f, FLOW_ATTRACT_TITLE);
-            }
+            if (!next_entry(f, 0)) enter(f, FLOW_ATTRACT_TITLE);
         }
         break;
     case FLOW_NAME_ENTRY:
-        nameentry_step(&f->entry, start_pressed ? (uint8_t)(input | IN_A) : input); /* NE1: Start confirms a letter like A */
+        if (f->entry_h == 0) nameentry_step(&f->entry, start_pressed ? (uint8_t)(input | IN_A) : input); /* NE1: Start confirms a letter like A */
+        else nameentry_step(&f->entry, f->game.start_in[1] ? (uint8_t)(f->game.input2 | IN_A) : f->game.input2); /* P2's own stick and Start */
         if (f->entry.done) {
-            f->new_row = (int8_t)score_insert_rule(&f->tables, f->last_mode, f->entry.name, f->last_score, f->last_rule);
+            f->new_row = (int8_t)score_insert_rule(&f->tables, f->last_mode, f->entry.name, f->last_score[f->entry_h], f->last_rule);
             f->highlight = f->new_row;
             f->dirty = 1;
-            enter(f, FLOW_SAVE_REMINDER);
+            if (!next_entry(f, f->entry_h + 1)) enter(f, FLOW_SAVE_REMINDER);
         }
         break;
     case FLOW_SAVE_REMINDER:
@@ -324,7 +339,9 @@ void flow_view(const Flow *f, FlowView *v)
     v->highlight = v->table_mode == f->last_mode ? f->highlight : -1;
     v->game = &f->game;
     v->entry = &f->entry;
-    v->score = f->last_score;
+    v->score = f->last_score[f->entry_h];
+    v->players = f->last_players;
+    v->entry_h = f->entry_h;
     v->reset_progress = f->reset_hold >= RESET_HOLD_FRAMES
                             ? 100
                             : (int)(((uint32_t)f->reset_hold * 100u) / RESET_HOLD_FRAMES);

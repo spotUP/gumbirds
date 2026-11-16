@@ -137,8 +137,12 @@ int arc_bonus_step(ArcBonus *b, int armed, int rx, int ry, int rw, int rh) {
     return popped;
 }
 
+int arc_pump_frames(const ArcPump *p) {
+    static const int16_t two[ARC_RANK_MAX] = { ARC_PUMP_FRAMES_2P_R1, ARC_PUMP_FRAMES_2P_R2, ARC_PUMP_FRAMES_2P_R3 };
+    return p->two ? two[p->rank - 1] : arc_rank(p->rank)->pump_frames;
+}
 void arc_pump_start(ArcPump *p, int rank, int grounded) {
-    p->rank = (uint8_t)(rank < 1 ? 1 : (rank > ARC_RANK_MAX ? ARC_RANK_MAX : rank)); p->frame = 0;
+    p->rank = (uint8_t)(rank < 1 ? 1 : (rank > ARC_RANK_MAX ? ARC_RANK_MAX : rank)); p->frame = 0; p->two = 0;
     p->state = grounded ? ARC_PUMP_PUMPING : ARC_PUMP_FLYING;
 }
 int arc_pump_restand(ArcPump *p) {
@@ -148,11 +152,11 @@ int arc_pump_restand(ArcPump *p) {
 }
 void arc_pump_step(ArcPump *p) {
     if (p->state == ARC_PUMP_STANDING) {
-        if (++p->frame >= ARC_REPUMP_STAND_FRAMES) { p->state = ARC_PUMP_PUMPING; p->frame = 0; }
+        if (++p->frame >= (p->two ? ARC_REPUMP_STAND_FRAMES_2P : ARC_REPUMP_STAND_FRAMES)) { p->state = ARC_PUMP_PUMPING; p->frame = 0; }
         return;
     }
     if (p->state != ARC_PUMP_PUMPING) return;
-    if (++p->frame >= arc_rank(p->rank)->pump_frames) p->state = ARC_PUMP_FLYING;
+    if (++p->frame >= arc_pump_frames(p)) p->state = ARC_PUMP_FLYING;
 }
 int arc_pump_in_window(const ArcPump *p) { return p->state == ARC_PUMP_PUMPING; }
 uint32_t arc_pump_resolve(ArcPump *p) {
@@ -163,7 +167,7 @@ uint32_t arc_pump_resolve(ArcPump *p) {
 int arc_pump_progress(const ArcPump *p) {
     /* floor(frame * STAGES / pump_frames) clamped to STAGES, by compares: this runs per pumping rival per frame
        and a 32-bit divide is a libgcc call on the 68000. */
-    int pf = arc_rank(p->rank)->pump_frames, t = p->frame * ARC_PUMP_STAGES, n = 0, acc = pf;
+    int pf = arc_pump_frames(p), t = p->frame * ARC_PUMP_STAGES, n = 0, acc = pf;
     while (n < ARC_PUMP_STAGES && t >= acc) { n++; acc += pf; }
     return n;
 }

@@ -116,12 +116,13 @@ int arc_bonus_catch(ArcBonus *b, int armed, int rx, int ry, int rw, int rh);
 
 /* ---- rival pump-up (FQ4): one ArcPump per rival slot ---- */
 typedef enum { ARC_PUMP_IDLE = 0, ARC_PUMP_PUMPING, ARC_PUMP_FLYING, ARC_PUMP_DEFEATED, ARC_PUMP_STANDING } ArcPumpState;
-typedef struct { uint8_t state; uint8_t rank; int16_t frame; } ArcPump;
+typedef struct { uint8_t state; uint8_t rank; int16_t frame; uint8_t two; } ArcPump; /* two: 1 while two humans play (shorter windows) */
 /* Grounded spawn blows up gum for the rank's pump_frames; an air spawn skips straight to FLYING. */
 void arc_pump_start(ArcPump *p, int rank, int grounded);
 void arc_pump_step(ArcPump *p);           /* one frame; STANDING becomes PUMPING after ARC_REPUMP_STAND_FRAMES, PUMPING becomes FLYING when the window ends */
 /* Re-pump: a FLYING rival that stands alive with no gum waits ARC_REPUMP_STAND_FRAMES, then pumps the same window. Returns 1 if started. */
 int arc_pump_restand(ArcPump *p);
+int arc_pump_frames(const ArcPump *p);   /* pump window length of this rival: the rank table, or the 2P variant while p->two */
 int arc_pump_in_window(const ArcPump *p); /* 1 while PUMPING */
 /* A stomp or bump: inside the window the rival is defeated and the rank defeat score is returned; outside it returns 0 and changes nothing. */
 uint32_t arc_pump_resolve(ArcPump *p);

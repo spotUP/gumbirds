@@ -1613,6 +1613,7 @@ static void draw(const FlowView *v) {
     case FLOW_NAME_ENTRY:
         text(2, 5, PAL_TEXT, "SCORE");
         draw_number(8, 5, PAL_TEXT, v->score, 8);
+        if (v->players == 2) text(18, 5, PAL_TEXT, v->entry_h ? "PLAYER 2" : "PLAYER 1");
         if (v->entry) {
             char name[NAME_LEN + 1];
             for (int i = 0; i < NAME_LEN; i++) {
@@ -1804,7 +1805,7 @@ static void game_loop(void) {
         while (g_flow.game.credits_spent) { take_credit(); g_flow.game.credits_spent--; } /* a continue costs a credit (BIOS refuses Start in play) */
         g_flow.game.credits = credits_now();
         if (g_join_p2) { g_join_p2 = 0; flow_join_p2(&g_flow, g_frame_counter); }
-        g_flow.game.start_in[1] = (u8)(g_flow.state == FLOW_PLAYING && (bios_statchange & 2)); /* P2 continue */
+        g_flow.game.start_in[1] = (u8)((g_flow.state == FLOW_PLAYING || g_flow.state == FLOW_NAME_ENTRY) && (bios_statchange & 2)); /* P2 continue, P2 name letter */
         g_flow.game.start_in[0] = (u8)(g_flow.state == FLOW_PLAYING && (bios_statchange & 1)); /* arcade continue: Start continues, A only counts down */
         /* Start also ends the result screen and the GAME OVER text, and confirms a name entry letter like A (player_start refuses Start there) */
         if ((bios_statchange & 1) && ((g_flow.state == FLOW_PLAYING && g_flow.game.res.active) || g_flow.state == FLOW_GAME_OVER || g_flow.state == FLOW_NAME_ENTRY)) in |= IN_A;
