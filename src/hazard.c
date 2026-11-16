@@ -30,14 +30,12 @@ void hazard_load_palettes(void) {
 
 static const u16 k_hidden[HAZARD_COUNT]; /* SCB3 height 0 hides a column */
 
-/* The flush's bank swap writes the SCB3 show words directly, so the queue shadow does not know them: forget the 48 words and
- * send them as one run (22 + 48 * 4 us in the flush, about 7 lines of logic). One word op per column, twice on a round restart
- * (here and in start), was 96 ops and about 105 lines of logic: the restart frame ran past vblank start and the flush was
- * skipped (thoughts/spot/2026-11-12-test-scroll-diagnosis.md). */
 /* Banks of kind g_pre_kind already loaded (hidden) by hazard_preload; start() loads only the rest. */
 static u8 g_pre_kind = 0xFF, g_pre_banks;
 
-/* Only the shown bank's 24 words differ from the shadow: the swap writes the show word there and 0 (the shadow value) to the
+/* The flush's bank swap writes the SCB3 show words directly, so the queue shadow does not know them. They go out as one run,
+ * not one word op per column (96 ops on a round restart were about 105 lines of logic and skipped the flush,
+ * thoughts/spot/2026-11-12-test-scroll-diagnosis.md). Only the shown bank's 24 words differ from the shadow: the swap writes the show word there and 0 (the shadow value) to the
  * other bank, and before the first swap both banks hold 0. So forget and send just that bank (half the words of the round
  * restart's hide, thoughts/spot/reports/vblank-demo.md Part 5). The other bank's words are deduped or, when unknown, sent. */
 static void hide_banks(void) {
