@@ -151,9 +151,11 @@ static int g_rs_num;
 static u8 g_edge_col = 0xFF, g_edge_row;
 
 static struct { u8 drawn, frame, flip; int cx, top; } g_gum_pose;   /* where the player is drawn this frame: the gum bubble sits on it (src/gum.c) */
+static u8 g_hero_chute_up; /* the player's parachute sprites are shown */
 static void hero_hide(void) {
     g_gum_pose.drawn = 0;
     gfx_word(ADDR_SCB3 + HERO_SPRITE, 0); /* height 0 hides the sprite and the sticky ones after it */
+    if (g_hero_chute_up) { gfx_word(ADDR_SCB3 + HERO_CHUTE_SPRITE, 0); g_hero_chute_up = 0; }
     g_soot_player_tile = 0;
 }
 
@@ -203,6 +205,19 @@ static void dead_release_all(void) {
     for (int d = 0; d < DEAD_BODIES; d++) dead_hide(d);
 }
 
+/* Parachute over a flier in state PARACHUTE: 32x32 art, left edge = the body sprite left, top = feet - 46 (anchor -4,-14 over the 24x32 body, 4 px pad). */
+static void chute_strips(u16 slot, const ChuteFrame *f, int flip) {
+    const u16 *tiles = &chute_tile_index[f->tile_offset];
+    u16 attr = (u16)((CHUTE_PAL_SLOT + f->palette) << 8 | (flip ? SOOT_FLIP : 0));
+    for (u8 c = 0; c < f->tiles_w; c++)
+        gfx_sprite_strips((u16)(slot + c), 1, f->tiles_h, tiles + (flip ? f->tiles_w - 1 - c : c) * f->tiles_h, CHUTE_TILE_BASE, attr);
+}
+static void chute_place(u16 slot, u8 anim, u8 n, int flip, int left, int top) {
+    const ChuteFrame *f = &chute_frames[chute_anims[anim].first_frame + n];
+    chute_strips(slot, f, flip);
+    gfx_sprite_place(slot, f->tiles_w, f->tiles_h, left, top);
+}
+
 static void hero_show(const Game *g, int cam_px) {
     const Flier *fl = &g->flier;
     int feet = (int)((fl->y + flier_half_h(fl)) >> 16);
@@ -231,6 +246,10 @@ static void hero_show(const Game *g, int cam_px) {
     g_gum_pose.drawn = 1; g_gum_pose.frame = shown; g_gum_pose.flip = (u8)flip; g_gum_pose.cx = left + SOOT_COLUMNS * 8; g_gum_pose.top = top;
     soot_strips(slot, f, tiles, flip, attr);
     gfx_sprite_place(slot, SOOT_COLUMNS, f->tiles_h, left, top);
+    if (fl->state == FLIER_PARACHUTE) {
+        chute_place(HERO_CHUTE_SPRITE, CHUTE_ANIM_PLAYER, (u8)((g->frame / CHUTE_FRAME_TICKS) & 7), flip, left, feet - 46);
+        g_hero_chute_up = 1;
+    } else if (g_hero_chute_up) { gfx_word(ADDR_SCB3 + HERO_CHUTE_SPRITE, 0); g_hero_chute_up = 0; }
 }
 
 /*
@@ -317,7 +336,10 @@ static void pool_hide_all(void) {
 static u8 g_cpu_obj[STAGE_SPAWN_COUNT]; /* pool index of computer flier i, POOL_NONE when not drawn */
 static u8 g_rival_obj[TRIP_RIVAL_MAX];  /* pool index of Gum Trip rival i, POOL_NONE when not drawn */
 
+static u8 g_chute_obj[STAGE_SPAWN_COUNT]; /* second pool object of computer flier i: its parachute (type 0x80 | frame), POOL_NONE when not drawn */
+
 static void pool_reset(void) {
+    for (int i = 0; i < STAGE_SPAWN_COUNT; i++) g_chute_obj[i] = POOL_NONE;
     for (int i = 0; i < STAGE_SPAWN_COUNT; i++) g_cpu_obj[i] = POOL_NONE;
     for (int i = 0; i < TRIP_RIVAL_MAX; i++) g_rival_obj[i] = POOL_NONE;
     obj_pool_init(&g_pool, POOL_SPRITE_BASE);
@@ -325,6 +347,7 @@ static void pool_reset(void) {
 }
 
 static void pool_free_all(void) {
+    for (int i = 0; i < STAGE_SPAWN_COUNT; i++) g_chute_obj[i] = POOL_NONE;
     for (int i = 0; i < STAGE_SPAWN_COUNT; i++) g_cpu_obj[i] = POOL_NONE;
     for (int i = 0; i < TRIP_RIVAL_MAX; i++) g_rival_obj[i] = POOL_NONE;
     for (u8 i = 0; i < POOL_MAX; i++) obj_pool_free(&g_pool, i);
@@ -352,6 +375,23 @@ static int cpu_show_front(const Game *g, int i) {
     return 1;
 }
 
+/* The parachute of computer flier i: a pool object of its own (flags POOL_F_HERO, type 0x80 | frame) while the body is drawn here in state PARACHUTE. */
+static void chute_obj_sync(const Game *g, int i, int want, int flip, const Flier *c, int32_t feet) {
+    u8 k = g_chute_obj[i];
+    if (!want) { if (k != POOL_NONE) { obj_pool_free(&g_pool, k); g_chute_obj[i] = POOL_NONE; } return; }
+    if (k == POOL_NONE) {
+        k = obj_pool_alloc(&g_pool, 0, 0, 0, 0, 0);
+        if (k == POOL_NONE) return;
+        g_pool.obj[k].flags |= POOL_F_HERO;
+        g_chute_obj[i] = k;
+    }
+    PoolObj *p = &g_pool.obj[k];
+    p->type = (u8)(0x80 | ((g->frame / CHUTE_FRAME_TICKS) & 7));
+    p->x = c->x; p->y = feet;
+    if (flip) p->flags |= POOL_F_FLIP; else p->flags &= (u8)~POOL_F_FLIP;
+    if (flier_view_visible(c, g->frame)) p->flags &= (u8)~POOL_F_BLINK; else p->flags |= POOL_F_BLINK;
+}
+
 static void pool_sync_cpus(const Game *g) {
     int slots = g->mode == GAME_MODE_ARCADE ? STAGE_SPAWN_COUNT : CPU_MAX; /* arena runs 3 slots: the extra arcade slots cost frame time in the arena worst case */
     for (int i = 0; i < slots; i++) {
@@ -362,6 +402,7 @@ static void pool_sync_cpus(const Game *g) {
         if (!visible) dead_release(DEAD_OWNER_CPU(i));
         if (!visible || cpu_show_front(g, i)) {
             if (k != POOL_NONE) { obj_pool_free(&g_pool, k); g_cpu_obj[i] = POOL_NONE; }
+            chute_obj_sync(g, i, 0, 0, c, feet);
             continue;
         }
         if (k == POOL_NONE) {
@@ -379,6 +420,7 @@ static void pool_sync_cpus(const Game *g) {
         p->x = c->x;
         p->y = feet;
         if (flier_view_visible(c, g->frame)) p->flags &= (u8)~POOL_F_BLINK; else p->flags |= POOL_F_BLINK;
+        chute_obj_sync(g, i, c->state == FLIER_PARACHUTE, flip, c, feet);
     }
 }
 
@@ -440,7 +482,26 @@ static void pool_stress(void) {
 static u16 g_pool_scb4[POOL_MAX];
 
 /* Same run layout as an obstacle, with the Sootling frame table, tile base and the computer palette. */
+/* Parachute object (type 0x80 | frame): same left edge and flip rule as the body, top = feet - 46. */
+static void pool_show_chute(PoolObj *p, u8 i, u16 *scb3) {
+    if (p->flags & POOL_F_BLINK) { if (g_pool_drawn[i]) pool_hide_run(i); return; }
+    const ChuteFrame *f = &chute_frames[chute_anims[CHUTE_ANIM_CPU].first_frame + (p->type & 7)];
+    int flip = (p->flags & POOL_F_FLIP) != 0;
+    int x = camera_screen_x(obj_pool_px(p->x) - FLIER_HALF_W - SOOT_BOX_DX, (p->flags & POOL_F_SCREEN) ? 0 : g_cam_px, f->tiles_w * 16);
+    u16 slot = obj_pool_sprite(&g_pool, i);
+    if (!camera_visible(x, f->tiles_w * 16)) { pool_hide_run(i); return; }
+    u8 key = (u8)(p->type + (flip ? 128 : 0) + 1); /* type already holds bit 7, so the mirror state goes in via +1 wrap: frame and mirror differ */
+    if (g_pool_drawn[i] != key) {
+        chute_strips(slot, f, flip);
+        if (g_pool_cols[i] != f->tiles_w) { gfx_sprite_chain(slot, f->tiles_w); g_pool_cols[i] = f->tiles_w; }
+        g_pool_drawn[i] = key;
+    }
+    scb3[i] = gfx_scb3_word(f->tiles_h, obj_pool_px(p->y) - 46);
+    g_pool_scb4[i] = gfx_scb4_word(x);
+}
+
 static void pool_show_hero(PoolObj *p, u8 i, u16 *scb3) {
+    if (p->type & 0x80) { pool_show_chute(p, i, scb3); return; }
     if (p->flags & POOL_F_BLINK) { g_blink_pool[0]++; if (g_pool_drawn[i]) pool_hide_run(i); return; } /* the animation kept stepping in the sync; the hide costs queue words once */
     g_blink_pool[1]++;
     u8 fi = soot_frame(SOOTLING_ANIM_CPU, p->type);
@@ -1509,6 +1570,8 @@ static void video_init(void) {
     for (u8 s = 0; s < FIX_PAL_COUNT; s++)
         for (u8 i = 0; i < 16; i++) gfx_pal((u16)(s * 16 + i), fixfont_palettes[s][i]);
     soot_load_palettes();
+    for (u8 p = 0; p < CHUTE_PALETTE_COUNT; p++)
+        for (u8 i = 0; i < 16; i++) gfx_pal((u16)((CHUTE_PAL_SLOT + p) * 16 + i), chute_palettes[p][i]);
     obs_load_palettes();
     island_load_palettes();
     trip_strip_load_palettes();
