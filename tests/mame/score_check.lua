@@ -278,6 +278,8 @@ local function phase1()
   check(g8(O_LMODE) == 1, "last_mode not 1 after trip run")
   expect_t.trip = { nm, tscore_run, row }
   until_(function() return g8(O_STATE) == S_TITLE end, 2000, "title after trip run")
+  -- the game waits while the title background loads (main.c g_bg_paused, mood rewrite after a Gum Trip run): flow.timer stays 0 and the fix layer is not redrawn until it resumes
+  until_(function() return mem:read_u16(flow_addr + O_TIMER) >= 10 end, 900, "title background loaded (flow timer running)")
   wait(30)
   check(caption_at(14) == 1, "title after the save reminder row 14 caption is not GUM TRIP SCORES")
   -- arena run: highlight Arena again
@@ -297,6 +299,7 @@ local function phase1()
   check(caption_at(14) == 0, "save reminder row 14 caption is not ARENA SCORES")
   expect_t.arena = { anm, ascore, arow }
   until_(function() return g8(O_STATE) == S_TITLE end, 2000, "title after arena run (caption)")
+  until_(function() return mem:read_u16(flow_addr + O_TIMER) >= 10 end, 900, "title background loaded (flow timer running, arena run)")
   wait(30)
   check(caption_at(14) == 0, "title after the save reminder row 14 caption is not ARENA SCORES")
   -- the BIOS copies the work RAM block into backup RAM only when the game returns to it (main.c game_loop, g_bram_unsaved), which happens
