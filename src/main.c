@@ -1678,6 +1678,7 @@ static void video_init(void) {
     for (u8 p = 0; p < CHUTE_PALETTE_COUNT; p++)
         for (u8 i = 0; i < 16; i++) gfx_pal((u16)((CHUTE_PAL_SLOT + p) * 16 + i), chute_palettes[p][i]);
     for (u8 i = 0; i < 16; i++) gfx_pal((u16)(CHUTE_P2_PAL_SLOT * 16 + i), chute_extra_palettes[0][i]);
+    for (u8 i = 0; i < 16; i++) gfx_pal((u16)(GUMBUBBLE_PAL_SLOT * 16 + i), gumbubble_palettes[0][i]);
     obs_load_palettes();
     island_load_palettes();
     trip_strip_load_palettes();
