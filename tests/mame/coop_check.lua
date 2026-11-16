@@ -4,6 +4,7 @@
 --   C2. P2 flap releases the parachute (ALIVE) and hero[1] flies (y changes);
 --   C3. a second P2 Start while P2 is active is refused: credit kept (insert a third coin first so the byte is non-zero);
 --   C4. P1 Start in play is still refused: credit kept, players stays 2;
+--   C5a. with 0 credits before the coin, "INSERT COIN" shows at row 5 cols 24..34 and cols 35..37 are blank; the coin turns it into PRESS P2 START (cols 35..37 lit, col 24 cell changed);
 --   C5. HUD on the fix layer: before the join (credit 1) "PRESS P2 START" shows at row 5 cols 24..37 and the P2 lives cells are blank;
 --       after the join the P2 mirror column shows (lives digit col 31 and "Lives" cols 33..37 on row 7) and the PRESS cells are gone.
 -- Env: BRAWL_FLOW_ADDR (hex), BRAWL_COOP_LAYOUT (coop_probe.c output), BRAWL_RESULT.
@@ -65,7 +66,7 @@ end
 if not (coin and start1 and start2 and p2a) then finish(false, "missing ports: " .. tostring(start2) .. tostring(p2a)) end
 
 local n, phase, t0, fc0 = 0, "boot", 0, nil
-local c_before, y0, nflap = nil, nil, 0
+local c_before, y0, nflap, ins_c24 = nil, nil, 0, nil
 local function press(f, k, from) f:set_value((k >= from and (k - from) < 15) and 1 or 0) end
 emu.register_frame_done(function()
   n = n + 1
@@ -78,11 +79,18 @@ emu.register_frame_done(function()
     if ss.step(n, playing, 2) then phase = "settle"; t0 = n end
   elseif phase == "settle" then
     if k < 130 and b(O.players) ~= 1 then finish(false, "players " .. b(O.players) .. " before P2 Start") return end
+    if k == 4 then
+      -- zero credits, P2 out: "INSERT COIN" (10 lit cells in cols 24..34, none in 35..37) on the same row as PRESS P2 START
+      if b(O.players) ~= 1 or credit() ~= 0 then finish(false, "setup: credit " .. credit() .. " players " .. b(O.players) .. ", want 0 and 1") return end
+      if lit(24, 34, 5) ~= 10 or lit(35, 37, 5) ~= 0 then finish(false, "INSERT COIN not shown with 0 credits: " .. lit(24, 34, 5) .. " of 10 cells, " .. lit(35, 37, 5) .. " in 35..37") return end
+      ins_c24 = cell(24, 5)
+    end
     if k == 5 then coin:set_value(1) end
     if k == 20 then coin:set_value(0) end
     if k == 120 then
       c_before = credit()
       if lit(24, 37, 5) < 12 then finish(false, "PRESS P2 START not on the fix layer before the join: " .. lit(24, 37, 5) .. " of 12 cells lit") return end
+      if lit(35, 37, 5) ~= 3 or cell(24, 5) == ins_c24 then finish(false, "PRESS P2 START did not replace INSERT COIN after the coin") return end
       if lit(31, 37, 7) ~= 0 then finish(false, "P2 lives cells lit before the join") return end
     end
     if k >= 120 then press(start2, k, 130) end

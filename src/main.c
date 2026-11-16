@@ -149,7 +149,7 @@ static u16 g_res_filled;
 static u8 g_resfx_stage, g_resfx_bub[RES_SLOTS], g_resfx_wheel[5], g_resfx_crank, g_resfx_sky, g_resfx_star;
 static int g_rs_num;
 /* Fix layer cell of the off screen marker last drawn (col 0xFF: none). */
-static u8 g_edge_col = 0xFF, g_edge_row;
+static u8 g_edge_col[HUMANS] = { 0xFF, 0xFF }, g_edge_row[HUMANS];
 
 static struct { u8 drawn, frame, flip; int cx, top; } g_gum_pose[HUMANS];   /* where the player is drawn this frame: the gum bubble sits on it (src/gum.c) */
 static u8 g_hero_chute_up; /* the player's parachute sprites are shown */
@@ -893,28 +893,30 @@ void player_start(void) {
     g_start_pending = 1;
 }
 
-/* Off screen marker for the human flier (design D1): a '<' or '>' on the fix layer at the screen edge, at the flier's
+/* Off screen marker per human flier (design D1): a '<' or '>' on the fix layer at the screen edge, at the flier's
  * row. The fix layer is free at the edges (the HUD sits in columns 2..), costs no sprite slot and the fix shadow
- * drops unchanged cells. One cell at a time; erased when the flier shows again or the match ends. */
+ * drops unchanged cells. One cell a human; erased when the flier shows again or the match ends. P1 white, P2 gold (sun yellow). */
 static void edge_marker(const Game *g, int cam_px) {
-    int dir = 0, row = 0;
-    if (g) {
-        const Flier *fl = &g->hero[0];
-        int w = SOOT_COLUMNS * 16;
-        int sx = camera_screen_x((int)(fl->x >> 16) - FLIER_HALF_W - SOOT_BOX_DX, cam_px, w);
-        if (fl->state != FLIER_GONE) dir = camera_edge_marker(sx, w);
-        row = (int)(fl->y >> 19);
-        if (row < 8) row = 8;
-        if (row > 24) row = 24;
-    }
-    u8 col = dir < 0 ? 0 : 39;
-    if (g_edge_col != 0xFF && (dir == 0 || col != g_edge_col || row != g_edge_row)) {
-        gfx_text(g_edge_col, g_edge_row, PAL_TEXT, " ");
-        g_edge_col = 0xFF;
-    }
-    if (dir != 0 && g_edge_col == 0xFF) {
-        gfx_text(col, (u8)row, PAL_HIGH, dir < 0 ? "<" : ">");
-        g_edge_col = col; g_edge_row = (u8)row;
+    for (int h = 0; h < HUMANS; h++) {
+        int dir = 0, row = 0;
+        if (g) {
+            const Flier *fl = &g->hero[h];
+            int w = SOOT_COLUMNS * 16;
+            int sx = camera_screen_x((int)(fl->x >> 16) - FLIER_HALF_W - SOOT_BOX_DX, cam_px, w);
+            if (h < g->players && fl->state != FLIER_GONE) dir = camera_edge_marker(sx, w);
+            row = (int)(fl->y >> 19);
+            if (row < 8) row = 8;
+            if (row > 24) row = 24;
+        }
+        u8 col = dir < 0 ? 0 : 39;
+        if (g_edge_col[h] != 0xFF && (dir == 0 || col != g_edge_col[h] || row != g_edge_row[h])) {
+            gfx_text(g_edge_col[h], g_edge_row[h], PAL_TEXT, " ");
+            g_edge_col[h] = 0xFF;
+        }
+        if (dir != 0 && g_edge_col[h] == 0xFF) {
+            gfx_text(col, (u8)row, h ? PAL_HIGH : PAL_TEXT, dir < 0 ? "<" : ">");
+            g_edge_col[h] = col; g_edge_row[h] = (u8)row;
+        }
     }
 }
 
@@ -968,7 +970,7 @@ static void hero_and_mode(const FlowView *v) {
         else bios_user_mode = 1;
         g_cam_px = 0;
         g_cam_unwrapped = 0;
-        g_edge_col = 0xFF; /* draw() clears the fix layer with the state change */
+        g_edge_col[0] = g_edge_col[1] = 0xFF; /* draw() clears the fix layer with the state change */
         flier_anim_init(&g_hero_anim[0]);
         flier_anim_init(&g_hero_anim[1]);
         hero_hide();
@@ -1057,6 +1059,7 @@ static void draw_gum_meter(u16 gum) {
 #define HUD_KIND_BLANK 0
 #define HUD_KIND_PRESS 1
 #define HUD_KIND_STATS 2
+#define HUD_KIND_INSERT 3 /* "INSERT COIN   " and "PRESS P2 START" share row 5 cols 24..37, both 14 wide so one fully overwrites the other */
 static struct { u32 score; u8 kind, balloons, lives; } g_hud[2] = { { 0, HUD_KIND_NONE, 0, 0 }, { 0, HUD_KIND_NONE, 0, 0 } };
 
 /* One side of the score block. P1: label then number from column 2. P2 mirrors it about the screen centre (column c -> 39 - c):
@@ -1081,11 +1084,11 @@ static void hud_side_stats(u8 side, u32 score, u8 balloons, u8 lives, u8 show_li
 static void hud_side(u8 side, u8 kind, u32 score, u8 balloons, u8 lives, u8 show_lives, u8 show_balloons) {
     if (g_hud[side].kind == kind && (kind != HUD_KIND_STATS || (g_hud[side].score == score && g_hud[side].balloons == balloons && g_hud[side].lives == lives))) return;
     if (kind == HUD_KIND_STATS) {
-        if (g_hud[side].kind == HUD_KIND_PRESS) text(24, 5, PAL_TEXT, "              ");
+        if (g_hud[side].kind == HUD_KIND_PRESS || g_hud[side].kind == HUD_KIND_INSERT) text(24, 5, PAL_TEXT, "              ");
         hud_side_stats(side, score, balloons, lives, show_lives, show_balloons);
     } else {
         /* only the P2 side ever blanks or prompts: its 14 columns 24..37 on rows 5..7 */
-        text(24, 5, PAL_TEXT, kind == HUD_KIND_PRESS ? "PRESS P2 START" : "              ");
+        text(24, 5, PAL_TEXT, kind == HUD_KIND_PRESS ? "PRESS P2 START" : kind == HUD_KIND_INSERT ? "INSERT COIN   " : "              ");
         if (g_hud[side].kind == HUD_KIND_STATS) { text(24, 6, PAL_TEXT, "              "); text(24, 7, PAL_TEXT, "              "); }
     }
     g_hud[side].kind = kind; g_hud[side].score = score; g_hud[side].balloons = balloons; g_hud[side].lives = lives;
@@ -1452,7 +1455,7 @@ static void draw(const FlowView *v) {
                 u8 in = g->players == 2;
                 u8 cr = g->credits;
                 u8 out = !in || g->lives[1].state == ARC_LIFE_ENDED; /* never joined, or out of lives and continues */
-                if (out && cr > 0 && v->state == FLOW_PLAYING) hud_side(1, HUD_KIND_PRESS, 0, 0, 0, 0, 0);
+                if (out && v->state == FLOW_PLAYING) hud_side(1, cr > 0 ? HUD_KIND_PRESS : HUD_KIND_INSERT, 0, 0, 0, 0, 0);
                 else if (in) hud_side(1, HUD_KIND_STATS, g->lives[1].score, (u8)g->hero[1].balloons, (u8)g->lives[1].lives, 1, 1);
                 else hud_side(1, HUD_KIND_BLANK, 0, 0, 0, 0, 0);
             }
