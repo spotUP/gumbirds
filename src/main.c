@@ -1105,8 +1105,8 @@ static void hud_side(u8 side, u8 kind, u32 score, u8 balloons, u8 lives, u8 show
 #define TITLE_HI_ROW 3
 #define TITLE_PLATE_ROW 22
 #define TITLE_SELECT_ROW 23   /* rows 23 to 26: the mode select, drawn only while it is open */
-#define TITLE_PLAYERS_ROW 27
-#define TITLE_GOAL_ROW 28     /* PARTY rule goal line, cols 2..37; free: players plate is row 27, credits plate row 29 */
+#define TITLE_PLAYERS_ROW 28   /* below the PARTY goal line, so the goal sits right under the PARTY row */
+#define TITLE_GOAL_ROW 27     /* PARTY rule goal line, cols 2..37, right under the PARTY row (26); players plate row 28, credits row 29 */
 #define TITLE_CREDIT_ROW 29
 #define TITLE_BLINK_ON 3      /* the plate line shows for 3 of every 5 logo animation steps */
 #define BIOS_COMPULSION_S ((volatile u8 *)0x10fdda) /* BIOS_COMPULSION_TIMER, BCD seconds; 0x10fddb counts its frames */

@@ -1,5 +1,5 @@
 -- Party Rule of the Round check (make test-party): UniBIOS 4.0, one coin, Up to the PARTY row, Start:
---   P1. the title PARTY row shows the goal line on fix row 28 (lit cells >= 19: "A NEW TWIST EVERY ROUND" is 19 letters, spaces read as empty);
+--   P1. the title PARTY row shows the goal line on fix row 27 (lit cells >= 19: "A NEW TWIST EVERY ROUND" is 19 letters, spaces read as empty);
 --   P2. the round starts as Arena with party_rule ROUND and a twist 1..6; the round-start banner (RS_ROUND) lights fix row 12 (twist
 --       name) and row 13 (goal line, >= 19 lit cells) and ROUND nn on row 11; at RS_GO rows 11..13 hold only the GO! cells
 --       (row 12 and 11 blank, row 13 at most 3 lit);
@@ -28,8 +28,8 @@ tap_vram = mem:install_write_tap(0x3c0000, 0x3c0007, "partyvram", function(offse
   elseif r == 2 then fix[vaddr] = data; vaddr = (vaddr + vmod) & 0xffff
   elseif r == 4 then vmod = data end
 end)
-local function lit(row) -- cells of a fix row that differ from an empty cell (column 0 of row 28 is never written)
-  local blank, n = (fix[0x7000 + 0 * 32 + 28] or 0) & 0xfff, 0
+local function lit(row) -- cells of a fix row that differ from an empty cell (column 0 of row 27 is never written)
+  local blank, n = (fix[0x7000 + 0 * 32 + 27] or 0) & 0xfff, 0
   for c = 0, 39 do if ((fix[0x7000 + c * 32 + row] or 0) & 0xfff) ~= blank then n = n + 1 end end
   return n
 end
@@ -52,11 +52,11 @@ emu.register_frame_done(function()
     if n == 600 then phase = "start"; t0 = n; ss.begin(n) end
   elseif phase == "start" then
     local k = n - t0
-    if k == 95 then title_goal = lit(28) end -- before Start (frame 100): Up has moved the cursor to PARTY
+    if k == 95 then title_goal = lit(27) end -- before Start (frame 100): Up has moved the cursor to PARTY
     if ss.step(n, playing, true) then phase = "banner"; t0 = n end
   elseif phase == "banner" then
     local rs = b(O.rs)
-    if title_goal == nil or title_goal < 19 then finish(false, "title goal row 28 lit cells " .. tostring(title_goal) .. ", want >= 19") return end
+    if title_goal == nil or title_goal < 19 then finish(false, "title goal row 27 lit cells " .. tostring(title_goal) .. ", want >= 19") return end
     if b(O.frule) ~= K.round or b(O.rule) ~= K.round then finish(false, "party rule flow " .. b(O.frule) .. " game " .. b(O.rule) .. ", want ROUND " .. K.round) return end
     if b(O.mode) ~= K.arena then finish(false, "mode " .. b(O.mode) .. ", want ARENA") return end
     if rs == K.rs_round then
