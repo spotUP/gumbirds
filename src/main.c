@@ -102,7 +102,7 @@ static const FlierClips k_clips = {
     { SOOTLING_CLIP_LAND0, SOOTLING_CLIP_LAND1, SOOTLING_CLIP_LAND2 },
     { SOOTLING_CLIP_BREATHE0, SOOTLING_CLIP_BREATHE1, SOOTLING_CLIP_BREATHE2 }
 };
-static FlierAnim g_hero_anim;
+static FlierAnim g_hero_anim[HUMANS]; /* per human: [1] steps the P2 body drawn from pool objects P2_OBJ_BODY / P2_OBJ_CHUTE */
 
 /* Test sentinels (tests/mame/flier_check.lua): first tile number last written to the sprite registers for the player
  * and for a computer flier (0 until drawn, player 0 again while hidden), and computer draws so far. g_soot_range holds
@@ -120,6 +120,7 @@ static void soot_load_palettes(void) {
     for (int p = 0; p < SOOTLING_PALETTE_COUNT; p++)
         for (int i = 0; i < 16; i++)
             gfx_pal((SOOT_PAL_SLOT + p) * 16 + i, sootling_palettes[p][i]);
+    for (int i = 0; i < 16; i++) gfx_pal(SOOT_P2_PAL_SLOT * 16 + i, sootling_extra_palettes[0][i]);
 }
 
 /* Camera x of the frame the view is drawing (game_camera_px): the one value every world object is placed with. Test
@@ -150,10 +151,10 @@ static int g_rs_num;
 /* Fix layer cell of the off screen marker last drawn (col 0xFF: none). */
 static u8 g_edge_col = 0xFF, g_edge_row;
 
-static struct { u8 drawn, frame, flip; int cx, top; } g_gum_pose;   /* where the player is drawn this frame: the gum bubble sits on it (src/gum.c) */
+static struct { u8 drawn, frame, flip; int cx, top; } g_gum_pose[HUMANS];   /* where the player is drawn this frame: the gum bubble sits on it (src/gum.c) */
 static u8 g_hero_chute_up; /* the player's parachute sprites are shown */
 static void hero_hide(void) {
-    g_gum_pose.drawn = 0;
+    g_gum_pose[0].drawn = 0;
     gfx_word(ADDR_SCB3 + HERO_SPRITE, 0); /* height 0 hides the sprite and the sticky ones after it */
     if (g_hero_chute_up) { gfx_word(ADDR_SCB3 + HERO_CHUTE_SPRITE, 0); g_hero_chute_up = 0; }
     g_soot_player_tile = 0;
@@ -176,8 +177,8 @@ static void soot_strips(u16 slot, const SootlingFrame *f, const u16 *tiles, int 
  * computer flier. A claimed body is drawn here instead of in its normal slot; releasing hides its sprites. */
 #define DEAD_BODIES (DEAD_BODY_COUNT / DEAD_BODY_COLUMNS)
 #define DEAD_OWNER_NONE 0xFF
-#define DEAD_OWNER_HERO 0
-#define DEAD_OWNER_CPU(i) ((u8)(1 + (i)))
+#define DEAD_OWNER_HERO(h) ((u8)(h))
+#define DEAD_OWNER_CPU(i) ((u8)(HUMANS + (i)))
 _Static_assert(DEAD_BODY_SPRITE == SPRITE_SLOT_END && DEAD_BODY_SPRITE + DEAD_BODY_COUNT <= 381, "dead body slots must end at the 381 hardware sprites");
 _Static_assert(DEAD_BODY_COLUMNS == SOOT_COLUMNS, "a dead body holds one Sootling frame");
 _Static_assert(SOOTLING_ART_H <= FLIER_ART_H, "the removal rule (FLIER_ART_H) covers the tallest Sootling frame");
@@ -206,33 +207,33 @@ static void dead_release_all(void) {
 }
 
 /* Parachute over a flier in state PARACHUTE: 32x32 art, left edge = the body sprite left, top = feet - 46 (anchor -4,-14 over the 24x32 body, 4 px pad). */
-static void chute_strips(u16 slot, const ChuteFrame *f, int flip) {
+static void chute_strips(u16 slot, const ChuteFrame *f, int flip, int pal_slot) {
     const u16 *tiles = &chute_tile_index[f->tile_offset];
-    u16 attr = (u16)((CHUTE_PAL_SLOT + f->palette) << 8 | (flip ? SOOT_FLIP : 0));
+    u16 attr = (u16)(pal_slot << 8 | (flip ? SOOT_FLIP : 0));
     for (u8 c = 0; c < f->tiles_w; c++)
         gfx_sprite_strips((u16)(slot + c), 1, f->tiles_h, tiles + (flip ? f->tiles_w - 1 - c : c) * f->tiles_h, CHUTE_TILE_BASE, attr);
 }
 static void chute_place(u16 slot, u8 anim, u8 n, int flip, int left, int top) {
     const ChuteFrame *f = &chute_frames[chute_anims[anim].first_frame + n];
-    chute_strips(slot, f, flip);
+    chute_strips(slot, f, flip, CHUTE_PAL_SLOT + f->palette);
     gfx_sprite_place(slot, f->tiles_w, f->tiles_h, left, top);
 }
 
 static void hero_show(const Game *g, int cam_px) {
     const Flier *fl = &g->hero[0];
     int feet = (int)((fl->y + flier_half_h(fl)) >> 16);
-    if (!game_flier_visible(g) || !flier_body_visible(fl) || (feet > SCREEN_H && fl->state < FLIER_FALLING)) { hero_hide(); dead_release(DEAD_OWNER_HERO); return; }
+    if (!game_flier_visible(g) || !flier_body_visible(fl) || (feet > SCREEN_H && fl->state < FLIER_FALLING)) { hero_hide(); dead_release(DEAD_OWNER_HERO(0)); return; }
     int flip;
-    u8 shown = flier_anim_step(&g_hero_anim, fl, &k_clips, &flip);
-    g_soot_view[0] = g_hero_anim.clip;
+    u8 shown = flier_anim_step(&g_hero_anim[0], fl, &k_clips, &flip);
+    g_soot_view[0] = g_hero_anim[0].clip;
     g_soot_view[1] = shown;
-    g_soot_view[2] = g_hero_anim.tick;
+    g_soot_view[2] = g_hero_anim[0].tick;
     const SootlingFrame *f = &sootling_frames[soot_frame(SOOTLING_ANIM_PLAYER, shown)];
     const u16 *tiles = &sootling_tile_index[f->tile_offset];
     g_soot_player_tile = (u16)(SOOT_TILE_BASE + tiles[0]);
     int top = feet - f->tiles_h * 16;
     int sx = camera_screen_x((int)(fl->x >> 16) - FLIER_HALF_W - SOOT_BOX_DX, cam_px, SOOT_COLUMNS * 16);
-    if (!camera_visible(sx, SOOT_COLUMNS * 16)) { hero_hide(); dead_release(DEAD_OWNER_HERO); return; }
+    if (!camera_visible(sx, SOOT_COLUMNS * 16)) { hero_hide(); dead_release(DEAD_OWNER_HERO(0)); return; }
     /* Protected blink: the animation above keeps stepping, only the sprites go dark (a protected flier is never FALLING). */
     if (!flier_view_visible(fl, g->frame)) { hero_hide(); g_soot_player_tile = (u16)(SOOT_TILE_BASE + tiles[0]); g_blink_hidden++; return; }   /* hero_hide clears the tile sentinel; the clip under test keeps it */
     g_blink_shown++;
@@ -240,10 +241,10 @@ static void hero_show(const Game *g, int cam_px) {
     u16 attr = (u16)(((SOOT_PAL_SLOT + f->palette) << 8) | (flip ? SOOT_FLIP : 0));
     u16 slot = HERO_SPRITE;
     if (g->mode != GAME_MODE_TRIP && flier_body_front(fl)) {
-        int d = dead_claim(DEAD_OWNER_HERO);
+        int d = dead_claim(DEAD_OWNER_HERO(0));
         if (d >= 0) { hero_hide(); slot = (u16)(DEAD_BODY_SPRITE + d * DEAD_BODY_COLUMNS); }
-    } else dead_release(DEAD_OWNER_HERO);
-    g_gum_pose.drawn = 1; g_gum_pose.frame = shown; g_gum_pose.flip = (u8)flip; g_gum_pose.cx = left + SOOT_COLUMNS * 8; g_gum_pose.top = top;
+    } else dead_release(DEAD_OWNER_HERO(0));
+    g_gum_pose[0].drawn = 1; g_gum_pose[0].frame = shown; g_gum_pose[0].flip = (u8)flip; g_gum_pose[0].cx = left + SOOT_COLUMNS * 8; g_gum_pose[0].top = top;
     soot_strips(slot, f, tiles, flip, attr);
     gfx_sprite_place(slot, SOOT_COLUMNS, f->tiles_h, left, top);
     if (fl->state == FLIER_PARACHUTE) {
@@ -261,6 +262,12 @@ static void hero_show(const Game *g, int cam_px) {
 _Static_assert(POOL_SPRITE_COUNT == POOL_SPRITES, "pool sprite range size");
 _Static_assert(BG_SPRITE_END <= GUM_SPRITE && GUM_SPRITE + GUM_COUNT <= ISLAND_SPRITE, "gum sprites overlap the background or the islands");
 _Static_assert(ISLAND_SPRITE + ISLAND_COUNT <= POOL_SPRITE_BASE, "island sprites overlap the object pool");
+/* Player 2 draws from the last two pool objects (body, parachute), claimed in pool_sync_p2; the computer fliers allocate
+ * from the low end of the free list and never need more than a body and a parachute each. */
+#define P2_OBJ_BODY (POOL_MAX - 2)
+#define P2_OBJ_CHUTE (POOL_MAX - 1)
+#define CHUTE_ANIM_PLAYER2 CHUTE_ANIM_PLAYER /* same frames as the player, the P2 palette (CHUTE_P2_PAL_SLOT) swaps the colours */
+_Static_assert(2 * STAGE_SPAWN_COUNT + 2 <= POOL_MAX - 2, "computer fliers plus parachutes would reach the P2 pool objects");
 _Static_assert(POOL_SPRITE_BASE + POOL_SPRITE_COUNT <= HERO_SPRITE, "object pool sprites overlap hero");
 _Static_assert(HERO_SPRITE + HERO_SPRITE_COUNT <= HAZARD_SPRITE, "hero overlaps hazard sprites");
 _Static_assert(SPRITE_SLOT_END <= 381, "sprite slots exceed the 381 hardware sprites");
@@ -350,32 +357,35 @@ static void pool_free_all(void) {
     for (int i = 0; i < STAGE_SPAWN_COUNT; i++) g_chute_obj[i] = POOL_NONE;
     for (int i = 0; i < STAGE_SPAWN_COUNT; i++) g_cpu_obj[i] = POOL_NONE;
     for (int i = 0; i < TRIP_RIVAL_MAX; i++) g_rival_obj[i] = POOL_NONE;
-    for (u8 i = 0; i < POOL_MAX; i++) obj_pool_free(&g_pool, i);
+    for (int i = POOL_MAX - 1; i >= 0; i--) obj_pool_free(&g_pool, (u8)i); /* descending: the free list ends up 0..31 again, so P2_OBJ_BODY / P2_OBJ_CHUTE stay at its tail */
     g_haz_claimed = 0;
 }
 
 /* Computer fliers: one pool object each while on screen (anchor: centre x, feet y). type = sheet frame of the clip (flier_anim_step), flags POOL_F_FLIP when facing left. */
 static FlierAnim g_cpu_anim[STAGE_SPAWN_COUNT];
 /* A computer flier that bounced on spikes draws from a dead body slot (in front of the spike art) instead of a pool object. */
-static int cpu_show_front(const Game *g, int i) {
-    const Flier *c = &g->cpu[i];
-    if (g->mode == GAME_MODE_TRIP || !flier_body_front(c)) { dead_release(DEAD_OWNER_CPU(i)); return 0; }
-    int d = dead_claim(DEAD_OWNER_CPU(i));
+static int body_show_front(const Game *g, const Flier *c, FlierAnim *an, u8 owner, u8 sheet_anim, int pal_slot) {
+    if (g->mode == GAME_MODE_TRIP || !flier_body_front(c)) { dead_release(owner); return 0; }
+    int d = dead_claim(owner);
     if (d < 0) return 0;
     int flip;
-    u8 shown = flier_anim_step(&g_cpu_anim[i], c, &k_clips, &flip);
-    const SootlingFrame *f = &sootling_frames[soot_frame(SOOTLING_ANIM_CPU, shown)];
+    u8 shown = flier_anim_step(an, c, &k_clips, &flip);
+    const SootlingFrame *f = &sootling_frames[soot_frame(sheet_anim, shown)];
     const u16 *tiles = &sootling_tile_index[f->tile_offset];
     int feet = (int)((c->y + flier_half_h(c)) >> 16);
     int sx = camera_screen_x((int)(c->x >> 16) - FLIER_HALF_W - SOOT_BOX_DX, g_cam_px, SOOT_COLUMNS * 16);
     u16 slot = (u16)(DEAD_BODY_SPRITE + d * DEAD_BODY_COLUMNS);
-    if (!camera_visible(sx, SOOT_COLUMNS * 16)) { dead_release(DEAD_OWNER_CPU(i)); return 1; }
-    soot_strips(slot, f, tiles, flip, (u16)(((SOOT_PAL_SLOT + f->palette) << 8) | (flip ? SOOT_FLIP : 0)));
+    if (!camera_visible(sx, SOOT_COLUMNS * 16)) { dead_release(owner); return 1; }
+    soot_strips(slot, f, tiles, flip, (u16)(((pal_slot ? pal_slot : SOOT_PAL_SLOT + f->palette) << 8) | (flip ? SOOT_FLIP : 0)));
     gfx_sprite_place(slot, SOOT_COLUMNS, f->tiles_h, sx, feet - f->tiles_h * 16);
     return 1;
 }
+static int cpu_show_front(const Game *g, int i) {
+    return body_show_front(g, &g->cpu[i], &g_cpu_anim[i], DEAD_OWNER_CPU(i), SOOTLING_ANIM_CPU, 0);
+}
 
 /* The parachute of computer flier i: a pool object of its own (flags POOL_F_HERO, type 0x80 | frame) while the body is drawn here in state PARACHUTE. */
+static void chute_obj_set(const Game *g, u8 k, int flip, const Flier *c, int32_t feet);
 static void chute_obj_sync(const Game *g, int i, int want, int flip, const Flier *c, int32_t feet) {
     u8 k = g_chute_obj[i];
     if (!want) { if (k != POOL_NONE) { obj_pool_free(&g_pool, k); g_chute_obj[i] = POOL_NONE; } return; }
@@ -385,6 +395,9 @@ static void chute_obj_sync(const Game *g, int i, int want, int flip, const Flier
         g_pool.obj[k].flags |= POOL_F_HERO;
         g_chute_obj[i] = k;
     }
+    chute_obj_set(g, k, flip, c, feet);
+}
+static void chute_obj_set(const Game *g, u8 k, int flip, const Flier *c, int32_t feet) {
     PoolObj *p = &g_pool.obj[k];
     p->type = (u8)(0x80 | ((g->frame / CHUTE_FRAME_TICKS) & 7));
     p->x = c->x; p->y = feet;
@@ -422,6 +435,36 @@ static void pool_sync_cpus(const Game *g) {
         if (flier_view_visible(c, g->frame)) p->flags &= (u8)~POOL_F_BLINK; else p->flags |= POOL_F_BLINK;
         chute_obj_sync(g, i, c->state == FLIER_PARACHUTE, flip, c, feet);
     }
+}
+
+/* Player 2: body and parachute in pool objects P2_OBJ_BODY / P2_OBJ_CHUTE, claimed once P2 has joined and kept until the
+ * world is left (pool_free_all). A hidden P2 keeps the objects with POOL_F_BLINK set, so a computer flier never allocates
+ * them. A bounced body draws from a dead body slot instead (owner DEAD_OWNER_HERO(1)). */
+static void pool_sync_p2(const Game *g) {
+    if (g->players < 2) return;
+    const Flier *fl = &g->hero[1];
+    if (!obj_pool_is_live(&g_pool, P2_OBJ_BODY)) {
+        if (!obj_pool_claim(&g_pool, P2_OBJ_BODY) || !obj_pool_claim(&g_pool, P2_OBJ_CHUTE)) return;
+        g_pool.obj[P2_OBJ_BODY].flags |= POOL_F_HERO | POOL_F_BLINK;
+        g_pool.obj[P2_OBJ_CHUTE].flags |= POOL_F_HERO | POOL_F_BLINK;
+        g_pool.obj[P2_OBJ_CHUTE].type = 0x80;
+        flier_anim_init(&g_hero_anim[1]);
+    }
+    PoolObj *b = &g_pool.obj[P2_OBJ_BODY], *ch = &g_pool.obj[P2_OBJ_CHUTE];
+    int32_t feet = fl->y + flier_half_h(fl);
+    int visible = game_flier_visible(g) && flier_body_visible(fl) && (fl->state >= FLIER_FALLING || (int)(feet >> 16) <= SCREEN_H);
+    if (!visible) dead_release(DEAD_OWNER_HERO(1));
+    if (!visible || body_show_front(g, fl, &g_hero_anim[1], DEAD_OWNER_HERO(1), SOOTLING_ANIM_PLAYER, SOOT_P2_PAL_SLOT)) {
+        b->flags |= POOL_F_BLINK; ch->flags |= POOL_F_BLINK;
+        return;
+    }
+    int flip;
+    b->type = flier_anim_step(&g_hero_anim[1], fl, &k_clips, &flip);
+    if (flip) b->flags |= POOL_F_FLIP; else b->flags &= (u8)~POOL_F_FLIP;
+    b->x = fl->x; b->y = feet;
+    if (flier_view_visible(fl, g->frame)) b->flags &= (u8)~POOL_F_BLINK; else b->flags |= POOL_F_BLINK;
+    if (fl->state == FLIER_PARACHUTE) chute_obj_set(g, P2_OBJ_CHUTE, flip, fl, feet);
+    else ch->flags |= POOL_F_BLINK;
 }
 
 /* Gum Trip rivals: the same drawing as a computer flier, one pool object each while active (object 20 + rival index,
@@ -484,15 +527,16 @@ static u16 g_pool_scb4[POOL_MAX];
 /* Same run layout as an obstacle, with the Sootling frame table, tile base and the computer palette. */
 /* Parachute object (type 0x80 | frame): same left edge and flip rule as the body, top = feet - 46. */
 static void pool_show_chute(PoolObj *p, u8 i, u16 *scb3) {
+    int p2 = i == P2_OBJ_CHUTE;
     if (p->flags & POOL_F_BLINK) { if (g_pool_drawn[i]) pool_hide_run(i); return; }
-    const ChuteFrame *f = &chute_frames[chute_anims[CHUTE_ANIM_CPU].first_frame + (p->type & 7)];
+    const ChuteFrame *f = &chute_frames[chute_anims[p2 ? CHUTE_ANIM_PLAYER2 : CHUTE_ANIM_CPU].first_frame + (p->type & 7)];
     int flip = (p->flags & POOL_F_FLIP) != 0;
     int x = camera_screen_x(obj_pool_px(p->x) - FLIER_HALF_W - SOOT_BOX_DX, (p->flags & POOL_F_SCREEN) ? 0 : g_cam_px, f->tiles_w * 16);
     u16 slot = obj_pool_sprite(&g_pool, i);
     if (!camera_visible(x, f->tiles_w * 16)) { pool_hide_run(i); return; }
     u8 key = (u8)(p->type + (flip ? 128 : 0) + 1); /* type already holds bit 7, so the mirror state goes in via +1 wrap: frame and mirror differ */
     if (g_pool_drawn[i] != key) {
-        chute_strips(slot, f, flip);
+        chute_strips(slot, f, flip, p2 ? CHUTE_P2_PAL_SLOT : CHUTE_PAL_SLOT + f->palette);
         if (g_pool_cols[i] != f->tiles_w) { gfx_sprite_chain(slot, f->tiles_w); g_pool_cols[i] = f->tiles_w; }
         g_pool_drawn[i] = key;
     }
@@ -504,7 +548,8 @@ static void pool_show_hero(PoolObj *p, u8 i, u16 *scb3) {
     if (p->type & 0x80) { pool_show_chute(p, i, scb3); return; }
     if (p->flags & POOL_F_BLINK) { g_blink_pool[0]++; if (g_pool_drawn[i]) pool_hide_run(i); return; } /* the animation kept stepping in the sync; the hide costs queue words once */
     g_blink_pool[1]++;
-    u8 fi = soot_frame(SOOTLING_ANIM_CPU, p->type);
+    int p2 = i == P2_OBJ_BODY;
+    u8 fi = soot_frame(p2 ? SOOTLING_ANIM_PLAYER : SOOTLING_ANIM_CPU, p->type);
     const SootlingFrame *f = &sootling_frames[fi];
     int flip = (p->flags & POOL_F_FLIP) != 0;
     int x = camera_screen_x(obj_pool_px(p->x) - FLIER_HALF_W - SOOT_BOX_DX, (p->flags & POOL_F_SCREEN) ? 0 : g_cam_px, SOOT_COLUMNS * 16);
@@ -514,7 +559,7 @@ static void pool_show_hero(PoolObj *p, u8 i, u16 *scb3) {
     const u16 *tiles = &sootling_tile_index[f->tile_offset];
     u8 key = (u8)(p->type + 1 + (flip ? 128 : 0)); /* frame and mirror state the strips hold; the computer palette only, so the clip frame is unique */
     if (g_pool_drawn[i] != key) {
-        soot_strips(slot, f, tiles, flip, (u16)(((SOOT_PAL_SLOT + f->palette) << 8) | (flip ? SOOT_FLIP : 0)));
+        soot_strips(slot, f, tiles, flip, (u16)(((p2 ? SOOT_P2_PAL_SLOT : SOOT_PAL_SLOT + f->palette) << 8) | (flip ? SOOT_FLIP : 0)));
         if (g_pool_cols[i] != SOOT_COLUMNS) { gfx_sprite_chain(slot, SOOT_COLUMNS); g_pool_cols[i] = SOOT_COLUMNS; }
         g_pool_drawn[i] = key;
     }
@@ -908,6 +953,7 @@ static void hero_and_mode(const FlowView *v) {
         hero_show(v->game, game_flier_cam_px(v->game));
         if (v->game->mode == GAME_MODE_TRIP) pool_sync_trip(v->game, game_trip_ready(v->game));
         pool_sync_cpus(v->game);
+        if (v->game->mode == GAME_MODE_ARCADE) pool_sync_p2(v->game);
         if (v->game->mode == GAME_MODE_TRIP) pool_sync_rivals(v->game);
         if (g_pool_stress) pool_stress();
         pool_show();
@@ -923,7 +969,8 @@ static void hero_and_mode(const FlowView *v) {
         g_cam_px = 0;
         g_cam_unwrapped = 0;
         g_edge_col = 0xFF; /* draw() clears the fix layer with the state change */
-        flier_anim_init(&g_hero_anim);
+        flier_anim_init(&g_hero_anim[0]);
+        flier_anim_init(&g_hero_anim[1]);
         hero_hide();
         dead_release_all();
         if (g_pool.live) pool_free_all();
@@ -1578,6 +1625,7 @@ static void video_init(void) {
     soot_load_palettes();
     for (u8 p = 0; p < CHUTE_PALETTE_COUNT; p++)
         for (u8 i = 0; i < 16; i++) gfx_pal((u16)((CHUTE_PAL_SLOT + p) * 16 + i), chute_palettes[p][i]);
+    for (u8 i = 0; i < 16; i++) gfx_pal((u16)(CHUTE_P2_PAL_SLOT * 16 + i), chute_extra_palettes[0][i]);
     obs_load_palettes();
     island_load_palettes();
     trip_strip_load_palettes();
@@ -1773,7 +1821,7 @@ static void game_loop(void) {
             trip_pickup_step(trip_game ? &view.game->trip_gen : 0, trip_game ? view.game->trip.px : 0, trip_game ? view.game->trip.steps : 0, trip_game && game_trip_ready(view.game));
             /* Arena: the bubble is always full size (no gum value, no pop); Gum Trip: its gum meter. */
             u8 arena = world && (view.game->mode == GAME_MODE_ARENA || view.game->mode == GAME_MODE_ARCADE);
-            gum_step(arena || (trip && game_trip_ready(view.game)), trip ? view.game->trip.gum : GUM_MAX, (trip || arena) ? view.game->frame : 0, g_gum_pose.drawn, g_gum_pose.frame, g_gum_pose.flip, g_gum_pose.cx, g_gum_pose.top);
+            gum_step(arena || (trip && game_trip_ready(view.game)), trip ? view.game->trip.gum : GUM_MAX, (trip || arena) ? view.game->frame : 0, g_gum_pose[0].drawn, g_gum_pose[0].frame, g_gum_pose[0].flip, g_gum_pose[0].cx, g_gum_pose[0].top);
             {   /* the splash starts from the same crossing that plays the splosh sound; it keeps running through Game Over */
                 const SoundEvents *se = sound_events();
                 const Game *sg = view.game;   /* Gum Trip: its own floor death starts the gum splat (the splosh edge needs a water or lava kind) */

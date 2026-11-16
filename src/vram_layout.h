@@ -102,6 +102,8 @@ _Static_assert(ATTRACT_PAL_SLOT < 16, "fix layer palettes are 4 bits: the overla
 #define ATTRACT_FIX_BASE 0x400 /* first fix tile of the overlay icons: right after the 1024-tile font in the S-ROM (tools/build_attract_icons.py --fix-base) */
 #define RESFX_PAL_SLOT (ARCADE_PAL_SLOT + ARCADE_PALETTE_COUNT) /* palette p = resfx palette p (RESFX_ANIM_* order: bubble, wheel, crank, glass, ticket) */
 #define CHUTE_PAL_SLOT (RESFX_PAL_SLOT + RESFX_PALETTE_COUNT) /* palette p = chute palette p (0 player, 1 computer) */
-_Static_assert(CHUTE_PAL_SLOT + CHUTE_PALETTE_COUNT <= 256, "palette slots exceed the 256 the hardware has");
+#define SOOT_P2_PAL_SLOT (CHUTE_PAL_SLOT + CHUTE_PALETTE_COUNT) /* player 2: sootling_extra_palettes[0], the sun yellow swap of the player palette (hero shading kept) */
+#define CHUTE_P2_PAL_SLOT (SOOT_P2_PAL_SLOT + 1) /* player 2 parachute: chute_extra_palettes[0] */
+_Static_assert(CHUTE_P2_PAL_SLOT + 1 <= 256, "palette slots exceed the 256 the hardware has");
 
 #endif
