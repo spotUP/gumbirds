@@ -59,15 +59,19 @@ int vq_scb_run(VramQueue *q, u16 addr, u16 mod, const u16 *vals, u8 n) {
     const unsigned step = mod;
     u16 *hw = &q->scb_hw[i];
     u8 *valid = &q->scb_valid[i];
-    const u16 *v = vals, *const vend = vals + n, *fp = 0, *lp = 0;
-    for (; v != vend; v++, hw += step, valid += step) {
-        if (*hw == *v && *valid) continue;
+    /* Two loops, so no first/last flag is tested per word: gcc kept fp/lp and the strides on the stack in the single loop,
+     * about 150 cycles per changed word, 9 scanlines for the island SCB4 run alone (vblank-demo.md Part 7). */
+    const u16 *v = vals, *const vend = vals + n, *fp, *lp;
+    for (; v != vend; v++, hw += step, valid += step)
+        if (*hw != *v || !*valid) break;
+    if (v == vend) return 1;
+    fp = v;
+    do {
         *hw = *v;
         *valid = 1;
-        if (!fp) fp = v;
         lp = v;
-    }
-    if (!fp) return 1;
+        do { v++; hw += step; valid += step; } while (v != vend && *hw == *v && *valid);
+    } while (v != vend);
     int first = (int)(fp - vals), last = (int)(lp - vals);
     u16 a = (u16)(addr + (u16)first * mod);
     u8 words = (u8)(last - first + 1);

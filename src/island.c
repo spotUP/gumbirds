@@ -103,7 +103,7 @@ static void show_cols(u16 first, u8 n, const StagePlatform *p) {
 }
 
 static void place(int cam_px) {
-    u8 moved = 0;
+    u8 lo = ISLAND_COUNT, hi = 0; /* slots whose SCB4 word was written: the run covers only them (the unused tail slots cost a walk each) */
     if (cam_px == g_placed_cam) return;
     g_placed_cam = cam_px;
     for (int i = 0; i < STAGE_PLATFORM_COUNT; i++) {
@@ -125,14 +125,16 @@ static void place(int cam_px) {
                     if (!shown) show0 = slot;
                     shown++;
                 }
-                g_scb4[slot - ISLAND_SPRITE] = gfx_scb4_word(sx);
-                moved = 1;
+                u8 s = (u8)(slot - ISLAND_SPRITE);
+                g_scb4[s] = gfx_scb4_word(sx);
+                if (s < lo) lo = s;
+                if (s > hi) hi = s;
             }
             *last = (s16)sx;
         }
         if (shown) show_cols(show0, shown, p);
     }
-    if (moved) gfx_scb_run((u16)(ADDR_SCB4 + ISLAND_SPRITE), 1, g_scb4, ISLAND_COUNT); /* one run op, not one per word */
+    if (lo <= hi) gfx_scb_run((u16)(ADDR_SCB4 + ISLAND_SPRITE + lo), 1, &g_scb4[lo], (u8)(hi - lo + 1)); /* one run op, not one per word */
 }
 
 void island_autoanim_baseline(void) { gfx_autoanim_speed(ISLAND_STEP_FRAMES); }
