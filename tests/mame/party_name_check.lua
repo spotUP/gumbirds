@@ -54,6 +54,8 @@ emu.register_frame_done(function()
   elseif phase == "join" then
     if k == 5 then coin:set_value(1) end
     if k == 20 then coin:set_value(0) end
+    local xc = tonumber(os.getenv("BRAWL_EXTRA_COINS") or "3") -- credits left in the machine at game end
+    if xc > 0 and k >= 30 and k < 30 + 20 * xc then coin:set_value(((k - 30) % 20) < 8 and 1 or 0) end
     start2:set_value((k >= 110 and k < 125) and 1 or 0)
     if k == 300 then
       if state ~= K.playing then finish(false, "not playing after join, state " .. state) return end
