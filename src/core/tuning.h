@@ -296,6 +296,9 @@
 #endif
 
 /* Arena scoring (design 3.3, NOT IN REFERENCE, placeholders for the user to tune). */
+#ifndef ROOST_TARGET_SCORE
+#define ROOST_TARGET_SCORE 5000 /* Roost Rule match: first bird to this score wins (owner 2026-11-16). Host run, 8 seeds, human parked, 5 min: the leading computer bird scores 400..2400 per minute (median ~1300), so 5000 is about 3.8 min; a contesting human slows it. */
+#endif
 #ifndef SCORE_ROOST_TICK
 #define SCORE_ROOST_TICK 100 /* Roost Rule: a sole stander on the roost, per tick */
 #endif

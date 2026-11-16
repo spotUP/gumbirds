@@ -35,7 +35,7 @@ local function finish(ok, msg)
 end
 if not (coin and start1 and start2) then finish(false, "missing ports") end
 
-local n, phase, t0, timer0, score0, ticks0 = 0, "boot", 0, 0, 0, 0
+local n, phase, t0, timer0, score0, ticks0, t1 = 0, "boot", 0, 0, 0, 0, 0
 local px, py, pw = 0, 0, 0
 local function press(f, k, from) f:set_value((k >= from and (k - from) < 15) and 1 or 0) end
 emu.register_frame_done(function()
@@ -54,11 +54,14 @@ emu.register_frame_done(function()
     if k >= 110 then press(start2, k, 110) end
     if k == 400 then
       if b(O.players) ~= 2 or b(O.rule) ~= K.roost then finish(false, "players " .. b(O.players) .. " rule " .. b(O.rule) .. " after join, want 2 and " .. K.roost) return end
-      local t = w16(O.timer)
-      if b(O.idx) >= K.plats or t == 0 or t >= K.frames then finish(false, "roost idx " .. b(O.idx) .. " timer " .. t .. ", want idx < " .. K.plats .. " and 0 < timer < " .. K.frames) return end
-      timer0 = t
     end
-    if k == 460 then
+    -- the how-to demo and the long round banner come first (timer stays at K.frames); the round then counts down
+    if k > 400 and timer0 == 0 and w16(O.timer) < K.frames then
+      if b(O.idx) >= K.plats or w16(O.timer) == 0 then finish(false, "roost idx " .. b(O.idx) .. " timer " .. w16(O.timer) .. ", want idx < " .. K.plats .. " and 0 < timer < " .. K.frames) return end
+      timer0 = w16(O.timer); t1 = k
+    end
+    if k > 3000 and timer0 == 0 then finish(false, "roost timer never left " .. K.frames) return end
+    if timer0 > 0 and k == t1 + 60 then
       if w16(O.timer) >= timer0 then finish(false, "roost timer not counting down: " .. timer0 .. " -> " .. w16(O.timer)) return end
       phase = "stand"; t0 = n
     end

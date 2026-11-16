@@ -43,7 +43,7 @@ static void no_cpus(void) { /* cpu_count 0 would restart the match, so park ever
 }
 
 int main(void) {
-    int i, prev, ok;
+    int i, prev, ok, lives0;
     start();
     CHECK(g.mode == GAME_MODE_ARENA && g.party_rule == PARTY_ROOST);
     CHECK(stage_platforms[g.roost.idx].w > 0);
@@ -121,6 +121,26 @@ int main(void) {
         for (i = 0; i < 20; i++) game_step(&g, 0);
         CHECK(g.score == before);
     }
+
+    /* the match ends on the target score: over is set, the winner is the bird that reached it, no life is lost */
+    start();
+    lives0 = g.lives[0].lives;
+    no_cpus();
+    g.roost.total[0] = ROOST_TARGET_SCORE / SCORE_ROOST_TICK - 1;
+    stand(&g.hero[0], 0);
+    for (i = 0; i < ROOST_TICK_FRAMES + 2 && !g.over; i++) game_step(&g, 0);
+    CHECK(g.over && g.round_winner == BANNER_P1 && g.lives[0].lives == lives0);
+    {
+        uint8_t frozen = g.roost.total[0];
+        for (i = 0; i < ROOST_TICK_FRAMES * 2; i++) game_step(&g, 0);
+        CHECK(g.over && g.roost.total[0] == frozen);
+    }
+
+    /* a computer-only race ends the match within a bounded stretch, and no life is lost */
+    start();
+    lives0 = g.lives[0].lives;
+    for (i = 0; i < 60000 && !g.over; i++) { away(&g.hero[0]); game_step(&g, 0); }
+    CHECK(g.over && g.round_winner == BANNER_CPU && g.lives[0].lives == lives0);
 
     printf("roost: %d checks, %d failures\n", checks, failures);
     return failures ? 1 : 0;

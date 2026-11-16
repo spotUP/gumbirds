@@ -145,6 +145,7 @@ void game_set_mode(Game *g, uint8_t mode)
 {
     g->party_rule = PARTY_NONE;
     g->roost.last = 0xFF;
+    for (int i = 0; i < ROOST_FIGHTERS; i++) g->roost.total[i] = 0;
     g->mode = mode == GAME_MODE_TRIP || mode == GAME_MODE_ARCADE ? mode : GAME_MODE_ARENA;
     if (g->mode == GAME_MODE_ARCADE) {
         arc_start(&g->arc);
@@ -726,6 +727,10 @@ static void roost_step(Game *g)
             int slot = who < g->players ? who : HUMANS + (who - g->players);
             g->roost.acc = 0;
             g->roost.ticks[slot]++;
+            if (++g->roost.total[slot] * SCORE_ROOST_TICK >= ROOST_TARGET_SCORE) { /* first to the target wins the match, through the normal game-over */
+                g->round_winner = (uint8_t)(slot < HUMANS ? (slot == 0 ? BANNER_P1 : BANNER_P2) : BANNER_CPU);
+                g->over = 1;
+            }
             if (who < g->players) { g->roost.paying = 1; score_add_h(g, who, SCORE_ROOST_TICK); g->roost.paying = 0; }
         }
     } else {
