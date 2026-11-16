@@ -14,6 +14,7 @@ local L = {}
 for v in (os.getenv("BRAWL_COOP_LAYOUT") or ""):gmatch("%d+") do L[#L + 1] = tonumber(v) end
 local O = { flow = L[1], players = L[2], hstate = L[3], hy = L[4], szf = L[5], szl = L[6], lstate = L[7], mode = L[9] }
 local K = { playing = L[12], alive = L[13], chute = L[14], gone = L[15], life_play = L[16], arcade = L[17] }
+local P2 = { bal = L[22], spr = L[23] }
 local PAL = { soot = L[18], soot2 = L[19], chute = L[20], chute2 = L[21] }
 local CREDIT = 0x10fe00
 local mem = manager.machine.devices[":maincpu"].spaces["program"]
@@ -114,6 +115,10 @@ emu.register_frame_done(function()
     if k == 40 then
       local st = hero1(O.hstate)
       if st ~= K.alive then finish(false, "hero[1] state " .. st .. " after P2 flap, want ALIVE " .. K.alive) return end
+      -- C2b. P2 keeps its 2 balloons and the body sprite (pool object POOL_MAX - 2) shows a sheet tile in the P2 palette slot
+      if hero1(P2.bal) ~= 2 then finish(false, "hero[1] balloons " .. hero1(P2.bal) .. " after the chute, want 2") return end
+      local tile, attr = fix[P2.spr * 64] or 0, fix[P2.spr * 64 + 1] or 0
+      if tile < 0x728 or (attr >> 8) ~= PAL.soot2 then finish(false, string.format("P2 body sprite %d tile %x attr %x, want a sheet tile in palette slot %d", P2.spr, tile, attr, PAL.soot2)) return end
       phase = "refuse"; t0 = n
     end
   elseif phase == "refuse" then
