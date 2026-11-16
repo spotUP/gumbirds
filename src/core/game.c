@@ -497,10 +497,10 @@ void game_step_arena(Game *g, uint8_t input)
         sitting = g->pump[i].state == ARC_PUMP_STANDING;
         if (sitting && c->state != FLIER_ALIVE) g->pump[i].state = ARC_PUMP_FLYING; /* killed while standing: no pump */
         arc_pump_step(&g->pump[i]);
-        if (sitting && arc_pump_in_window(&g->pump[i])) {
-            /* Re-pump window opens: full gum now, so the window plays exactly as at stage start (pump frame drawn, rivals
-               bounce off, the player's touch defeats it through pump_defeat); it lifts off with it at window end. */
-            while (c->balloons < FLIER_START_BALLOONS && flier_add_balloon(c)) {}
+        if (arc_pump_in_window(&g->pump[i]) && c->balloons < FLIER_START_BALLOONS) {
+            /* Re-pump window (user decision 2026-11-16): the gum grows with the pump stages, one gum inside the window, the second
+               only at window end (a stage-start window always holds full gum, so it never takes this branch). */
+            if (c->balloons == 0) flier_add_balloon(c); /* one gum (never none: the player's touch needs gum to pop through pump_defeat) */
         }
         sitting = sitting || pumping;
         if (sitting) {
@@ -524,6 +524,7 @@ void game_step_arena(Game *g, uint8_t input)
         arena_flier_step(g, c, &ci);
         if (g->mode == GAME_MODE_ARCADE) arc_element_apply(&g->elems, c);
         if (pumping && !arc_pump_in_window(&g->pump[i])) {
+            while (c->balloons < FLIER_START_BALLOONS && flier_add_balloon(c)) {} /* full gum at window end */
             c->vy = FLIER_GROUND_JUMP_VY; /* lift-off: one upward impulse, no sideways speed */
             c->vx = 0;
             c->on_ground = 0;

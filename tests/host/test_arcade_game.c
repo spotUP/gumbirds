@@ -61,7 +61,7 @@ static void away_step(Game *g) {
    defeats it; a rival popped while standing takes the same path. Arena mode keeps no parachute and no re-pump. */
 static void repump_tests(void) {
     static Game g;
-    int n, rank, stand;
+    int n, rank, stand, last;
     uint32_t s0;
     game_reset(&g, 7); game_set_mode(&g, GAME_MODE_ARCADE); g.arc.stage = 3;
     game_step(&g, 0);
@@ -79,8 +79,11 @@ static void repump_tests(void) {
         if (g.pump[0].state == ARC_PUMP_STANDING) CHECK(g.cpu[0].x == x && g.cpu[0].on_ground && g.cpu[0].balloons == 0); /* no AI flap or steer */
     }
     CHECK(stand == ARC_REPUMP_STAND_FRAMES && arc_pump_in_window(&g.pump[0]) && g.pump[0].rank == rank);
-    for (n = 0; arc_pump_in_window(&g.pump[0]) && n < 400; n++) away_step(&g);
-    CHECK(n == arc_rank(rank)->pump_frames && g.pump[0].state == ARC_PUMP_FLYING && g.pump[0].rank == rank);
+    for (n = 0, last = 0; arc_pump_in_window(&g.pump[0]) && n < 400; n++) {
+        away_step(&g);
+        if (arc_pump_in_window(&g.pump[0])) { CHECK(g.cpu[0].balloons >= last && g.cpu[0].balloons < FLIER_START_BALLOONS); last = g.cpu[0].balloons; } /* grows, never full inside the window */
+    }
+    CHECK(last == 1 && n == arc_rank(rank)->pump_frames && g.pump[0].state == ARC_PUMP_FLYING && g.pump[0].rank == rank);
     CHECK(g.cpu[0].state == FLIER_ALIVE && g.cpu[0].balloons == FLIER_START_BALLOONS && g.cpu[0].vy < 0 && !g.cpu[0].on_ground);
     /* popped while standing: same stand, then a level touch in the window defeats it at the rank's defeat score */
     g.cpu[0].x = FL_PX(stage_spawns[0].x); g.cpu[0].y = FL_PX(stage_spawns[0].y); g.cpu[0].vx = 0; g.cpu[0].vy = 0;
