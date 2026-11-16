@@ -95,6 +95,8 @@ emu.register_frame_done(function() local ok_, err_ = pcall(function()
         P_ART_W, P_ART_H, P_TILES, P_SPRITE_W, P_BOX_DX, SPEC.art_w, SPEC.art_h, SPEC.tiles, SPEC.sprite_w, SPEC.box_dx)) return
     end
     if scount ~= SPEC.tiles then finish(false, string.format("g_soot_range tile count %d, spec %d", scount, SPEC.tiles)) return end
+    -- the entry hold (src/main.c g_bg_hold) keeps the hero hidden (tile sentinel 0) for the first PLAYING frames: wait for the first draw
+    if mem:read_u16(soot_addr + 6) == 0 then return end
     phase = "settle"; tick = 0
     return
   end
