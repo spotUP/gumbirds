@@ -256,11 +256,30 @@ static int human_xs(const Game *g, int32_t *humans)
     return n;
 }
 
+/* Co-op soft wall: with two humans alive, neither leaves the screen margins; velocity into the edge is zeroed. This is what
+ * keeps the pair within one screen, so camera_step's arc-switch (an arc over 272 px cannot fit) never happens in play. */
+static void coop_wall(Game *g)
+{
+    int h, live = 0;
+    int32_t cam = (int32_t)camera_px(&g->camera) * 65536, lo = (int32_t)CAM_EDGE_MARGIN_PX * 65536, hi = (int32_t)(SCREEN_W - CAM_EDGE_MARGIN_PX) * 65536;
+    for (h = 0; h < g->players; h++) live += g->hero[h].state < FLIER_DROWNED;
+    if (live < 2) return;
+    for (h = 0; h < g->players; h++) {
+        Flier *f = &g->hero[h];
+        int32_t r;
+        if (f->state >= FLIER_DROWNED) continue;
+        r = arena_near_x(cam + (int32_t)(SCREEN_W / 2) * 65536, f->x) - cam;
+        if (r < lo) { if (f->vx < 0) f->vx = 0; f->x = arena_wrap_x(f->x + (lo - r)); }
+        else if (r > hi) { if (f->vx > 0) f->vx = 0; f->x = arena_wrap_x(f->x - (r - hi)); }
+    }
+}
+
 static void camera_follow(Game *g)
 {
     int32_t humans[HUMANS];
     int n = human_xs(g, humans);
     camera_step(&g->camera, humans, n);
+    coop_wall(g);
 }
 
 /* Arena and arcade share the round phases (pan, ROUND/STAGE banner, frozen hazards). */
