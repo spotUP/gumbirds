@@ -282,6 +282,33 @@ int main(void) {
         CHECK(bad == 0);
     }
 
+    /* AI_HOLD (Roost Rule): steers to the mark, never flaps standing on it, flaps standing far from it, flaps low in the air, no thinks. */
+    {
+        Ai h; Rng hr; FlierInput in = { 0, 0 }; Flier me, mark;
+        rng_seed(&hr, 3);
+        ai_init(&h, &hr, 1);
+        h.hold = 1;
+        mark = mk(200, 100, 2);
+        me = mk(200, 100, 2); me.on_ground = 1;
+        ai_step(&h, &hr, &me, &mark, &in);
+        CHECK(in.flap == 0 && in.dir == 0 && h.state == AI_HOLD && h.thinks == 0); /* standing on the mark: still */
+        me = mk(100, 100, 2); me.on_ground = 1;
+        ai_step(&h, &hr, &me, &mark, &in);
+        CHECK(in.dir == 1 && in.flap == 1); /* standing far left: heads right and jumps */
+        me = mk(300, 100, 2); me.on_ground = 1;
+        ai_step(&h, &hr, &me, &mark, &in);
+        CHECK(in.dir == -1);
+        me = mk(205, 130, 2); /* airborne near the mark, below it */
+        ai_step(&h, &hr, &me, &mark, &in);
+        CHECK(in.flap == 1);
+        me = mk(205, 90, 2); /* airborne near, above the mark: drops */
+        ai_step(&h, &hr, &me, &mark, &in);
+        CHECK(in.flap == 0);
+        me = mk(205, 90, 2); me.flap_cd = 3; /* cooldown still holds the flap back */
+        ai_step(&h, &hr, &me, &mark, &in);
+        CHECK(in.flap == 0);
+    }
+
     printf("ai: %d checks, %d failures\n", checks, failures);
     return failures ? 1 : 0;
 }

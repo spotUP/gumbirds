@@ -131,6 +131,25 @@ static void arena_digest(void)
     }
 }
 
+/* Roost Rule part: the hero stands on the roost for a stretch, so SCORE_ROOST_TICK shows in the score. */
+static void roost_digest(void)
+{
+    static Game g;
+    uint32_t f;
+    game_reset(&g, 11);
+    game_set_mode(&g, GAME_MODE_ARENA);
+    g.party_rule = PARTY_ROOST;
+    for (f = 0; f < 900u; f++) {
+        if (g.round_start == RS_NONE && g.roost.idx < STAGE_PLATFORM_COUNT) {
+            const StagePlatform *p = &stage_platforms[g.roost.idx];
+            g.hero[0].x = FL_PX(p->x + p->w / 2); g.hero[0].y = FL_PX(p->y) - flier_half_h(&g.hero[0]);
+            g.hero[0].vx = 0; g.hero[0].vy = 0; g.hero[0].on_ground = 1; g.hero[0].state = FLIER_ALIVE;
+        }
+        game_step(&g, 0);
+        mix(g.score); mix(g.roost.ticks[0]); mix(g.roost.timer);
+    }
+}
+
 /* Arcade part: a rank 2 stage with a flier left to fall, so the rank AI think period and the lives knob show; 600 frames per life.
  * A second pass on stage 4 (a platform overhead of the rivals) keeps AI_OVERHEAD_PX visible. */
 static void arcade_pass(int stage)
@@ -388,6 +407,7 @@ int main(void)
     rival_probe();
     ai_probe();
     arena_digest();
+    roost_digest();
     arcade_digest();
     spawn_digest();
     flier_physics_digest();

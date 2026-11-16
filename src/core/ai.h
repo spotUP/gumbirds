@@ -16,7 +16,14 @@
 #include "rng.h"
 #include "flier.h"
 
-typedef enum { AI_FILL = 0, AI_FLEE, AI_CHASE } AiState;
+/* AI_HOLD (PARTY Roost Rule): with Ai.hold set, ai_step skips the thinks and flies to the target (the roost mark), then stands on it.
+ * It flaps only while far from the target in x, or below it in the air, and never while standing on the island. */
+typedef enum { AI_FILL = 0, AI_FLEE, AI_CHASE, AI_HOLD } AiState;
+#define AI_HOLD_NEAR_PX 24    /* x distance under which the holder drops onto the island instead of cruising */
+#define AI_HOLD_STEER_MIN 3   /* x dead zone: it stops steering when this close to the mark */
+#define AI_HOLD_CRUISE_PX 24  /* far: flap while the mark is less than this far below (the holder cruises above it) */
+#define AI_HOLD_LAND_PX 2     /* near, airborne: flap only when more than this below the mark */
+#define AI_HOLD_LIFT_PX 4     /* standing: jump when the mark is higher than this */
 
 typedef struct {
     uint8_t state;    /* AiState */
@@ -24,6 +31,7 @@ typedef struct {
     int8_t dir;       /* held between thinks */
     uint32_t thinks;  /* think count (test sentinel) */
     int8_t think_cut;/* frames shaved off every think period by the rank; negative = slower than the arena value (party Slow Thinkers) */
+    uint8_t hold;     /* 1 = AI_HOLD: fly to the target and stand on it (set by game.c for the Roost Rule holder) */
 } Ai;
 
 /* rank 1 is the arena AI; higher arcade ranks (arcade.h) think sooner. */

@@ -75,6 +75,10 @@ $CC -o "$OUT/test_arena2p" "$HERE/test_arena2p.c" $SRC -lm >"$OUT/build.log" 2>&
 nice -n 19 "$OUT/test_arena2p" >"$OUT/test_arena2p.log" 2>&1 || fail=1
 tail -n 1 "$OUT/test_arena2p.log"; grep FAIL "$OUT/test_arena2p.log" | head -n 10
 
+$CC -o "$OUT/test_roost" "$HERE/test_roost.c" $SRC -lm >"$OUT/build.log" 2>&1 || { echo "[ERROR] roost build failed"; tail -n 20 "$OUT/build.log"; exit 1; }
+nice -n 19 "$OUT/test_roost" >"$OUT/test_roost.log" 2>&1 || fail=1
+tail -n 1 "$OUT/test_roost.log"; grep FAIL "$OUT/test_roost.log" | head -n 10
+
 $CC -o "$OUT/test_ai" "$HERE/test_ai.c" $SRC -lm >"$OUT/build.log" 2>&1 || { echo "[ERROR] ai build failed"; tail -n 20 "$OUT/build.log"; exit 1; }
 nice -n 19 "$OUT/test_ai" >"$OUT/test_ai.log" 2>&1 || fail=1
 tail -n 1 "$OUT/test_ai.log"; grep FAIL "$OUT/test_ai.log" | head -n 10

@@ -296,6 +296,9 @@
 #endif
 
 /* Arena scoring (design 3.3, NOT IN REFERENCE, placeholders for the user to tune). */
+#ifndef SCORE_ROOST_TICK
+#define SCORE_ROOST_TICK 100 /* Roost Rule: a sole stander on the roost, per tick */
+#endif
 #ifndef SCORE_STOMP_POP
 #define SCORE_STOMP_POP 500 /* player stomp pops a computer balloon */
 #endif
