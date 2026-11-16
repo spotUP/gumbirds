@@ -48,8 +48,12 @@ enum { GAME_MOOD_MOON, GAME_MOOD_DUSK, GAME_MOOD_STORM, GAME_MOOD_COUNT, BG_MOOD
 typedef enum {
     GAME_MODE_ARENA = 0,
     GAME_MODE_TRIP,
-    GAME_MODE_ARCADE
+    GAME_MODE_ARCADE,
+    GAME_MODE_PARTY /* title row and score table index only: game_set_mode plays it as arena, party_rule carries the rule */
 } GameMode;
+
+/* PARTY rules (Left/Right on the PARTY title row). PARTY_NONE = not a party game. Order = on-screen cycle order. */
+enum { PARTY_NONE = 0, PARTY_ROUND, PARTY_ROOST, PARTY_HOT, PARTY_ROULETTE, PARTY_RULE_COUNT };
 
 /* Round end (arena, real game): HOLD shows the banner for MATCH_END_FRAMES, PAN slides the camera back to the spawn with
  * the flier hidden, then the next round starts. Zero is RE_NONE so game_reset needs no init. */
@@ -62,7 +66,8 @@ typedef struct {
     uint32_t frame;      /* frames since reset */
     uint32_t distance;   /* 8.8 pixels travelled */
     uint32_t score;      /* total score: stomps, drowned and defeated computer fliers, match bonuses */
-    uint8_t mode;        /* GameMode; ARENA after game_reset */
+    uint8_t mode;        /* GameMode; ARENA after game_reset (PARTY runs as ARENA) */
+    uint8_t party_rule;  /* PARTY_NONE unless a PARTY game; set by flow after game_set_mode, unused by gameplay in phase 0 */
     uint8_t mood;        /* background mood (GAME_MOOD_*) the screen shows; game_reset keeps it, game_next_mood changes it */
     uint8_t over;        /* 1 when the player flier is DROWNED or GONE */
     uint8_t players;     /* 1 or 2 humans in play (game_reset sets 1) */

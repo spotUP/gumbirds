@@ -1,5 +1,6 @@
 #include "score_table.h"
 #include "flow.h"
+#include "game.h"
 
 static void copy(void *dst, const void *src, size_t n)
 {
@@ -55,11 +56,22 @@ static void arcade_defaults(HiscoreTable *t)
     }
 }
 
+static void party_defaults(ScoreTables *s)
+{
+    int i;
+    for (i = 0; i < HISCORE_ENTRIES; i++) {
+        copy(s->t[3].name[i], "PARTY   ", HISCORE_NAME_LEN);
+        s->t[3].score[i] = SCORE_ARCADE_DEFAULT_TOP - (uint32_t)i * SCORE_ARCADE_DEFAULT_STEP;
+        s->party_rule[i] = 0;
+    }
+}
+
 void score_tables_defaults(ScoreTables *s)
 {
     hiscore_defaults(&s->t[0]);
     trip_defaults(&s->t[1]);
     arcade_defaults(&s->t[2]);
+    party_defaults(s);
 }
 
 static int table_valid(const HiscoreTable *t)
@@ -95,15 +107,26 @@ int score_qualifies(const ScoreTables *s, unsigned mode, uint32_t score)
     return score > s->t[mode].score[HISCORE_ENTRIES - 1];
 }
 
-int score_insert(ScoreTables *s, unsigned mode, const char *name, uint32_t score)
+int score_insert_rule(ScoreTables *s, unsigned mode, const char *name, uint32_t score, uint8_t rule)
 {
+    int row, i;
     if (mode >= SCORE_MODES) {
         return -1;
     }
     if (score > SCORE_CAP) {
         score = SCORE_CAP;
     }
-    return hiscore_insert(&s->t[mode], name, score);
+    row = hiscore_insert(&s->t[mode], name, score);
+    if (row >= 0 && mode == 3) {
+        for (i = HISCORE_ENTRIES - 1; i > row; i--) s->party_rule[i] = s->party_rule[i - 1];
+        s->party_rule[row] = rule;
+    }
+    return row;
+}
+
+int score_insert(ScoreTables *s, unsigned mode, const char *name, uint32_t score)
+{
+    return score_insert_rule(s, mode, name, score, 0);
 }
 
 int score_entry(const ScoreTables *s, unsigned mode, unsigned row, char *name8, uint32_t *score)
@@ -139,6 +162,8 @@ size_t score_serialise(const ScoreTables *s, uint8_t *buf, size_t cap)
             p += HISCORE_NAME_LEN + 4;
         }
     }
+    copy(p, s->party_rule, HISCORE_ENTRIES);
+    p += HISCORE_ENTRIES;
     put32(p, fnv1a(buf, SCORE_IMAGE_SIZE - 4));
     return SCORE_IMAGE_SIZE;
 }
@@ -156,6 +181,10 @@ static int read_tables(ScoreTables *s, const uint8_t *p, unsigned modes)
             p += HISCORE_NAME_LEN + 4;
         }
     }
+    if (modes == SCORE_MODES) {
+        copy(s->party_rule, p, HISCORE_ENTRIES);
+        for (i = 0; i < HISCORE_ENTRIES; i++) if (s->party_rule[i] >= PARTY_RULE_COUNT) return 0;
+    }
     return score_tables_valid(s);
 }
 
@@ -169,6 +198,11 @@ int score_load(ScoreTables *s, const uint8_t *buf, size_t len)
         get32(buf + SCORE_IMAGE_SIZE - 4) == fnv1a(buf, SCORE_IMAGE_SIZE - 4)) {
         if (read_tables(s, buf + 6, SCORE_MODES)) {
             return 1;
+        }
+    } else if (ver == SCORE_VERSION_3 && len >= SCORE_IMAGE_SIZE_3 &&
+               get32(buf + SCORE_IMAGE_SIZE_3 - 4) == fnv1a(buf, SCORE_IMAGE_SIZE_3 - 4)) {
+        if (read_tables(s, buf + 6, 3)) {
+            return 4;
         }
     } else if (ver == SCORE_VERSION_2 && len >= SCORE_IMAGE_SIZE_2 &&
                get32(buf + SCORE_IMAGE_SIZE_2 - 4) == fnv1a(buf, SCORE_IMAGE_SIZE_2 - 4)) {
