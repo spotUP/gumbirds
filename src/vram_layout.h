@@ -24,6 +24,7 @@
 #include "gen/arcade_sprites.h"
 #include "gen/resfx_sprites.h"
 #include "gen/chute_sprites.h"
+#include "gen/gumbubble_sprites.h"
 
 /* The ngdevkit logo tile block that opens the C-ROM (assets/base-crom-logo); the title logo (gen/logo_sprites.h, LOGO_TILE_COUNT) sits last. */
 #define BASE_LOGO_TILE_COUNT 256
@@ -80,6 +81,8 @@ _Static_assert((ARCADE_TILE_BASE & 7) == 0, "arcade tile base is not 8-aligned")
 _Static_assert((RESFX_TILE_BASE & 7) == 0, "result sprite tile base is not 8-aligned");
 #define CHUTE_TILE_BASE (RESFX_TILE_BASE + RESFX_TILE_COUNT) /* parachute sprites (tools/make_chute_sheet.py), last in CROM_SETS */
 _Static_assert((CHUTE_TILE_BASE & 7) == 0, "parachute tile base is not 8-aligned");
+#define GUMBUBBLE_TILE_BASE (CHUTE_TILE_BASE + CHUTE_TILE_COUNT) /* Hot Gum bubble B (assets/gum_bubble), last in CROM_SETS */
+_Static_assert((GUMBUBBLE_TILE_BASE & 7) == 0, "gum bubble tile base is not 8-aligned");
 
 #define FIX_PAL_COUNT FIXFONT_PAL_COUNT /* fix palettes 0..4: white, pink, lime, gold, dim (build/gen/fix_font.h) */
 #define ATTRACT_PAL_SLOT FIX_PAL_COUNT /* one palette: the attract overlay icons (build/gen/attract_icons.h). Fix tiles hold a 4-bit palette, so it must sit in slots 0..15, never after the sprite palettes */
@@ -104,6 +107,7 @@ _Static_assert(ATTRACT_PAL_SLOT < 16, "fix layer palettes are 4 bits: the overla
 #define CHUTE_PAL_SLOT (RESFX_PAL_SLOT + RESFX_PALETTE_COUNT) /* palette p = chute palette p (0 player, 1 computer) */
 #define SOOT_P2_PAL_SLOT (CHUTE_PAL_SLOT + CHUTE_PALETTE_COUNT) /* player 2: sootling_extra_palettes[0], the sun yellow swap of the player palette (hero shading kept) */
 #define CHUTE_P2_PAL_SLOT (SOOT_P2_PAL_SLOT + 1) /* player 2 parachute: chute_extra_palettes[0] */
-_Static_assert(CHUTE_P2_PAL_SLOT + 1 <= 256, "palette slots exceed the 256 the hardware has");
+#define GUMBUBBLE_PAL_SLOT (CHUTE_P2_PAL_SLOT + 1) /* one palette: gum bubble B */
+_Static_assert(GUMBUBBLE_PAL_SLOT + GUMBUBBLE_PALETTE_COUNT <= 256, "palette slots exceed the 256 the hardware has");
 
 #endif
