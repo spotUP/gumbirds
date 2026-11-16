@@ -261,6 +261,7 @@ static void hero_show(const Game *g, int cam_px) {
  */
 _Static_assert(POOL_SPRITE_COUNT == POOL_SPRITES, "pool sprite range size");
 _Static_assert(GUM_SPRITE + GUM_COUNT <= SPLASH_SPRITE && SPLASH_SPRITE + SPLASH_COUNT <= GUM_P2_SPRITE && GUM_P2_SPRITE + GUM_COUNT <= ISLAND_SPRITE, "player 2 gum sprites overlap the splash or the islands");
+_Static_assert(GUM_P2_SPRITE + GUM_COUNT <= ROOST_SPRITE && ROOST_SPRITE + ROOST_COUNT <= ISLAND_SPRITE, "roost marker sprites overlap the gum bubbles or the islands");
 _Static_assert(BG_SPRITE_END <= GUM_SPRITE && GUM_SPRITE + GUM_COUNT <= ISLAND_SPRITE, "gum sprites overlap the background or the islands");
 _Static_assert(ISLAND_SPRITE + ISLAND_COUNT <= POOL_SPRITE_BASE, "island sprites overlap the object pool");
 /* Player 2 draws from the last two pool objects (body, parachute), claimed in pool_sync_p2; the computer fliers allocate
@@ -847,6 +848,28 @@ static void arcade_bonus_step(const Game *g) {
         if (p) { bonus_piece((u16)(BONUS_PUFF_SPRITE + 2 * k), ARCADE_PIECE_PUFF_FIRST + puff_frame(ARC_BONUS_PUFF_FRAMES - p), x, top - 24); g_bonus_puff_on |= (u8)(1 << k); }
         else if (g_bonus_puff_on & (1 << k)) { obs_hide_slot((u16)(BONUS_PUFF_SPRITE + 2 * k)); obs_hide_slot((u16)(BONUS_PUFF_SPRITE + 2 * k + 1)); g_bonus_puff_on &= (u8)~(1 << k); }
     }
+}
+
+/* Roost Rule marker (PARTY): the bonus bubble art floating over the roost island; g = the playing Game with the rule, or 0 to park it. */
+static const u16 *g_roost_tiles;
+static u8 g_roost_on;
+static void roost_marker_step(const Game *g) {
+    int x, top, w;
+    if (g && game_roost_rect(g, &x, &top, &w)) {
+        int fr = (int)((g->frame >> 2) & (TRIPPICKUP_PICKUP_IDLE_FRAMES - 1));
+        int sx = camera_screen_x(x + w / 2 - 16, g_cam_px, 32);
+        if (camera_visible(sx, 32)) {
+            const TrippickupFrame *f = &trippickup_frames[trippickup_anims[TRIPPICKUP_ANIM_PICKUP_IDLE].first_frame + fr];
+            const u16 *tl = &trippickup_tile_index[f->tile_offset];
+            u16 s3 = gfx_scb3_word(2, top - 40), s4 = gfx_scb4_word(sx);
+            if (g_roost_tiles != tl) { gfx_sprite_strips(ROOST_SPRITE, 2, 2, tl, TRIPPICKUP_TILE_BASE, (u16)(TRIPPICKUP_PAL_SLOT << 8)); g_roost_tiles = tl; }
+            if (!g_roost_on) { gfx_sprite_chain(ROOST_SPRITE, 2); g_roost_on = 1; }
+            gfx_scb_run((u16)(ADDR_SCB3 + ROOST_SPRITE), 1, &s3, 1);
+            gfx_scb_run((u16)(ADDR_SCB4 + ROOST_SPRITE), 1, &s4, 1);
+            return;
+        }
+    }
+    if (g_roost_on) { obs_hide_slot(ROOST_SPRITE); obs_hide_slot(ROOST_SPRITE + 1); g_roost_on = 0; g_roost_tiles = 0; }
 }
 
 /* BIOS_USER_MODE: 1 attract, 2 game in progress (coins then only add credits). */
@@ -1490,8 +1513,8 @@ static void draw(const FlowView *v) {
             if (rs != g_rs_drawn || rn != g_rs_num) {
                 const char *l0 = rs == RS_ROUND ? game_round_start_text(v->game, 0) : 0;
                 if (rs == RS_ROUND && l0) {
-                    gfx_center_text(12, PAL_TEXT, "                  ");
-                    gfx_center_text(13, PAL_TEXT, "                  ");
+                    gfx_center_text(12, PAL_TEXT, "                                      "); /* 38: the goal line is 36 */
+                    gfx_center_text(13, PAL_TEXT, "                                      ");
                     gfx_center_text(12, PAL_TEXT, l0);
                     gfx_center_text(13, PAL_TEXT, game_round_start_text(v->game, 1));
                 } else if (rs == RS_ROUND) {
@@ -1502,8 +1525,8 @@ static void draw(const FlowView *v) {
                     gfx_center_text(13, PAL_TEXT, "           ");
                     gfx_center_text(13, PAL_TEXT, rb);
                 } else if (rs == RS_GO) {
-                    gfx_center_text(12, PAL_TEXT, "                  ");
-                    gfx_center_text(13, PAL_TEXT, "                  ");
+                    gfx_center_text(12, PAL_TEXT, "                                      ");
+                    gfx_center_text(13, PAL_TEXT, "                                      ");
                     gfx_center_text(13, PAL_TEXT, "GO!");
                 } else {
                     gfx_center_text(13, PAL_TEXT, "           ");
@@ -1900,6 +1923,7 @@ static void game_loop(void) {
             /* Arena: the bubble is always full size (no gum value, no pop); Gum Trip: its gum meter. */
             u8 arena = world && (view.game->mode == GAME_MODE_ARENA || view.game->mode == GAME_MODE_ARCADE);
             gum_step(0, arena || (trip && game_trip_ready(view.game)), trip ? view.game->trip.gum : GUM_MAX, (trip || arena) ? view.game->frame : 0, g_gum_pose[0].drawn, g_gum_pose[0].frame, g_gum_pose[0].flip, g_gum_pose[0].cx, g_gum_pose[0].top);
+            roost_marker_step(arena && view.state == FLOW_PLAYING ? view.game : 0);
             gum_step(1, arena && view.game->players == 2, GUM_MAX, view.game->frame, g_gum_pose[1].drawn, g_gum_pose[1].frame, g_gum_pose[1].flip, g_gum_pose[1].cx, g_gum_pose[1].top);
             {   /* the splash starts from the same crossing that plays the splosh sound; it keeps running through Game Over */
                 const SoundEvents *se = sound_events();

@@ -45,7 +45,7 @@ int game_lives_mode(const Game *g)
 
 int game_banner_winner(const Game *g)
 {
-    if (g->mode == GAME_MODE_ARENA && g->players == 2) return g->round_winner;
+    if (g->mode == GAME_MODE_ARENA && (g->players == 2 || g->party_rule == PARTY_ROOST)) return g->round_winner;
     return g->players == 2 && g->last_popper == 1 ? BANNER_P2 : BANNER_P1;
 }
 
@@ -78,21 +78,32 @@ int game_can_join_p2(const Game *g)
            g->cpu_count > 0 && (g->players == 1 || g->lives[1].state == ARC_LIFE_ENDED);
 }
 
+/* A flier drops in on its parachute from the top at world x (the P2 join, and the Roost Rule respawn). It flies out on its first flap. */
+static void chute_drop(Game *g, Flier *f, int32_t x)
+{
+    flier_init(f, x, FL_PX(FLIER_START_JOIN_Y), FLIER_START_BALLOONS, 1);
+    f->state = FLIER_PARACHUTE;
+    flier_spawn_protect(f);
+    flier_set_hazard(f, g->hazard_kind);
+}
+
+/* World x of the screen centre, wrapped into the arena. */
+static int32_t camera_centre_x(const Game *g)
+{
+    int32_t x = g->camera.cam + (int32_t)(SCREEN_W / 2) * 65536;
+    while (x >= ARENA_W16) x -= ARENA_W16;
+    return x;
+}
+
 /* P2 Start in play (a credit was taken): fresh lives, and hero[1] drops in on its parachute from the top at the camera centre.
- * It flies out of the parachute on its first flap (flier_step). Returns 0 when refused (the caller keeps the credit). */
+ * Returns 0 when refused (the caller keeps the credit). */
 int game_join_p2(Game *g)
 {
-    int32_t x;
     if (!game_can_join_p2(g)) return 0;
     if (g->mode == GAME_MODE_ARENA) return 0; /* Arena joins through flow_join_p2: a fresh match */
-    x = g->camera.cam + (int32_t)(SCREEN_W / 2) * 65536;
-    while (x >= ARENA_W16) x -= ARENA_W16;
     g->players = 2;
     arc_lives_start(&g->lives[1]);
-    flier_init(&g->hero[1], x, FL_PX(FLIER_START_JOIN_Y), FLIER_START_BALLOONS, 1);
-    g->hero[1].state = FLIER_PARACHUTE;
-    flier_spawn_protect(&g->hero[1]);
-    flier_set_hazard(&g->hero[1], g->hazard_kind);
+    chute_drop(g, &g->hero[1], camera_centre_x(g));
     return 1;
 }
 
@@ -128,6 +139,7 @@ void game_reset(Game *g, uint32_t seed)
 void game_set_mode(Game *g, uint8_t mode)
 {
     g->party_rule = PARTY_NONE;
+    g->roost.last = 0xFF;
     g->mode = mode == GAME_MODE_TRIP || mode == GAME_MODE_ARCADE ? mode : GAME_MODE_ARENA;
     if (g->mode == GAME_MODE_ARCADE) {
         arc_start(&g->arc);
@@ -177,6 +189,7 @@ static Flier *fighter(Game *g, int i)
 /* Score add: the arcade clamps at SCORE_CAP (FQ10), the other modes add as before. */
 static void score_add(Game *g, uint32_t pts)
 {
+    if (g->party_rule == PARTY_ROOST && !g->roost.paying) return; /* Roost Rule: only the roost ticks score */
     g->score = g->mode == GAME_MODE_ARCADE ? arc_score_add(g->score, pts) : g->score + pts;
 }
 
@@ -184,6 +197,7 @@ static void score_add(Game *g, uint32_t pts)
 static void score_add_h(Game *g, int h, uint32_t pts)
 {
     if (h == 0) score_add(g, pts);
+    else if (g->party_rule == PARTY_ROOST && !g->roost.paying) return;
     else g->lives[h].score = arc_score_add(g->lives[h].score, pts);
 }
 
@@ -222,6 +236,7 @@ void game_next_mood(Game *g)
     g->mood = (uint8_t)m;
 }
 
+static void roost_pick(Game *g);
 static void match_start(Game *g)
 {
     int arcade = g->mode == GAME_MODE_ARCADE;
@@ -257,6 +272,10 @@ static void match_start(Game *g)
             g->cpu[i].state = FLIER_GONE;
         }
         flier_set_hazard(&g->cpu[i], g->hazard_kind);
+    }
+    if (g->party_rule == PARTY_ROOST) {
+        roost_pick(g);
+        g->ai[0].hold = 1; /* the first computer flier contests the island; the others fight as usual */
     }
     if (g->rounds) {
         g->round_start = RS_ROUND; /* round 1 and every round after the pan: ROUND nn, GO!, all frozen */
@@ -340,6 +359,9 @@ int game_banner_flags(const Game *g)
 
 const char *game_round_start_text(const Game *g, int line)
 {
+    if (g->party_rule == PARTY_ROOST && g->mode == GAME_MODE_ARENA) {
+        return line == 0 ? "ROOST RULE" : line == 1 ? "STAND ON THE GLOWING ISLAND TO SCORE" : 0;
+    }
     if (g->mode != GAME_MODE_ARCADE || g->arc.state != ARC_BONUS) {
         return 0;
     }
@@ -569,6 +591,95 @@ static int arc_interlude(Game *g, uint8_t input, uint8_t a_edge)
     return 1;
 }
 
+/* ---- Roost Rule (PARTY_ROOST) ---- */
+
+static int roost_centre_px(const StagePlatform *p) { return p->x + p->w / 2; }
+
+/* Pick this round's roost (never the previous one while another platform exists) and aim the AI target mark at it. */
+static void roost_pick(Game *g)
+{
+    int ok[STAGE_PLATFORM_COUNT], n = 0, i;
+    for (i = 0; i < STAGE_PLATFORM_COUNT; i++) if (stage_platforms[i].w > 0 && i != g->roost.last) ok[n++] = i;
+    if (n == 0) for (i = 0; i < STAGE_PLATFORM_COUNT; i++) if (stage_platforms[i].w > 0) ok[n++] = i;
+    g->roost.idx = (uint8_t)ok[n > 1 ? (int)rng_range(&g->rng, (uint32_t)n) : 0];
+    g->roost.last = g->roost.idx;
+    g->roost.timer = ROOST_ROUND_FRAMES;
+    g->roost.acc = 0;
+    g->roost.sole = 0xFF;
+    g->roost.paying = 0;
+    for (i = 0; i < ROOST_FIGHTERS; i++) g->roost.ticks[i] = 0;
+    flier_init(&g->roost.mark, FL_PX(roost_centre_px(&stage_platforms[g->roost.idx])), 0, FLIER_START_BALLOONS, 0);
+    g->roost.mark.y = FL_PX(stage_platforms[g->roost.idx].y) - flier_half_h(&g->roost.mark);
+}
+
+int game_roost_rect(const Game *g, int *x, int *top, int *w)
+{
+    const StagePlatform *p;
+    if (g->party_rule != PARTY_ROOST || g->mode != GAME_MODE_ARENA) return 0;
+    p = &stage_platforms[g->roost.idx];
+    *x = p->x; *top = p->y; *w = p->w;
+    return 1;
+}
+
+/* f stands on the roost: alive on the ground, balloons up, over the platform's span, feet on its top. */
+static int roost_stands(const Game *g, const Flier *f)
+{
+    const StagePlatform *p = &stage_platforms[g->roost.idx];
+    int32_t feet = f->y + flier_half_h(f) - FL_PX(p->y);
+    int dx = arena_dx((int)(f->x >> 16), roost_centre_px(p));
+    return f->state == FLIER_ALIVE && f->on_ground && f->balloons > 0 && dx >= -p->w / 2 && dx <= p->w / 2 && feet >= -FL_PX(2) && feet <= FL_PX(2);
+}
+
+/* A popped or fallen fighter comes back by parachute (humans at the screen centre, computer fliers over their spawn point). */
+static void roost_respawn(Game *g)
+{
+    int h, i;
+    for (h = 0; h < g->players; h++) if (g->hero[h].state == FLIER_GONE) chute_drop(g, &g->hero[h], camera_centre_x(g));
+    for (i = 0; i < g->cpu_count; i++) {
+        if (g->cpu[i].state != FLIER_GONE) continue;
+        chute_drop(g, &g->cpu[i], FL_PX(stage_spawns[i].x));
+        g->cpu[i].rival = 1;
+    }
+}
+
+static void roost_end(Game *g)
+{
+    int i, best = 0, tied = 0;
+    for (i = 1; i < ROOST_FIGHTERS; i++) {
+        if (g->roost.ticks[i] > g->roost.ticks[best]) { best = i; tied = 0; }
+        else if (g->roost.ticks[i] == g->roost.ticks[best]) tied = 1;
+    }
+    if (tied || g->roost.ticks[best] == 0) g->round_winner = BANNER_DRAW;
+    else g->round_winner = (uint8_t)(best < HUMANS ? (best == 0 ? BANNER_P1 : BANNER_P2) : BANNER_CPU);
+    g->matches_won++;
+    if (g->rounds) { g->round_end = RE_HOLD; g->round_timer = MATCH_END_FRAMES; }
+    else { player_spawn(g); match_start(g); }
+}
+
+/* One frame of the rule after the fliers moved: respawns, the sole-stander tick, and the round end. */
+static void roost_step(Game *g)
+{
+    int i, n = g->players + g->cpu_count, who = -1, stand = 0;
+    roost_respawn(g);
+    for (i = 0; i < n; i++) {
+        if (roost_stands(g, fighter(g, i))) { stand++; who = i; }
+    }
+    if (stand == 1 && who == g->roost.sole) {
+        if (++g->roost.acc >= ROOST_TICK_FRAMES) {
+            int slot = who < g->players ? who : HUMANS + (who - g->players);
+            g->roost.acc = 0;
+            g->roost.ticks[slot]++;
+            if (who < g->players) { g->roost.paying = 1; score_add_h(g, who, SCORE_ROOST_TICK); g->roost.paying = 0; }
+        }
+    } else {
+        g->roost.sole = (uint8_t)(stand == 1 ? who : 0xFF);
+        g->roost.acc = 0;
+    }
+    if (g->roost.timer > 0) g->roost.timer--;
+    for (i = 0; i < ROOST_FIGHTERS; i++) if (g->roost.ticks[i] >= ROOST_TARGET_TICKS) break;
+    if (i < ROOST_FIGHTERS || g->roost.timer == 0) roost_end(g);
+}
+
 void game_step_arena(Game *g, uint8_t input)
 {
     FlierInput in;
@@ -664,7 +775,7 @@ void game_step_arena(Game *g, uint8_t input)
             ci.dir = 0; /* stands, then sits and pumps: no AI, no input until the window ends */
             ci.flap = 0;
         } else if (c->state <= FLIER_PARACHUTE) {
-            ai_step(&g->ai[i], &g->rng, c, ai_nearest(c, g->hero, g->players, g->cpu, g->cpu_count), &ci);
+            ai_step(&g->ai[i], &g->rng, c, g->ai[i].hold ? &g->roost.mark : ai_nearest(c, g->hero, g->players, g->cpu, g->cpu_count), &ci);
             if (g->mode == GAME_MODE_ARCADE) {
                 int away = arc_elements_avoid_dir(&g->elems, (int)(c->x >> 16), (int)(c->y >> 16), FLIER_HALF_W, (int)(flier_half_h(c) >> 16), c->vx);
                 if (away) {
@@ -785,6 +896,7 @@ void game_step_arena(Game *g, uint8_t input)
             }
         }
     }
+    if (g->party_rule == PARTY_ROOST) { roost_step(g); camera_follow(g); return; } /* Roost Rule: no lives, no last-flier win */
     g->cpu_alive = 0;
     bodies = 0;
     for (i = 0; i < g->cpu_count; i++) {

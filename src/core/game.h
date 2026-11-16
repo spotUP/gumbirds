@@ -61,6 +61,22 @@ enum RoundEnd { RE_NONE = 0, RE_HOLD, RE_PAN };
 /* Round start: ROUND nn, then GO!, with fliers, hazards and input frozen. Zero is RS_NONE. */
 enum RoundStart { RS_NONE = 0, RS_ROUND, RS_GO };
 
+/* Roost Rule (PARTY_ROOST): one island is the roost; a fighter standing alone on it earns a tick every ROOST_TICK_FRAMES. */
+#define ROOST_TICK_FRAMES 30
+#define ROOST_TARGET_TICKS 20
+#define ROOST_ROUND_FRAMES 2700
+#define ROOST_FIGHTERS (HUMANS + STAGE_SPAWN_COUNT)
+typedef struct {
+    uint8_t idx;       /* stage platform index of the roost */
+    uint8_t last;      /* roost of the previous round (0xFF = none): the next pick differs */
+    uint8_t paying;    /* 1 only while a tick is being scored: every other score path is shut in this rule */
+    uint16_t timer;    /* frames left in the round */
+    uint16_t acc;      /* frames the current sole stander has stood */
+    uint8_t sole;      /* fighter index standing alone (0xFF = nobody or shared) */
+    uint8_t ticks[ROOST_FIGHTERS]; /* ticks per fighter this round (humans first, then computer fliers) */
+    Flier mark;        /* AI target: rests where a standing flier's centre rests; not a fighter */
+} Roost;
+
 typedef struct {
     Rng rng;
     uint32_t frame;      /* frames since reset */
@@ -117,6 +133,7 @@ typedef struct {
     uint8_t bonus_caught[HUMANS]; /* bubbles each human popped in this bonus stage (bonus.caught is the team total) */
     ArcBonus bonus;      /* Arcade bonus stage, live while arc.state == ARC_BONUS after the banner hold */
     Result res;          /* Result screen after the bonus stage (result.h): active while it shows; arc.state stays ARC_BONUS */
+    Roost roost;         /* Roost Rule state (party_rule == PARTY_ROOST), reset by match_start */
     Camera camera;       /* follows the living human fliers, stepped every game_step_arena; view reads game_camera_px */
 } Game;
 
@@ -167,6 +184,8 @@ int game_round_start_phase(const Game *g);
 int game_round_number(const Game *g);
 /* Text of the round-start phase when it is not "STAGE nn": line 0 and 1 of the bonus stage announcement, else 0. */
 const char *game_round_start_text(const Game *g, int line);
+/* Roost Rule: the roost platform's world rectangle (left x, top y, width) for the marker; returns 0 when the rule is not running. */
+int game_roost_rect(const Game *g, int *x, int *top, int *w);
 /* BANNER_* flags for the round banner: 0 in the arena, BANNER_STAGE in arcade, BANNER_BONUS while the arcade bonus stage runs. */
 int game_banner_flags(const Game *g);
 /* 1 while the hazard strip animation must hold: a round start phase or a round end hold/pan. Arena only. */

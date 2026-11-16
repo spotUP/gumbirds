@@ -16,7 +16,7 @@
  *   113..115 the splash of a flier falling into water or lava (SPLASH_SPRITE, src/splash.c): 3 columns, drawn BEHIND the islands, pool and
  *            the hazard strip, so the liquid covers the splash base
  *   116..117 player 2's gum bubble (GUM_P2_SPRITE, src/gum.c; Arena and Arcade co-op)
- *   118..119 free (clouds and airship drift, BG-2)
+ *   118..119 the Roost Rule marker (ROOST_SPRITE, src/main.c; PARTY): 2 columns on the glowing island. Clouds and airship drift (BG-2) need another slot
  *   120..160 floating islands (ISLAND_COUNT 41 = room for the stage platform columns, 22 in stage 1, and the Gum Trip islands): one sprite per column of each platform in
  *            stage table order, drawn by src/island.c; they sit below the pool so fliers draw in front
  *   161..256 object pool (POOL_SPRITE_COUNT = POOL_MAX x POOL_COLS, src/core/obj_pool.h): object i owns
@@ -51,6 +51,8 @@
 #define GUM_SPRITE 111
 #define GUM_COUNT 2
 #define GUM_P2_SPRITE 116
+#define ROOST_SPRITE 118
+#define ROOST_COUNT 2
 #define SPLASH_SPRITE 113
 #define SPLASH_COUNT 3
 #define ISLAND_SPRITE 120

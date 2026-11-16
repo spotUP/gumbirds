@@ -37,6 +37,8 @@ const SpriteBudgetEntry SPRITE_BUDGET[] = {
     { "islands",     ISLAND_SPRITE,       ISLAND_COUNT,        32, 176, 7, SB_ISLANDS },
     /* The player's gum bubble (full size in the arena, the gum meter in Gum Trip): 2 columns; the bird (and so the bubble) may be on any line. */
     { "gum bubble",  GUM_SPRITE,          GUM_COUNT,            0, 224, GUM_COUNT, SB_ALWAYS },
+    /* The Roost Rule marker (PARTY): 2 columns, 32 high, sits on any island line. */
+    { "roost marker", ROOST_SPRITE,       ROOST_COUNT,          0, 224, ROOST_COUNT, SB_PARTY_ONLY },
     /* The splash cell is 48 x 48 at screen lines 160..207 (water 162, lava 160 to 209): 3 columns on those lines only. */
     { "splash",      SPLASH_SPRITE,       SPLASH_COUNT,       160, 210, SPLASH_COUNT, SB_ALWAYS },
     { "hazard",      HAZARD_SPRITE,       HAZARD_COUNT,       192, 224, 24, SB_ALWAYS },
@@ -81,7 +83,7 @@ static int platform_columns_on_line(int y) {
     return n;
 }
 
-int sprite_budget_line(int m, int y, int trip) {
+static int budget_line(int m, int y, int trip, int party) {
     const SpriteBudgetMood *mood = &SPRITE_BUDGET_MOODS[m];
     int total = 0, rain = mood->rain;
     for (int i = 0; i < SPRITE_BUDGET_COUNT; i++) {
@@ -90,10 +92,14 @@ int sprite_budget_line(int m, int y, int trip) {
         if (e->mood == SB_NOT_RAIN && rain) continue;
         if (e->mood == SB_RAIN_ONLY && !rain) continue;
         if (e->mood == SB_TRIP_ONLY && !trip) continue;
+        if (e->mood == SB_PARTY_ONLY && !party) continue;
         total += e->mood == SB_COLUMNS ? columns_on_line(mood, e, y, trip) : e->mood == SB_ISLANDS && !trip ? platform_columns_on_line(y) : e->per_line;
     }
     return total;
 }
+
+int sprite_budget_line(int m, int y, int trip) { return budget_line(m, y, trip, 1); }
+int sprite_budget_line_arcade(int m, int y) { return budget_line(m, y, 0, 0); }
 
 static const unsigned char LOGO_STRIP_Y_TAB[] = LOGO_TABLE_STRIP_Y;
 static const unsigned char LOGO_STRIP_H_TAB[] = LOGO_TABLE_STRIP_H;
