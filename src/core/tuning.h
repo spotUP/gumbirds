@@ -217,7 +217,7 @@
 #define FLIER_HIT_COOLDOWN 20 /* frames of immunity after a balloon pops (BR-D4); was 60. The parachute window stays FLIER_INVINCIBLE_PARACHUTE */
 #endif
 #ifndef FLIER_SPAWN_INVINCIBLE
-#define FLIER_SPAWN_INVINCIBLE 600 /* frames the player is immune after a spawn; any left/right/flap input ends it early (BR-D5) */
+#define FLIER_SPAWN_INVINCIBLE 180 /* 3 s (owner 2026-11-16: 10 s felt endless); frames the player is immune after a spawn; any left/right/flap input ends it early (BR-D5) */
 #endif
 #ifndef FLIER_BLINK_HALF_PERIOD
 #define FLIER_BLINK_HALF_PERIOD 4 /* frames shown, then the same number hidden, while a flier is protected (invincible or spawn_inv) */
