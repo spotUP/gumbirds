@@ -61,6 +61,7 @@ int main(void) {
 
     /* P1 loses the last life: CONTINUE shows, P2 plays on (world not frozen), run not over */
     start2(1);
+    g.credits = 1;
     g.lives[0].lives = 1;
     g.hero[0].state = FLIER_GONE;
     game_step(&g, 0);
@@ -96,6 +97,7 @@ int main(void) {
 
     /* a partner on the continue screen continues with its own Start while the other plays */
     start2(1);
+    g.credits = 1;
     g.lives[0].lives = 1;
     g.hero[0].state = FLIER_GONE;
     game_step(&g, 0);

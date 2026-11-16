@@ -187,6 +187,7 @@ static void pump_defeat(Game *g, int h, Flier *v, ArcPump *p)
     }
     if (v->state == FLIER_ALIVE) flier_start_falling(v); /* grounded: popping leaves it standing, and the body pass would pay the defeat twice */
     g->stomps++;
+    g->last_popper = (uint8_t)h;
     score_add_h(g, h, g->mode == GAME_MODE_ARCADE ? win : SCORE_CPU_DEFEAT);
 }
 
@@ -554,11 +555,11 @@ void game_step_arena(Game *g, uint8_t input)
         if (cont) {
             /* Continue screen of a player: with no one else playing the world is frozen; a partner still playing plays on.
              * Start continues (owner 2026-11-15); each A press drops the count by one;
-             * credits are a constant 1 here (shortcut: the real credit path is a later task); the countdown running out ends that player. */
+             * a continue needs a banked credit (g->credits); the countdown running out ends that player. */
             int all_out = 1;
             for (h = 0; h < g->players; h++) {
                 if (g->lives[h].state != ARC_LIFE_CONTINUE) continue;
-                if (arc_continue_step(&g->lives[h], start_edge_h[h], 1)) {
+                if (arc_continue_step(&g->lives[h], start_edge_h[h], g->credits)) {
                     if (h == 0) g->score = g->lives[0].score;
                     player_spawn_h(g, h);
                 } else if (a_edge_h[h]) {
@@ -707,6 +708,7 @@ void game_step_arena(Game *g, uint8_t input)
                     if (flier_pair_apply(f[i], f[j], act)) {
                         g->stomps++;
                         if (popper < g->players && popped_idx >= g->players) {
+                            g->last_popper = (uint8_t)popper;
                             /* Points only for the player's own pops on a computer flier (design 3.3), to the popper's own score; a partner stomp pays nothing. */
                             if (g->mode == GAME_MODE_ARCADE) {
                                 const ArcRank *rk = arc_rank(g->pump[popped_idx - g->players].rank);
@@ -727,6 +729,7 @@ void game_step_arena(Game *g, uint8_t input)
                     if (i < g->players && j < g->players) continue; /* partners never body-kill each other */
                     killed = flier_body_touching(f[i], f[j]) && !arena_pair_blocked(f[i], f[j]) && flier_body_kill(f[i], f[j]);
                     if (killed && j < g->players && i >= g->players) {
+                        g->last_popper = (uint8_t)j;
                         score_add_h(g, j, g->mode == GAME_MODE_ARCADE ? arc_rank(g->pump[i - g->players].rank)->defeat_score : SCORE_CPU_DEFEAT); /* the player's body touched a balloon-less computer flier */
                     }
                 }

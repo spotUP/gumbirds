@@ -198,6 +198,12 @@ int main(void) {
         g.start_in[0] = 1;
         game_step(&g, 0);
         g.start_in[0] = 0;
+        CHECK(g.lives[0].state == ARC_LIFE_CONTINUE); /* no credit banked: Start does not continue */
+        g.credits = 1;
+        game_step(&g, 0); /* release first: the continue is on the Start edge */
+        g.start_in[0] = 1;
+        game_step(&g, 0);
+        g.start_in[0] = 0;
         CHECK(g.lives[0].state == ARC_LIFE_PLAY && g.lives[0].lives == ARC_LIVES_START && g.score == 0 && g.arc.stage == 2 && g.hero[0].state == FLIER_ALIVE && !g.over);
         /* the countdown running out ends the run */
         for (i = 0; i < ARC_LIVES_START; i++) { g.hero[0].state = FLIER_GONE; game_step(&g, 0); }

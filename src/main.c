@@ -134,7 +134,7 @@ volatile u16 g_banner_calls, g_banner_cells; /* round clear banner draws, for th
 static u8 g_rs_drawn = RS_NONE;
 static u8 g_stage_key = 0xFF; /* arcade HUD stage text: 0 none, 254 bonus, else stage number; 0xFF = not drawn since the last clear */
 static u8 g_over_up; /* GAME OVER text drawn since the last clear */
-static u8 g_cont_key = 0xFF; /* arcade continue panel on the fix layer: 0 none, else 1 + seconds left */
+static u8 g_cont_key[HUMANS] = { 0xFF, 0xFF }; /* arcade continue plate per side on the fix layer: 0 none, else 1 + seconds left (+ 0x80 with a credit) */
 static u8 g_banner_up; /* the round clear banner is on the fix layer */
 #define BANNER_ROWS_PER_FRAME 2
 static u8 g_banner_pending; /* rows still to draw: the panel opens a few rows per frame to stay inside vblank */
@@ -1037,8 +1037,6 @@ static void draw_table(const HiscoreTable *t, u8 mode, int highlight, u8 y0) {
 
 /* Last state draw() cleared the fix layer for; -1 forces a clear (video_init sets it). */
 static int g_draw_state = -1;
-/* Score and lives draw() last sent for the game HUD; g_hud_game 0 = not sent since the last clear. */
-static u8 g_hud_game;
 /* Gum Trip gum meter on HUD row 6 (replaces the Balloons row): fill step last drawn, 255 = nothing drawn since the last clear.
  * g_meter_draws counts the frames in which the cells were sent (tests/mame/trip_check.lua reads it). */
 #define METER_NONE 255
@@ -1053,8 +1051,45 @@ static void draw_gum_meter(u16 gum) {
     for (u8 c = 0; c < TRIPMETER_CELLS; c++) gfx_fix_tile((u8)(METER_COL + c), METER_ROW, PAL_TEXT, tripmeter_cell[step][c]);
     g_meter_draws++;
 }
-static u32 g_hud_score;
-static u32 g_hud_lives;
+/* Arcade HUD per side (0 = player 1 left, 1 = player 2 right mirror), separate caches so one side's change never resends the other.
+ * kind 0 = blank, 1 = PRESS P2 START, 2 = score block; 0xFF = not sent since the last clear. */
+#define HUD_KIND_NONE 0xFF
+#define HUD_KIND_BLANK 0
+#define HUD_KIND_PRESS 1
+#define HUD_KIND_STATS 2
+static struct { u32 score; u8 kind, balloons, lives; } g_hud[2] = { { 0, HUD_KIND_NONE, 0, 0 }, { 0, HUD_KIND_NONE, 0, 0 } };
+
+/* One side of the score block. P1: label then number from column 2. P2 mirrors it about the screen centre (column c -> 39 - c):
+ * number then label, so the right edge of both blocks sits at the same distance from its screen edge. */
+static void hud_side_stats(u8 side, u32 score, u8 balloons, u8 lives, u8 show_lives, u8 show_balloons) {
+    char nb[10];
+    put_number(nb, score, 8);
+    if (side == 0) {
+        text(2, 5, PAL_TEXT, "SCORE");
+        text(8, 5, PAL_TEXT, nb);
+        if (show_balloons) { text(2, 6, PAL_TEXT, "Balloons"); draw_number(11, 6, PAL_TEXT, balloons, 1); }
+        if (show_lives) { text(2, 7, PAL_TEXT, "Lives"); draw_number(8, 7, PAL_TEXT, lives, 1); }
+    } else {
+        text(24, 5, PAL_TEXT, nb);
+        text(33, 5, PAL_TEXT, "SCORE");
+        if (show_balloons) { draw_number(28, 6, PAL_TEXT, balloons, 1); text(30, 6, PAL_TEXT, "Balloons"); }
+        if (show_lives) { draw_number(31, 7, PAL_TEXT, lives, 1); text(33, 7, PAL_TEXT, "Lives"); }
+    }
+}
+
+/* Writes one side when its value changed (the fix layer shadow drops equal cells, but the number formatting is not free). */
+static void hud_side(u8 side, u8 kind, u32 score, u8 balloons, u8 lives, u8 show_lives, u8 show_balloons) {
+    if (g_hud[side].kind == kind && (kind != HUD_KIND_STATS || (g_hud[side].score == score && g_hud[side].balloons == balloons && g_hud[side].lives == lives))) return;
+    if (kind == HUD_KIND_STATS) {
+        if (g_hud[side].kind == HUD_KIND_PRESS) text(24, 5, PAL_TEXT, "              ");
+        hud_side_stats(side, score, balloons, lives, show_lives, show_balloons);
+    } else {
+        /* only the P2 side ever blanks or prompts: its 14 columns 24..37 on rows 5..7 */
+        text(24, 5, PAL_TEXT, kind == HUD_KIND_PRESS ? "PRESS P2 START" : "              ");
+        if (g_hud[side].kind == HUD_KIND_STATS) { text(24, 6, PAL_TEXT, "              "); text(24, 7, PAL_TEXT, "              "); }
+    }
+    g_hud[side].kind = kind; g_hud[side].score = score; g_hud[side].balloons = balloons; g_hud[side].lives = lives;
+}
 
 /* Title screen (art: assets/font/draw_hud_title_final.py title_final(), art row r = fix row r + 2). Everything is drawn
  * once after the fix layer clear and again only when its value changes; draw() resets the cache on a state change. */
@@ -1376,9 +1411,9 @@ static void draw(const FlowView *v) {
         gfx_cls();
         title_reset();
         g_draw_state = (int)v->state;
-        g_hud_game = 0;
+        g_hud[0].kind = g_hud[1].kind = HUD_KIND_NONE;
         g_ov_stage = 0; g_ov_key = AO_NONE; g_ov_part = 0;
-        g_rs_drawn = RS_NONE; g_rs_num = 0; g_banner_up = 0; g_cont_key = 0xFF; g_stage_key = 0xFF; g_over_up = 0;
+        g_rs_drawn = RS_NONE; g_rs_num = 0; g_banner_up = 0; g_cont_key[0] = g_cont_key[1] = 0xFF; g_stage_key = 0xFF; g_over_up = 0;
         g_meter_step = METER_NONE;
 #ifdef GUMBIRDS_DEBUG_HEADER /* gmake DEBUG_HEADER=1; the normal build leaves the top rows to the HUD */
         text(2, 2, PAL_TEXT, "GUMBIRDS");
@@ -1401,16 +1436,24 @@ static void draw(const FlowView *v) {
             draw_result(v->game);
             break;
         }
-        /* Per-frame HUD: resend only when score or lives moved (or first frame of the state with a game). */
-        if (v->game && (!g_hud_game || v->game->score != g_hud_score || v->game->hero[0].balloons != g_hud_lives)) {
-            g_hud_game = 1;
-            g_hud_score = v->game->score;
-            g_hud_lives = v->game->hero[0].balloons;
-            text(2, 5, PAL_TEXT, "SCORE");
-            draw_number(8, 5, PAL_TEXT, v->game->score, 8);
-            if (v->game->mode != GAME_MODE_TRIP) {
-                text(2, 6, PAL_TEXT, "Balloons");
-                draw_number(11, 6, PAL_TEXT, v->game->hero[0].balloons, 1);
+        /* Per-frame HUD: resend a side only when its values moved (or first frame of the state with a game). */
+        if (v->game) {
+            const Game *g = v->game;
+            u8 arc = g->mode == GAME_MODE_ARCADE && v->state != FLOW_ATTRACT_DEMO;
+            u8 b0 = (u8)g->hero[0].balloons;
+            u8 l0 = (u8)g->lives[0].lives;
+            /* P1: the old block (score, balloons; no balloons row in Gum Trip), plus lives in the arcade */
+            if (g_hud[0].kind != HUD_KIND_STATS || g->score != g_hud[0].score || b0 != g_hud[0].balloons || l0 != g_hud[0].lives) {
+                hud_side_stats(0, g->score, b0, l0, arc, g->mode != GAME_MODE_TRIP);
+                g_hud[0].kind = HUD_KIND_STATS; g_hud[0].score = g->score; g_hud[0].balloons = b0; g_hud[0].lives = l0;
+            }
+            if (arc) {
+                u8 in = g->players == 2;
+                u8 cr = g->credits;
+                u8 out = !in || g->lives[1].state == ARC_LIFE_ENDED; /* never joined, or out of lives and continues */
+                if (out && cr > 0 && v->state == FLOW_PLAYING) hud_side(1, HUD_KIND_PRESS, 0, 0, 0, 0, 0);
+                else if (in) hud_side(1, HUD_KIND_STATS, g->lives[1].score, (u8)g->hero[1].balloons, (u8)g->lives[1].lives, 1, 1);
+                else hud_side(1, HUD_KIND_BLANK, 0, 0, 0, 0, 0);
             }
         }
         if (v->game && v->game->mode == GAME_MODE_TRIP) draw_gum_meter(v->game->trip.gum);
@@ -1471,22 +1514,26 @@ static void draw(const FlowView *v) {
             }
         }
         {
-            /* Arcade continue screen (game_step_arena freezes the world): a plate with the words and the seconds left; redrawn once a second */
-            u8 key = (v->state == FLOW_PLAYING && v->game && v->game->mode == GAME_MODE_ARCADE && v->game->lives[0].state == ARC_LIFE_CONTINUE)
-                         ? (u8)(1 + arc_continue_seconds(&v->game->lives[0])) : 0;
-            if (key != g_cont_key) {
-                u8 row;
-                char sb[16] = "TIME LEFT   ";
+            /* Arcade continue plate (game_step_arena freezes the world when no one plays): on the side of the player whose lives ended
+             * (P1 left, P2 right, under the HUD); the words, then the seconds left. Redrawn once a second, per side. */
+            for (u8 h = 0; h < HUMANS; h++) {
+                const ArcLives *l = v->game ? &v->game->lives[h] : 0;
+                u8 key = (v->state == FLOW_PLAYING && l && v->game->mode == GAME_MODE_ARCADE && l->state == ARC_LIFE_CONTINUE)
+                             ? (u8)(1 + arc_continue_seconds(l) + (v->game->credits ? 0x80 : 0)) : 0;
+                u8 x0 = h ? 24 : 3, row;
+                if (key == g_cont_key[h]) continue;
                 if (key) {
-                    for (row = 11; row <= 14; row++) plate(8, 30, row);
-                    gfx_center_text(11, PAL_HIGH, "CONTINUE");
-                    gfx_center_text(12, PAL_TEXT, "PRESS START TO CONTINUE");
-                    if (key > 10) { sb[10] = '1'; sb[11] = '0'; } else sb[10] = (char)('0' + key - 1);
-                    gfx_center_text(13, PAL_TEXT, sb);
-                } else if (g_cont_key != 0xFF) {
-                    for (row = 11; row <= 14; row++) text(7, row, PAL_TEXT, "                         ");
+                    u8 sec = (u8)((key & 0x7F) - 1);
+                    char sb[13] = "TIME LEFT   ";
+                    for (row = 9; row <= 12; row++) plate(x0, (u8)(x0 + 11), row);
+                    text(x0, 9, PAL_HIGH, "CONTINUE");
+                    text(x0, 10, PAL_TEXT, (key & 0x80) ? "PRESS START" : "INSERT COIN");
+                    if (sec > 10) { sb[10] = '1'; sb[11] = '0'; } else sb[10] = (char)('0' + sec);
+                    text(x0, 11, PAL_TEXT, sb);
+                } else if (g_cont_key[h] != 0xFF) {
+                    for (row = 9; row <= 12; row++) text((u8)(x0 - 1), row, PAL_TEXT, "              ");
                 }
-                g_cont_key = key;
+                g_cont_key[h] = key;
             }
         }
         {
@@ -1499,7 +1546,7 @@ static void draw(const FlowView *v) {
                 u8 rows, rows_left = BANNER_ROWS_PER_FRAME;
                 int f;
                 int fr = MATCH_END_FRAMES - (int)v->game->round_timer;
-                bc.winner = BANNER_P1; bc.round = (uint16_t)game_round_number(v->game); bc.last = (uint8_t)game_banner_flags(v->game);
+                bc.winner = (uint8_t)(v->game->players == 2 && v->game->last_popper == 1 ? BANNER_P2 : BANNER_P1); bc.round = (uint16_t)game_round_number(v->game); bc.last = (uint8_t)game_banner_flags(v->game);
                 blank = banner_cell(0, &bc, BANNER_W, 0); /* outside the panel: what an undrawn cell is */
                 if (fr < 0) fr = 0;
                 if (fr > 119) fr = 119;
@@ -1731,7 +1778,9 @@ static void game_loop(void) {
         if (coined && !start) flow_coin(&g_flow);
         if (a_edge && !start && g_flow.state <= FLOW_ATTRACT_DEMO && bios_user_mode == 1 && (in & FLOW_RESET_COMBO) != FLOW_RESET_COMBO && take_credit()) start = 1;
         g_flow.game.input2 = pad_to_core(bios_p2current);
+        g_flow.game.credits = credits_now();
         if (g_join_p2) { g_join_p2 = 0; if (g_flow.state == FLOW_PLAYING) game_join_p2(&g_flow.game); }
+        g_flow.game.start_in[1] = (u8)(g_flow.state == FLOW_PLAYING && (bios_statchange & 2)); /* P2 continue */
         g_flow.game.start_in[0] = (u8)(g_flow.state == FLOW_PLAYING && (bios_statchange & 1)); /* arcade continue: Start continues, A only counts down */
         /* Start also ends the result screen and the GAME OVER text, and confirms a name entry letter like A (player_start refuses Start there) */
         if ((bios_statchange & 1) && ((g_flow.state == FLOW_PLAYING && g_flow.game.res.active) || g_flow.state == FLOW_GAME_OVER || g_flow.state == FLOW_NAME_ENTRY)) in |= IN_A;

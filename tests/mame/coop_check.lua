@@ -3,7 +3,9 @@
 --   C1b. after join the P2 body and parachute palettes sit in palette RAM and differ from the P1 ones;
 --   C2. P2 flap releases the parachute (ALIVE) and hero[1] flies (y changes);
 --   C3. a second P2 Start while P2 is active is refused: credit kept (insert a third coin first so the byte is non-zero);
---   C4. P1 Start in play is still refused: credit kept, players stays 2.
+--   C4. P1 Start in play is still refused: credit kept, players stays 2;
+--   C5. HUD on the fix layer: before the join (credit 1) "PRESS P2 START" shows at row 5 cols 24..37 and the P2 lives cells are blank;
+--       after the join the P2 mirror column shows (lives digit col 31 and "Lives" cols 33..37 on row 7) and the PRESS cells are gone.
 -- Env: BRAWL_FLOW_ADDR (hex), BRAWL_COOP_LAYOUT (coop_probe.c output), BRAWL_RESULT.
 local flow_addr = tonumber(os.getenv("BRAWL_FLOW_ADDR"), 16)
 local result = os.getenv("BRAWL_RESULT")
@@ -36,6 +38,20 @@ local function pal_ok(a, b)
   end
   return differ and lit
 end
+-- Fix map (VRAM 0x7000 + col * 32 + row), watched through the VRAM write port like arcade_check.lua.
+local fix, vaddr, vmod = {}, 0, 1
+tap_vram = mem:install_write_tap(0x3c0000, 0x3c0007, "coopvram", function(offset, data, mask)
+  local r = offset & 0xe
+  if r == 0 then vaddr = data
+  elseif r == 2 then fix[vaddr] = data; vaddr = (vaddr + vmod) & 0xffff
+  elseif r == 4 then vmod = data end
+end)
+local function cell(col, row) return (fix[0x7000 + col * 32 + row] or 0) & 0xfff end
+local function lit(c0, c1, row)
+  local blank, n = cell(23, row), 0
+  for c = c0, c1 do if cell(c, row) ~= blank then n = n + 1 end end
+  return n
+end
 local function credit() return mem:read_u8(CREDIT) end
 local function hero1(o) return mem:read_u8(flow_addr + o + O.szf) end
 local done = false
@@ -64,7 +80,11 @@ emu.register_frame_done(function()
     if k < 130 and b(O.players) ~= 1 then finish(false, "players " .. b(O.players) .. " before P2 Start") return end
     if k == 5 then coin:set_value(1) end
     if k == 20 then coin:set_value(0) end
-    if k == 120 then c_before = credit() end
+    if k == 120 then
+      c_before = credit()
+      if lit(24, 37, 5) < 12 then finish(false, "PRESS P2 START not on the fix layer before the join: " .. lit(24, 37, 5) .. " of 12 cells lit") return end
+      if lit(31, 37, 7) ~= 0 then finish(false, "P2 lives cells lit before the join") return end
+    end
     if k >= 120 then press(start2, k, 130) end
     if k == 200 then
       local c = credit()
@@ -76,6 +96,9 @@ emu.register_frame_done(function()
       if mem:read_u32(flow_addr + O.lstate + O.szl) ~= K.life_play then finish(false, "lives[1] not in PLAY") return end
       if not pal_ok(PAL.soot, PAL.soot2) then finish(false, "P2 body palette slot " .. PAL.soot2 .. " empty or equal to P1") return end
       if not pal_ok(PAL.chute, PAL.chute2) then finish(false, "P2 parachute palette slot " .. PAL.chute2 .. " empty or equal to P1") return end
+      if lit(31, 31, 7) ~= 1 or lit(33, 37, 7) ~= 5 then finish(false, "P2 HUD lives cells missing after the join") return end
+      if lit(33, 37, 5) ~= 5 then finish(false, "P2 HUD SCORE label missing after the join") return end
+      if lit(24, 32, 5) == 0 then finish(false, "P2 HUD score number missing after the join") return end
       y0 = s32(O.hy + O.szf); phase = "flap"; t0 = n
     end
   elseif phase == "flap" then
