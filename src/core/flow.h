@@ -57,6 +57,7 @@ typedef struct {
     uint8_t credit_hold;     /* caller sets it each frame: 1 while credits are in; attract then holds the title (PRESS START) until Start */
     uint8_t demo;            /* 1 when game is the attract demo */
     uint8_t demo_in;         /* input the scripted demo fed the game on the last demo frame (demo_input() computes it) */
+    Ai demo_ai;              /* the rival AI flying the demo flier (demo_input) */
     AttractOverlay ov;       /* how-to-play state for the demo overlay, stepped with demo_in */
     uint8_t demo_mode;       /* GameMode the NEXT attract demo plays; start_game advances it arena, Gum Trip, arcade, arena ... (game.mode is the running demo's mode) */
     uint8_t title_mood;      /* GAME_MOOD_* the last attract title showed (0xFF before the first): the next title shows another */
