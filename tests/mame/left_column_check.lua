@@ -8,8 +8,10 @@
 -- i.e. moving background, are ignored). Cases: A x 0 y 60, B x 16 y 60 (control), C x 0 y 150 (control below the sky column).
 -- PASS: changed(A) >= changed(B) / 2, changed(B) > 0, changed(C) > 0, and slot 0 SCB3 height 0 on every checked frame.
 -- Env: BRAWL_FLOW_ADDR (g_flow), BRAWL_FRAME_ADDR (g_frame_counter), BRAWL_LC_MODE (arena | trip), BRAWL_LC_TILE (optional,
--- hex first tile), BRAWL_RESULT.
+-- hex first tile), BRAWL_MOOD_ADDR (bg.c g_want), BRAWL_BACKDROP_ADDR (bg.c BACKDROP in arena, TRIP_BACKDROP in trip), BRAWL_RESULT.
 local flow_addr  = tonumber(os.getenv("BRAWL_FLOW_ADDR"), 16)
+local mood_addr  = tonumber(os.getenv("BRAWL_MOOD_ADDR"), 16)
+local backdrop_addr = tonumber(os.getenv("BRAWL_BACKDROP_ADDR"), 16)
 local frame_addr = tonumber(os.getenv("BRAWL_FRAME_ADDR"), 16)
 local result     = os.getenv("BRAWL_RESULT")
 local mode       = os.getenv("BRAWL_LC_MODE") or "arena"
@@ -44,7 +46,7 @@ tap_vram = mem:install_write_tap(0x3c0000, 0x3c0007, "leftcolvram", function(off
 end)
 
 local done = false
-local bd_checked, bd_bad, bd_last = 0, 0, 0
+local bd_checked, bd_bad, bd_last, bd_want, bd_last_at = 0, 0, 0, 0, 0
 local function finish(ok, msg)
   if done then return end
   done = true
@@ -118,18 +120,23 @@ emu.register_frame_done(function() local ok_, err_ = pcall(function()
   slot0_w3 = w3
   slot0_checked = slot0_checked + 1
   if (w3 & 0x3f) ~= 0 then slot0_bad = slot0_bad + 1 end
-  -- backdrop (palette RAM entry 4095): Gum Trip shows the sky colour (115,82,165) = 0x075A, the arena keeps #1a1238 = 0x5113
+  -- backdrop (palette RAM entry 4095): Gum Trip shows the mood's sky colour (TRIP_BACKDROP), the arena the mood's dark backdrop
+  -- (BACKDROP); the arena picks a random mood per match (game_next_mood), so the word comes from the ROM table at g_want
+  -- (the mood on screen, bg.c fade_vis outside a fade out: a mood cut shows it at once, g_bg_mood follows after the column rewrite)
+  -- The word reaches palette RAM in the next vblank flush, so the previous frame's mood also counts.
+  local prev = bd_want
+  bd_want = mem:read_u16(backdrop_addr + 2 * mem:read_u8(mood_addr))
   if playing >= 3 then
     local bd = mem:read_u16(0x401FFE)
     bd_checked = bd_checked + 1
-    if bd ~= (mode == "trip" and 0x075A or 0x5113) then bd_bad = bd_bad + 1; bd_last = bd end
+    if bd ~= bd_want and bd ~= prev then bd_bad = bd_bad + 1; bd_last = bd; bd_last_at = playing end
   end
   if playing < SLOT_STEP_SETTLE then return end
   if ci > #CASES then
     local a, b, c = counts[1], counts[2], counts[3]
     local pass = b > 0 and c > 0 and 2 * a >= b and slot0_bad == 0 and bd_bad == 0 and bd_checked > 0
-    finish(pass, string.format("mode %s: changed(x0,y60)=%d want >= %d (half of changed(x16,y60)); changed(x16,y60)=%d want > 0; changed(x0,y150)=%d want > 0; slot 0 SCB3=%04x height 0 wanted, bad frames %d of %d; backdrop word 0x%04x wanted, bad frames %d of %d (last bad read 0x%04x)",
-      mode, a, (b + 1) // 2, b, c, slot0_w3, slot0_bad, slot0_checked, mode == "trip" and 0x075A or 0x5113, bd_bad, bd_checked, bd_last))
+    finish(pass, string.format("mode %s: changed(x0,y60)=%d want >= %d (half of changed(x16,y60)); changed(x16,y60)=%d want > 0; changed(x0,y150)=%d want > 0; slot 0 SCB3=%04x height 0 wanted, bad frames %d of %d; backdrop word 0x%04x wanted, bad frames %d of %d (last bad read 0x%04x at play frame %d)",
+      mode, a, (b + 1) // 2, b, c, slot0_w3, slot0_bad, slot0_checked, bd_want, bd_bad, bd_checked, bd_last, bd_last_at))
     return
   end
   -- per case: step 0 capture off1, 1 place, 3 capture on + hide, 5 capture off2 + count + restore (SCB3 0)
