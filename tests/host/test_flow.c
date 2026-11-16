@@ -379,12 +379,11 @@ static void test_cycle_and_demo(void)
     if (r.f.state == FLOW_ATTRACT_DEMO) CHECK(r.f.game.frame >= 299 && r.f.game.flier_steps > 0);
 
     /* the demo flier survives the whole demo window: 12 demos from different start frames (the seed is the frame counter) each
-     * end with it alive. The demo pilot cannot dodge computer fliers, so this guards DEMO_HOVER_Y / DEMO_SWEEP_FRAMES. */
+     * end with it alive. The demo pilot flies the rival AI, dodges rivals above and hazards ahead, so this guards demo_input. */
     for (run = 0; run < 12; run++) {
         rig_until(&r, FLOW_ATTRACT_TITLE, 0, 100000);
         rig_until(&r, FLOW_ATTRACT_DEMO, 0, 100000);
         for (i = 0; i < ATTRACT_DEMO_FRAMES - 1 && r.f.state == FLOW_ATTRACT_DEMO; i++) rig_tick(&r, 0, 0);
-        if (r.f.game.over) printf("DBG run %d mode %d i %d bal %d y %d gum %d px %d dy %d\n", run, r.f.game.mode, i, r.f.game.flier.balloons, (int)(r.f.game.flier.y>>16), r.f.game.trip.gum, (int)r.f.game.trip.px, (int)(r.f.game.flier.vy>>16));
         CHECK(r.f.state == FLOW_ATTRACT_DEMO && !r.f.game.over && r.f.game.flier.state == FLIER_ALIVE && r.f.game.flier_steps > 0);
     }
 

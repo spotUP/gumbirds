@@ -66,11 +66,8 @@
 #ifndef DEMO_AI_RANK
 #define DEMO_AI_RANK 3
 #endif
-#ifndef DEMO_TRIP_ROOF_PAD
-#define DEMO_TRIP_ROOF_PAD 20 /* Gum Trip: the demo flier does not flap within this many pixels under the cave window top */
-#endif
-#ifndef DEMO_TRIP_FLOOR_PAD
-#define DEMO_TRIP_FLOOR_PAD 30 /* Gum Trip: the demo flier flaps when closer than this many pixels to the cave window bottom */
+#ifndef DEMO_HAZ_AHEAD
+#define DEMO_HAZ_AHEAD 72 /* Gum Trip: the demo flier aims off hazards this many px ahead */
 #endif
 #ifndef DEMO_SWEEP_FRAMES
 #define DEMO_SWEEP_FRAMES 90

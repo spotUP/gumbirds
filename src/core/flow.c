@@ -86,47 +86,79 @@ static int demo_pickup(const Game *g, const Flier *fl, int32_t *tx, int32_t *ty)
     return best;
 }
 
-/* Demo input: a competent player, not a script. Arena and arcade: the rival AI (ai.c, top rank) flies the player flier against the
- * nearest rival; arcade also steers off vents and grabbers like a rival does. Gum Trip: steer to the nearest gum pickup ahead and
- * flap while it is above. Never flaps above DEMO_HOVER_Y (the roof; in Gum Trip the top of the cave window) and with
- * no target hovers and sweeps as the old script did. The AI runs on even demo frames only (frame cost); an odd frame holds the
- * steering and drops A, so the press edge survives. */
+/* Gum Trip: move the aim ty off any hazard in the next DEMO_HAZ_AHEAD px, to whichever side of its sweep the band [lo, hi] holds.
+ * A sweep too wide for the band falls back to the hazard's box now. */
+static int32_t demo_haz_aim(const Game *g, const Flier *fl, int32_t ty, int32_t lo, int32_t hi)
+{
+    int s = g->trip_gen.head, i, k, fx = (int)(fl->x >> 16), y = (int)(ty >> 16);
+    lo = (lo >> 16) + FLIER_HALF_W; hi = (hi >> 16) - FLIER_HALF_W;
+    for (i = 0; i < g->trip_gen.count; i++, s = (s + 1 == TRIP_GEN_RING) ? 0 : s + 1) {
+        const TripChunk *c = &g->trip_gen.ring[s];
+        int base = (int)(int32_t)(c->wx - g->trip.px);
+        for (k = 0; k < c->n_haz; k++) {
+            const TripGenHazard *h = &c->haz[k];
+            int dx = base + h->x - fx, m = h->hh + 12 + 4, hy = trip_hit_haz_y(h, g->trip.steps), up, dn;
+            if (dx < -(h->hw + FLIER_HALF_W) || dx > DEMO_HAZ_AHEAD + h->hw) continue;
+            up = h->y - h->amp - m; dn = h->y + h->amp + m;
+            if (up < lo && dn > hi) { up = hy - m; dn = hy + m; }   /* sweep fills the band: dodge the box where it is */
+            if (y <= up || y >= dn) continue;
+            y = (up >= lo && (dn > hi || y - up < dn - y)) ? up : (dn <= hi ? dn : y);
+        }
+    }
+    return FL_PX(y);
+}
+
+/* Demo input: a competent player, not a script. Arena and arcade: the rival AI (ai.c) steers the player flier at the nearest rival
+ * while it holds the high line (flaps whenever below DEMO_HOVER_Y), so rivals that rise to it get stomped; it steps out from under
+ * any rival above. Arcade also steers off vents and
+ * grabbers like a rival does. Gum Trip: steer to the nearest gum pickup ahead, its height held inside the middle half of the cave
+ * window (an aim near the rock overshoots into it) and moved off hazards ahead (demo_haz_aim); flaps on the predicted height, so a
+ * climb coasting into the roof does not flap again. With no target it hovers and sweeps as the old script did. The AI runs on even
+ * demo frames only (frame cost); an odd frame holds the steering and drops A, so the press edge survives. Every frame carries exactly
+ * one side bit (the overlay shows one). */
 static uint8_t demo_input(Flow *f)
 {
     Game *g = &f->game;
     const Flier *fl = &g->flier;
-    int32_t hover = FL_PX(DEMO_HOVER_Y), roof = hover, lo = 0, hi = 0, tx, ty;
-    int win = 0;
-    uint8_t in = (uint8_t)(f->demo_in & ~IN_A);
-    int can_flap = !fl->flap_prev && fl->flap_cd == 0;
-    if (f->timer & 1u) return (in & (IN_LEFT | IN_RIGHT)) ? in : (uint8_t)(in | IN_RIGHT);
-    in = 0;
-    if (g->mode == GAME_MODE_TRIP && (win = trip_hit_window(&g->trip, &g->trip_gen, fl, &lo, &hi))) { roof = lo + FL_PX(DEMO_TRIP_ROOF_PAD); hover = lo + ((hi - lo) >> 1); }
-    if (win && demo_pickup(g, fl, &tx, &ty)) {
-        int32_t dx = (tx - fl->x) >> 16, top = roof + FL_PX(8), bot = hi - FL_PX(DEMO_TRIP_FLOOR_PAD);
-        if (ty < top) ty = top;
-        if (ty > bot) ty = bot;
-        in |= dx < -2 ? IN_LEFT : IN_RIGHT;
-        if (can_flap && fl->y > roof && fl->y > ty) in |= IN_A;
-        return in;
+    int32_t lo = 0, hi = 0, tx, ty;
+    uint8_t side = (uint8_t)(f->demo_in & (IN_LEFT | IN_RIGHT)), in;
+    const Flier *t;
+    int can_flap = !fl->flap_prev && fl->flap_cd == 0, low;
+    int32_t py = fl->y + (fl->vy << 4); /* where it will be in 16 frames: a climb or a fall coasts on */
+    low = fl->y > FL_PX(DEMO_HOVER_Y);                          /* below the roof line: may flap */
+    if (side != IN_LEFT) side = IN_RIGHT;
+    if (f->timer & 1u) return side;
+    if (g->mode == GAME_MODE_TRIP && trip_hit_window(&g->trip, &g->trip_gen, fl, &lo, &hi)) {
+        int32_t q = (hi - lo) >> 2;
+        ty = lo + (q << 1);
+        if (demo_pickup(g, fl, &tx, &ty)) side = ((tx - fl->x) >> 16) < -2 ? IN_LEFT : IN_RIGHT;
+        if (ty < lo + q) ty = lo + q;
+        if (ty > hi - q) ty = hi - q;
+        ty = demo_haz_aim(g, fl, ty, lo, hi);
+        return (uint8_t)(side | (can_flap && py > ty ? IN_A : 0));
     }
-    if (g->mode != GAME_MODE_TRIP && g->cpu_alive) {
+    t = g->mode == GAME_MODE_TRIP ? 0 : ai_nearest(fl, fl, g->cpu, g->cpu_count); /* none while the last rival falls: hover */
+    if (t) {
         FlierInput ci;
-        const Flier *t = ai_nearest(fl, fl, g->cpu, g->cpu_count);
+        int near, k;
         ai_step(&f->demo_ai, &g->rng, fl, t, &ci);
-        in |= ci.dir > 0 ? IN_RIGHT : ci.dir < 0 ? IN_LEFT : (uint8_t)(f->demo_in & (IN_LEFT | IN_RIGHT));
-        if (!(in & (IN_LEFT | IN_RIGHT))) in |= IN_RIGHT; /* no steer: keep the last side (the overlay shows one) */
-        if (ci.flap && fl->y > hover) in |= IN_A;
-        if (t && t->y < fl->y && (t->x - fl->x < FL_PX(DEMO_DODGE_DX)) && (fl->x - t->x < FL_PX(DEMO_DODGE_DX))) in = t->x > fl->x ? IN_LEFT : IN_RIGHT; /* a rival above stomps balloons: step out from under it and stop climbing into it */
+        if (ci.dir) side = ci.dir > 0 ? IN_RIGHT : IN_LEFT;
+        in = side;
+        near = (t->x - fl->x < FL_PX(DEMO_DODGE_DX)) && (fl->x - t->x < FL_PX(DEMO_DODGE_DX));
+        if (can_flap && low) in |= IN_A; /* hold the high line */
+        for (k = 0; k < g->cpu_count; k++) { /* any rival above, not only the target, stomps: step out from under the first one */
+            const Flier *c = &g->cpu[k];
+            if (c->state == FLIER_ALIVE && c->y < fl->y && c->x - fl->x < FL_PX(DEMO_DODGE_DX) && fl->x - c->x < FL_PX(DEMO_DODGE_DX)) { t = c; near = 1; break; }
+        }
+        if (near && t->y < fl->y) in = (uint8_t)((t->x > fl->x ? IN_LEFT : IN_RIGHT) | (in & IN_A)); /* step out from under a rival above, no climb into it */
         if (g->mode == GAME_MODE_ARCADE) {
             int away = arc_elements_avoid_dir(&g->elems, (int)(fl->x >> 16), (int)(fl->y >> 16), FLIER_HALF_W, (int)(flier_half_h(fl) >> 16), fl->vx);
             if (away) in = (uint8_t)((away > 0 ? IN_RIGHT : IN_LEFT) | (can_flap ? IN_A : 0));
         }
         return in;
     }
-    if (can_flap && fl->y > hover) in |= IN_A;
-    in |= ((f->timer / DEMO_SWEEP_FRAMES) & 1u) ? IN_LEFT : IN_RIGHT;
-    return in;
+    in = ((f->timer / DEMO_SWEEP_FRAMES) & 1u) ? IN_LEFT : IN_RIGHT;
+    return (uint8_t)(in | (can_flap && low ? IN_A : 0));
 }
 
 static void title_reset_combo(Flow *f, uint8_t input)
