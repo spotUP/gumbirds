@@ -607,6 +607,14 @@ static void test_mode_select(void)
     CHECK(r.f.state == FLOW_PLAYING && r.f.game.mode == GAME_MODE_ARENA && r.f.game.party_rule == PARTY_ROULETTE && r.f.game.rounds);
     r.f.game.cpu_count = 1;
     CHECK(game_can_join_p2(&r.f.game));
+    /* P2 Start mid-match restarts the whole match: both humans, scores and rounds zero, rule kept, a refused join changes nothing */
+    r.f.game.score = 500; r.f.game.matches_won = 3;
+    CHECK(flow_join_p2(&r.f, 99));
+    CHECK(r.f.state == FLOW_PLAYING && r.f.game.players == 2 && r.f.game.score == 0 && r.f.game.matches_won == 0);
+    CHECK(r.f.game.party_rule == PARTY_ROULETTE && r.f.game.rounds && r.f.game.hero[1].state == FLIER_ALIVE && r.f.game.lives[0].score == 0 && r.f.game.lives[1].score == 0);
+    r.f.game.cpu_count = 1;
+    r.f.game.score = 500;
+    CHECK(!flow_join_p2(&r.f, 99) && r.f.game.score == 500);
     r.f.game.over = 1; r.f.game.score = 20000;
     rig_tick(&r, 0, 0);
     CHECK(r.f.last_mode == GAME_MODE_PARTY && r.f.last_rule == PARTY_ROULETTE);

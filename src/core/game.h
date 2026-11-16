@@ -73,7 +73,6 @@ typedef struct {
     uint8_t players;     /* 1 or 2 humans in play (game_reset sets 1) */
     uint8_t input2;      /* player 2 input byte (main.c sets it like start_in); unused while players == 1 */
     uint8_t credits;     /* credits banked (main.c sets it from the BIOS each frame); the arcade continue needs one */
-    uint8_t p2_pending;  /* Arena: P2 Start was banked mid-round; P2 appears at the next round start (player_spawn) */
     uint8_t round_winner;/* Arena two-player round end: BannerWinner (P1, P2 or computer) for the round clear banner */
     uint8_t out_mask;    /* Arena two-player: bit h set once human h's death cost a life; cleared when it respawns (next round) */
     uint8_t last_popper; /* human index that last popped or defeated a computer flier: the stage-clear banner winner */

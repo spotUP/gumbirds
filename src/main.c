@@ -1106,10 +1106,10 @@ static void hud_side(u8 side, u8 kind, u32 score, u8 balloons, u8 lives, u8 show
 #define BIOS_COMPULSION_S ((volatile u8 *)0x10fdda) /* BIOS_COMPULSION_TIMER, BCD seconds; 0x10fddb counts its frames */
 #define BIOS_CREDIT_BCD ((volatile u8 *)0x10fe00) /* BCD, 1 = one credit; measured by tests/mame/logo_check.lua under UniBIOS 4.0 (nullbios never counts) */
 enum { TL_UNKNOWN = 0xFF, TL_HIDDEN = 0, TL_PRESS, TL_INSERT };
-static struct { u8 init, line, select, credits; u32 hi; u8 mode; } g_title = { 0, TL_UNKNOWN, 0xFF, 0xFF, 0xFFFFFFFFu, 0xFF };
+static struct { u8 init, line, select, credits, players_cr, cplate; u32 hi; u8 mode; } g_title = { 0, TL_UNKNOWN, 0xFF, 0xFF, 0xFF, 0, 0xFFFFFFFFu, 0xFF };
 volatile u16 g_title_press_draws; /* test sentinel: frames "PRESS START" was (re)sent */
 
-static void title_reset(void) { g_title.init = 0; g_title.line = TL_UNKNOWN; g_title.select = 0xFF; g_title.credits = 0xFF; g_title.hi = 0xFFFFFFFFu; g_title.mode = 0xFF; }
+static void title_reset(void) { g_title.init = 0; g_title.line = TL_UNKNOWN; g_title.select = 0xFF; g_title.credits = 0xFF; g_title.players_cr = 0xFF; g_title.cplate = 0; g_title.hi = 0xFFFFFFFFu; g_title.mode = 0xFF; }
 
 static void plate(u8 x0, u8 x1, u8 row) {
     gfx_fix_tile((u8)(x0 - 1), row, PAL_TEXT, FIXFONT_PLATE_CAP_LEFT);
@@ -1121,6 +1121,21 @@ static u8 credits_now(void) {
     u8 b = *BIOS_CREDIT_BCD;
     u8 n = (u8)((b >> 4) * 10 + (b & 15));
     return n > 99 ? 99 : n;
+}
+
+/* The CREDITS plate (title, play, game over): drawn once after title_reset, text resent only when the count moves. Returns the count. */
+static u8 draw_credits(void) {
+    if (!g_title.cplate) { g_title.cplate = 1; g_title.credits = 0xFF; plate(28, 36, TITLE_CREDIT_ROW); }
+    u8 cr = credits_now();
+    if (cr != g_title.credits) {
+        g_title.credits = cr;
+        char buf[3];
+        put_number(buf, cr, 2);
+        gfx_text_backed(28, TITLE_CREDIT_ROW, PAL_TEXT, "CREDITS ");
+        gfx_text_backed(36, TITLE_CREDIT_ROW, PAL_TEXT, buf + 1);
+        if (cr > 9) gfx_text_backed(35, TITLE_CREDIT_ROW, PAL_TEXT, buf);
+    }
+    return cr;
 }
 
 /* A takes a banked credit the way Start does: the BIOS only deducts on a Start press, so for A the game does the BCD
@@ -1182,7 +1197,6 @@ static void draw_title(const FlowView *v) {
         g_title.init = 1;
         gfx_text_backed(11, TITLE_HI_ROW, PAL_HIGH, "HIGH SCORE");
         plate(13, 26, TITLE_PLAYERS_ROW);
-        plate(28, 36, TITLE_CREDIT_ROW);
     }
     u32 hi = v->table->score[0];
     if (hi > 999999) hi = 999999;
@@ -1192,14 +1206,9 @@ static void draw_title(const FlowView *v) {
         put_number(buf, hi, 6);
         gfx_text_backed(22, TITLE_HI_ROW, PAL_TEXT, buf);
     }
-    u8 cr = credits_now();
-    if (cr != g_title.credits) {
-        g_title.credits = cr;
-        char buf[3];
-        put_number(buf, cr, 2);
-        gfx_text_backed(28, TITLE_CREDIT_ROW, PAL_TEXT, "CREDITS ");
-        gfx_text_backed(36, TITLE_CREDIT_ROW, PAL_TEXT, buf + 1);
-        if (cr > 9) gfx_text_backed(35, TITLE_CREDIT_ROW, PAL_TEXT, buf);
+    u8 cr = draw_credits();
+    if (cr != g_title.players_cr) {
+        g_title.players_cr = cr;
         /* Two players need two credits: offer 2 only when they are banked. */
         gfx_text_backed(13, TITLE_PLAYERS_ROW, PAL_TEXT, cr >= 2 ? "1 OR 2 PLAYERS" : "1 PLAYER      ");
     }
@@ -1447,6 +1456,7 @@ static void draw(const FlowView *v) {
             draw_result(v->game);
             break;
         }
+        if (v->state != FLOW_ATTRACT_DEMO) draw_credits();
         /* Per-frame HUD: resend a side only when its values moved (or first frame of the state with a game). */
         if (v->game) {
             const Game *g = v->game;
@@ -1462,7 +1472,7 @@ static void draw(const FlowView *v) {
             if (p2hud) {
                 u8 in = g->players == 2;
                 u8 cr = g->credits;
-                u8 out = (!in || g->lives[1].state == ARC_LIFE_ENDED) && !g->p2_pending; /* never joined, or out of lives and continues */
+                u8 out = (!in || g->lives[1].state == ARC_LIFE_ENDED); /* never joined, or out of lives and continues */
                 if (out && v->state == FLOW_PLAYING) hud_side(1, cr > 0 ? HUD_KIND_PRESS : HUD_KIND_INSERT, 0, 0, 0, 0, 0);
                 else if (in) hud_side(1, HUD_KIND_STATS, g->lives[1].score, (u8)g->hero[1].balloons, (u8)g->lives[1].lives, 1, 1);
                 else hud_side(1, HUD_KIND_BLANK, 0, 0, 0, 0, 0);
@@ -1793,7 +1803,7 @@ static void game_loop(void) {
         g_flow.game.input2 = pad_to_core(bios_p2current);
         while (g_flow.game.credits_spent) { take_credit(); g_flow.game.credits_spent--; } /* a continue costs a credit (BIOS refuses Start in play) */
         g_flow.game.credits = credits_now();
-        if (g_join_p2) { g_join_p2 = 0; if (g_flow.state == FLOW_PLAYING) game_join_p2(&g_flow.game); }
+        if (g_join_p2) { g_join_p2 = 0; flow_join_p2(&g_flow, g_frame_counter); }
         g_flow.game.start_in[1] = (u8)(g_flow.state == FLOW_PLAYING && (bios_statchange & 2)); /* P2 continue */
         g_flow.game.start_in[0] = (u8)(g_flow.state == FLOW_PLAYING && (bios_statchange & 1)); /* arcade continue: Start continues, A only counts down */
         /* Start also ends the result screen and the GAME OVER text, and confirms a name entry letter like A (player_start refuses Start there) */

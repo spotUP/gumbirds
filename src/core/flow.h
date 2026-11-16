@@ -91,6 +91,7 @@ typedef struct {
 } FlowView;
 
 /* Start in ATTRACT_TITLE. image/len is the backup RAM content (NULL allowed: defaults). */
+int flow_join_p2(Flow *f, uint32_t seed);
 void flow_init(Flow *f, const uint8_t *image, size_t len);
 
 /* One frame. input is the raw held bits (IN_A..IN_D, IN_UP..IN_RIGHT). start_pressed is 1
