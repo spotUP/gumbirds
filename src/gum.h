@@ -8,8 +8,8 @@ extern volatile u16 g_gum_draws;  /* frames the bubble was placed: the test's pr
 extern volatile u16 g_gum_loads;  /* tile loads queued (frame or size changed) */
 
 void gum_load_palettes(void);
-/* Per frame. active 0 (not in Gum Trip) hides the bubble and forgets the pop. gum is Trip.gum; frame is Game.frame (wobble
+/* Per frame, pl 0 or 1 (own sprite slots and pop state; the test counters count player 1 only). active 0 (not in Gum Trip) hides the bubble and forgets the pop. gum is Trip.gum; frame is Game.frame (wobble
  * clock). drawn 0 (bird hidden) hides it; else cx is the bird sprite centre x and top its sprite top, in screen pixels,
  * and bird_frame the animation frame shown (selects the secondary motion offset). Level -> 0 plays one pop. */
-void gum_step(int active, uint16_t gum, uint32_t frame, int drawn, uint8_t bird_frame, int flip, int cx, int top);
+void gum_step(int pl, int active, uint16_t gum, uint32_t frame, int drawn, uint8_t bird_frame, int flip, int cx, int top);
 #endif

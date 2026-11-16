@@ -13,41 +13,43 @@ _Static_assert(GUM_ANIM_POP_LARGE == 16 && GUM_ANIM_POP_SMALL == 17 && GUM_ANIM_
 
 volatile u16 g_gum_draws;
 volatile u16 g_gum_loads;
-static u8 g_last_level;   /* level of the previous frame */
-static int g_pop_t = -1;  /* frames since the pop started, -1 = none */
-static u8 g_pop_anim;
-static int g_key = -1;    /* anim << 8 | frame loaded into the slots, -1 = none (hidden) */
+/* Per player (0 = player 1, 1 = player 2; each has its own sprite slots). */
+static u8 g_last_level[2];   /* level of the previous frame */
+static int g_pop_t[2] = { -1, -1 };  /* frames since the pop started, -1 = none */
+static u8 g_pop_anim[2];
+static int g_key[2] = { -1, -1 };    /* anim << 8 | frame loaded into the slots, -1 = none (hidden) */
+static u16 slot_of(int pl) { return (u16)(pl ? GUM_P2_SPRITE : GUM_SPRITE); }
 
 void gum_load_palettes(void) {
     for (u8 i = 0; i < 16; i++) gfx_pal((u16)(GUM_PAL_SLOT * 16 + i), gum_palettes[0][i]);
 }
 
-static void hide(void) {
-    for (int c = 0; c < GUM_COUNT; c++) gfx_word((u16)(ADDR_SCB3 + GUM_SPRITE + c), 0);
-    g_key = -1;
+static void hide(int pl) {
+    for (int c = 0; c < GUM_COUNT; c++) gfx_word((u16)(ADDR_SCB3 + slot_of(pl) + c), 0);
+    g_key[pl] = -1;
 }
 
-void gum_step(int active, uint16_t gum, uint32_t frame, int drawn, uint8_t bird_frame, int flip, int cx, int top) {
+void gum_step(int pl, int active, uint16_t gum, uint32_t frame, int drawn, uint8_t bird_frame, int flip, int cx, int top) {
     uint8_t level = active ? gum_view_level(gum) : 0;
-    if (!active) { g_pop_t = -1; g_last_level = 0; hide(); return; }
-    if (level > 0) g_pop_t = -1;
-    else if (g_last_level > 0) { g_pop_t = 0; g_pop_anim = gum_view_anim(g_last_level, GUM_STATE_POP); }
-    else if (g_pop_t >= 0 && gum_view_pop_done((uint32_t)++g_pop_t)) g_pop_t = -1;
-    g_last_level = level;
+    if (!active) { g_pop_t[pl] = -1; g_last_level[pl] = 0; hide(pl); return; }
+    if (level > 0) g_pop_t[pl] = -1;
+    else if (g_last_level[pl] > 0) { g_pop_t[pl] = 0; g_pop_anim[pl] = gum_view_anim(g_last_level[pl], GUM_STATE_POP); }
+    else if (g_pop_t[pl] >= 0 && gum_view_pop_done((uint32_t)++g_pop_t[pl])) g_pop_t[pl] = -1;
+    g_last_level[pl] = level;
     uint8_t anim, sheet;
-    if (g_pop_t >= 0) { anim = g_pop_anim; sheet = gum_view_frame(GUM_STATE_POP, (uint32_t)g_pop_t); }
+    if (g_pop_t[pl] >= 0) { anim = g_pop_anim[pl]; sheet = gum_view_frame(GUM_STATE_POP, (uint32_t)g_pop_t[pl]); }
     else if (level > 0) { anim = gum_view_anim(level, GUM_STATE_WOBBLE); sheet = gum_view_frame(GUM_STATE_WOBBLE, frame); }
-    else { hide(); return; }
+    else { hide(pl); return; }
     GumOffset o = gum_view_offset(bird_frame, flip);
-    if (!drawn || !o.show) { hide(); return; }
+    if (!drawn || !o.show) { hide(pl); return; }
     const GumFrame *f = &gum_frames[gum_anims[anim].first_frame + sheet];
     int key = (anim << 8) | sheet;
-    if (key != g_key) {
-        gfx_sprite_strips(GUM_SPRITE, f->tiles_w, f->tiles_h, &gum_tile_index[f->tile_offset], GUM_TILE_BASE, (u16)((GUM_PAL_SLOT + f->palette) << 8));
-        if (f->tiles_w < GUM_COUNT) gfx_word((u16)(ADDR_SCB3 + GUM_SPRITE + f->tiles_w), 0); /* ends the chain: no stale second column */
-        g_key = key; g_gum_loads++;
+    if (key != g_key[pl]) {
+        gfx_sprite_strips(slot_of(pl), f->tiles_w, f->tiles_h, &gum_tile_index[f->tile_offset], GUM_TILE_BASE, (u16)((GUM_PAL_SLOT + f->palette) << 8));
+        if (f->tiles_w < GUM_COUNT) gfx_word((u16)(ADDR_SCB3 + slot_of(pl) + f->tiles_w), 0); /* ends the chain: no stale second column */
+        g_key[pl] = key; g_gum_loads += (u16)(pl == 0);
     }
     /* The bubble hangs on the bird's string: o.dy puts its bottom edge on the string top, o.dx its string column on the bird's. */
-    gfx_sprite_place(GUM_SPRITE, f->tiles_w, f->tiles_h, cx - f->tiles_w * 8 + o.dx, top - f->tiles_h * 16 + o.dy);
-    g_gum_draws++;
+    gfx_sprite_place(slot_of(pl), f->tiles_w, f->tiles_h, cx - f->tiles_w * 8 + o.dx, top - f->tiles_h * 16 + o.dy);
+    g_gum_draws += (u16)(pl == 0);
 }
