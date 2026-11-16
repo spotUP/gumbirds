@@ -102,7 +102,7 @@ void ai_step(Ai *a, Rng *r, const Flier *self, const Flier *target, FlierInput *
         a->thinks++;
         a->dir = 0;
         if (target) {
-            AiState s = ai_decide(self, target);
+            AiState s = a->flee ? AI_FLEE : ai_decide(self, target);
             a->state = (uint8_t)s;
             if (s != AI_FILL) {
                 int16_t cx, cy;

@@ -27,6 +27,7 @@
 #include "gen/arcade_tables.h"
 #include "core/arc_view.h"
 #include "gen/trippickup_tables.h"
+#include "gen/gumbubble_tables.h"
 #include "gfx.h"
 #include "sprite_slots.h"
 #include "vram_layout.h"
@@ -878,6 +879,35 @@ static void roost_marker_step(const Game *g) {
         }
     }
     if (g_roost_on) { obs_hide_slot(ROOST_SPRITE); obs_hide_slot(ROOST_SPRITE + 1); g_roost_on = 0; g_roost_tiles = 0; }
+}
+
+/* Hot Gum bubble (PARTY): the angry bubble B over the carrier's head, one 16x16 sprite in the Roost marker slot (the rules never run together).
+ * g = the playing Game, or 0 to park it. The 12-step sequence in gumbubble_tables.h loops; the fuse speeds the wobble up as it runs low. */
+static const u8 g_hotb_cell[GUMBUBBLE_SEQ_COUNT] = GUMBUBBLE_TABLE_SEQ_CELL;
+static const s8 g_hotb_dx[GUMBUBBLE_SEQ_COUNT] = GUMBUBBLE_TABLE_SEQ_DX;
+static const s8 g_hotb_dy[GUMBUBBLE_SEQ_COUNT] = GUMBUBBLE_TABLE_SEQ_DY;
+static const u8 g_hotb_ticks[GUMBUBBLE_SEQ_COUNT] = GUMBUBBLE_TABLE_SEQ_TICKS;
+static u8 g_hotb_on;
+static u8 g_hotb_cell_shown = 0xFF;
+static void hot_bubble_step(const Game *g) {
+    const Flier *c = g ? game_hot_carrier(g) : 0;
+    if (c) {
+        int t = (int)(g->frame % GUMBUBBLE_LOOP_TICKS), k = 0, sx;
+        while (k < GUMBUBBLE_SEQ_COUNT - 1 && t >= g_hotb_ticks[k]) { t -= g_hotb_ticks[k]; k++; }
+        sx = camera_screen_x((int)(c->x >> 16) - 8 + g_hotb_dx[k], g_cam_px, 16);
+        if (camera_visible(sx, 16)) {
+            u16 s3 = gfx_scb3_word(1, (int)(c->y >> 16) - 34 + g_hotb_dy[k]), s4 = gfx_scb4_word(sx);
+            if (g_hotb_cell_shown != g_hotb_cell[k]) {
+                gfx_sprite_strips(ROOST_SPRITE, 1, 1, &gumbubble_tile_index[g_hotb_cell[k]], GUMBUBBLE_TILE_BASE, (u16)(GUMBUBBLE_PAL_SLOT << 8));
+                g_hotb_cell_shown = g_hotb_cell[k];
+            }
+            if (!g_hotb_on) { gfx_sprite_unchained(ROOST_SPRITE, 1); g_hotb_on = 1; }
+            gfx_scb_run((u16)(ADDR_SCB3 + ROOST_SPRITE), 1, &s3, 1);
+            gfx_scb_run((u16)(ADDR_SCB4 + ROOST_SPRITE), 1, &s4, 1);
+            return;
+        }
+    }
+    if (g_hotb_on) { obs_hide_slot(ROOST_SPRITE); g_hotb_on = 0; g_hotb_cell_shown = 0xFF; }
 }
 
 /* BIOS_USER_MODE: 1 attract, 2 game in progress (coins then only add credits). */
@@ -1982,6 +2012,7 @@ static void game_loop(void) {
             u8 arena = world && (view.game->mode == GAME_MODE_ARENA || view.game->mode == GAME_MODE_ARCADE);
             gum_step(0, arena || (trip && game_trip_ready(view.game)), trip ? view.game->trip.gum : GUM_MAX, (trip || arena) ? view.game->frame : 0, g_gum_pose[0].drawn, g_gum_pose[0].frame, g_gum_pose[0].flip, g_gum_pose[0].cx, g_gum_pose[0].top);
             roost_marker_step(arena && view.state == FLOW_PLAYING ? view.game : 0);
+            hot_bubble_step(arena && view.state == FLOW_PLAYING ? view.game : 0);
             gum_step(1, arena && view.game->players == 2, GUM_MAX, view.game->frame, g_gum_pose[1].drawn, g_gum_pose[1].frame, g_gum_pose[1].flip, g_gum_pose[1].cx, g_gum_pose[1].top);
             {   /* the splash starts from the same crossing that plays the splosh sound; it keeps running through Game Over */
                 const SoundEvents *se = sound_events();

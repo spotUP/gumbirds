@@ -412,6 +412,32 @@ static void coop_digest(void)
     }
 }
 
+/* Hot Gum part: fuse pops, passes and the score show the HOT_ knobs. */
+static void hot_digest(void)
+{
+    static Game g;
+    uint32_t f;
+    int i, won;
+    for (won = 0; won <= 20; won += (won == 0 ? 2 : 18)) { /* 0: plain; 2: the step shows; 20: the minimum shows */
+        game_reset(&g, 13);
+        game_set_mode(&g, GAME_MODE_ARENA);
+        g.party_rule = PARTY_HOT;
+        g.matches_won = (uint8_t)won;
+        for (f = 0; f < 1500u; f++) {
+            if (f % 100u == 50u && g.cpu_count > 0 && g.round_start == RS_NONE) { /* a human carrier meets a rival: the pass, its cooldown and score */
+                Flier *h = &g.hero[0], *c = &g.cpu[0];
+                g.hot.carrier = 0; g.hot.cool = 0;
+                h->state = c->state = FLIER_ALIVE; h->balloons = c->balloons = 2; g.pump[0].state = ARC_PUMP_FLYING;
+                h->x = FL_PX(147); c->x = FL_PX(153); h->y = c->y = FL_PX(60);
+                h->vx = FL_PX(1); c->vx = -FL_PX(1); h->vy = c->vy = 0;
+            }
+            game_step(&g, (uint8_t)((f & 32u) ? IN_RIGHT : IN_LEFT) | ((f & 8u) ? IN_A : 0));
+            mix(g.score); mix(g.hot.carrier); mix(g.hot.fuse); mix(g.hot.cool); mix(g.over); mix(g.matches_won);
+            for (i = 0; i < g.cpu_count; i++) mix(g.cpu[i].balloons);
+        }
+    }
+}
+
 int main(void)
 {
     trip_island_digest();
@@ -421,6 +447,7 @@ int main(void)
     ai_probe();
     arena_digest();
     roost_digest();
+    hot_digest();
     party_howto_digest();
     arcade_digest();
     spawn_digest();
