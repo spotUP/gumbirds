@@ -9,7 +9,8 @@ Palettes (player, cpu, p2, distress1..3) come from assets/flier/gum_mouth/palett
 Clips (balloon-less model; the old balloon clips map onto these in src/main.c k_clips):
   flap    one shot per flap press         fly      steady flight loop (the sway)    settle  one shot on a turn in the air
   idle    steady with no balloons         pump     4 stages of the landing blow-up  inflate one shot on gaining a balloon
-  fall / pop2 / pop1   dead and falling, balloon pops          walk / land / breathe  ground clips (stand poses)"""
+  fall / pop2 / pop1   dead and falling, balloon pops          walk / land / breathe  ground clips (stand poses)
+  flap_r / flap_l  the flap clip on a body swung right / left (table "sway" says which frames are swung)"""
 import json, os, sys
 from PIL import Image
 
@@ -47,6 +48,12 @@ CLIPS = [  # (name, loop, [(frame, ticks)])
     ("land", 0, [("stand_blast", 4), ("stand_puff", 4)]),
     ("breathe", 1, [("stand_in", 6), ("stand_puff", 4), ("stand_blast", 5), ("stand_puff", 4)]),
 ]
+# The flap clip on a swung body (flier_view.c shows these while the sway under a wingbeat is right / left): same frame
+# count and ticks as flap, frame for frame.
+SWAY_FLAP = {"f1": "%s_f1", "f2": "%s_f2", "f3": "%s_f3", "f4": "%s_f4", "d1": "%s_f3", "d2": "%sp", "blast": "%sp", "puff": "%sp", "rest": "%s"}
+CLIPS += [("flap_" + s[0].lower(), 0, [(SWAY_FLAP[n] % s, t) for n, t in CLIPS[0][2]]) for s in ("R1", "L1")]
+# shortcut: the deep swings R2 / L2 show the R1 / L1 wing frames under a wingbeat, draw R2 / L2 wing frames if the jump shows.
+SWAY = {"R1": 1, "R1p": 1, "R2": 1, "L1": 2, "L1p": 2, "L2": 2}   # per frame: 0 centred, 1 swung right, 2 swung left
 
 
 def load_frames():
@@ -77,7 +84,7 @@ def main():
         flat += p
     img.putpalette([0, 0, 0] + flat)
     px = img.load()
-    gum_dx, gum_dy, gum_show = [], [], []
+    gum_dx, gum_dy, gum_show, sway = [], [], [], []
     hang_shift = FEET - max(i for i, r in enumerate(rows["rest"]) if set(r) - {"."})
     for n, (name, _) in enumerate(seq):
         r = rows[name]
@@ -91,6 +98,7 @@ def main():
         gum_dx.append(grip[name] - GRIP_COL)
         gum_dy.append(shift - hang_shift)
         gum_show.append(0 if name in ("strain", "burst") else 1)   # the gum is gone in the pop poses
+        sway.append(SWAY.get(name.split("_")[0], 0))   # R1_f1 .. L1_f4 are swung like R1 / L1
     img.save(os.path.join(OUT, "sheet.png"))
     anims, first = [], 0
     for name, loop, fr in CLIPS:
@@ -99,7 +107,7 @@ def main():
     meta = dict(sheet="sheet.png", frame_w=W, frame_h=H, sheet_cols=cols, sheet_rows=srows, tick_hz=60, feet_row=FEET,
                 hit_box_columns=[10, 13], animations=anims,
                 palette_player=pals["palettes"]["player"], palette_cpu=pals["palettes"]["cpu"],
-                extra_palettes=pals["extra_palettes"], extra_tables={"gum_dx": gum_dx, "gum_dy": gum_dy, "gum_show": gum_show})
+                extra_palettes=pals["extra_palettes"], extra_tables={"gum_dx": gum_dx, "gum_dy": gum_dy, "gum_show": gum_show, "sway": sway})
     json.dump(meta, open(os.path.join(OUT, "frames.json"), "w"), indent=1)
     print("[OK] %d frames, %d clips, hanging shift %d (GUM_BIRD_ROW = grip row 2 + shift + 2 = %d)" % (len(seq), len(CLIPS), hang_shift, hang_shift + 4))
 
