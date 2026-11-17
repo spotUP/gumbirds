@@ -1,6 +1,7 @@
 /* trip_hit.c - Gum Trip collision, see trip_hit.h. */
 #include "trip_hit.h"
 #include "trip_cave.h"
+#include "splash_view.h"
 
 int trip_hit_haz_y(const TripGenHazard *h, uint32_t frame) {
     uint8_t a = (uint8_t)(h->phase + (uint8_t)(frame * TRIP_SWEEP_STEP));
@@ -57,16 +58,43 @@ volatile uint16_t g_trip_window_clamps;
 /* Half height in whole rows of the body box, the one rule trip_collide and the window clamp share. */
 static int body_half_h(const Flier *f) { return (int)(flier_half_h(f) >> 16) + 1; }
 
-int trip_hit_window(const Trip *t, const TripGen *g, const Flier *f, int32_t *lo, int32_t *hi) {
-    int fx = (int)(f->x >> 16), fh = body_half_h(f);
-    int s = g->head, i, top = -32768, bot = 32767, any = 0;
+/* Cave span under the flier's x range: top = lowest roof edge, bot = highest floor edge (screen rows). 0 when no chunk covers it. */
+static int window_span(const Trip *t, const TripGen *g, const Flier *f, int *top, int *bot) {
+    int fx = (int)(f->x >> 16);
+    int s = g->head, i, any = 0;
+    *top = -32768; *bot = 32767;
     for (i = 0; i < g->count; i++, s = next_slot(s)) {
         const TripChunk *c = &g->ring[s];
         int rel = (int)(int32_t)(t->px - c->wx) + fx;
         if (rel + FLIER_HALF_W < 0 || rel - FLIER_HALF_W > TRIP_CHUNK_PX - 1) continue;
-        trip_cave_span(c, rel - FLIER_HALF_W, rel + FLIER_HALF_W, &top, &bot);   /* per 16 px column, curves included */
+        trip_cave_span(c, rel - FLIER_HALF_W, rel + FLIER_HALF_W, top, bot);   /* per 16 px column, curves included */
         any = 1;
     }
+    return any;
+}
+
+/* Splat landing line: the deepest opaque floor row under the whole 48 px splash width (not the flier's), so the splat's flat solid base
+ * (splash rows SURFACE_ROW.., drawn behind the floor strip) lies on the rock at every column; where the floor is higher the body sinks
+ * into it. The flat floor's lip tile is transparent for its first TRIP_LIP_CLEAR rows (assets/tripstrip lip0..3). -1: no chunk. */
+#define TRIP_LIP_CLEAR 2
+int trip_hit_floor_line(const Trip *t, const TripGen *g, const Flier *f) {
+    int fx = (int)(f->x >> 16), s = g->head, i, line = -1;
+    for (i = 0; i < g->count; i++, s = next_slot(s)) {
+        const TripChunk *c = &g->ring[s];
+        int rel = (int)(int32_t)(t->px - c->wx) + fx, x0 = rel - SPLASH_ANCHOR_X, x1 = rel + SPLASH_ANCHOR_X - 1, k;
+        if (x1 < 0 || x0 > TRIP_CHUNK_PX - 1) continue;
+        if (x0 < 0) x0 = 0;
+        if (x1 > TRIP_CHUNK_PX - 1) x1 = TRIP_CHUNK_PX - 1;
+        for (k = x0 >> 4; k <= x1 >> 4; k++) {
+            int e = trip_cave_edge(c, k, 0) + TRIP_LIP_CLEAR;
+            if (e > line) line = e;
+        }
+    }
+    return line;
+}
+
+int trip_hit_window(const Trip *t, const TripGen *g, const Flier *f, int32_t *lo, int32_t *hi) {
+    int fh = body_half_h(f), top, bot, any = window_span(t, g, f, &top, &bot);
     /* the box rows y-fh..y+fh must avoid rows 0..top-1 and bot..179 (the trip_collide rule) */
     if (!any || top + fh > bot - 1 - fh) return 0;
     *lo = (int32_t)(top + fh) << 16;

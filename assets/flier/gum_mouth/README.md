@@ -17,6 +17,7 @@ Draft only. No game code, nothing in assets/. Open `index.html` for the gallery 
 
 - `frames_B.txt`: the 24 hand-typed grids (24 wide, palette letters).
 - `draw_gum_mouth_v4.py`: assembler (`python3.14 -I draw_gum_mouth_v4.py`). Assembles, mirrors, palette-maps, packs, counts tiles. Reuses helpers from `../2026-11-16-gum-mouth/draw_gum_mouth.py`.
+- Sway flap frames (2026-11-17): `R1_f1..f4` and `L1_f1..f4` in `frames_B.txt` are the wing arc on the swung bodies R1 / L1, used by clips `flap_r` / `flap_l`. They add 22 unique tiles; the game sheet goes from 72 to 88 tile slots. `numbers.txt` is from before them.
 - `numbers.txt`: tile counts from the assembler's tile builder. 59 unique tiles for all frames (v3: 50). idle 10, fly 22, settle 23, flap 24, landing 13, distress1 10, distress2 10, distress3 6.
 - `B_*.gif`, `B_*.png`: generated sheets and animations.
 

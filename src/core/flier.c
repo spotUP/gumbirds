@@ -89,8 +89,8 @@ int flier_lose_balloon(Flier *f) {
     f->balloons--;
     if (f->balloons > 0) {
         f->invincible = FLIER_INVINCIBLE_POP;
-    } else if (f->on_ground) {
-        f->y += FL_PX(2); /* smaller box: keep the feet on the floor */
+    } else if (f->on_ground && f->has_parachute) {
+        f->y += FL_PX(2); /* smaller box: keep the feet on the floor; it sits and pumps */
     } else if (f->has_parachute) {
         f->state = FLIER_PARACHUTE;
         f->invincible = FLIER_INVINCIBLE_PARACHUTE;

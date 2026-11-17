@@ -14,7 +14,7 @@
 #define GUM_VIEW_LEVELS 16
 #define GUM_VIEW_WOBBLE_SHEET 6  /* sheet frames of a wobble loop (assets/gum/gum_sheet.json) */
 #define GUM_VIEW_POP_SHEET    7  /* sheet frames of a pop */
-#define GUM_VIEW_BIRD_FRAMES  69 /* frames of the player animation (sootling_anims[PLAYER]); gum_view.c and src/gum.c assert it */
+#define GUM_VIEW_BIRD_FRAMES  100 /* frames of the player animation (sootling_anims[PLAYER]); gum_view.c and src/gum.c assert it */
 
 typedef enum { GUM_SIZE_TINY, GUM_SIZE_SMALL, GUM_SIZE_MEDIUM, GUM_SIZE_LARGE } GumSize;
 typedef enum { GUM_POP_LARGE, GUM_POP_SMALL } GumPop;
@@ -39,6 +39,10 @@ int gum_view_pop_done(uint32_t t);
 /* Bubble offset from the bird sprite's top centre for the bird's animation frame (0..GUM_VIEW_BIRD_FRAMES - 1), flip = the bird is mirrored:
  * dy = GUM_BIRD_ROW + the frame's bob, dx = GUM_BIRD_DX (GUM_BIRD_DX_FLIP mirrored). Out of range: 0, 0, show 0. */
 GumOffset gum_view_offset(uint8_t bird_frame, int flip);
+
+/* 1 when the bubble sprite is drawn: a running pop always (the bird's pop poses have show 0, they hide a whole bubble only,
+ * never the burst), a whole bubble (level > 0) when the bird frame shows it. */
+int gum_view_draws(int popping, uint8_t level, uint8_t show);
 
 /* Leak (look only): a damaged bubble shows a hole and an air jet (assets/gum_leak, 12 frames, GUM_LEAK_TICK game frames each). */
 #define GUM_LEAK_FRAMES 12

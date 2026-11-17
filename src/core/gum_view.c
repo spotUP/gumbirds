@@ -40,7 +40,8 @@ int gum_view_pop_done(uint32_t t) { return t >= (uint32_t)GUM_VIEW_POP_SHEET * G
 
 /* Per bird frame (the player animation of the Sootling sheet), from tools/import_gum_mouth_sheet.py through the build:
  * gum_dx = grip column - sprite centre column, gum_dy = rows the frame was shifted down to its feet relative to the hanging
- * poses (so the bubble keeps its place on the beak), gum_show = 0 in the pop poses (strain, burst), where the gum is gone. */
+ * poses (so the bubble keeps its place on the beak), gum_show = 0 in the pop poses (strain, burst), where the gum is gone;
+ * the pop2 clip (2 balloons to 1) keeps the bubble and adds a pushed-in bob to gum_dy (GUM_BOB in the importer). */
 static const int8_t k_gum_dx[GUM_VIEW_BIRD_FRAMES] = SOOTLING_TABLE_GUM_DX;
 static const int8_t k_gum_dy[GUM_VIEW_BIRD_FRAMES] = SOOTLING_TABLE_GUM_DY;
 static const uint8_t k_gum_show[GUM_VIEW_BIRD_FRAMES] = SOOTLING_TABLE_GUM_SHOW;
@@ -54,6 +55,8 @@ GumOffset gum_view_offset(uint8_t bird_frame, int flip)
     o.show = k_gum_show[bird_frame];
     return o;
 }
+
+int gum_view_draws(int popping, uint8_t level, uint8_t show) { return popping || (level > 0 && show); }
 
 int gum_view_leaks_balloons(uint8_t balloons) { return balloons == 1; }
 int gum_view_leaks_gum(uint16_t gum) { return gum > 0 && gum < GUM_MAX / 2; }

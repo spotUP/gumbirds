@@ -79,6 +79,24 @@ int main(void)
             if (!o.show) hidden++;
         }
         check(hidden > 0 && hidden < GUM_VIEW_BIRD_FRAMES, "some frames hide the bubble, most show it", hidden, 1);
+        {   /* 2 balloons to 1 (pop2): the bubble that is left never hides, and it bobs down (pushed in) and back past rest */
+            static const uint8_t cf[] = SOOTLING_TABLE_CLIP_FIRST, cc[] = SOOTLING_TABLE_CLIP_COUNT;
+            int lo = 0, hi = 0;
+            for (k = cf[SOOTLING_CLIP_POP2]; k < cf[SOOTLING_CLIP_POP2] + cc[SOOTLING_CLIP_POP2]; k++) {
+                check(gsh[k] == 1, "pop2 frame shows the bubble", k, 1);
+                if (gdy[k] > hi) hi = gdy[k];
+                if (gdy[k] < lo) lo = gdy[k];
+            }
+            check(hi >= 3 && lo < 0, "pop2 bob: pushed in, then a rebound", hi, lo);
+            /* last balloon (pop1): the bird poses hide a whole bubble, the running burst draws through them, then nothing */
+            for (k = cf[SOOTLING_CLIP_POP1]; k < cf[SOOTLING_CLIP_POP1] + cc[SOOTLING_CLIP_POP1]; k++) {
+                check(gsh[k] == 0 && !gum_view_draws(0, GUM_VIEW_LEVELS, gsh[k]), "pop1 frame hides a whole bubble", k, 0);
+                check(gum_view_draws(1, 0, gsh[k]) == 1, "pop1 frame draws the burst", k, 1);
+                check(gum_view_draws(0, 0, gsh[k]) == 0, "burst over: no bubble", k, 0);
+            }
+            check(gum_view_draws(0, GUM_VIEW_LEVELS, 1) == 1 && gum_view_draws(0, 0, 1) == 0, "whole bubble draws, level 0 does not", 0, 1);
+            check(!gum_view_pop_done(0) && gum_view_pop_done(GUM_VIEW_POP_SHEET * GUM_POP_FRAMES), "the burst runs its whole sheet, then ends", 0, 1);
+        }
     }
     /* Out of range is bounds safe: no bubble, no offset. */
     for (k = GUM_VIEW_BIRD_FRAMES; k < 256; k++) {

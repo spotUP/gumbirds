@@ -16,7 +16,7 @@
  *   113..115 the splash of a flier falling into water or lava (SPLASH_SPRITE, src/splash.c): 3 columns, drawn BEHIND the islands, pool and
  *            the hazard strip, so the liquid covers the splash base
  *   116..117 player 2's gum bubble (GUM_P2_SPRITE, src/gum.c; Arena and Arcade co-op)
- *   118..119 the Roost Rule marker (ROOST_SPRITE, src/main.c; PARTY): 2 columns on the glowing island. Clouds and airship drift (BG-2) need another slot
+ *   118..119 free (the Roost Rule marker and the Hot Gum bubble moved to ROOST_SPRITE, 367..368, so they draw over the balloons). Clouds and airship drift (BG-2) may take it
  *   120..160 floating islands (ISLAND_COUNT 41 = room for the stage platform columns, 22 in stage 1, and the Gum Trip islands): one sprite per column of each platform in
  *            stage table order, drawn by src/island.c; they sit below the pool so fliers draw in front
  *   161..256 object pool (POOL_SPRITE_COUNT = POOL_MAX x POOL_COLS, src/core/obj_pool.h): object i owns
@@ -51,8 +51,6 @@
 #define GUM_SPRITE 111
 #define GUM_COUNT 2
 #define GUM_P2_SPRITE 116
-#define ROOST_SPRITE 118
-#define ROOST_COUNT 2
 #define SPLASH_SPRITE 113
 #define SPLASH_COUNT 3
 #define ISLAND_SPRITE 120
@@ -89,6 +87,12 @@
 #define TITLE_SOOT_COUNT 4
 #define TRIP_PICKUP_SPRITE 367 /* Gum Trip pickups: 2 sprite columns per ring slot, 5 slots (step V3) */
 #define TRIP_PICKUP_COUNT 10
+/* The Roost Rule marker (2 columns) and the Hot Gum bubble (1 column), PARTY only (the rules never run together): above the pool and the hero, so
+ * the marker is never hidden by a balloon (a higher index draws on top; owner report 2026-11-17: the hot gum bubble drew behind balloons). They
+ * share the first Gum Trip pickup slots: pickups exist only in Gum Trip, never in the arena, and trip_pickup_step rewrites them on entry. Only
+ * the dead bodies (DEAD_BODY_SPRITE, last 4 slots) stay above it. */
+#define ROOST_SPRITE TRIP_PICKUP_SPRITE
+#define ROOST_COUNT 2
 #define SPRITE_SLOT_END 377
 /* Bonus result screen (draw_result_fx in main.c), shown through the windows of the fix scene. They reuse the strip slots after the
  * bonus stage parks its own (ARC_BONUS_SPRITE) and are hidden when the result ends. Order = depth: glass at the back, bubbles on it.

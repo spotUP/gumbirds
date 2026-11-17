@@ -129,7 +129,9 @@ extern volatile uint16_t g_flier_solid_hits; /* bounces off a solid, counted by 
 int flier_collide_solids(Flier *f, int32_t prev_x, int32_t prev_y, const FlierSolid *solids, int n);
 /* Half width and height above the feet bottom (16.16) of the box flier_collide_solids tests: the whole drawn flier, gum included. */
 void flier_solid_box(const Flier *f, int32_t *hw, int32_t *top);
-/* Loses one balloon unless invincible (spec 4.2). Returns 1 if a balloon popped. */
+/* Loses one balloon unless invincible (spec 4.2). Returns 1 if a balloon popped. The last one: with has_parachute a flier in the
+ * air goes FLIER_PARACHUTE and one on the ground sits (to pump); without it the flier falls dead through the islands, from the air
+ * or the ground (Balloon Fight disasm, owner 2026-11-17). */
 int flier_lose_balloon(Flier *f);
 /* Spawn protection (BR-D5): spawn_inv = FLIER_SPAWN_INVINCIBLE. Immune to balloon loss and pops (a pair against it bounces) until
  * it runs out or the first left/right/flap input arrives. The hazard kill line ignores it. */

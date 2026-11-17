@@ -8,10 +8,12 @@ static const uint8_t k_first[] = SOOTLING_TABLE_CLIP_FIRST;
 static const uint8_t k_count[] = SOOTLING_TABLE_CLIP_COUNT;
 static const uint8_t k_loop[] = SOOTLING_TABLE_CLIP_LOOP;
 static const uint8_t k_ticks[] = SOOTLING_TABLE_FRAME_TICKS;
+static const uint8_t k_sway[] = SOOTLING_TABLE_SWAY;
 static const FlierClips clips = { k_first, k_count, k_loop, k_ticks,
     SOOTLING_CLIP_FLAP, SOOTLING_CLIP_FLY, SOOTLING_CLIP_SETTLE, SOOTLING_CLIP_IDLE, SOOTLING_CLIP_PUMP,
     SOOTLING_CLIP_INFLATE, SOOTLING_CLIP_FALL, SOOTLING_CLIP_POP2, SOOTLING_CLIP_POP1,
-    SOOTLING_CLIP_WALK, SOOTLING_CLIP_LAND, SOOTLING_CLIP_BREATHE };
+    SOOTLING_CLIP_WALK, SOOTLING_CLIP_LAND, SOOTLING_CLIP_BREATHE,
+    k_sway, SOOTLING_CLIP_FLAP_R, SOOTLING_CLIP_FLAP_L };
 
 static int bad;
 static void check(int ok, const char *what, int got, int want)
@@ -147,6 +149,15 @@ static void ground_tests(int b)
 }
 
 /* The constant blow loop (fly), the flap play on a press and the settle on a turn in the air. */
+/* Frame of the flap clip that fr shows, on the centred or a swung body (flap, flap_r, flap_l), or -1. */
+static int flap_off(uint8_t fr)
+{
+    static const uint8_t k[3] = { SOOTLING_CLIP_FLAP, SOOTLING_CLIP_FLAP_R, SOOTLING_CLIP_FLAP_L };
+    int i;
+    for (i = 0; i < 3; i++) if (in_clip(fr, k[i])) return fr - k_first[k[i]];
+    return -1;
+}
+
 static void air_tests(void)
 {
     const int N = k_count[SOOTLING_CLIP_FLAP], F0 = k_first[SOOTLING_CLIP_FLAP];
@@ -170,18 +181,18 @@ static void air_tests(void)
     f.flapped = 1;
     fr = flier_anim_step(&a, &f, &clips, &flip);
     f.flapped = 0;
-    check(fr == F0, "B: press shows the first flap frame", fr, F0);
+    check(flap_off(fr) == 0, "B: press shows the first flap frame", flap_off(fr), 0);
     {
         int k, t;
-        for (t = 1; t < k_ticks[F0]; t++) check(flier_anim_step(&a, &f, &clips, &flip) == F0, "B: first flap frame holds", 0, 0);
+        for (t = 1; t < k_ticks[F0]; t++) check(flap_off(flier_anim_step(&a, &f, &clips, &flip)) == 0, "B: first flap frame holds", 0, 0);
         for (k = 1; k < N; k++)
             for (t = 0; t < k_ticks[F0 + k]; t++) {
                 fr = flier_anim_step(&a, &f, &clips, &flip);
-                check(fr == F0 + k, "B: flap frame", fr, F0 + k);
+                check(flap_off(fr) == k, "B: flap frame", flap_off(fr), k);
             }
     }
     fr = flier_anim_step(&a, &f, &clips, &flip);
-    check(fr == k_first[SOOTLING_CLIP_FLY], "B: fly after the flap", fr, k_first[SOOTLING_CLIP_FLY]);
+    check(in_clip(fr, SOOTLING_CLIP_FLY), "B: fly after the flap", fr, k_first[SOOTLING_CLIP_FLY]);
 
     /* C: a press inside the flap restarts it at the first frame */
     start_air(&f, &a, 1);
@@ -192,9 +203,9 @@ static void air_tests(void)
     f.flapped = 1;
     fr = flier_anim_step(&a, &f, &clips, &flip);
     f.flapped = 0;
-    check(fr == F0, "C: restart shows the first frame", fr, F0);
+    check(flap_off(fr) == 0, "C: restart shows the first frame", flap_off(fr), 0);
 
-    /* D: a turn in the air plays the settle clip once, mirrored by the flip, then fly; a press during it plays flap */
+    /* D: a turn in the air plays the settle clip once, mirrored by the flip, then fly; a press during it plays flap on the swung body */
     start_air(&f, &a, 2);
     f.facing = 0;
     fr = flier_anim_step(&a, &f, &clips, &flip);
@@ -206,12 +217,43 @@ static void air_tests(void)
     f.flapped = 1;
     fr = flier_anim_step(&a, &f, &clips, &flip);
     f.flapped = 0;
-    check(fr == F0, "D: a press cuts settle to flap", fr, F0);
+    check(fr == k_first[SOOTLING_CLIP_FLAP_R], "D: a press during settle flaps on the swung body", fr, k_first[SOOTLING_CLIP_FLAP_R]);
     start_air(&f, &a, 2);
     f.facing = 0;
     run(&a, &f, clip_ticks(SOOTLING_CLIP_SETTLE), &flip);
     fr = flier_anim_step(&a, &f, &clips, &flip);
     check(in_clip(fr, SOOTLING_CLIP_FLY), "D: fly after settle", fr, k_first[SOOTLING_CLIP_FLY]);
+
+    /* F: turn, then flap all through the sway: every step shows a flap frame on the body the sway has at that step
+     * (b plays the same turn without a press), to both sides, and the fly loop sway goes on under the presses after it */
+    {
+        Flier g;
+        FlierAnim b;
+        int flip_b, side[3] = { 0, 0, 0 }, late[3] = { 0, 0, 0 }, n = clip_ticks(SOOTLING_CLIP_SETTLE) + 2 * clip_ticks(SOOTLING_CLIP_FLY);
+        uint8_t ref;
+        start_air(&f, &a, 2);
+        start_air(&g, &b, 2);
+        f.facing = g.facing = 0;
+        run(&a, &f, 3, &flip);
+        run(&b, &g, 3, &flip_b);
+        for (i = 0; i < n; i++) {
+            f.flapped = (uint8_t)(i % 9 == 0);
+            fr = flier_anim_step(&a, &f, &clips, &flip);
+            ref = flier_anim_step(&b, &g, &clips, &flip_b);
+            if (flap_off(fr) < 0) { check(0, "F: a flap frame at every step", fr, F0); break; }
+            if (k_sway[fr] != k_sway[ref]) { check(0, "F: the flap shows the sway of that step", k_sway[fr], k_sway[ref]); break; }
+            side[k_sway[fr]]++;
+            if (i >= clip_ticks(SOOTLING_CLIP_SETTLE)) late[k_sway[fr]]++;
+        }
+        check(side[1] > 0 && side[2] > 0, "F: the sway shows to both sides under the flaps", side[1], side[2]);
+        check(late[1] > 0 && late[2] > 0, "F: the fly sway goes on under the flaps", late[1], late[2]);
+        f.flapped = 0;
+        run(&a, &f, clip_ticks(SOOTLING_CLIP_FLAP), &flip);
+        run(&b, &g, clip_ticks(SOOTLING_CLIP_FLAP), &flip_b);
+        fr = flier_anim_step(&a, &f, &clips, &flip);
+        ref = flier_anim_step(&b, &g, &clips, &flip_b);
+        check(fr == ref, "F: after the last flap the sway is where it would be without one", fr, ref);
+    }
 
     /* E: a press during a pop is ignored, not latched */
     start_air(&f, &a, 2);
@@ -244,9 +286,9 @@ int main(void)
     int flip, i, t;
     uint8_t fr;
 
-    /* sheet facts: the gum-mouth v4 sheet (12 clips, 69 frames) replaced the 105 frame sootling sheet */
-    check(SOOTLING_FRAMES == 69, "frame count", SOOTLING_FRAMES, 69);
-    check(SOOTLING_CLIP_COUNT == 12, "clip count", SOOTLING_CLIP_COUNT, 12);
+    /* sheet facts: the gum-mouth v4 sheet (14 clips, 100 frames: 12 clips plus flap_r / flap_l; pop2 has 7 frames for the bubble bob) replaced the 105 frame sootling sheet */
+    check(SOOTLING_FRAMES == 100, "frame count", SOOTLING_FRAMES, 100);
+    check(SOOTLING_CLIP_COUNT == 14, "clip count", SOOTLING_CLIP_COUNT, 14);
     /* the pipeline pads art to whole 16 px tiles: 24 px art is still 2 strips (src/vram_layout.h SOOT_COLUMNS) */
     check(SOOTLING_ART_W == 24 && SOOTLING_ART_H == 32, "art size", SOOTLING_ART_W, 24);
     /* SOOTLING_MAX_COLUMNS lives in the ngdevkit-typed sprites header, not in the host-includable tables header: 17..32 px is exactly 2 strips */
@@ -334,13 +376,34 @@ int main(void)
     }
     /* The brief fixed these durations. The tests below follow the macros, so pin the defaults here: a changed default
      * fails this block (knob overrides are exercised by knob_digest, not here). */
-    check(FLIER_WALK_HOLD == 3, "walk hold is 3", FLIER_WALK_HOLD, 3);
+    check(FLIER_WALK_HOLD == 6, "walk hold is 6", FLIER_WALK_HOLD, 6);
     check(FLIER_LAND_HOLD_0 == 9 && FLIER_LAND_HOLD_1 == 12, "landing holds are 9 and 12", FLIER_LAND_HOLD_0, 9);
     check(FLIER_BREATHE_HOLD_0 == 36 && FLIER_BREATHE_HOLD_1 == 15 && FLIER_BREATHE_HOLD_2 == 21 && FLIER_BREATHE_HOLD_3 == 15,
           "breathing holds are 36/15/21/15", FLIER_BREATHE_HOLD_0, 36);
     for (i = 0; i < 3; i++) ground_tests(i);
     air_tests();
     pump_frame_tests();
+    {   /* bubble vs balloons: the first pop (2 to 1) blinks the body only, no burst; the last one bursts once the flier falls */
+        Flier f;
+        uint32_t t;
+        int dark = 0;
+        flier_init(&f, 0, 0, 2, 1);
+        f.spawn_inv = 0;
+        check(flier_gum_burst(&f) == 0, "2 balloons: no burst", flier_gum_burst(&f), 0);
+        flier_lose_balloon(&f);
+        check(f.balloons == 1 && f.invincible > 0, "first pop protects", f.invincible, 1);
+        for (t = 0; t < 2 * FLIER_BLINK_HALF_PERIOD; t++) {
+            if (!flier_view_visible(&f, t)) dark++;
+            check(flier_gum_burst(&f) == 0, "first pop: bubble kept through the blink", (int)t, 0);
+        }
+        check(dark == FLIER_BLINK_HALF_PERIOD, "first pop: the body blinks", dark, FLIER_BLINK_HALF_PERIOD);
+        f.balloons = 0; f.state = FLIER_PARACHUTE;
+        check(flier_gum_burst(&f) == 0, "parachute keeps its bubble art", flier_gum_burst(&f), 0);
+        f.state = FLIER_FALLING;
+        check(flier_gum_burst(&f) == 1, "last balloon lost, falling: burst", flier_gum_burst(&f), 1);
+        f.state = FLIER_GONE;
+        check(flier_gum_burst(&f) == 1, "burst stays set after the fall", flier_gum_burst(&f), 1);
+    }
     printf(bad ? "FAIL flier_view (%d)\n" : "PASS flier_view\n", bad);
     return bad != 0;
 }

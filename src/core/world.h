@@ -49,7 +49,6 @@ static inline uint8_t world_hazard(const Game *g)
 {
     int s;
     if (g->mode != GAME_MODE_ARCADE) {
-        if (g->party_rule == PARTY_ROULETTE) return game_roulette_kind(g);
         return hazard_kind_for_round((uint16_t)g->matches_won);
     }
     s = g->arc.stage;

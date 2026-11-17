@@ -453,15 +453,20 @@ static void test_water_and_balloons(void) {
     for (int i = 0; i < 400 && d.state == FLIER_PARACHUTE; i++) { FlierInput in = {0, 0}; flier_step(&d, &in, FL_PX(120)); }
     CHECK(d.state == FLIER_ALIVE && d.on_ground && d.invincible == 0);
 
-    /* last balloon lost on the ground: stands on, no invincibility, feet stay on the floor */
+    /* last balloon lost on the ground without a parachute: fall-through death (Balloon Fight disasm, owner 2026-11-17) */
+    Flier n = stand(1);
+    CHECK(flier_lose_balloon(&n) == 1 && n.balloons == 0 && n.state == FLIER_FALLING && !n.on_ground);
+
+    /* with a parachute (respawn life): sits on, no invincibility, feet stay on the floor, pumps back up */
     Flier g = stand(1);
+    g.has_parachute = 1;
     CHECK(flier_lose_balloon(&g) == 1 && g.balloons == 0 && g.state == FLIER_ALIVE && g.on_ground);
     gstep(&g, 0, 0);
     CHECK(g.y + flier_half_h(&g) == FL_PX(120));
     CHECK(flier_add_balloon(&g) == 1 && g.balloons == 1);
     gstep(&g, 0, 0);
     CHECK(g.y + flier_half_h(&g) == FL_PX(120));
-    while (g.balloons < FLIER_MAX_BALLOONS) CHECK(flier_add_balloon(&g) == 1);
+    for (int i = 0; i < FLIER_MAX_BALLOONS && g.balloons < FLIER_MAX_BALLOONS; i++) CHECK(flier_add_balloon(&g) == 1);
     CHECK(!flier_add_balloon(&g) && g.balloons == FLIER_MAX_BALLOONS);
 }
 

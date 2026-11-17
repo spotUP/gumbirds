@@ -5,7 +5,9 @@
  * ticks to build/gen/sootling_tables.h, src/main.c passes them in as FlierClips, so no timing number lives in C).
  * The gum-mouth v4 bird holds the gum in its beak; clips:
  *   fly            the constant blow loop while airborne with balloons
- *   flap           one shot per flap press (Flier.flapped); a press while it plays restarts it, a press during settle cuts to it
+ *   flap           one shot per flap press (Flier.flapped); a press while it plays restarts it. The sway below it (fly
+ *                  or settle) keeps running: the wingbeat shows on the swung body (flap_r / flap_l, picked per step by
+ *                  the sway table) and when it ends the sway carries on where it is
  *   settle         one shot when the flier turns in the air (the rest_fl / rest_fr foot-lag pendulum)
  *   idle           no balloons (also on a parachute)         fall   dead and falling
  *   pop2 / pop1    one shot, played when the 2nd / last balloon pops (a pop from 2 to 0 plays pop1)
@@ -26,6 +28,8 @@ typedef struct {
     const uint8_t *ticks;                /* per sheet frame: 60 Hz ticks it is shown */
     uint8_t flap, fly, settle, idle, pump, inflate, fall, pop2, pop1; /* clip numbers */
     uint8_t walk, land, breathe;                                      /* ground clip numbers */
+    const uint8_t *sway;   /* per sheet frame: 0 body centred, 1 swung right, 2 swung left */
+    uint8_t flap_r, flap_l; /* the flap clip on a body swung right / left, frame for frame */
 } FlierClips;
 
 typedef struct {
@@ -34,6 +38,7 @@ typedef struct {
     uint8_t started;
     uint8_t prev_ground;       /* grounded last step (the 0 -> 1 edge starts the landing clip) */
     uint8_t facing;            /* facing last step (a change in the air starts the settle clip) */
+    uint8_t sway_clip, sway_frame, sway_tick; /* while flap plays: the fly / settle position running below it */
 } FlierAnim;
 
 void flier_anim_init(FlierAnim *a);
@@ -47,6 +52,10 @@ uint8_t flier_pump_frame(const FlierClips *c, int progress);
  * is shown FLIER_BLINK_HALF_PERIOD frames, then hidden as many; FALLING and later, and an unprotected flier, are always shown.
  * Pure; the glue passes Game.frame (advanced by game_step_arena and game_step_trip) and keeps stepping the animation while hidden. */
 int flier_view_visible(const Flier *f, uint32_t frame);
+/* The blink hides the body and its parachute only: the gum bubble and its leak jet stay drawn through it.
+ * flier_gum_burst: the bubble is gone and bursts, the last balloon is lost and the flier is dead (FALLING or later; a
+ * parachute or a sitting flier keeps the art it had). The glue plays the gum pop once from the frame this turns 1. */
+int flier_gum_burst(const Flier *f);
 
 /* Body drawing rules for a dead flier (state >= FLIER_FALLING). flier_body_visible: any part of the sprite is still on
  * the screen, so the glue keeps drawing it (it falls behind the hazard art until the sprite is fully off screen).

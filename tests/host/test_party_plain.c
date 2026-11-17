@@ -1,4 +1,4 @@
-/* PARTY_HOT has no rule code in this test and and must play exactly as plain arena: the match ends (1 and 2 players),
+/* PARTY_HOT has no twist and must play exactly as plain arena: the match ends (1 and 2 players),
  * no roost island, no twist, same lives rule as plain arena. */
 #include <stdio.h>
 #include "../../src/core/game.h"

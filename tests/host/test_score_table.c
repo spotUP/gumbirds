@@ -136,9 +136,9 @@ int main(void)
 
     /* v4: party rows carry a rule tag that shifts with the rows and round trips */
     score_tables_defaults(&s);
-    CHECK(score_insert_rule(&s, 3, "AAA", 50000, 2) == 0 && score_insert_rule(&s, 3, "BBB", 60000, 4) == 0);
-    CHECK(s.party_rule[0] == 4 && s.party_rule[1] == 2 && s.party_rule[2] == 0);
-    CHECK(score_insert(&s, 3, "CCC", 1000000) == 0 && s.party_rule[0] == 0 && s.party_rule[1] == 4 && s.party_rule[2] == 2);
+    CHECK(score_insert_rule(&s, 3, "AAA", 50000, 2) == 0 && score_insert_rule(&s, 3, "BBB", 60000, 3) == 0);
+    CHECK(s.party_rule[0] == 3 && s.party_rule[1] == 2 && s.party_rule[2] == 0);
+    CHECK(score_insert(&s, 3, "CCC", 1000000) == 0 && s.party_rule[0] == 0 && s.party_rule[1] == 3 && s.party_rule[2] == 2);
     CHECK(sc(&s, 0, 0) != 1000000 && score_insert_rule(&s, 0, "ARN", 999999, 3) == 0 && s.party_rule[0] == 0);
     CHECK(score_serialise(&s, img, sizeof img) == SCORE_IMAGE_SIZE);
     CHECK(score_load(&s2, img, SCORE_IMAGE_SIZE) == 1 && memcmp(&s, &s2, sizeof s) == 0);

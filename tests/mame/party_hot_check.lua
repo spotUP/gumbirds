@@ -1,6 +1,7 @@
 -- PARTY Hot Gum check (make test-party-hot): UniBIOS 4.0, Arena 1P Start, the script sets the flow to Party mode with rule HOT and joins P2
 -- (the join restarts the match, so match_start picks the first carrier), then:
 --   H1. after the join the rule is Hot Gum with 2 players and a carrier index inside players + cpu_count;
+--   H3. the bubble sprite (ROOST_SPRITE) is above every pool and hero sprite (a higher index draws on top) and is drawn (SCB3 height > 0) while the fuse burns.
 --   H2. the fuse counts down while the round runs, and later it is reloaded (the gum moved on): proves hot_step runs in the real ROM.
 -- Env: BRAWL_FLOW_ADDR (hex), BRAWL_HOT_LAYOUT (party_hot_probe.c output), BRAWL_RESULT.
 local flow_addr = tonumber(os.getenv("BRAWL_FLOW_ADDR"), 16)
@@ -8,6 +9,7 @@ local result = os.getenv("BRAWL_RESULT")
 local L = {}
 for v in (os.getenv("BRAWL_HOT_LAYOUT") or ""):gmatch("%d+") do L[#L + 1] = tonumber(v) end
 local O = { flow = L[1], players = L[2], mode = L[3], rule = L[4], cpus = L[5], carrier = L[6], fuse = L[7], fmode = L[13], frule = L[14] }
+local MARK, HERO_END = L[16], L[17]
 local K = { playing = L[9], arena = L[10], hot = L[11], frames = L[12], party = L[15] }
 local mem = manager.machine.devices[":maincpu"].spaces["program"]
 local ports = manager.machine.ioport.ports
@@ -19,6 +21,13 @@ end
 local coin, start1 = field(":AUDIO_COIN", "Coin 1"), field(":edge:joy:START", "1 Player Start")
 local start2 = field(":edge:joy:START", "2 Players Start") or field(":edge:joy:START", "2 Player")
 local ss = dofile("tests/mame/start_seq.lua")(coin, start1, nil)
+local vram, vaddr, vmod, seen = {}, 0, 1, false
+tap_vram = mem:install_write_tap(0x3c0000, 0x3c0007, "hotvram", function(offset, data, mask)
+  local r = offset & 0xe
+  if r == 0 then vaddr = data
+  elseif r == 2 then vram[vaddr] = data; vaddr = (vaddr + vmod) & 0xffff
+  elseif r == 4 then vmod = data end
+end)
 local function b(o) return mem:read_u8(flow_addr + o) end
 local function w16(o) return mem:read_u16(flow_addr + o) end
 local done = false
@@ -60,7 +69,10 @@ emu.register_frame_done(function()
     -- the fuse reloads (the gum moved on) when it runs out; the carrier index stays valid all along
     if b(O.carrier) ~= 255 and b(O.carrier) >= b(O.players) + b(O.cpus) then finish(false, "carrier " .. b(O.carrier) .. " out of range") return end
     local fz = w16(O.fuse)
+    if ((vram[0x8200 + MARK] or 0) & 0x3f) ~= 0 then seen = true end
     if fz > fuse0 then
+      if MARK < HERO_END then finish(false, "bubble sprite " .. MARK .. " is below the hero end " .. HERO_END .. ": balloons draw over it") return end
+      if not seen then finish(false, "bubble sprite " .. MARK .. " never drawn during the burn") return end
       finish(true, "fuse " .. fuse0 .. " counted down and reloaded to " .. fz .. " after " .. k .. " frames, carrier " .. b(O.carrier))
     elseif k > 2 * K.frames + 600 then
       finish(false, "fuse never reloaded: start " .. fuse0 .. " now " .. fz .. " carrier " .. b(O.carrier))
