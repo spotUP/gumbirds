@@ -7,7 +7,7 @@ ROOT=$(cd "$HERE/../.." && pwd)
 OUT=${BRAWL_TEST_OUT:-$ROOT/build/test-host}
 mkdir -p "$OUT"
 CC="nice -n 19 clang -I $ROOT/build -std=c99 -Wall -Wextra -Werror -pedantic"
-SRC="$ROOT/src/core/rng.c $ROOT/src/core/game.c $ROOT/src/core/hiscore.c $ROOT/src/core/nameentry.c $ROOT/src/core/flow.c $ROOT/src/core/obstacle_view.c $ROOT/src/core/bg_scroll.c $ROOT/src/core/vram_queue.c $ROOT/src/core/obj_pool.c $ROOT/src/core/sound_queue.c $ROOT/src/core/sound_events.c $ROOT/src/core/flier.c $ROOT/src/core/stage.c $ROOT/src/core/island_layout.c $ROOT/src/core/ai.c $ROOT/src/core/flier_view.c $ROOT/src/core/sprite_budget.c $ROOT/src/core/camera.c $ROOT/src/core/trip.c $ROOT/src/core/trip_gen.c $ROOT/src/core/trip_cave.c $ROOT/src/core/trip_hit.c $ROOT/src/core/trip_rival.c $ROOT/src/core/score_table.c $ROOT/src/core/gumgames.c $ROOT/src/core/gg_flapdash.c $ROOT/src/core/gg_popdrop.c $ROOT/src/core/trip_view.c $ROOT/src/core/trip_pickup_fx.c $ROOT/src/core/banner.c $ROOT/src/core/gum_view.c $ROOT/src/core/splash_view.c $ROOT/src/core/arcade.c $ROOT/src/core/arc_elements.c $ROOT/src/core/arc_view.c $ROOT/src/core/result.c $ROOT/src/core/result_view.c $ROOT/src/core/attract_overlay.c"
+SRC="$ROOT/src/core/rng.c $ROOT/src/core/game.c $ROOT/src/core/hiscore.c $ROOT/src/core/nameentry.c $ROOT/src/core/flow.c $ROOT/src/core/obstacle_view.c $ROOT/src/core/bg_scroll.c $ROOT/src/core/vram_queue.c $ROOT/src/core/obj_pool.c $ROOT/src/core/sound_queue.c $ROOT/src/core/sound_events.c $ROOT/src/core/flier.c $ROOT/src/core/stage.c $ROOT/src/core/island_layout.c $ROOT/src/core/ai.c $ROOT/src/core/flier_view.c $ROOT/src/core/sprite_budget.c $ROOT/src/core/camera.c $ROOT/src/core/trip.c $ROOT/src/core/trip_gen.c $ROOT/src/core/trip_cave.c $ROOT/src/core/trip_hit.c $ROOT/src/core/trip_rival.c $ROOT/src/core/score_table.c $ROOT/src/core/gumgames.c $ROOT/src/core/gg_flapdash.c $ROOT/src/core/gg_popdrop.c $ROOT/src/core/gg_fling.c $ROOT/src/core/trip_view.c $ROOT/src/core/trip_pickup_fx.c $ROOT/src/core/banner.c $ROOT/src/core/gum_view.c $ROOT/src/core/splash_view.c $ROOT/src/core/arcade.c $ROOT/src/core/arc_elements.c $ROOT/src/core/arc_view.c $ROOT/src/core/result.c $ROOT/src/core/result_view.c $ROOT/src/core/attract_overlay.c"
 fail=0
 # test_flier_view reads the generated Sootling tables
 (cd "$ROOT" && gmake -s build/gen/sootling_tables.h build/gen/city_tables.h build/gen/dusk_tables.h build/gen/storm_tables.h build/gen/island_tables.h build/gen/fix_font.h build/gen/attract_icons.h build/gen/result_scene.h build/gen/result_paths.h >"$OUT/gen.log" 2>&1) || { echo "[ERROR] gen sootling_tables.h failed"; tail -n 5 "$OUT/gen.log"; exit 1; }
@@ -177,6 +177,9 @@ tail -n 1 "$OUT/test_gg_popdrop.log"; grep FAIL "$OUT/test_gg_popdrop.log" | hea
 $CC -I "$ROOT/src/core" -o "$OUT/test_gg_gather" "$HERE/test_gg_gather.c" $SRC -lm >"$OUT/build.log" 2>&1 || { echo "[ERROR] test_gg_gather build failed"; tail -n 20 "$OUT/build.log"; exit 1; }
 nice -n 19 "$OUT/test_gg_gather" >"$OUT/test_gg_gather.log" 2>&1 || fail=1
 tail -n 1 "$OUT/test_gg_gather.log"; grep FAIL "$OUT/test_gg_gather.log" | head -n 10
+$CC -I "$ROOT/src/core" -o "$OUT/test_gg_fling" "$HERE/test_gg_fling.c" $SRC -lm >"$OUT/build.log" 2>&1 || { echo "[ERROR] test_gg_fling build failed"; tail -n 20 "$OUT/build.log"; exit 1; }
+nice -n 19 "$OUT/test_gg_fling" >"$OUT/test_gg_fling.log" 2>&1 || fail=1
+tail -n 1 "$OUT/test_gg_fling.log"; grep FAIL "$OUT/test_gg_fling.log" | head -n 10
 
 # Island sprite set: importer + pipeline per look, tile/palette/alignment/overlap checks (needs build/gen/*_sprites.h from gmake)
 PYTHON=${PYTHON:-/opt/homebrew/bin/python3.14}

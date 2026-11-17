@@ -1177,6 +1177,7 @@ static void edge_marker(const Game *g, int cam_px) {
  * frame the player sees has the whole background. g_bg_late counts frames that show the world over an incomplete background. */
 #define BG_HOLD_FRAMES 2 /* entry frame plus the first game step, which picks the match mood (game.c match_start) */
 static u8 g_bg_hold = BG_HOLD_FRAMES;
+static u8 g_fling_mode; /* game.mode seen last frame while Gum Fling runs */
 volatile u16 g_bg_late; /* test sentinel (tests/mame/vblank_check.lua) */
 volatile u8 g_bg_held;
 static u8 g_bg_paused; /* this frame the entry hold skipped flow_step: the frame has room for the start work below */
@@ -1262,6 +1263,43 @@ static void draw_burst_race(const GgRace *r) {
     const char *msg = r->phase == GG_RACE_INTRO ? "BURST RACE   MASH A AND B     " : r->phase == GG_RACE_PLAY ? "BURST YOUR BUBBLE FIRST       " :
                       r->winner == 0 ? "YOU BURST FIRST  YOU WIN    " : r->players == 2 ? "PLAYER 2 BURST FIRST         " : "THE COMPUTER BURST FIRST     ";
     text((u8)((40 - BLOW_TEXT_W) / 2), BLOW_TEXT_ROW + 2, PAL_TEXT, msg);
+}
+
+/* Gum Fling on the fix layer: power bar on BLOW_BAR_ROW, angle needle bar two rows above (0..90 degrees over BLOW_BAR_CELLS),
+ * and a status line (attempt, best, then power and angle, or the distance after touch-down). Same bar cells as Burst Race. */
+static void draw_fling(const GgFling *f) {
+    uint8_t ops[BLOW_BAR_CELLS];
+    if (!g_blow_bar_up) {
+        char cells[BLOW_BAR_CELLS + 1];
+        for (u8 i = 0; i < BLOW_BAR_CELLS; i++) cells[i] = '-';
+        cells[BLOW_BAR_CELLS] = 0;
+        for (u8 s = 0; s < 2; s++) { text(BLOW_BAR_COL, (u8)(BLOW_BAR_ROW - 2 * s), PAL_TEXT, cells); g_race_bar[s].width = BLOW_BAR_CELLS; g_race_bar[s].filled = 0; }
+        g_blow_bar_up = 1;
+    }
+    u8 want[2] = { (u8)(f->power * BLOW_BAR_CELLS / GF_POWER_MAX), (u8)(f->deg * BLOW_BAR_CELLS / 90) };
+    for (u8 s = 0; s < 2; s++) {
+        int n = gg_bar_set(&g_race_bar[s], want[s], ops, BLOW_BAR_CELLS);
+        for (int i = 0; i < n; i++) text((u8)(BLOW_BAR_COL + (ops[i] & 0x7F)), (u8)(BLOW_BAR_ROW - 2 * s), PAL_HIGH, (ops[i] & 0x80) ? ">" : "-");
+    }
+    u32 key = (u32)f->phase | (u32)f->power << 4 | (u32)f->deg << 10 | (u32)f->seq.tickets[0] << 18 | (u32)f->foul << 22 | (f->phase == GF_LANDED ? f->dist << 23 : f->seq.best[0] << 23);
+    if (key == g_blow_key) return;
+    g_blow_key = key;
+    char line[BLOW_TEXT_W + 1], nb[10];
+    u8 i = 0;
+    const char *p = f->phase == GF_LANDED ? (f->foul ? "FOUL  ANGLE OUT OF RANGE  " : "DISTANCE ") : "ATTEMPT ";
+    while (p[i]) { line[i] = p[i]; i++; }
+    if (f->phase == GF_LANDED) {
+        if (!f->foul) { put_number(nb, f->dist, 4); for (u8 k = 0; nb[k] && i < BLOW_TEXT_W; k++) if (nb[k] != ' ') line[i++] = nb[k]; }
+    } else {
+        line[i++] = (char)('0' + (GF_ATTEMPTS - f->seq.tickets[0] + 1)); line[i++] = ' '; line[i++] = 'O'; line[i++] = 'F'; line[i++] = ' '; line[i++] = (char)('0' + GF_ATTEMPTS);
+        p = "  BEST ";
+        for (u8 k = 0; p[k]; k++) line[i++] = p[k];
+        put_number(nb, f->seq.best[0], 4);
+        for (u8 k = 0; nb[k] && i < BLOW_TEXT_W; k++) if (nb[k] != ' ') line[i++] = nb[k];
+    }
+    while (i < BLOW_TEXT_W) line[i++] = ' ';
+    line[BLOW_TEXT_W] = 0;
+    text((u8)((40 - BLOW_TEXT_W) / 2), BLOW_TEXT_ROW + 2, PAL_TEXT, line);
 }
 
 /* Flap Dash on the fix layer: one status line (lap, seconds, qualifying mark), rewritten when the lap or the second changes. */
@@ -1594,7 +1632,7 @@ static void draw_mode_select(u8 open, u8 mode, u8 rule, u8 event) {
     }
     gfx_text_backed(15, TITLE_SELECT_ROW + 4, PAL_HIGH, mode == GAME_MODE_GUM ? ">" : " ");
     gfx_text_backed(17, TITLE_SELECT_ROW + 4, mode == GAME_MODE_GUM ? PAL_HIGH : PAL_TEXT, "GUM GAMES");
-    if (mode == GAME_MODE_GUM) gfx_center_text(TITLE_GOAL_ROW, PAL_TEXT, event == GG_POP_DROP ? "POP DROP  LEFT OR RIGHT TO CHANGE      " : event == GG_FLAP_DASH ? "FLAP DASH  LEFT OR RIGHT TO CHANGE    " : event == GG_BUBBLE_GATHER ? "BUBBLE GATHER  LEFT OR RIGHT TO CHANGE" : event == GG_BURST_RACE ? "BURST RACE  LEFT OR RIGHT TO CHANGE   " : "BIG BLOW  LEFT OR RIGHT TO CHANGE     ");
+    if (mode == GAME_MODE_GUM) gfx_center_text(TITLE_GOAL_ROW, PAL_TEXT, event == GG_FLING ? "GUM FLING  LEFT OR RIGHT TO CHANGE    " : event == GG_POP_DROP ? "POP DROP  LEFT OR RIGHT TO CHANGE      " : event == GG_FLAP_DASH ? "FLAP DASH  LEFT OR RIGHT TO CHANGE    " : event == GG_BUBBLE_GATHER ? "BUBBLE GATHER  LEFT OR RIGHT TO CHANGE" : event == GG_BURST_RACE ? "BURST RACE  LEFT OR RIGHT TO CHANGE   " : "BIG BLOW  LEFT OR RIGHT TO CHANGE     ");
 }
 
 static void draw_title(const FlowView *v) {
@@ -1888,10 +1926,10 @@ static void draw(const FlowView *v) {
                 else hud_side(1, HUD_KIND_BLANK, 0, 0, 0, 0, 0);
             }
         }
-        if (v->game && v->game->mode == GAME_MODE_TRIP) draw_gum_meter(v->game->trip.gum);
+        if (v->game && v->game->mode == GAME_MODE_TRIP && !v->game->gg_fling) draw_gum_meter(v->game->trip.gum);
         else set_distress(0);
         if (v->state == FLOW_ATTRACT_DEMO && v->game) draw_overlay(v);
-        if (v->state == FLOW_PLAYING && v->game && v->game->mode == GAME_MODE_GUM) { if (v->game->gg_gather) draw_gather(v->game); else if (v->game->gg_pop) draw_pop_drop(&v->game->pop); else if (v->game->gg_dash) draw_flap_dash(&v->game->dash); else if (v->game->gg_race) draw_burst_race(&v->game->race); else draw_big_blow(&v->game->blow); }
+        if (v->state == FLOW_PLAYING && v->game && (v->game->mode == GAME_MODE_GUM || v->game->gg_fling)) { if (v->game->gg_fling) draw_fling(&v->game->fling); else if (v->game->gg_gather) draw_gather(v->game); else if (v->game->gg_pop) draw_pop_drop(&v->game->pop); else if (v->game->gg_dash) draw_flap_dash(&v->game->dash); else if (v->game->gg_race) draw_burst_race(&v->game->race); else draw_big_blow(&v->game->blow); }
         {
             /* mode name in the bottom-left corner while playing, written when the mode or rule changes only */
             u8 key = (v->state == FLOW_PLAYING && v->game) ? (v->game->party_rule != PARTY_NONE ? (u8)(8 + v->game->party_rule) : (u8)(1 + v->game->mode)) : 0;
@@ -2368,7 +2406,9 @@ static void game_loop(void) {
         g_bg_held = (u8)(world_state(&view) && g_bg_hold); /* test sentinel: this frame kept the world hidden */
         if (world_shown(&view) && bg_bare()) g_bg_late++; /* the world over the flat lit backdrop: a cut swap in play */
         if (!world_state(&view)) g_bg_hold = BG_HOLD_FRAMES;
+        else if (g_flow.game.gg_fling && g_flow.game.mode != g_fling_mode) g_bg_hold = BG_HOLD_FRAMES; /* Gum Fling flips GUM and TRIP mid-play: reload the world */
         else if (g_bg_hold && !bg_pending() && !trip_building()) g_bg_hold = g_flow.game.mode == GAME_MODE_TRIP ? 0 : g_bg_hold - 1; /* a built course: its steps picked the mood */
+        g_fling_mode = g_flow.game.mode;
     world_done:
         gfx_commit();
         g_frame_counter++;

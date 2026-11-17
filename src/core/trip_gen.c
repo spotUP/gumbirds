@@ -128,12 +128,12 @@ static void make_chunk(TripGen *g, TripChunk *c) {
     memset(c, 0, sizeof *c);
     c->index = g->next_index;
     c->wx = g->next_wx;
-    if (c->index == 0) d = 0;                                 /* plan F5: no hazard in the first chunk */
+    if (c->index == 0 || g->plain) d = 0;                                 /* plan F5: no hazard in the first chunk */
     n_req = (int)(d >> 8);
     if ((int)rngr(&g->rng, 256) < (int)(d & 255)) n_req++;
     if (n_req > TRIP_GEN_MAX_HAZ) n_req = TRIP_GEN_MAX_HAZ;
     if (n_req > TRIP_SLOTS - 1) n_req = TRIP_SLOTS - 1;
-    if (g->pk_chunk == c->index) pk_slot = g->pk_slot;
+    if (g->pk_chunk == c->index && !g->plain) pk_slot = g->pk_slot;
     for (i = 0; i < TRIP_SLOTS; i++) if (i != pk_slot) order[free_n++] = (uint8_t)i;
     for (i = 0; i < free_n - 1; i++) {                       /* partial shuffle: first n_req entries are the slots */
         j = i + (int)rngr(&g->rng, (uint32_t)(free_n - i));

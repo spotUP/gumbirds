@@ -1,4 +1,4 @@
--- Gum Games Flap Dash check (make test-gum-flap-dash): UniBIOS 4.0, one coin, Down to the GUM GAMES row, Left once (wraps from Big Blow) picks Flap Dash, Start:
+-- Gum Games Flap Dash check (make test-gum-flap-dash): UniBIOS 4.0, one coin, Down to the GUM GAMES row, Left twice (wraps from Big Blow past Gum Fling) picks Flap Dash, Start:
 --   D1. the game is PLAYING in GAME_MODE_GUM with the dash running (gg_dash 1);
 --   D2. alternating A and B presses fly the bird: the HUD line (fix row 7) is lit and the first lap is counted;
 --   D3. the third lap ends the run: done set, score 800 (stage 3 + qualifying mark) or 300, the result shows, the flow reaches GAME_OVER and the record equals the run time.
@@ -51,9 +51,9 @@ emu.register_frame_done(function()
   if phase == "boot" then
     if n == 600 then phase = "start"; t0 = n; ss.begin(n) end
   elseif phase == "start" then
-    -- the shared sequence presses Down at +70..+78 (the GUM GAMES row); one Left tap at +80..+83 wraps from Big Blow to Flap Dash before Start at +100
+    -- the shared sequence presses Down at +70..+78 (the GUM GAMES row); two Left taps at +80..+83 and +88..+91 wrap from Big Blow past Gum Fling to Flap Dash before Start at +100
     local k = n - t0
-    right:set_value((k >= 80 and k < 84) and 1 or 0)
+    right:set_value(((k >= 80 and k < 84) or (k >= 88 and k < 92)) and 1 or 0)
     if ss.step(n, playing, 1) then phase = "dash"; t0 = n; right:set_value(0) end
   elseif phase == "dash" then
     if b(O.mode) ~= K.gum or b(O.dash) ~= 1 then finish(false, string.format("mode %d dash %d, want GAME_MODE_GUM %d and dash 1", b(O.mode), b(O.dash), K.gum)) return end
