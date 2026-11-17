@@ -1,6 +1,7 @@
 /* trip_hit.c - Gum Trip collision, see trip_hit.h. */
 #include "trip_hit.h"
 #include "trip_cave.h"
+#include "splash_view.h"
 
 int trip_hit_haz_y(const TripGenHazard *h, uint32_t frame) {
     uint8_t a = (uint8_t)(h->phase + (uint8_t)(frame * TRIP_SWEEP_STEP));
@@ -72,9 +73,24 @@ static int window_span(const Trip *t, const TripGen *g, const Flier *f, int *top
     return any;
 }
 
+/* Splat landing line: the deepest opaque floor row under the whole 48 px splash width (not the flier's), so the splat's flat solid base
+ * (splash rows SURFACE_ROW.., drawn behind the floor strip) lies on the rock at every column; where the floor is higher the body sinks
+ * into it. The flat floor's lip tile is transparent for its first TRIP_LIP_CLEAR rows (assets/tripstrip lip0..3). -1: no chunk. */
+#define TRIP_LIP_CLEAR 2
 int trip_hit_floor_line(const Trip *t, const TripGen *g, const Flier *f) {
-    int top, bot;
-    return window_span(t, g, f, &top, &bot) ? bot : -1;
+    int fx = (int)(f->x >> 16), s = g->head, i, line = -1;
+    for (i = 0; i < g->count; i++, s = next_slot(s)) {
+        const TripChunk *c = &g->ring[s];
+        int rel = (int)(int32_t)(t->px - c->wx) + fx, x0 = rel - SPLASH_ANCHOR_X, x1 = rel + SPLASH_ANCHOR_X - 1, k;
+        if (x1 < 0 || x0 > TRIP_CHUNK_PX - 1) continue;
+        if (x0 < 0) x0 = 0;
+        if (x1 > TRIP_CHUNK_PX - 1) x1 = TRIP_CHUNK_PX - 1;
+        for (k = x0 >> 4; k <= x1 >> 4; k++) {
+            int e = trip_cave_edge(c, k, 0) + TRIP_LIP_CLEAR;
+            if (e > line) line = e;
+        }
+    }
+    return line;
 }
 
 int trip_hit_window(const Trip *t, const TripGen *g, const Flier *f, int32_t *lo, int32_t *hi) {
