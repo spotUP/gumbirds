@@ -705,11 +705,11 @@ static void pool_show_leak(PoolObj *p, u8 i, u16 *scb3) {
     u16 slot = obj_pool_sprite(&g_pool, i);
     u8 key = (u8)(lf + 1 + (flip ? 128 : 0));
     if (g_pool_drawn[i] != key) {
-        u16 tmp[GUMLEAK_MAX_COLUMNS * 4];
         const u16 *t = &gumleak_tile_index[l->tile_offset];
+        u16 attr = (u16)((GUM_PAL_SLOT + l->palette) << 8 | (flip ? SOOT_FLIP : 0));
+        /* one strip per column straight from the const table: the queue keeps the tile pointer, a stack copy would be read after return */
         for (int c = 0; c < l->tiles_w; c++)
-            for (int r = 0; r < l->tiles_h; r++) tmp[c * l->tiles_h + r] = t[(flip ? l->tiles_w - 1 - c : c) * l->tiles_h + r];
-        gfx_sprite_strips(slot, l->tiles_w, l->tiles_h, tmp, GUMLEAK_TILE_BASE, (u16)((GUM_PAL_SLOT + l->palette) << 8 | (flip ? SOOT_FLIP : 0)));
+            gfx_sprite_strips((u16)(slot + c), 1, l->tiles_h, t + (flip ? l->tiles_w - 1 - c : c) * l->tiles_h, GUMLEAK_TILE_BASE, attr);
         if (g_pool_cols[i] != l->tiles_w) { gfx_sprite_chain(slot, l->tiles_w); g_pool_cols[i] = l->tiles_w; }
         g_pool_drawn[i] = key;
     }

@@ -442,6 +442,7 @@ test-leak: cart
 	BRAWL_FRAME_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_frame_counter"{print $$1}') \
 	BRAWL_FLIER_LAYOUT="$$($(M68KGCC) -std=c99 -S -o - tests/mame/flier_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
 	BRAWL_POOL_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_pool"{print $$1}') \
+	BRAWL_LEAKIDX_ADDR=$$($(NM) $(ELF) | awk '$$3=="gumleak_tile_index"{print $$1}') \
 	BRAWL_RESULT=$$T/result.txt \
 	SDL_VIDEODRIVER=dummy nice -n 19 $(MAME) -window -nomaximize -video none -sound none -nothrottle -seconds_to_run $(TEST_SECONDS) -noautosave -skip_gameinfo -hash $(ROM) -rp $(ROM) -nvram_directory $$T -autoboot_script tests/mame/leak_check.lua neogeo -cart1 $(GAMEROM) > $$T/mame.log 2>&1 || true; \
 	if [ ! -f $$T/result.txt ]; then tail -n 15 $$T/mame.log; echo "[FAIL] no result from leak Lua script"; exit 1; fi; \
