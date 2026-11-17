@@ -65,8 +65,13 @@ int main(void)
     /* game wiring: game_step runs it, the target is cpu[0], a finished event scores gg_points */
     { Game g; game_reset(&g, 1); game_set_mode(&g, GAME_MODE_GUM); game_gg_start_pop(&g);
       CHECK(g.gg_pop && g.cpu_count == 1 && g.players == 1);
-      for (i = 0; i < 100; i++) game_step(&g, 0);
-      CHECK(g.pop.timer == 100 && !g.over); }
+      /* GET SET: frozen for GGCD_SET_FRAMES with the tick at the first frame, the GO! event on the step that releases it */
+      { int ticks = 0, gos = 0; CHECK(g.cd_t == 0);
+        for (i = 0; i < (int)GGCD_SET_FRAMES; i++) { game_step(&g, IN_C); ticks += (g.cd_ev & GGCD_EV_TICK) != 0; gos += (g.cd_ev & GGCD_EV_GO) != 0; }
+        CHECK(g.pop.timer == 0 && ticks == 1 && gos == 0 && ggcd_word(g.cd_t) == GGCD_WORD_SET);
+        game_step(&g, 0); CHECK(g.cd_ev == GGCD_EV_GO && ggcd_word(g.cd_t) == GGCD_WORD_GO && g.pop.timer == 1); }
+      for (i = 0; i < 99; i++) game_step(&g, 0);
+      CHECK(g.pop.timer == 100 && !g.over && g.cd_t == GGCD_END); }
 
     /* flow: A, then Down three times from Big Blow picks Pop Drop, Start runs it, the best total is the record (higher is better) */
     {
@@ -81,7 +86,7 @@ int main(void)
         flow_step(&f, 0, 1, 1);
         CHECK(f.state == FLOW_PLAYING && f.game.gg_pop);
         f.game.pop.total = 33; f.game.pop.pops = 4; f.game.pop.phase = GP_RESULT; f.game.pop.done = 1;
-        for (i = 0; i < 4; i++) flow_step(&f, 0, 0, 0);
+        for (i = 0; i < (int)GGCD_SET_FRAMES + 4; i++) flow_step(&f, 0, 0, 0); /* frozen through GET SET first */
         CHECK(f.tables.gg_record[GG_POP_DROP] == 33);
     }
 

@@ -71,7 +71,7 @@ int main(void)
 
     /* game wiring: game_step runs the dash on hero[0] */
     { Game g; game_reset(&g, 1); game_set_mode(&g, GAME_MODE_GUM); game_gg_start_dash(&g);
-      for (i = 0; i < 200; i++) game_step(&g, (uint8_t)((i % 6 == 0) ? ((i / 6) & 1 ? IN_A : IN_B) : 0));
+      for (i = 0; i < (int)GGCD_SET_FRAMES + 200; i++) game_step(&g, (uint8_t)((i % 6 == 0) ? ((i / 6) & 1 ? IN_A : IN_B) : 0));
       CHECK(g.dash.frames == 200 && g.hero[0].x != 0 && g.cpu_count == 0); }
 
     /* flow: Right four times from Big Blow picks Flap Dash (a fifth Right goes on to Gum Fling, a sixth wraps), Start runs it; a finished run ends the event after the result and keeps the best (lowest) time */
@@ -94,7 +94,7 @@ int main(void)
         flow_step(&f, 0, 1, 1);
         CHECK(f.state == FLOW_PLAYING && f.game.gg_dash);
         f.game.dash.done = 1; f.game.dash.frames = 1000; f.game.dash.laps = GD_LAPS;
-        for (i = 0; i < (int)GD_RESULT_FRAMES + 2; i++) flow_step(&f, 0, 0, 0);
+        for (i = 0; i < (int)(GGCD_SET_FRAMES + GD_RESULT_FRAMES) + 2; i++) flow_step(&f, 0, 0, 0);
         CHECK(f.state == FLOW_GAME_OVER && f.tables.gg_record[GG_FLAP_DASH] == 900);
         flow_init(&f, 0, 0);
         f.mode = GAME_MODE_GUM; f.gg_event = GG_FLAP_DASH;
@@ -102,7 +102,7 @@ int main(void)
         flow_step(&f, IN_A, 0, 0); flow_step(&f, 0, 0, 0); /* A opens the GUM GAMES list */
         flow_step(&f, 0, 1, 1);
         f.game.dash.done = 1; f.game.dash.frames = 800;
-        for (i = 0; i < (int)GD_RESULT_FRAMES + 2; i++) flow_step(&f, 0, 0, 0);
+        for (i = 0; i < (int)(GGCD_SET_FRAMES + GD_RESULT_FRAMES) + 2; i++) flow_step(&f, 0, 0, 0);
         CHECK(f.tables.gg_record[GG_FLAP_DASH] == 800);
     }
 

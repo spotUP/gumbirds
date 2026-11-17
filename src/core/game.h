@@ -27,6 +27,7 @@
 #include "gg_flapdash.h"
 #include "gg_popdrop.h"
 #include "gg_fling.h"
+#include "gg_countdown.h"
 
 #define HUMANS 2 /* human fighter slots: fighter index 0..HUMANS-1 are humans, computer fliers follow from HUMANS */
 
@@ -168,6 +169,8 @@ typedef struct {
     GgFling fling;       /* Gum Games Gum Fling run, live while gg_fling is set (gg_fling.h); mode flips GUM (wind-up) and TRIP (flight) */
     uint8_t gg_fling;    /* 1 = game_step runs Gum Fling */
     uint8_t gg_gather;   /* 1 = game_step runs Bubble Gather: the Arcade bonus stage as a Gum Games event (game_gg_start_gather) */
+    uint16_t cd_t;       /* Gum Games countdown frame (gg_countdown.h); GGCD_END = not running */
+    uint8_t cd_ev;       /* GGCD_EV_* raised by the last game_step (main.c plays the beeps) */
     uint16_t gather_clock; /* Bubble Gather frames played; the event ends at GG_GATHER_CLOCK */
     Camera camera;       /* follows the living human fliers, stepped every game_step_arena; view reads game_camera_px */
 } Game;

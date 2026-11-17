@@ -131,6 +131,7 @@ void game_reset(Game *g, uint32_t seed)
     uint8_t mood = g->mood < GAME_MOOD_COUNT ? g->mood : GAME_MOOD_MOON; /* boot: the Game holds no valid mood yet */
     zero(g, sizeof(*g));
     g->mood = mood;
+    g->cd_t = GGCD_END;
     rng_seed(&g->rng, seed);
     camera_init(&g->camera);
     trip_init(&g->trip);
@@ -172,6 +173,13 @@ void game_set_mode(Game *g, uint8_t mode)
     }
 }
 
+/* One countdown frame: raises the beep event for this frame, then advances (frames before cd_t reaches GGCD_END). */
+static void cd_tick(Game *g)
+{
+    g->cd_ev = ggcd_events(g->cd_t);
+    if (g->cd_t < GGCD_END) g->cd_t++;
+}
+
 /* Gum Games Big Blow: the core step runs the attempts; the shown pump frame follows the bubble size, and the game ends with the event. */
 static void game_step_gum(Game *g, uint8_t input)
 {
@@ -180,6 +188,8 @@ static void game_step_gum(Game *g, uint8_t input)
     if (g->gg_race) {
         GgRace *r = &g->race;
         gg_race_step(r, input, g->input2);
+        if (r->phase == GG_RACE_INTRO && r->timer == GG_RACE_INTRO_FRAMES - GGCD_SET_FRAMES) g->cd_t = 0;
+        cd_tick(g);
         g->frame++;
         g->hero[0].spawn_inv = g->hero[1].spawn_inv = 0;
         for (int s = 0; s < 2; s++) {
@@ -191,6 +201,8 @@ static void game_step_gum(Game *g, uint8_t input)
         return;
     }
     gg_blow_step(b, input, g->input2);
+    if (b->phase == GG_BLOW_INTRO && b->timer == GG_BLOW_INTRO_FRAMES - GGCD_SET_FRAMES) g->cd_t = 0;
+    cd_tick(g);
     g->frame++;
     g->hero[0].spawn_inv = 0;
     g->hpump[0].state = ARC_PUMP_PUMPING;
@@ -205,6 +217,12 @@ static void game_step_pop(Game *g, uint8_t input);
 static void game_step_fling(Game *g, uint8_t input);
 void game_step(Game *g, uint8_t input)
 {
+    g->cd_ev = 0;
+    if ((g->gg_fling || g->gg_gather || g->gg_pop || g->gg_dash) && g->cd_t < GGCD_END) {
+        int frozen = g->cd_t < GGCD_SET_FRAMES;
+        cd_tick(g);
+        if (frozen) { g->frame++; return; }   /* GET SET: the world stands still and takes no input */
+    }
     if (g->gg_fling) {
         game_step_fling(g, input);
     } else if (g->gg_gather) {
@@ -407,6 +425,7 @@ void game_gg_start_race(Game *g)
 void game_gg_start_dash(Game *g)
 {
     g->gg_dash = 1;
+    g->cd_t = 0;
     g->players = 1;
     g->cpu_count = 0;
     gumdash_init(&g->dash, &g->hero[0]);
@@ -416,6 +435,7 @@ void game_gg_start_dash(Game *g)
 void game_gg_start_pop(Game *g)
 {
     g->gg_pop = 1;
+    g->cd_t = 0;
     g->players = 1;
     g->cpu_count = 1;
     gp_init(&g->pop, &g->hero[0], &g->cpu[0]);
@@ -445,6 +465,7 @@ static void game_step_dash(Game *g, uint8_t input)
 void game_gg_start_fling(Game *g)
 {
     g->gg_fling = 1;
+    g->cd_t = 0;
     g->players = 1;
     g->cpu_count = 0;
     gumfling_init(&g->fling);
@@ -813,6 +834,7 @@ static int arc_interlude(Game *g, uint8_t input, uint8_t a_edge)
 void game_gg_start_gather(Game *g)
 {
     g->gg_gather = 1;
+    g->cd_t = 0;
     g->players = 1;
     g->cpu_count = 0;
     g->gather_clock = 0;

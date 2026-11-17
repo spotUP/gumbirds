@@ -62,7 +62,7 @@ emu.register_frame_done(function()
     local mode, ph = b(O.mode), b(O.phase)
     if mode == K.trip then trips = trips + 1 end
     if mode == K.gum and lit(7) >= 8 then hud = true end
-    if ph == K.windup and lastphase ~= K.windup then t0 = n; attempts = attempts + 1 end
+    if ph == K.windup and lastphase ~= K.windup then t0 = n + (attempts == 0 and 61 or 0); attempts = attempts + 1 end   -- GET SET freezes the first windup for 60 frames
     lastphase = ph
     local k = n - t0
     if mode == K.gum and ph == K.windup then

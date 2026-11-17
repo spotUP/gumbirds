@@ -29,6 +29,7 @@
 #include "gen/trippickup_tables.h"
 #include "gen/gumbubble_tables.h"
 #include "gen/gumleak_tables.h"
+#include "gen/countdown_tables.h"
 #include "gfx.h"
 #include "sprite_slots.h"
 #include "vram_layout.h"
@@ -1222,6 +1223,39 @@ static u8 world_shown(const FlowView *v) { return world_state(v) && !g_bg_hold; 
 
 static void put_number(char *out, u32 v, int width);
 static void text(u8 x, u8 y, u8 pal, const char *s);
+/* GET SET / GO! (gg_countdown.h): the glyph frames of the word, centred, in the arcade stage element slots (no Gum Games event draws those).
+ * word = GGCD_WORD_*; GGCD_WORD_NONE parks them. Tiles are rewritten only when the word changes. */
+#define COUNTDOWN_Y 72 /* top of the words, screen px */
+static u8 g_cd_word;
+static void countdown_step(u8 word) {
+    static const u16 gx[] = COUNTDOWN_TABLE_GETSET_X, ox[] = COUNTDOWN_TABLE_GO_X;
+    static const u16 gw[] = COUNTDOWN_TABLE_GETSET_W, ow[] = COUNTDOWN_TABLE_GO_W;
+    if (word != g_cd_word) {
+        if (word) {
+            u8 anim = word == GGCD_WORD_GO ? COUNTDOWN_ANIM_GO : COUNTDOWN_ANIM_GETSET;
+            const u16 *xs = word == GGCD_WORD_GO ? ox : gx, *ws = word == GGCD_WORD_GO ? ow : gw;
+            u8 n = countdown_anims[anim].frame_count, pal = word == GGCD_WORD_GO ? COUNTDOWN_HOT_PAL_SLOT : COUNTDOWN_PAL_SLOT;
+            int left = (320 - (xs[n - 1] + ws[n - 1])) / 2, col = 0;
+            u16 s3[COUNTDOWN_MAX_COLUMNS * 6], s4[COUNTDOWN_MAX_COLUMNS * 6];
+            for (u8 k = 0; k < n; k++) {
+                const CountdownFrame *f = &countdown_frames[countdown_anims[anim].first_frame + k];
+                for (u8 c = 0; c < f->tiles_w; c++, col++) {
+                    gfx_sprite_strips((u16)(ARC_ELEM_SPRITE + col), 1, f->tiles_h, &countdown_tile_index[f->tile_offset + c * f->tiles_h], COUNTDOWN_TILE_BASE, (u16)(pal << 8));
+                    s3[col] = gfx_scb3_word(f->tiles_h, COUNTDOWN_Y);
+                    s4[col] = gfx_scb4_word(left + xs[k] + c * 16);
+                }
+            }
+            gfx_sprite_unchained(ARC_ELEM_SPRITE, (u8)col); /* every glyph column has its own x */
+            gfx_scb_run((u16)(ADDR_SCB3 + ARC_ELEM_SPRITE), 1, s3, (u8)col);
+            gfx_scb_run((u16)(ADDR_SCB4 + ARC_ELEM_SPRITE), 1, s4, (u8)col);
+            for (int c = col; c < ARC_ELEM_COUNT; c++) obs_hide_slot((u16)(ARC_ELEM_SPRITE + c));
+        } else {
+            for (int c = 0; c < ARC_ELEM_COUNT; c++) obs_hide_slot((u16)(ARC_ELEM_SPRITE + c));
+        }
+        g_cd_word = word;
+    }
+}
+
 /* Big Blow on the fix layer: the power bar (changed cells only) and one status line, written when the attempt state changes. */
 static void draw_big_blow(const GgBlow *b) {
     uint8_t ops[BLOW_BAR_CELLS];
@@ -2213,6 +2247,7 @@ static void video_init(void) {
         for (u8 i = 0; i < 16; i++) gfx_pal((u16)((CHUTE_PAL_SLOT + p) * 16 + i), chute_palettes[p][i]);
     for (u8 i = 0; i < 16; i++) gfx_pal((u16)(CHUTE_P2_PAL_SLOT * 16 + i), chute_extra_palettes[0][i]);
     for (u8 i = 0; i < 16; i++) gfx_pal((u16)(GUMBUBBLE_PAL_SLOT * 16 + i), gumbubble_palettes[0][i]);
+    for (u8 i = 0; i < 16; i++) { gfx_pal((u16)(COUNTDOWN_PAL_SLOT * 16 + i), countdown_palettes[0][i]); gfx_pal((u16)(COUNTDOWN_HOT_PAL_SLOT * 16 + i), countdown_extra_palettes[COUNTDOWN_EXTRA_PAL_HOT][i]); }
     obs_load_palettes();
     island_load_palettes();
     trip_strip_load_palettes();
@@ -2367,6 +2402,10 @@ static void game_loop(void) {
         g_round_end_s[2] = g_flow.game.round_start; g_round_end_s[3] = game_flier_visible(&g_flow.game);
         if (coined && !g_coin_blipped) sound_play_sfx(SND_SFX_COIN);
         if (coined) g_coin_blipped = 0;
+        if (view.game && view.state == FLOW_PLAYING && g_flow.game.cd_ev) { /* GET SET tick, higher beep on GO! (existing samples: continue_tick, round_go) */
+            sound_play_sfx((g_flow.game.cd_ev & GGCD_EV_GO) ? SND_SFX_ROUND_GO : SND_SFX_CONTINUE_TICK);
+            g_flow.game.cd_ev = 0;
+        }
         if (view.game && view.state == FLOW_PLAYING && g_flow.game.res.events) { /* result screen sounds */
             u8 re = g_flow.game.res.events;
             g_flow.game.res.events = 0;
@@ -2415,6 +2454,7 @@ static void game_loop(void) {
             u8 race = world && view.game->gg_race;
             gum_step(0, arena || race || (trip && game_trip_ready(view.game)), trip ? view.game->trip.gum : (race ? race_gum(view.game, 0) : arena ? (uint16_t)(human_bubble_level(view.game, 0) * (GUM_MAX / GUM_VIEW_LEVELS)) : GUM_MAX), (trip || arena || race) ? view.game->frame : 0, g_gum_pose[0].drawn, g_gum_pose[0].frame, g_gum_pose[0].flip, g_gum_pose[0].cx, g_gum_pose[0].top, world && human_leaks(view.game, 0));
             roost_marker_step(arena && view.state == FLOW_PLAYING ? view.game : 0);
+            countdown_step(view.state == FLOW_PLAYING && view.game ? ggcd_word(view.game->cd_t) : GGCD_WORD_NONE);
             hot_bubble_step(arena && view.state == FLOW_PLAYING ? view.game : 0);
             gum_step(1, race || (arena && view.game->players == 2), race ? race_gum(view.game, 1) : (uint16_t)(human_bubble_level(view.game, 1) * (GUM_MAX / GUM_VIEW_LEVELS)), view.game->frame, g_gum_pose[1].drawn, g_gum_pose[1].frame, g_gum_pose[1].flip, g_gum_pose[1].cx, g_gum_pose[1].top, world && human_leaks(view.game, 1));
             {   /* the splash starts from the same crossing that plays the splosh sound; it keeps running through Game Over */
