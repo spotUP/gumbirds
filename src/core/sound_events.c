@@ -72,6 +72,7 @@ static uint16_t death_events(SoundEvents *e, const Game *g, uint8_t playing)
 }
 
 /* Cue edges of one playing frame; emit is 0 on the first playing frame (it only records). */
+#define SE_UNSEEN_PUMP 0xFF   /* state nibble 15: never a real pump state */
 static void cue_events(SoundEvents *e, const Game *g, uint8_t emit)
 {
     uint32_t c = 0;
@@ -88,9 +89,9 @@ static void cue_events(SoundEvents *e, const Game *g, uint8_t emit)
             int human = i >= STAGE_SPAWN_COUNT;
             const ArcPump *p = human ? &g->hpump[i - STAGE_SPAWN_COUNT] : &g->pump[i];
             uint8_t was = e->prev_pump[i], now = (uint8_t)(p->state << 4 | (p->state == ARC_PUMP_PUMPING ? arc_pump_progress(p) : 0));
-            e->prev_pump[i] = now;
+            e->prev_pump[i] = (emit || p->state != ARC_PUMP_PUMPING) ? now : SE_UNSEEN_PUMP;   /* a pump already pumping on the first playing frame still owes its first stroke */
             if (now == was || !emit || (human ? i - STAGE_SPAWN_COUNT >= g->players : i >= g->cpu_count)) continue;
-            if (p->state == ARC_PUMP_PUMPING) { if (was >> 4 == ARC_PUMP_PUMPING && now > was) c |= 1ul << ((now & 1) ? SC_PUMP_A : SC_PUMP_B); }
+            if (p->state == ARC_PUMP_PUMPING) { if (was >> 4 != ARC_PUMP_PUMPING || now > was) c |= 1ul << ((now & 1) ? SC_PUMP_A : SC_PUMP_B); }   /* entering the pump window is its first stroke */
             else if (human) continue;
             else if (p->state == ARC_PUMP_FLYING) { if (was >> 4 == ARC_PUMP_PUMPING) c |= 1ul << SC_RIVAL_LAUNCH; }
             else if (p->state == ARC_PUMP_DEFEATED) c |= 1ul << SC_DEFEAT;

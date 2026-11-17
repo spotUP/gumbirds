@@ -340,6 +340,24 @@ int main(void)
                 got = (e.cues & ((1ul << SC_PUMP_A) | (1ul << SC_PUMP_B))) != 0;
             }
             CHECK(got);
+            /* a pump that starts pumping at progress 0 gives a stroke cue at once, also on the first playing frame of a round */
+            memset(&e, 0, sizeof e); memset(&g, 0, sizeof g);
+            g.mode = modes[m]; g.players = 1; g.cpu_count = 1; g.hazard_kind = HZ_WATER;
+            g.hero[0].state = FLIER_ALIVE; g.hero[0].balloons = 1;
+            g.cpu[0].state = FLIER_ALIVE; g.cpu[0].balloons = 1;
+            arc_pump_start(human ? &g.hpump[0] : &g.pump[0], 1, 1);
+            se_init(&e); se_step(&e, &v);
+            CHECK(!(e.cues & ((1ul << SC_PUMP_A) | (1ul << SC_PUMP_B))));   /* the first playing frame only records */
+            se_step(&e, &v);
+            CHECK(e.cues & ((1ul << SC_PUMP_A) | (1ul << SC_PUMP_B)));
+            memset(&e, 0, sizeof e); memset(&g, 0, sizeof g);
+            g.mode = modes[m]; g.players = 1; g.cpu_count = 1; g.hazard_kind = HZ_WATER;
+            g.hero[0].state = FLIER_ALIVE; g.hero[0].balloons = 1;
+            g.cpu[0].state = FLIER_ALIVE; g.cpu[0].balloons = 1;
+            se_init(&e); se_step(&e, &v); se_step(&e, &v);
+            arc_pump_start(human ? &g.hpump[0] : &g.pump[0], 1, 1);   /* enters PUMPING mid-round */
+            se_step(&e, &v);
+            CHECK(e.cues & ((1ul << SC_PUMP_A) | (1ul << SC_PUMP_B)));
         }
     }
     printf("%s: %d checks, %d failures\n", failures ? "FAIL" : "PASS", checks, failures);
