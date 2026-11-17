@@ -23,6 +23,7 @@
 #include "arcade.h"
 #include "arc_elements.h"
 #include "result.h"
+#include "gg_flapdash.h"
 
 #define HUMANS 2 /* human fighter slots: fighter index 0..HUMANS-1 are humans, computer fliers follow from HUMANS */
 
@@ -154,6 +155,8 @@ typedef struct {
     Result res;          /* Result screen after the bonus stage (result.h): active while it shows; arc.state stays ARC_BONUS */
     Roost roost;         /* Roost Rule state (party_rule == PARTY_ROOST), reset by match_start */
     Hot hot;             /* Hot Gum state (party_rule == PARTY_HOT), reset by match_start */
+    GgDash dash;         /* Gum Games Flap Dash run, live while gg_dash is set (gg_flapdash.h) */
+    uint8_t gg_dash;     /* 1 = game_step runs the Flap Dash on hero[0] instead of the arena step */
     Camera camera;       /* follows the living human fliers, stepped every game_step_arena; view reads game_camera_px */
 } Game;
 
@@ -184,6 +187,8 @@ void game_step_arena(Game *g, uint8_t input);
 void game_set_mode(Game *g, uint8_t mode);
 /* The one per-frame entry the flow calls in play: dispatches on g->mode to game_step_arena or game_step_trip. */
 void game_step(Game *g, uint8_t input);
+/* Start the Gum Games Flap Dash: one hero on the arena ring, no computer fliers (call after game_set_mode). */
+void game_gg_start_dash(Game *g);
 /* Attract demo: builds a pending arena or arcade match (match_start: stage, elements, rivals) without stepping it and returns 1;
  * else 0. The demo has no ROUND banner freeze to carry that frame, so the flow steps the game from the next frame. */
 int game_begin(Game *g);
