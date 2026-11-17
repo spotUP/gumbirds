@@ -53,7 +53,7 @@ typedef enum {
 } GameMode;
 
 /* PARTY rules (Left/Right on the PARTY title row). PARTY_NONE = not a party game. Order = on-screen cycle order. */
-enum { PARTY_NONE = 0, PARTY_ROUND, PARTY_ROOST, PARTY_HOT, PARTY_ROULETTE, PARTY_RULE_COUNT };
+enum { PARTY_NONE = 0, PARTY_ROUND, PARTY_ROOST, PARTY_HOT, PARTY_RULE_COUNT };
 /* Rule of the Round twists, one per round (Game.twist). TWIST_NONE outside that rule. */
 enum { TWIST_NONE = 0, TWIST_ONE_GUM, TWIST_CROWDED, TWIST_SLOW, TWIST_QUICK, TWIST_MIRROR, TWIST_WINDY, TWIST_COUNT };
 /* Widest rule goal line in fix-layer columns (PARTY_GOAL_W); the title pads shorter lines to it. */

@@ -1,4 +1,4 @@
-/* PARTY_HOT and PARTY_ROULETTE have no rule code yet and must play exactly as plain arena: the match ends (1 and 2 players),
+/* PARTY_HOT has no twist and must play exactly as plain arena: the match ends (1 and 2 players),
  * no roost island, no twist, same lives rule as plain arena. */
 #include <stdio.h>
 #include "../../src/core/game.h"
@@ -20,9 +20,9 @@ static int frames_to_over(uint8_t rule, int players) {
 }
 
 int main(void) {
-    uint8_t rules[2] = { PARTY_HOT, PARTY_ROULETTE };
+    uint8_t rules[1] = { PARTY_HOT };
     int r, p, x, t, w;
-    for (r = 0; r < 2; r++) {
+    for (r = 0; r < 1; r++) {
         for (p = 1; p <= 2; p++) {
             CHECK(frames_to_over(rules[r], p) > 0); /* the match ends within 20000 frames */
             CHECK(g.twist == TWIST_NONE && !game_roost_rect(&g, &x, &t, &w));

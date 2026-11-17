@@ -386,9 +386,9 @@ int game_banner_flags(const Game *g)
 }
 
 /* The party rule table: name, goal line (owner-approved 2026-11-16). Index = PARTY_*; twist names index = TWIST_*. */
-static const char *const party_names[PARTY_RULE_COUNT] = { "", "RULE OF THE ROUND", "ROOST RULE", "HOT GUM", "HAZARD ROULETTE" };
+static const char *const party_names[PARTY_RULE_COUNT] = { "", "RULE OF THE ROUND", "ROOST RULE", "HOT GUM" };
 static const char *const party_goals[PARTY_RULE_COUNT] = {
-    "", "A NEW TWIST EVERY ROUND", "STAND ON THE GLOWING ISLAND TO SCORE", "PASS THE HOT GUM BEFORE IT POPS", "COMING SOON - PLAYS AS ARENA"
+    "", "A NEW TWIST EVERY ROUND", "STAND ON THE GLOWING ISLAND TO SCORE", "PASS THE HOT GUM BEFORE IT POPS"
 };
 static const char *const twist_names[TWIST_COUNT] = { "", "ONE GUM EACH", "CROWDED SKY", "SLOW THINKERS", "QUICK THINKERS", "MIRROR STICK", "WINDY" };
 const char *game_party_name(uint8_t rule) { return rule < PARTY_RULE_COUNT ? party_names[rule] : ""; }
@@ -405,8 +405,7 @@ static const char *const party_howto[PARTY_RULE_COUNT][3] = {
     { "", "", "" },
     { "POP THE OTHER BIRDS' GUM BUBBLES", "THE LAST BIRD FLYING WINS THE ROUND", "EVERY ROUND HAS A NEW TWIST" },
     { "STAND ALONE ON THE GLOWING ISLAND", "TO EARN POINTS WHILE YOU HOLD IT", "POP RIVALS OFF THE ISLAND" },
-    { "TOUCH A BIRD TO PASS THE HOT GUM", "WHEN THE FUSE ENDS IT POPS A BALLOON", "THE LAST BIRD FLYING WINS THE ROUND" },
-    { "THIS RULE IS COMING SOON", "FOR NOW IT PLAYS AS ARENA", "POP THE OTHER BIRDS' GUM BUBBLES" }
+    { "TOUCH A BIRD TO PASS THE HOT GUM", "WHEN THE FUSE ENDS IT POPS A BALLOON", "THE LAST BIRD FLYING WINS THE ROUND" }
 };
 const char *game_party_howto(uint8_t rule, int line) { return rule < PARTY_RULE_COUNT && line >= 0 && line < 3 ? party_howto[rule][line] : ""; }
 

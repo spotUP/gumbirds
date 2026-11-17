@@ -183,7 +183,7 @@ static int read_tables(ScoreTables *s, const uint8_t *p, unsigned modes)
     }
     if (modes == SCORE_MODES) {
         copy(s->party_rule, p, HISCORE_ENTRIES);
-        for (i = 0; i < HISCORE_ENTRIES; i++) if (s->party_rule[i] >= PARTY_RULE_COUNT) return 0;
+        for (i = 0; i < HISCORE_ENTRIES; i++) if (s->party_rule[i] >= PARTY_RULE_COUNT) s->party_rule[i] = PARTY_NONE; /* a rule dropped from the game */
     }
     return score_tables_valid(s);
 }
