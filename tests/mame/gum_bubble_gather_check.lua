@@ -18,7 +18,7 @@ local function field(tag, match)
   for fname, f in pairs(p.fields) do if fname:find(match, 1, true) then return f end end
 end
 local coin, start1, up = field(":AUDIO_COIN", "Coin 1"), field(":edge:joy:START", "1 Player Start"), field(":edge:joy:JOY1", "P1 Up")
-local abtn, right = field(":edge:joy:JOY1", "P1 A"), field(":edge:joy:JOY1", "P1 Right")
+local abtn, pick = field(":edge:joy:JOY1", "P1 A"), field(":edge:joy:JOY1", "P1 Down")
 local ss = dofile("tests/mame/start_seq.lua")(coin, start1, up)
 local function b(o) return mem:read_u8(flow_addr + o) end
 local fix, vaddr, vmod = {}, 0, 1
@@ -42,7 +42,7 @@ local function finish(ok, msg)
   print("BRAWL_TEST " .. (ok and "PASS " or "FAIL ") .. msg)
   manager.machine:exit()
 end
-if not (coin and start1 and up and abtn and right) then finish(false, "missing ports") end
+if not (coin and start1 and up and abtn and pick) then finish(false, "missing ports") end
 
 local n, phase, t0, hud, maxcaught = 0, "boot", 0, false, 0
 emu.register_frame_done(function()
@@ -54,8 +54,8 @@ emu.register_frame_done(function()
   elseif phase == "start" then
     -- the shared sequence presses Down at +70..+78 (the GUM GAMES row); Right taps at +80..+83 and +88..+91 reach Bubble Gather (third event) before Start at +100
     local k = n - t0
-    right:set_value(((k >= 80 and k < 84) or (k >= 88 and k < 92)) and 1 or 0)
-    if ss.step(n, playing, 1) then phase = "gather"; t0 = n; right:set_value(0) end
+    pick:set_value(((k >= 86 and k < 90) or (k >= 94 and k < 98)) and 1 or 0); abtn:set_value((k >= 80 and k < 84) and 1 or 0) -- A opens the GUM GAMES list, Down picks
+    if ss.step(n, playing, 1) then phase = "gather"; t0 = n; pick:set_value(0) end
   elseif phase == "gather" then
     if b(O.mode) ~= K.gum or b(O.gather) ~= 1 then finish(false, string.format("mode %d gather %d, want GAME_MODE_GUM %d and gather 1", b(O.mode), b(O.gather), K.gum)) return end
     if lit(7) >= 8 then hud = true end

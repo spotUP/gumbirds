@@ -67,8 +67,9 @@ typedef struct {
     uint32_t last_score[2];  /* score of each human in the last real run ([1] is 0 unless last_players == 2); [0] first: the probes read its offset */
     uint8_t last_players;    /* humans in the last real run */
     uint8_t entry_h;         /* human whose ranking score the name entry is taking (P1 then P2) */
-    uint8_t gg_event;        /* GG_* event picked on the GUM GAMES title row (Left/Right); kept across runs */
-    uint8_t party_rule;      /* PARTY_* picked on the PARTY title row (Left/Right); kept across runs */
+    uint8_t gg_event;        /* GG_* event under the GUM GAMES submenu cursor; kept across runs */
+    uint8_t party_rule;      /* PARTY_* under the PARTY submenu cursor; kept across runs */
+    uint8_t sub_open;        /* 1 while the GUM GAMES / PARTY submenu is open on the title (A opens, B closes, Up/Down move, Start or a credited A starts) */
     uint8_t last_rule;       /* PARTY_* of the last real run: tag of its PARTY table entry */
     uint8_t howto;           /* 1 while the PARTY how-to demo runs inside FLOW_PLAYING (computer bird, no rounds); A or Start ends it */
     uint8_t howto_a2;        /* P2 A held last frame (press edge for the how-to skip) */
@@ -95,6 +96,7 @@ typedef struct {
     uint8_t party_rule;      /* PARTY_* highlighted on the PARTY row */
     uint8_t gg_event;        /* GG_* picked on the GUM GAMES row */
     uint8_t select_open;     /* title: mode select opened by a start press */
+    uint8_t sub_open;        /* title: the submenu of the GUM GAMES (gg_event) or PARTY (party_rule) row is open */
     uint8_t howto;           /* PLAYING: the PARTY how-to demo is running (draw the overlay for party_rule of game) */
     uint8_t ov_key;          /* ATTRACT_DEMO: AttractOverlay key (AO_*), AO_NONE before the first demo frame */
 } FlowView;
@@ -108,6 +110,10 @@ void flow_init(Flow *f, const uint8_t *image, size_t len);
 void flow_step(Flow *f, uint8_t input, uint8_t start_pressed, uint32_t frame_counter);
 
 void flow_coin(Flow *f);
+#define GG_PICK_COUNT 6
+uint8_t flow_gg_event(uint8_t i);      /* GG_* of GUM GAMES submenu line i (0..5) */
+const char *flow_gg_name(uint8_t i);   /* its on-screen name */
+int flow_a_opens_submenu(const Flow *f);
 void flow_view(const Flow *f, FlowView *v);
 
 #endif

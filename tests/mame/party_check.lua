@@ -54,7 +54,7 @@ emu.register_frame_done(function()
     if n == 600 then phase = "start"; t0 = n; ss.begin(n) end
   elseif phase == "start" then
     local k = n - t0
-    if k == 95 then title_goal = lit(28) end -- before Start (frame 100): two Ups moved the cursor to PARTY
+    if k == 95 then title_goal = lit(28) end -- before Start (frame 100): the cursor is on PARTY; row 28 shows the A TO CHOOSE A RULE hint
     if ss.step(n, playing, 2) then phase = "howto"; t0 = n end
   elseif phase == "howto" then -- the how-to demo: overlay rows 22..27 up, A skips it, the overlay clears and round 1 banner follows
     local k = n - t0
@@ -72,7 +72,7 @@ emu.register_frame_done(function()
     end
   elseif phase == "banner" then
     local rs = b(O.rs)
-    if title_goal == nil or title_goal < 19 then finish(false, "title goal row 28 lit cells " .. tostring(title_goal) .. ", want >= 19") return end
+    if title_goal == nil or title_goal < 12 then finish(false, "title hint row 28 lit cells " .. tostring(title_goal) .. ", want >= 12") return end
     if b(O.frule) ~= K.round or b(O.rule) ~= K.round then finish(false, "party rule flow " .. b(O.frule) .. " game " .. b(O.rule) .. ", want ROUND " .. K.round) return end
     if b(O.mode) ~= K.arena then finish(false, "mode " .. b(O.mode) .. ", want ARENA") return end
     if rs == K.rs_round then

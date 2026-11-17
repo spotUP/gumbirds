@@ -80,14 +80,15 @@ int main(void)
         flow_init(&f, 0, 0);
         f.mode = GAME_MODE_GUM; f.gg_event = GG_BIG_BLOW;
         flow_coin(&f);
-        flow_step(&f, IN_RIGHT, 0, 0); flow_step(&f, 0, 0, 0);
-        flow_step(&f, IN_RIGHT, 0, 0); flow_step(&f, 0, 0, 0);
-        flow_step(&f, IN_RIGHT, 0, 0); flow_step(&f, 0, 0, 0);
-        flow_step(&f, IN_RIGHT, 0, 0); flow_step(&f, 0, 0, 0);
+        flow_step(&f, IN_A, 0, 0); flow_step(&f, 0, 0, 0); /* A opens the GUM GAMES list */
+        flow_step(&f, IN_DOWN, 0, 0); flow_step(&f, 0, 0, 0);
+        flow_step(&f, IN_DOWN, 0, 0); flow_step(&f, 0, 0, 0);
+        flow_step(&f, IN_DOWN, 0, 0); flow_step(&f, 0, 0, 0);
+        flow_step(&f, IN_DOWN, 0, 0); flow_step(&f, 0, 0, 0);
         CHECK(f.gg_event == GG_FLAP_DASH);
-        flow_step(&f, IN_RIGHT, 0, 0); flow_step(&f, 0, 0, 0);
+        flow_step(&f, IN_DOWN, 0, 0); flow_step(&f, 0, 0, 0);
         CHECK(f.gg_event == GG_FLING);
-        flow_step(&f, IN_LEFT, 0, 0); flow_step(&f, 0, 0, 0);
+        flow_step(&f, IN_UP, 0, 0); flow_step(&f, 0, 0, 0);
         CHECK(f.gg_event == GG_FLAP_DASH);
         f.tables.gg_record[GG_FLAP_DASH] = 900;
         flow_step(&f, 0, 1, 1);
@@ -98,6 +99,7 @@ int main(void)
         flow_init(&f, 0, 0);
         f.mode = GAME_MODE_GUM; f.gg_event = GG_FLAP_DASH;
         flow_coin(&f);
+        flow_step(&f, IN_A, 0, 0); flow_step(&f, 0, 0, 0); /* A opens the GUM GAMES list */
         flow_step(&f, 0, 1, 1);
         f.game.dash.done = 1; f.game.dash.frames = 800;
         for (i = 0; i < (int)GD_RESULT_FRAMES + 2; i++) flow_step(&f, 0, 0, 0);

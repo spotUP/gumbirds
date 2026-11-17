@@ -61,14 +61,15 @@ int main(void)
     play(&g, 0, 1, 5000);
     CHECK(g.race.winner == 1 && g.race.last_points == 0 && g.race.seq.best[0] == 0);
 
-    /* flow: Right on the GUM GAMES row picks Burst Race, Start runs it, the fastest win becomes the record */
+    /* flow: A then Down on the GUM GAMES row picks Burst Race, Start runs it, the fastest win becomes the record */
     {
         Flow f;
         flow_init(&f, 0, 0);
         f.mode = GAME_MODE_GUM;
         f.gg_event = GG_BIG_BLOW;
         flow_coin(&f);
-        flow_step(&f, IN_RIGHT, 0, 0);
+        flow_step(&f, IN_A, 0, 0); flow_step(&f, 0, 0, 0); /* A opens the GUM GAMES list */
+        flow_step(&f, IN_DOWN, 0, 0);
         flow_step(&f, 0, 0, 0);
         CHECK(f.gg_event == GG_BURST_RACE);
         f.tables.gg_record[GG_BURST_RACE] = 90;
@@ -81,6 +82,7 @@ int main(void)
         flow_init(&f, 0, 0);
         f.mode = GAME_MODE_GUM; f.gg_event = GG_BURST_RACE;
         flow_coin(&f);
+        flow_step(&f, IN_A, 0, 0); flow_step(&f, 0, 0, 0); /* A opens the GUM GAMES list */
         flow_step(&f, 0, 1, 1);
         f.game.race.seq.best[0] = 80;
         f.game.race.phase = GG_RACE_END;

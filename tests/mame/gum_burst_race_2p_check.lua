@@ -18,7 +18,7 @@ local function field(tag, match)
   for fname, f in pairs(p.fields) do if fname:find(match, 1, true) then return f end end
 end
 local coin, start1, start2, up = field(":AUDIO_COIN", "Coin 1"), field(":edge:joy:START", "1 Player Start"), field(":edge:joy:START", "2 Players Start") or field(":edge:joy:START", "2 Player"), field(":edge:joy:JOY1", "P1 Up")
-local a1, b1, right = field(":edge:joy:JOY1", "P1 A"), field(":edge:joy:JOY1", "P1 B"), field(":edge:joy:JOY1", "P1 Right")
+local a1, b1, pick = field(":edge:joy:JOY1", "P1 A"), field(":edge:joy:JOY1", "P1 B"), field(":edge:joy:JOY1", "P1 Down")
 local a2, b2 = field(":edge:joy:JOY2", "P2 A"), field(":edge:joy:JOY2", "P2 B")
 local ss = dofile("tests/mame/start_seq.lua")(coin, start1, up)
 local function b(o) return mem:read_u8(flow_addr + o) end
@@ -43,7 +43,7 @@ local function finish(ok, msg)
   print("BRAWL_TEST " .. (ok and "PASS " or "FAIL ") .. msg)
   manager.machine:exit()
 end
-if not (coin and start1 and start2 and up and a1 and b1 and right and a2 and b2) then finish(false, "missing ports") end
+if not (coin and start1 and start2 and up and a1 and b1 and pick and a2 and b2) then finish(false, "missing ports") end
 
 local n, phase, t0, press1, press2, idle_max = 0, "boot", 0, 0, 0, 0
 emu.register_frame_done(function()
@@ -54,8 +54,8 @@ emu.register_frame_done(function()
     if n == 600 then phase = "start"; t0 = n; ss.begin(n) end
   elseif phase == "start" then
     local k = n - t0
-    right:set_value((k >= 85 and k < 93) and 1 or 0)
-    if ss.step(n, playing, 1) then phase = "join"; t0 = n; right:set_value(0) end
+    pick:set_value((k >= 88 and k < 96) and 1 or 0); a1:set_value((k >= 80 and k < 84) and 1 or 0) -- A opens the GUM GAMES list, Down picks
+    if ss.step(n, playing, 1) then phase = "join"; t0 = n; pick:set_value(0) end
   elseif phase == "join" then
     -- second credit, then P2 Start while the intro still runs (150 frames)
     local k = n - t0

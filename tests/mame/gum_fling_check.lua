@@ -1,4 +1,4 @@
--- Gum Games Gum Fling check (make test-gum-fling): UniBIOS 4.0, one coin, Down to the GUM GAMES row, Left once wraps to Gum Fling (last entry), Start:
+-- Gum Games Gum Fling check (make test-gum-fling): UniBIOS 4.0, one coin, Down to the GUM GAMES row, A opens the list, Down five times picks Gum Fling (last entry), Start:
 --   F1. the game is PLAYING in GAME_MODE_GUM with the fling running (gg_fling 1) and the HUD (fix row 7) lit;
 --   F2. A/B mashed, C held then released: the mode flips to GAME_MODE_TRIP for the flight and back to GUM for the next attempt;
 --   F3. three attempts end the event: GAME_OVER, distance > 0, score equals the best distance based points, record in slot 4 equals the best distance.
@@ -17,7 +17,7 @@ local function field(tag, match)
   for fname, f in pairs(p.fields) do if fname:find(match, 1, true) then return f end end
 end
 local coin, start1, up = field(":AUDIO_COIN", "Coin 1"), field(":edge:joy:START", "1 Player Start"), field(":edge:joy:JOY1", "P1 Up")
-local abtn, bbtn, cbtn, left = field(":edge:joy:JOY1", "P1 A"), field(":edge:joy:JOY1", "P1 B"), field(":edge:joy:JOY1", "P1 C"), field(":edge:joy:JOY1", "P1 Left")
+local abtn, bbtn, cbtn, pick = field(":edge:joy:JOY1", "P1 A"), field(":edge:joy:JOY1", "P1 B"), field(":edge:joy:JOY1", "P1 C"), field(":edge:joy:JOY1", "P1 Down")
 local ss = dofile("tests/mame/start_seq.lua")(coin, start1, up)
 local function b(o) return mem:read_u8(flow_addr + o) end
 local fix, vaddr, vmod = {}, 0, 1
@@ -41,7 +41,7 @@ local function finish(ok, msg)
   print("BRAWL_TEST " .. (ok and "PASS " or "FAIL ") .. msg)
   manager.machine:exit()
 end
-if not (coin and start1 and up and abtn and bbtn and cbtn and left) then finish(false, "missing ports") end
+if not (coin and start1 and up and abtn and bbtn and cbtn and pick) then finish(false, "missing ports") end
 
 -- per attempt: mash 40 frames, pause, hold C 50 frames (about 35 degrees), release, then wait for the flight and the landing
 local n, phase, t0, hud, trips, attempts, lastphase = 0, "boot", 0, false, 0, 0, -1
@@ -52,10 +52,10 @@ emu.register_frame_done(function()
   if phase == "boot" then
     if n == 600 then phase = "start"; t0 = n; ss.begin(n) end
   elseif phase == "start" then
-    -- the shared sequence presses Down at +70..+78 (the GUM GAMES row); one Left tap at +80..+83 wraps to Gum Fling before Start at +100
+    -- the shared sequence presses Down at +70..+78 (the GUM GAMES row); A at +80 opens the list, Downs at +84..+97 reach Gum Fling before Start at +100
     local k = n - t0
-    left:set_value((k >= 80 and k < 84) and 1 or 0)
-    if ss.step(n, playing, 1) then phase = "fling"; t0 = n; left:set_value(0) end
+    pick:set_value((k >= 84 and k < 98 and (k - 84) % 3 < 2) and 1 or 0); abtn:set_value((k >= 80 and k < 84) and 1 or 0) -- A opens the GUM GAMES list, five Downs (one per 3 frames) reach Gum Fling
+    if ss.step(n, playing, 1) then phase = "fling"; t0 = n; pick:set_value(0) end
   elseif phase == "fling" then
     if b(O.state) == K.over then phase = "check" return end
     if b(O.fling) ~= 1 then finish(false, "gg_fling not set") return end
@@ -82,6 +82,6 @@ emu.register_frame_done(function()
     if best < 1 then finish(false, "best distance 0") return end
     if rec ~= best then finish(false, string.format("record %d, best distance %d", rec, best)) return end
     if score < 1 then finish(false, "score 0") return end
-    finish(true, string.format("Gum Fling: GUM GAMES row + Left starts it; %d attempts, TRIP flight seen, best %d, score %d, record saved", attempts, best, score))
+    finish(true, string.format("Gum Fling: GUM GAMES row + A, Down starts it; %d attempts, TRIP flight seen, best %d, score %d, record saved", attempts, best, score))
   end
 end)

@@ -68,13 +68,14 @@ int main(void)
       for (i = 0; i < 100; i++) game_step(&g, 0);
       CHECK(g.pop.timer == 100 && !g.over); }
 
-    /* flow: Right three times from Big Blow picks Pop Drop, Start runs it, the best total is the record (higher is better) */
+    /* flow: A, then Down three times from Big Blow picks Pop Drop, Start runs it, the best total is the record (higher is better) */
     {
         Flow f;
         flow_init(&f, 0, 0);
         f.mode = GAME_MODE_GUM; f.gg_event = GG_BIG_BLOW;
         flow_coin(&f);
-        for (i = 0; i < 3; i++) { flow_step(&f, IN_RIGHT, 0, 0); flow_step(&f, 0, 0, 0); }
+        flow_step(&f, IN_A, 0, 0); flow_step(&f, 0, 0, 0); /* A opens the GUM GAMES list */
+        for (i = 0; i < 3; i++) { flow_step(&f, IN_DOWN, 0, 0); flow_step(&f, 0, 0, 0); }
         CHECK(f.gg_event == GG_POP_DROP);
         f.tables.gg_record[GG_POP_DROP] = 20;
         flow_step(&f, 0, 1, 1);

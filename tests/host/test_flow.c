@@ -289,6 +289,7 @@ static void scenario_full(const HiscoreTable *pre, const char *want_name)
     /* second boot: fresh flow from the saved image */
     {
         Flow g;
+        memset(&g, 0, sizeof g); /* struct padding is not defined: zero it so the memcmp below compares values */
         uint32_t saves_before = r.saves;
         flow_init(&g, r.backup, sizeof r.backup);
         CHECK(memcmp(&g.tables, &r.f.tables, sizeof g.tables) == 0);
@@ -299,7 +300,7 @@ static void scenario_full(const HiscoreTable *pre, const char *want_name)
         /* corrupt image: defaults */
         r.backup[20] ^= 0x01;
         flow_init(&g, r.backup, sizeof r.backup);
-        { ScoreTables d; score_tables_defaults(&d); CHECK(memcmp(&g.tables, &d, sizeof d) == 0); }
+        { ScoreTables d; memset(&d, 0, sizeof d); score_tables_defaults(&d); CHECK(memcmp(&g.tables, &d, sizeof d) == 0); }
     }
 }
 
@@ -599,17 +600,43 @@ static void test_mode_select(void)
     CHECK(r.f.mode == GAME_MODE_ARCADE);
     rig_press(&r, IN_DOWN);
     CHECK(r.f.mode == GAME_MODE_PARTY);
-    /* Left/Right on the PARTY row cycle the rule, both wrap; the mode does not move */
-    CHECK(r.f.party_rule == PARTY_ROUND);
-    rig_press(&r, IN_RIGHT); CHECK(r.f.party_rule == PARTY_ROOST && r.f.mode == GAME_MODE_PARTY);
-    rig_press(&r, IN_RIGHT); CHECK(r.f.party_rule == PARTY_HOT);
-    rig_press(&r, IN_RIGHT); CHECK(r.f.party_rule == PARTY_ROUND);
-    rig_press(&r, IN_LEFT); CHECK(r.f.party_rule == PARTY_HOT);
+    /* PARTY row: A opens the rule list, Up/Down move its cursor (wrapping), Left/Right do nothing, B goes back with the row kept */
+    flow_coin(&r.f); /* list open */
+    CHECK(r.f.party_rule == PARTY_ROUND && !r.f.sub_open);
+    rig_press(&r, IN_RIGHT); rig_press(&r, IN_LEFT);
+    CHECK(r.f.party_rule == PARTY_ROUND && !r.f.sub_open && r.f.mode == GAME_MODE_PARTY); /* the old picker is gone */
+    rig_press(&r, IN_A);
+    CHECK(r.f.sub_open && r.f.mode == GAME_MODE_PARTY && r.f.state == FLOW_ATTRACT_TITLE);
+    rig_press(&r, IN_DOWN); CHECK(r.f.party_rule == PARTY_ROOST && r.f.mode == GAME_MODE_PARTY);
+    rig_press(&r, IN_DOWN); CHECK(r.f.party_rule == PARTY_HOT);
+    rig_press(&r, IN_DOWN); CHECK(r.f.party_rule == PARTY_ROUND);
+    rig_press(&r, IN_UP); CHECK(r.f.party_rule == PARTY_HOT);
+    rig_press(&r, IN_RIGHT); CHECK(r.f.party_rule == PARTY_HOT && r.f.sub_open);
     {
         FlowView v;
         flow_view(&r.f, &v);
-        CHECK(v.party_rule == PARTY_HOT);
+        CHECK(v.party_rule == PARTY_HOT && v.sub_open);
     }
+    rig_press(&r, IN_B);
+    CHECK(!r.f.sub_open && r.f.mode == GAME_MODE_PARTY && r.f.party_rule == PARTY_HOT && r.f.state == FLOW_ATTRACT_TITLE);
+    rig_press(&r, IN_A); CHECK(r.f.sub_open);
+    /* GUM GAMES row: the same pattern over the six events in on-screen order; Down at the list end wraps */
+    rig_press(&r, IN_B);
+    rig_press(&r, IN_DOWN);
+    CHECK(r.f.mode == GAME_MODE_GUM && !r.f.sub_open);
+    r.f.gg_event = GG_BIG_BLOW;
+    rig_press(&r, IN_RIGHT); CHECK(r.f.gg_event == GG_BIG_BLOW && !r.f.sub_open);
+    rig_press(&r, IN_A); CHECK(r.f.sub_open);
+    {
+        static const uint8_t want[6] = { GG_BURST_RACE, GG_BUBBLE_GATHER, GG_POP_DROP, GG_FLAP_DASH, GG_FLING, GG_BIG_BLOW };
+        int i;
+        for (i = 0; i < 6; i++) { rig_press(&r, IN_DOWN); CHECK(r.f.gg_event == want[i] && r.f.mode == GAME_MODE_GUM); }
+        rig_press(&r, IN_UP); CHECK(r.f.gg_event == GG_FLING);
+        for (i = 0; i < 6; i++) CHECK(flow_gg_event((uint8_t)i) == (i < 3 ? i : i == 3 ? GG_POP_DROP : i == 4 ? GG_FLAP_DASH : GG_FLING));
+    }
+    rig_press(&r, IN_B);
+    CHECK(!r.f.sub_open && r.f.mode == GAME_MODE_GUM && r.f.gg_event == GG_FLING);
+    rig_press(&r, IN_UP); CHECK(r.f.mode == GAME_MODE_PARTY && r.f.party_rule == PARTY_HOT); /* Start below plays PARTY as before */
     /* Start plays PARTY as arena (P2 can join), tagged with the rule; game over scores into table 3 with the tag */
     rig_begin(&r, 0);
     /* the how-to demo comes first: no rounds, the pilot plays; A skips it into the real match; a timeout also ends it */
