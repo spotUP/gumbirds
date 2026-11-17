@@ -9,7 +9,7 @@
 #define GG_QUALIFY_POINTS 500u
 #define GG_STAGE_POINTS 100u
 
-enum { GG_BIG_BLOW, GG_BURST_RACE, GG_BUBBLE_GATHER, GG_FLAP_DASH };   /* Flap Dash uses record slot 3 (a spare) */
+enum { GG_BIG_BLOW, GG_BURST_RACE, GG_BUBBLE_GATHER, GG_FLAP_DASH, GG_FLING };   /* Flap Dash uses record slot 3, Gum Fling slot 4 (spares) */
 
 #define GG_GATHER_CLOCK 2700u         /* Bubble Gather: 45 seconds at 60 frames */
 #define GG_GATHER_QUALIFY 12u         /* of ARC_BONUS_BUBBLES (20) */

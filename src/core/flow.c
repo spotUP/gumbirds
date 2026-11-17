@@ -27,6 +27,7 @@ static void start_game(Flow *f, uint32_t seed, int demo)
         if (f->mode == GAME_MODE_GUM && f->gg_event == GG_BURST_RACE) game_gg_start_race(&f->game);
         if (f->mode == GAME_MODE_GUM && f->gg_event == GG_FLAP_DASH) game_gg_start_dash(&f->game);
         if (f->mode == GAME_MODE_GUM && f->gg_event == GG_BUBBLE_GATHER) game_gg_start_gather(&f->game);
+        if (f->mode == GAME_MODE_GUM && f->gg_event == GG_FLING) game_gg_start_fling(&f->game);
     }
     f->demo = (uint8_t)demo;
     f->howto = 0;
@@ -238,11 +239,11 @@ static void title_mode_select(Flow *f, uint8_t input)
     if (edge & (IN_UP | IN_DOWN)) {
         if (edge & IN_DOWN) f->mode = f->mode == GAME_MODE_GUM ? GAME_MODE_ARENA : (uint8_t)(f->mode + 1);
         else f->mode = f->mode == GAME_MODE_ARENA ? GAME_MODE_GUM : (uint8_t)(f->mode - 1);
-    } else if (edge && f->mode == GAME_MODE_GUM) { /* Left/Right on the GUM GAMES row pick the event (Big Blow, Burst Race, Bubble Gather, Flap Dash; Right forward, both wrap) */
-        static const uint8_t pick[4] = { GG_BIG_BLOW, GG_BURST_RACE, GG_BUBBLE_GATHER, GG_FLAP_DASH };
+    } else if (edge && f->mode == GAME_MODE_GUM) { /* Left/Right on the GUM GAMES row pick the event (Big Blow, Burst Race, Bubble Gather, Flap Dash, Gum Fling; Right forward, both wrap) */
+        static const uint8_t pick[5] = { GG_BIG_BLOW, GG_BURST_RACE, GG_BUBBLE_GATHER, GG_FLAP_DASH, GG_FLING };
         uint8_t i = 0;
         while (pick[i] != f->gg_event) i++;
-        i = (edge & IN_RIGHT) ? (uint8_t)(i == 3 ? 0 : i + 1) : (uint8_t)(i == 0 ? 3 : i - 1);
+        i = (edge & IN_RIGHT) ? (uint8_t)(i == 4 ? 0 : i + 1) : (uint8_t)(i == 0 ? 4 : i - 1);
         f->gg_event = pick[i];
     } else if (edge && f->mode == GAME_MODE_PARTY) { /* Left/Right on the PARTY row cycle the rule (Right forward) */
         if (edge & IN_RIGHT) f->party_rule = f->party_rule == PARTY_RULE_COUNT - 1 ? PARTY_ROUND : (uint8_t)(f->party_rule + 1);
@@ -343,7 +344,10 @@ void flow_step(Flow *f, uint8_t input, uint8_t start_pressed, uint32_t frame_cou
             f->entry_h = 0;
             f->last_mode = f->mode; /* the title pick: PARTY plays as arena, so game.mode would lose the PARTY table */
             f->last_rule = f->game.party_rule;
-            if (f->game.mode == GAME_MODE_GUM && f->game.gg_gather) { /* Bubble Gather: the most bubbles caught is the record */
+            if (f->game.gg_fling) { /* Gum Fling: the longest fling is the record */
+                uint32_t n = f->game.fling.seq.best[0];
+                if (n > f->tables.gg_record[GG_FLING]) { f->tables.gg_record[GG_FLING] = n; f->dirty = 1; }
+            } else if (f->game.mode == GAME_MODE_GUM && f->game.gg_gather) { /* Bubble Gather: the most bubbles caught is the record */
                 uint32_t n = f->game.bonus.caught;
                 if (n > f->tables.gg_record[GG_BUBBLE_GATHER]) { f->tables.gg_record[GG_BUBBLE_GATHER] = n; f->dirty = 1; }
             } else if (f->game.mode == GAME_MODE_GUM && (f->game.gg_race || f->game.gg_dash)) { /* Burst Race and Flap Dash: the fastest time is the record (lower is better, 0 = none) */

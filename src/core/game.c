@@ -201,9 +201,12 @@ static void game_step_gum(Game *g, uint8_t input)
 
 static void game_step_dash(Game *g, uint8_t input);
 static void game_step_gather(Game *g, uint8_t input);
+static void game_step_fling(Game *g, uint8_t input);
 void game_step(Game *g, uint8_t input)
 {
-    if (g->gg_gather) {
+    if (g->gg_fling) {
+        game_step_fling(g, input);
+    } else if (g->gg_gather) {
         game_step_gather(g, input);
     } else if (g->gg_dash) {
         game_step_dash(g, input);
@@ -422,6 +425,73 @@ static void game_step_dash(Game *g, uint8_t input)
     g->frame++;
     g->hero[0].spawn_inv = 0;
     camera_follow(g);
+}
+
+void game_gg_start_fling(Game *g)
+{
+    g->gg_fling = 1;
+    g->players = 1;
+    g->cpu_count = 0;
+    gumfling_init(&g->fling);
+    camera_init(&g->camera);
+}
+
+/* Gum Fling: the wind-up runs in the GUM arena; the launch flips to a plain Trip course for the flight and the landing
+ * screen, and the next attempt flips back. Distance is the scroll at touch-down. */
+static void game_step_fling(Game *g, uint8_t input)
+{
+    GgFling *f = &g->fling;
+    int ev;
+    if (g->mode == GAME_MODE_TRIP) {
+        Flier *h = &g->hero[0];
+        if (!tripgen_covers(&g->trip_gen, g->trip.px)) {
+            tripgen_advance(&g->trip_gen, g->trip.px);
+            g->trip_hold++;
+            return;
+        }
+        g->trip_splat = 0;
+        if (!f->ground_y) {
+            int32_t lo, hi;
+            f->ground_y = trip_hit_window(&g->trip, &g->trip_gen, h, &lo, &hi) ? hi : FL_PX(190);
+        }
+        if (f->phase == GF_FLIGHT) {
+            uint32_t step = (uint32_t)gumfling_scroll(f);
+            ev = gumfling_fly(f);
+            g->trip.frac += step;
+            g->trip.px += g->trip.frac >> 16;
+            g->trip.frac &= 0xFFFFu;
+            tripgen_advance(&g->trip_gen, g->trip.px);
+            camera_scroll(&g->camera, step);
+            g->distance = g->trip.px;
+            h->vy = -f->vy;
+            if (ev == GF_EV_LANDED) {
+                g->trip_splat = 1;
+                g->trip_splat_y = (int16_t)(f->ground_y >> 16);
+            }
+        } else {
+            ev = gumfling_step(f, input);
+            if (ev == GF_EV_NEXT) {   /* back to the arena for the next wind-up */
+                game_set_mode(g, GAME_MODE_GUM);
+                player_spawn(g);
+                h->no_wrap = 0;
+                camera_init(&g->camera);
+            }
+        }
+        h->y = f->ground_y - f->h;
+        h->spawn_inv = 0;
+    } else {
+        ev = gumfling_step(f, input);
+        if (ev == GF_EV_LAUNCH) {     /* to the course: the first frames build it while the view loads */
+            game_set_mode(g, GAME_MODE_TRIP);
+            g->trip_gen.plain = 1;
+            f->ground_y = 0;
+        }
+        g->hero[0].spawn_inv = 0;
+        camera_follow(g);
+    }
+    g->frame++;
+    g->score = f->seq.points[0];
+    if (f->phase == GF_END) g->over = 1;
 }
 
 /* Arena and arcade share the round phases (pan, ROUND/STAGE banner, frozen hazards). */

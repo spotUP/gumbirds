@@ -45,13 +45,15 @@ int main(void)
         f.mode = GAME_MODE_GUM; f.gg_event = GG_BIG_BLOW;
         flow_coin(&f);
         left(&f);
-        CHECK(f.gg_event == GG_FLAP_DASH);
+        CHECK(f.gg_event == GG_FLING);
+        left(&f); CHECK(f.gg_event == GG_FLAP_DASH);
         left(&f); CHECK(f.gg_event == GG_BUBBLE_GATHER);
         left(&f); CHECK(f.gg_event == GG_BURST_RACE);
         left(&f); CHECK(f.gg_event == GG_BIG_BLOW);
         right(&f); CHECK(f.gg_event == GG_BURST_RACE);
         right(&f); CHECK(f.gg_event == GG_BUBBLE_GATHER);
         right(&f); CHECK(f.gg_event == GG_FLAP_DASH);
+        right(&f); CHECK(f.gg_event == GG_FLING);
         right(&f); CHECK(f.gg_event == GG_BIG_BLOW);
         right(&f); right(&f);
         CHECK(f.gg_event == GG_BUBBLE_GATHER);

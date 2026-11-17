@@ -89,6 +89,7 @@ typedef struct {
     uint32_t next_index, next_wx;    /* the chunk generated next */
     uint32_t pk_chunk;               /* chunk of the next pickup */
     uint8_t pk_slot;                 /* slot of the next pickup */
+    uint8_t plain;                   /* 1 = no hazards and no pickup (Gum Fling landing field); set after tripgen_init */
     int16_t prev_band_top, prev_band_bottom, prev_centre;
     int16_t prev_top, prev_bottom;   /* window of the previous chunk */
     int16_t prev_isl_end, prev_isl_y;  /* island of the previous chunk: right edge relative to its chunk start (0 = none) and top edge */
