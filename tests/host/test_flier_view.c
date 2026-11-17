@@ -398,7 +398,10 @@ int main(void)
         }
         check(dark == FLIER_BLINK_HALF_PERIOD, "first pop: the body blinks", dark, FLIER_BLINK_HALF_PERIOD);
         f.balloons = 0; f.state = FLIER_PARACHUTE;
-        check(flier_gum_burst(&f) == 0, "parachute keeps its bubble art", flier_gum_burst(&f), 0);
+        check(flier_gum_burst(&f) == 1, "last balloon lost on the parachute: burst", flier_gum_burst(&f), 1);
+        f.state = FLIER_ALIVE;
+        check(flier_gum_burst(&f) == 0, "sitting and pumping: no burst", flier_gum_burst(&f), 0);
+        f.state = FLIER_PARACHUTE;
         f.state = FLIER_FALLING;
         check(flier_gum_burst(&f) == 1, "last balloon lost, falling: burst", flier_gum_burst(&f), 1);
         f.state = FLIER_GONE;
