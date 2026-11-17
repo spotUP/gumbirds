@@ -73,7 +73,7 @@ emu.register_frame_done(function()
     if rx >= 448 then rx = rx - 512 end   -- SCB4 x is 9 bits and wraps: left of the screen edge reads as 448..511
     if hx >= 448 then hx = hx - 512 end
     if n - t0 > 4 then   -- the queue has flushed the first frame of the pump phase
-      if r3 & 63 == 0 or tile == 0 or rx <= hx or rx > 288 then rival_bad = rival_bad or string.format("rival sprite %d scb3 %x x %d tile %x, hero x %d at pump frame %d", RIVAL, r3, rx, tile, hx, n - t0)
+      if r3 & 63 == 0 or tile == 0 or rx <= hx or rx > 288 or hx < 0 then rival_bad = rival_bad or string.format("rival sprite %d scb3 %x x %d tile %x, hero x %d at pump frame %d", RIVAL, r3, rx, tile, hx, n - t0)
       else
         local key = {}   -- every tile of the 3 columns: a pump frame changes the body, not always the top-left tile
         for c = 0, 2 do for r = 0, 3 do key[#key + 1] = fix[(RIVAL + c) * 64 + r * 2] or 0 end end

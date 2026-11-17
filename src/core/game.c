@@ -407,7 +407,9 @@ void game_gg_start_race(Game *g)
     g->gg_race = 1;
     gg_race_start(&g->race, 1);
     player_spawn_h(g, 1);   /* the computer or P2 bird stands beside the player, facing it; its pump frame follows race.size[1] (game_step_gum) */
-    g->hero[1].x += FL_PX(GG_RACE_RIVAL_GAP - FLIER_START_GAP);
+    /* The camera stays put in this event (game_step_gum): centre the pair on the screen, not on the arena spawn point that sits at its left edge. */
+    g->hero[0].x = camera_centre_x(g) - FL_PX(GG_RACE_RIVAL_GAP / 2);
+    g->hero[1].x = g->hero[0].x + FL_PX(GG_RACE_RIVAL_GAP);
     g->hero[1].facing = 0;
 }
 
