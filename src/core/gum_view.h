@@ -53,4 +53,11 @@ uint8_t gum_view_leak_frame(uint32_t t);
  * frame equals the leak frame modulo GUM_VIEW_WOBBLE_SHEET and the hole stays on the rim. */
 uint32_t gum_view_wobble_clock(uint32_t t, int leaking);
 
+
+/* Pump-up (arcade): while a flier blows its gum back up the bubble grows from level 1 to full_level over pump_frames and swells on each
+ * of GUM_PUMP_STROKES strokes: the first quarter of a stroke is GUM_PUMP_SWELL levels above the growth level, the second quarter one
+ * level above, then it settles. elapsed >= pump_frames gives full_level (no jump when the pump ends). Result 1..full_level. */
+#define GUM_PUMP_STROKES 4
+#define GUM_PUMP_SWELL   2
+uint8_t gum_view_pump_level(int elapsed, int pump_frames, int full_level);
 #endif

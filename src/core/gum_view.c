@@ -59,3 +59,16 @@ int gum_view_leaks_balloons(uint8_t balloons) { return balloons == 1; }
 int gum_view_leaks_gum(uint16_t gum) { return gum > 0 && gum < GUM_MAX / 2; }
 uint8_t gum_view_leak_frame(uint32_t t) { return (uint8_t)((t / GUM_LEAK_TICK) % GUM_LEAK_FRAMES); }
 uint32_t gum_view_wobble_clock(uint32_t t, int leaking) { return leaking ? t * 2 : t; }
+
+uint8_t gum_view_pump_level(int elapsed, int pump_frames, int full_level) {
+    /* No divides (libgcc calls on the 68000, per pumping flier per frame): growth and stroke phase by compares. */
+    int g = 1, acc = pump_frames, t, lvl;
+    if (elapsed >= pump_frames || pump_frames <= 0) return (uint8_t)full_level;
+    if (elapsed < 0) elapsed = 0;
+    t = elapsed * (full_level - 1);
+    while (g < full_level && t >= acc) { g++; acc += pump_frames; }
+    t = elapsed * GUM_PUMP_STROKES;
+    while (t >= pump_frames) t -= pump_frames;   /* phase inside the stroke, 0..pump_frames - 1 */
+    lvl = g + (t < (pump_frames >> 2) ? GUM_PUMP_SWELL : (t < (pump_frames >> 1) ? 1 : 0));
+    return (uint8_t)(lvl > full_level ? full_level : lvl);
+}

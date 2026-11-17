@@ -46,6 +46,7 @@ local function jet_visible(i)
 end
 local STRIDE, POOL_MAX, TYPE_OFF, ANIM_OFF = 20, 32, 16, 18   -- sizeof(PoolObj), POOL_MAX, offsetof(PoolObj, type), offsetof(PoolObj, anim) (src/core/obj_pool.h)
 local pass_msg
+local pump_levels = {}
 local pump_first, pump_n, pump_seen, pump_bad = tonumber(os.getenv("BRAWL_PUMP_FIRST")), tonumber(os.getenv("BRAWL_PUMP_COUNT")), 0, nil   -- pump clip sheet frames (sootling_tables.h)
 local n, phase, fc0, play_n, done = 0, "boot", nil, nil, false
 local function finish(ok, msg)
@@ -72,15 +73,21 @@ emu.register_frame_done(function()
       local t, a = mem:read_u8(pool_addr + i * STRIDE + TYPE_OFF), mem:read_u8(pool_addr + i * STRIDE + ANIM_OFF)
       if t >= 0xC0 and t < 0xE0 and a >= pump_first and a < pump_first + pump_n then
         pump_seen = pump_seen + 1
+        pump_levels[mem:read_u8(pool_addr + i * STRIDE + 19)] = true   -- anim_tick = bubble level
         -- its body (the object below) drawn and not blinking, so the bubble is not just off screen or blinking with it
         local body = i - 1
         local body_up = body >= 0 and mem:read_u8(pool_addr + body * STRIDE + TYPE_OFF) == a and (mem:read_u8(pool_addr + body * STRIDE + TYPE_OFF + 1) & 0x80) == 0 and (vram[0x8200 + 161 + body * 3] or 0) & 63 ~= 0
-        if body_up and (vram[0x8200 + 161 + i * 3] or 0) & 63 == 0 and not pump_bad then pump_bad = string.format("bubble object %d vanished on pump frame %d at play frame %d", i, a, n - play_n) end
+        local bx = body_up and ((vram[0x8400 + 161 + body * 3] or 0) >> 7) or 0   -- body x (9 bit); a bubble may cull itself at the screen edge
+        if body_up and bx >= 16 and bx <= 280 and (vram[0x8200 + 161 + i * 3] or 0) & 63 == 0 and not pump_bad then pump_bad = string.format("bubble object %d (level %d) vanished on pump frame %d at play frame %d", i, mem:read_u8(pool_addr + i * STRIDE + 19), a, n - play_n) .. string.format(" scb3=%x scb4=%x flags=%x body scb4=%x scb3=%x", vram[0x8200 + 161 + i * 3] or -1, vram[0x8400 + 161 + i * 3] or -1, mem:read_u8(pool_addr + i * STRIDE + 17), vram[0x8400 + 161 + (i - 1) * 3] or -1, vram[0x8200 + 161 + (i - 1) * 3] or -1) end
       end
     end
     if pump_bad then finish(false, pump_bad) return end
     if n - play_n == 261 then
-      if pump_seen == 0 then finish(false, "no rival bubble was seen on a pump frame") else finish(true, pass_msg .. string.format("; %d bubble samples on pump frames all drawn", pump_seen)) end
+      if pump_seen == 0 then finish(false, "no rival bubble was seen on a pump frame") else
+        local nl = 0
+        for _ in pairs(pump_levels) do nl = nl + 1 end
+        if nl < 4 then finish(false, string.format("pumping bubble level stayed near-constant: %d distinct levels over the pump", nl)) return end
+        finish(true, pass_msg .. string.format("; %d bubble samples on pump frames all drawn, %d distinct levels", pump_seen, nl)) end
       return
     end
     if n - play_n ~= 120 then return end   -- the jet checks run at 120 frames; the pump scan above runs on to 261
