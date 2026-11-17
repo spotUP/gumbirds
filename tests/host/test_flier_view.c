@@ -286,8 +286,8 @@ int main(void)
     int flip, i, t;
     uint8_t fr;
 
-    /* sheet facts: the gum-mouth v4 sheet (14 clips, 95 frames: 12 clips plus flap_r / flap_l) replaced the 105 frame sootling sheet */
-    check(SOOTLING_FRAMES == 95, "frame count", SOOTLING_FRAMES, 95);
+    /* sheet facts: the gum-mouth v4 sheet (14 clips, 100 frames: 12 clips plus flap_r / flap_l; pop2 has 7 frames for the bubble bob) replaced the 105 frame sootling sheet */
+    check(SOOTLING_FRAMES == 100, "frame count", SOOTLING_FRAMES, 100);
     check(SOOTLING_CLIP_COUNT == 14, "clip count", SOOTLING_CLIP_COUNT, 14);
     /* the pipeline pads art to whole 16 px tiles: 24 px art is still 2 strips (src/vram_layout.h SOOT_COLUMNS) */
     check(SOOTLING_ART_W == 24 && SOOTLING_ART_H == 32, "art size", SOOTLING_ART_W, 24);

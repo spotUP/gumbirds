@@ -79,6 +79,16 @@ int main(void)
             if (!o.show) hidden++;
         }
         check(hidden > 0 && hidden < GUM_VIEW_BIRD_FRAMES, "some frames hide the bubble, most show it", hidden, 1);
+        {   /* 2 balloons to 1 (pop2): the bubble that is left never hides, and it bobs down (pushed in) and back past rest */
+            static const uint8_t cf[] = SOOTLING_TABLE_CLIP_FIRST, cc[] = SOOTLING_TABLE_CLIP_COUNT;
+            int lo = 0, hi = 0;
+            for (k = cf[SOOTLING_CLIP_POP2]; k < cf[SOOTLING_CLIP_POP2] + cc[SOOTLING_CLIP_POP2]; k++) {
+                check(gsh[k] == 1, "pop2 frame shows the bubble", k, 1);
+                if (gdy[k] > hi) hi = gdy[k];
+                if (gdy[k] < lo) lo = gdy[k];
+            }
+            check(hi >= 3 && lo < 0, "pop2 bob: pushed in, then a rebound", hi, lo);
+        }
     }
     /* Out of range is bounds safe: no bubble, no offset. */
     for (k = GUM_VIEW_BIRD_FRAMES; k < 256; k++) {

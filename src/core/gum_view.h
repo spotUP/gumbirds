@@ -14,7 +14,7 @@
 #define GUM_VIEW_LEVELS 16
 #define GUM_VIEW_WOBBLE_SHEET 6  /* sheet frames of a wobble loop (assets/gum/gum_sheet.json) */
 #define GUM_VIEW_POP_SHEET    7  /* sheet frames of a pop */
-#define GUM_VIEW_BIRD_FRAMES  95 /* frames of the player animation (sootling_anims[PLAYER]); gum_view.c and src/gum.c assert it */
+#define GUM_VIEW_BIRD_FRAMES  100 /* frames of the player animation (sootling_anims[PLAYER]); gum_view.c and src/gum.c assert it */
 
 typedef enum { GUM_SIZE_TINY, GUM_SIZE_SMALL, GUM_SIZE_MEDIUM, GUM_SIZE_LARGE } GumSize;
 typedef enum { GUM_POP_LARGE, GUM_POP_SMALL } GumPop;

@@ -1,6 +1,6 @@
 -- Small Sootling reachability (make test-small-sootling): the 24 x 32 sheet is what the real ROM draws for the player.
 -- Spec numbers are written out here (not read from the build) so a stale sheet fails:
---   art 24 x 32, 88 tiles in the Sootling C-ROM range (gum-mouth v4 sheet, 95 frames with the sway flap frames; bubbles are a separate gum sprite; the pre-v4 sheet had 304), sprite 32 wide (2 columns),
+--   art 24 x 32, 88 tiles in the Sootling C-ROM range (gum-mouth v4 sheet, 100 frames with the sway flap frames; bubbles are a separate gum sprite; the pre-v4 sheet had 304), sprite 32 wide (2 columns),
 --   hit box offset 14 ((32 - 24) / 2 + box first column 10).
 -- Timeline: coin, start, wait for PLAYING, settle on the island, flap 8 times, settle again. Checks:
 --   1. probe values (what the ROM was built with) equal the spec numbers; g_soot_range holds the same tile count;
