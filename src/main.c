@@ -30,6 +30,7 @@
 #include "gen/gumbubble_tables.h"
 #include "gen/gumleak_tables.h"
 #include "gen/countdown_tables.h"
+#include "gen/rulecard_tiles.h"
 #include "gfx.h"
 #include "sprite_slots.h"
 #include "vram_layout.h"
@@ -138,7 +139,6 @@ volatile u16 g_round_end_s[4];
 volatile u16 g_banner_calls, g_banner_cells; /* round clear banner draws, for the MAME tests */
 /* Round start text on the fix layer: phase drawn (RS_*) and the round number shown, so the cells are written and cleared once. */
 static u8 g_rs_drawn = RS_NONE;
-#define GG_CARD_ROW 8
 static const GgCard *g_card_up;
 static u8 g_howto_up; /* PARTY how-to overlay (fix rows HOWTO_ROW..) is on screen */
 #define HOWTO_ROW 22
@@ -322,6 +322,128 @@ static void island_load_palettes(void) {
 /* Height 0 and not sticky hides a sprite on its own. */
 static void obs_hide_slot(int slot) {
     gfx_word(ADDR_SCB3 + slot, 0);
+}
+
+static void text(u8 x, u8 y, u8 pal, const char *s);
+/* Gum Games rules card, owner-picked layout A "banner and strip" (thoughts/shared/drafts/2026-11-17-rules-card): the name and goal
+ * banner on top, a strip of three control cells at the bottom, and between them the example: a power and an angle bar on the fix
+ * layer, a Sootling on a slab in the arcade element slots (the countdown that shares them starts when the card goes).
+ * The text comes from flow.c gg_cards. The button and bar tiles take the attract icon palette slot while the card is up: the fix
+ * layer reaches palettes 0..15 only, the icons show in the demo only and the card in play only, so one slot serves both. */
+#define CARD_BANNER_ROW 3  /* panel rows 3..7 */
+#define CARD_STRIP_ROW 20  /* panel rows 20..28 */
+#define CARD_BAR_ROW 9     /* power bar; angle bar two rows down, its caret under it */
+#define CARD_BAR_COL 10
+#define CARD_BAR_CELLS 6
+#define CARD_BIRD_X 44     /* example Sootling art, screen px */
+#define CARD_BIRD_Y 104
+#define CARD_TICKS 16      /* video frames per example frame; the last frame holds CARD_HOLD */
+#define CARD_HOLD 42
+#define CARD_NONE 0xFF
+enum { CARD_PROP_SLAB, CARD_PROP_NEEDLE_20, CARD_PROP_NEEDLE_45, CARD_PROP_GUM, CARD_PROP_DOT };
+_Static_assert(RULECARD_FRAME_COUNT == 5, "the rules card sheet holds slab, two needles, gum, dot");
+/* step = lit control cell; press / hold = button of cell 0 / 1 down; power = lit bar cells; caret = angle bar cell or CARD_NONE;
+ * bird = Sootling sheet frame (mash 0 / 1, watch 2, aim 16, spit 40); needle = prop or 0; gums = gum trail length */
+static const struct { u8 step, press, hold, power, caret, bird, needle, gums; } card_frames[] = {
+    {0, 1, 0, 2, CARD_NONE, 0, 0, 0}, {0, 0, 0, 4, CARD_NONE, 1, 0, 0}, {0, 1, 0, 6, CARD_NONE, 0, 0, 0},
+    {1, 0, 1, 6, 1, 16, CARD_PROP_NEEDLE_20, 0}, {1, 0, 1, 6, 3, 16, CARD_PROP_NEEDLE_45, 0},
+    {2, 0, 0, 6, 3, 40, 0, 3}, {2, 0, 0, 6, 3, 2, 0, 7}};
+#define CARD_FRAMES ((u8)(sizeof card_frames / sizeof card_frames[0]))
+#define CARD_GUMS 7
+static const short card_gum[CARD_GUMS][2] = {{40, 2}, {62, -14}, {86, -26}, {112, -34}, {140, -36}, {168, -32}, {196, -22}}; /* from the bird's corner */
+_Static_assert(2 + 3 + 1 + CARD_GUMS <= ARC_ELEM_COUNT, "the rules card example needs more sprites than the arcade element slots");
+static u8 g_card_k = CARD_NONE;     /* example frame on the fix layer; reset with the card */
+static u8 g_card_scene = CARD_NONE; /* example frame in the sprites */
+static u8 g_card_pal;               /* 1 = the attract icon palette slot holds the card colours */
+
+static u8 card_frame(u16 t) {
+    u16 p = (u16)(t % ((CARD_FRAMES - 1) * CARD_TICKS + CARD_HOLD)) / CARD_TICKS;
+    return (u8)(p < CARD_FRAMES ? p : CARD_FRAMES - 1);
+}
+
+static void card_palette(u8 on) {
+    if (on == g_card_pal) return;
+    g_card_pal = on;
+    for (u8 i = 0; i < 16; i++) gfx_pal((u16)(ATTRACT_PAL_SLOT * 16 + i), on ? rulecard_fix_palette[i] : attract_icon_palette[i]);
+}
+
+static void card_panel(u8 y0, u8 y1, u8 pal) {
+    static const u16 tile[3][3] = {
+        {FIXFONT_FRAME_TL, FIXFONT_FRAME_T, FIXFONT_FRAME_TR}, {FIXFONT_FRAME_L, FIXFONT_PLATE_FILL, FIXFONT_FRAME_R}, {FIXFONT_FRAME_BL, FIXFONT_FRAME_B, FIXFONT_FRAME_BR}};
+    for (u8 y = y0; y <= y1; y++)
+        for (u8 x = 1; x <= 38; x++) gfx_fix_tile(x, y, pal, tile[y == y0 ? 0 : y == y1 ? 2 : 1][x == 1 ? 0 : x == 38 ? 2 : 1]);
+}
+
+static void card_line(u8 row, u8 pal, const char *s) {
+    u8 n = 0;
+    while (s[n]) n++;
+    gfx_text_backed((u8)((VQ_FIX_COLS - n) / 2), row, pal, s);
+}
+
+/* The parts that stay: panels, name, goal, bar labels, angle bar, rules, skip prompt. */
+static void card_draw(const GgCard *c) {
+    static const u8 angle[CARD_BAR_CELLS] = {RULECARD_FIX_BAR_FOUL, RULECARD_FIX_BAR_SAFE, RULECARD_FIX_BAR_SAFE, RULECARD_FIX_BAR_SAFE, RULECARD_FIX_BAR_SAFE, RULECARD_FIX_BAR_FOUL};
+    card_panel(CARD_BANNER_ROW, CARD_BANNER_ROW + 4, FIXFONT_PAL_PINK);
+    for (u8 i = 0; i < GG_PICK_COUNT; i++)
+        if (flow_gg_card(flow_gg_event(i)) == c) card_line(CARD_BANNER_ROW + 1, FIXFONT_PAL_PINK, flow_gg_name(i));
+    card_line(CARD_BANNER_ROW + 3, PAL_TEXT, c->goal);
+    gfx_text_backed(CARD_BAR_COL - 6, CARD_BAR_ROW, PAL_TEXT, "POWER");
+    gfx_text_backed(CARD_BAR_COL - 6, CARD_BAR_ROW + 2, PAL_TEXT, "ANGLE");
+    for (u8 i = 0; i < CARD_BAR_CELLS; i++) gfx_fix_tile((u8)(CARD_BAR_COL + i), CARD_BAR_ROW + 2, ATTRACT_PAL_SLOT, (u16)(RULECARD_FIX_BASE + angle[i]));
+    card_panel(CARD_STRIP_ROW, CARD_STRIP_ROW + 8, PAL_TEXT);
+    card_line(CARD_STRIP_ROW + 4, PAL_HIGH, c->rule[0]);
+    card_line(CARD_STRIP_ROW + 5, PAL_TEXT, c->rule[1]);
+    card_line(CARD_STRIP_ROW + 7, FIXFONT_PAL_DIM, "PRESS A TO SKIP");
+}
+
+static void card_clear(void) {
+    gfx_center_blank(CARD_BANNER_ROW, 5, 38, PAL_TEXT);
+    gfx_center_blank(CARD_STRIP_ROW, 9, 38, PAL_TEXT);
+    for (u8 r = 0; r < 4; r++) text(CARD_BAR_COL - 6, (u8)(CARD_BAR_ROW + r), PAL_TEXT, "            ");
+}
+
+/* The parts the example moves: the button caps, the lit step, the power bar, the angle caret. */
+static void card_animate(const GgCard *c, u8 k) {
+    static const u8 cell[3] = {2, 15, 27};
+    if (k == g_card_k) return;
+    g_card_k = k;
+    for (u8 i = 0; i < 3; i++) {
+        u8 on = card_frames[k].step == i, down = (i == 0 && card_frames[k].press) || (i == 1 && card_frames[k].hold);
+        u16 b = (u16)(RULECARD_FIX_BASE + (down ? RULECARD_FIX_BUTTON_DOWN : RULECARD_FIX_BUTTON_UP));
+        for (u8 q = 0; q < 4; q++) gfx_fix_tile((u8)(cell[i] + (q & 1)), (u8)(CARD_STRIP_ROW + 1 + (q >> 1)), ATTRACT_PAL_SLOT, (u16)(b + q));
+        gfx_text_backed((u8)(cell[i] + 3), CARD_STRIP_ROW + 1, on ? PAL_TEXT : FIXFONT_PAL_DIM, c->step[i][0]);
+        gfx_text_backed((u8)(cell[i] + 3), CARD_STRIP_ROW + 2, on ? PAL_HIGH : FIXFONT_PAL_DIM, c->step[i][1]);
+    }
+    for (u8 i = 0; i < CARD_BAR_CELLS; i++) {
+        gfx_fix_tile((u8)(CARD_BAR_COL + i), CARD_BAR_ROW, ATTRACT_PAL_SLOT, (u16)(RULECARD_FIX_BASE + (i < card_frames[k].power ? RULECARD_FIX_BAR_POWER : RULECARD_FIX_BAR_EMPTY)));
+        text((u8)(CARD_BAR_COL + i), CARD_BAR_ROW + 3, PAL_HIGH, i == card_frames[k].caret ? "^" : " ");
+    }
+}
+
+static void card_prop(u16 slot, u8 prop, int x, int y) {
+    const RulecardFrame *f = &rulecard_frames[prop];
+    gfx_sprite_strips(slot, 1, f->tiles_h, &rulecard_tile_index[f->tile_offset], RULECARD_TILE_BASE, (u16)(RULECARD_PAL_SLOT << 8));
+    gfx_sprite_place(slot, 1, f->tiles_h, x, y);
+}
+
+/* The example in the arcade element slots: Sootling (2 columns), 3 slabs, needle, gum trail. Written when the frame changes
+ * only; all the slots are parked when the card goes, before the countdown takes them. */
+static void card_scene_step(u8 up, u16 t) {
+    u8 k = up ? card_frame(t) : CARD_NONE;
+    u16 slot = ARC_ELEM_SPRITE;
+    if (k == g_card_scene) return;
+    g_card_scene = k;
+    if (k != CARD_NONE) {
+        const SootlingFrame *f = &sootling_frames[soot_frame(SOOTLING_ANIM_PLAYER, card_frames[k].bird)];
+        soot_strips(slot, f, &sootling_tile_index[f->tile_offset], 0, (u16)((SOOT_PAL_SLOT + f->palette) << 8));
+        gfx_sprite_place(slot, SOOT_COLUMNS, f->tiles_h, CARD_BIRD_X - f->pad_left, CARD_BIRD_Y);
+        slot += SOOT_COLUMNS;
+        for (u8 i = 0; i < 3; i++) card_prop(slot++, CARD_PROP_SLAB, CARD_BIRD_X - 12 + i * 16, CARD_BIRD_Y + 32);
+        if (card_frames[k].needle) card_prop(slot++, card_frames[k].needle, CARD_BIRD_X + 24, CARD_BIRD_Y + 2);
+        for (u8 i = 0; i < card_frames[k].gums; i++)
+            card_prop(slot++, i + 1 == card_frames[k].gums ? CARD_PROP_GUM : CARD_PROP_DOT, CARD_BIRD_X + card_gum[i][0], CARD_BIRD_Y + card_gum[i][1]);
+    }
+    while (slot < ARC_ELEM_SPRITE + ARC_ELEM_COUNT) obs_hide_slot(slot++);
 }
 
 static ObjPool g_pool;
@@ -1224,7 +1346,6 @@ static u8 world_state(const FlowView *v) { return (v->state == FLOW_PLAYING || v
 static u8 world_shown(const FlowView *v) { return world_state(v) && !g_bg_hold; }
 
 static void put_number(char *out, u32 v, int width);
-static void text(u8 x, u8 y, u8 pal, const char *s);
 /* GET SET / GO! (gg_countdown.h): the glyph frames of the word, centred, in the arcade stage element slots (no Gum Games event draws those).
  * word = GGCD_WORD_*; GGCD_WORD_NONE parks them. Tiles are rewritten only when the word changes. */
 #define COUNTDOWN_Y 72 /* top of the words, screen px */
@@ -1651,6 +1772,7 @@ static void hud_side(u8 side, u8 kind, u32 score, u8 balloons, u8 lives, u8 show
 #define BANNER_BLANK "                                    "
 #define TITLE_HI_ROW 3
 #define TITLE_PLATE_ROW 22
+#define TITLE_GG_GOAL_ROW 21  /* Gum Games picker: goal of the event under the cursor */
 #define TITLE_SELECT_ROW 23   /* rows 23 to 27: the mode select, drawn only while it is open */
 #define TITLE_PLAYERS_ROW 28   /* the players line; the PARTY and Gum Games goal line takes its row while the list is open on those rows */
 #define TITLE_GOAL_ROW 28     /* goal line, cols 2..37, under the last list row (27); credits row 29 */
@@ -1751,6 +1873,10 @@ static void draw_mode_select(u8 open, u8 mode, u8 rule, u8 event, u8 sub) {
     if (key == g_title.select) return;
     g_title.select = key;
     g_title.players_cr = 0xFF; /* the goal line shares the players row: redraw it after any change */
+    { /* Gum Games picker: the goal of the event under the cursor, from its rules card (flow.c gg_cards); the six events fill the rows below */
+        const GgCard *gc = (open && sub && mode == GAME_MODE_GUM) ? flow_gg_card(event) : 0;
+        if (gc) title_line(TITLE_GG_GOAL_ROW, PAL_TEXT, gc->goal); else text(2, TITLE_GG_GOAL_ROW, PAL_TEXT, BANNER_BLANK);
+    }
     if (!open) { text(15, TITLE_SELECT_ROW, PAL_TEXT, "          "); text(15, TITLE_SELECT_ROW + 1, PAL_TEXT, "          "); text(15, TITLE_SELECT_ROW + 2, PAL_TEXT, "          "); text(15, TITLE_SELECT_ROW + 3, PAL_TEXT, "                          "); text(15, TITLE_SELECT_ROW + 4, PAL_TEXT, "          "); text(2, TITLE_GOAL_ROW, PAL_TEXT, "                                    "); return; }
     if (sub && mode == GAME_MODE_GUM) { /* six events on rows 23..28 (the goal row) */
         for (u8 i = 0; i < GG_PICK_COUNT; i++) sub_line((u8)(TITLE_SELECT_ROW + i), flow_gg_event(i) == event, flow_gg_name(i));
@@ -2064,7 +2190,7 @@ static void draw(const FlowView *v) {
         if (v->game && v->game->mode == GAME_MODE_TRIP && !v->game->gg_fling) draw_gum_meter(v->game->trip.gum);
         else set_distress(0);
         if (v->state == FLOW_ATTRACT_DEMO && v->game) draw_overlay(v);
-        if (v->state == FLOW_PLAYING && v->game && (v->game->mode == GAME_MODE_GUM || v->game->gg_fling)) { if (v->game->gg_fling) draw_fling(v->game); else if (v->game->gg_gather) draw_gather(v->game); else if (v->game->gg_pop) draw_pop_drop(&v->game->pop); else if (v->game->gg_dash) draw_flap_dash(&v->game->dash); else if (v->game->gg_race) draw_burst_race(&v->game->race); else draw_big_blow(&v->game->blow); }
+        if (v->state == FLOW_PLAYING && v->game && (v->game->mode == GAME_MODE_GUM || v->game->gg_fling) && !v->card) { if (v->game->gg_fling) draw_fling(v->game); else if (v->game->gg_gather) draw_gather(v->game); else if (v->game->gg_pop) draw_pop_drop(&v->game->pop); else if (v->game->gg_dash) draw_flap_dash(&v->game->dash); else if (v->game->gg_race) draw_burst_race(&v->game->race); else draw_big_blow(&v->game->blow); }
         {
             /* mode name in the bottom-left corner while playing, written when the mode or rule changes only */
             u8 key = (v->state == FLOW_PLAYING && v->game) ? (v->game->party_rule != PARTY_NONE ? (u8)(8 + v->game->party_rule) : (u8)(1 + v->game->mode)) : 0;
@@ -2092,26 +2218,16 @@ static void draw(const FlowView *v) {
             }
         }
         {
-            /* Gum Games rules card (flow.c gg_cards): goal, MASH / HOLD / LET GO steps, rules, skip prompt; text only for now
-             * (shortcut: layout A tiles from thoughts/shared/drafts/2026-11-17-rules-card not imported yet, owner art import next) */
+            /* Gum Games rules card, layout A (card_draw); the Fling bars and status text wait under it and come back when it goes */
             const GgCard *c = (v->state == FLOW_PLAYING) ? v->card : 0;
+            card_palette(c != 0);
             if (c != g_card_up) {
-                u8 i;
                 g_card_up = c;
-                gfx_center_text(GG_CARD_ROW, PAL_HIGH, c ? c->goal : BANNER_BLANK);
-                for (i = 0; i < 3; i++) {
-                    char ln[24];
-                    u8 n = 0;
-                    const char *a = c ? c->step[i][0] : "", *b = c ? c->step[i][1] : "";
-                    while (*a && n < 11) ln[n++] = *a++;
-                    if (c) ln[n++] = ' ';
-                    while (*b && n < 23) ln[n++] = *b++;
-                    ln[n] = 0;
-                    gfx_center_text((u8)(GG_CARD_ROW + 2 + i), PAL_TEXT, c ? ln : BANNER_BLANK);
-                }
-                for (i = 0; i < 2; i++) gfx_center_text((u8)(GG_CARD_ROW + 6 + i), PAL_TEXT, c ? c->rule[i] : BANNER_BLANK);
-                gfx_center_text(GG_CARD_ROW + 9, PAL_HIGH, c ? "PRESS A TO START" : BANNER_BLANK);
+                g_card_k = CARD_NONE;
+                if (c) card_draw(c);
+                else { card_clear(); g_blow_key = 0xFFFFFFFFu; g_blow_bar_up = 0; g_fling_flag = -1; g_mode_key = 0xFF; g_hud[0].kind = g_hud[1].kind = HUD_KIND_NONE; }
             }
+            if (c) card_animate(c, card_frame(v->card_t));
         }
         {
             /* ROUND nn then GO! (arena game only: the demo and Gum Trip report RS_NONE); fix font, no panel; cleared when the phase ends */
@@ -2337,6 +2453,7 @@ static void video_init(void) {
         for (u8 i = 0; i < 16; i++) gfx_pal((u16)((CHUTE_PAL_SLOT + p) * 16 + i), chute_palettes[p][i]);
     for (u8 i = 0; i < 16; i++) gfx_pal((u16)(CHUTE_P2_PAL_SLOT * 16 + i), chute_extra_palettes[0][i]);
     for (u8 i = 0; i < 16; i++) gfx_pal((u16)(GUMBUBBLE_PAL_SLOT * 16 + i), gumbubble_palettes[0][i]);
+    for (u8 i = 0; i < 16; i++) gfx_pal((u16)(RULECARD_PAL_SLOT * 16 + i), rulecard_palettes[0][i]);
     for (u8 i = 0; i < 16; i++) { gfx_pal((u16)(COUNTDOWN_PAL_SLOT * 16 + i), countdown_palettes[0][i]); gfx_pal((u16)(COUNTDOWN_HOT_PAL_SLOT * 16 + i), countdown_extra_palettes[COUNTDOWN_EXTRA_PAL_HOT][i]); }
     obs_load_palettes();
     island_load_palettes();
@@ -2554,6 +2671,7 @@ static void game_loop(void) {
             u8 race = world && view.game->gg_race;
             gum_step(0, arena || race || (trip && game_trip_ready(view.game)), trip ? view.game->trip.gum : (race ? race_gum(view.game, 0) : arena ? (uint16_t)(human_bubble_level(view.game, 0) * (GUM_MAX / GUM_VIEW_LEVELS)) : GUM_MAX), (trip || arena || race) ? view.game->frame : 0, g_gum_pose[0].drawn, g_gum_pose[0].frame, g_gum_pose[0].flip, g_gum_pose[0].cx, g_gum_pose[0].top, world && human_leaks(view.game, 0));
             roost_marker_step(arena && view.state == FLOW_PLAYING ? view.game : 0);
+            card_scene_step(view.state == FLOW_PLAYING && view.card, view.card_t);
             countdown_step(view.state == FLOW_PLAYING && view.game ? ggcd_word(view.game->cd_t) : GGCD_WORD_NONE);
             hot_bubble_step(arena && view.state == FLOW_PLAYING ? view.game : 0);
             gum_step(1, race || (arena && view.game->players == 2), race ? race_gum(view.game, 1) : (uint16_t)(human_bubble_level(view.game, 1) * (GUM_MAX / GUM_VIEW_LEVELS)), view.game->frame, g_gum_pose[1].drawn, g_gum_pose[1].frame, g_gum_pose[1].flip, g_gum_pose[1].cx, g_gum_pose[1].top, world && human_leaks(view.game, 1));

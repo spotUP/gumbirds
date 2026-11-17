@@ -1,0 +1,37 @@
+{
+ "source": "tools/draw_rulecard_art.py (owner-picked layout A, hand-typed grids). One 16x16 frame per prop, art in the top-left of the cell: slab (16x8), needle at 20 degrees, needle at 45 degrees, gum (8x8), gum trail dot (8x8)",
+ "animations": {
+  "props": [
+   {
+    "x": 0,
+    "y": 0,
+    "w": 16,
+    "h": 16
+   },
+   {
+    "x": 16,
+    "y": 0,
+    "w": 16,
+    "h": 16
+   },
+   {
+    "x": 32,
+    "y": 0,
+    "w": 16,
+    "h": 16
+   },
+   {
+    "x": 48,
+    "y": 0,
+    "w": 16,
+    "h": 16
+   },
+   {
+    "x": 64,
+    "y": 0,
+    "w": 16,
+    "h": 16
+   }
+  ]
+ }
+}
