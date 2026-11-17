@@ -319,6 +319,29 @@ int main(void)
             CHECK(e.n_splosh == 1);
         }
     }
+    {   /* pump strokes sound in every mode, for computer fliers and for human pumps */
+        static const uint8_t modes[] = { GAME_MODE_ARENA, GAME_MODE_ARCADE };
+        unsigned m;
+        int human, f, got;
+        for (m = 0; m < sizeof modes; m++) for (human = 0; human < 2; human++) {
+            SoundEvents e;
+            Game g;
+            FlowView v;
+            memset(&e, 0, sizeof e); memset(&g, 0, sizeof g); memset(&v, 0, sizeof v);
+            v.game = &g; v.state = FLOW_PLAYING;
+            g.mode = modes[m]; g.players = 1; g.cpu_count = 1; g.hazard_kind = HZ_WATER;
+            g.hero[0].state = FLIER_ALIVE; g.hero[0].balloons = 1;
+            g.cpu[0].state = FLIER_ALIVE; g.cpu[0].balloons = 1;
+            se_init(&e); se_step(&e, &v); se_step(&e, &v);
+            arc_pump_start(human ? &g.hpump[0] : &g.pump[0], 1, 1);
+            for (got = 0, f = 0; f < 400 && !got; f++) {
+                arc_pump_step(human ? &g.hpump[0] : &g.pump[0]);
+                se_step(&e, &v);
+                got = (e.cues & ((1ul << SC_PUMP_A) | (1ul << SC_PUMP_B))) != 0;
+            }
+            CHECK(got);
+        }
+    }
     printf("%s: %d checks, %d failures\n", failures ? "FAIL" : "PASS", checks, failures);
     return failures != 0;
 }
