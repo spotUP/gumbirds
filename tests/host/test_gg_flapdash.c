@@ -74,12 +74,13 @@ int main(void)
       for (i = 0; i < 200; i++) game_step(&g, (uint8_t)((i % 6 == 0) ? ((i / 6) & 1 ? IN_A : IN_B) : 0));
       CHECK(g.dash.frames == 200 && g.hero[0].x != 0 && g.cpu_count == 0); }
 
-    /* flow: Right three times from Big Blow picks Flap Dash (a third Right wraps), Start runs it; a finished run ends the event after the result and keeps the best (lowest) time */
+    /* flow: Right four times from Big Blow picks Flap Dash (a fifth Right wraps), Start runs it; a finished run ends the event after the result and keeps the best (lowest) time */
     {
         Flow f;
         flow_init(&f, 0, 0);
         f.mode = GAME_MODE_GUM; f.gg_event = GG_BIG_BLOW;
         flow_coin(&f);
+        flow_step(&f, IN_RIGHT, 0, 0); flow_step(&f, 0, 0, 0);
         flow_step(&f, IN_RIGHT, 0, 0); flow_step(&f, 0, 0, 0);
         flow_step(&f, IN_RIGHT, 0, 0); flow_step(&f, 0, 0, 0);
         flow_step(&f, IN_RIGHT, 0, 0); flow_step(&f, 0, 0, 0);

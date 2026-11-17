@@ -46,11 +46,13 @@ int main(void)
         flow_coin(&f);
         left(&f);
         CHECK(f.gg_event == GG_FLAP_DASH);
+        left(&f); CHECK(f.gg_event == GG_POP_DROP);
         left(&f); CHECK(f.gg_event == GG_BUBBLE_GATHER);
         left(&f); CHECK(f.gg_event == GG_BURST_RACE);
         left(&f); CHECK(f.gg_event == GG_BIG_BLOW);
         right(&f); CHECK(f.gg_event == GG_BURST_RACE);
         right(&f); CHECK(f.gg_event == GG_BUBBLE_GATHER);
+        right(&f); CHECK(f.gg_event == GG_POP_DROP);
         right(&f); CHECK(f.gg_event == GG_FLAP_DASH);
         right(&f); CHECK(f.gg_event == GG_BIG_BLOW);
         right(&f); right(&f);

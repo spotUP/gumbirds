@@ -201,10 +201,13 @@ static void game_step_gum(Game *g, uint8_t input)
 
 static void game_step_dash(Game *g, uint8_t input);
 static void game_step_gather(Game *g, uint8_t input);
+static void game_step_pop(Game *g, uint8_t input);
 void game_step(Game *g, uint8_t input)
 {
     if (g->gg_gather) {
         game_step_gather(g, input);
+    } else if (g->gg_pop) {
+        game_step_pop(g, input);
     } else if (g->gg_dash) {
         game_step_dash(g, input);
     } else if (g->mode == GAME_MODE_GUM) {
@@ -412,6 +415,25 @@ void game_gg_start_dash(Game *g)
     g->cpu_count = 0;
     gumdash_init(&g->dash, &g->hero[0]);
     camera_init(&g->camera);
+}
+
+void game_gg_start_pop(Game *g)
+{
+    g->gg_pop = 1;
+    g->players = 1;
+    g->cpu_count = 1;
+    gp_init(&g->pop, &g->hero[0], &g->cpu[0]);
+    camera_init(&g->camera);
+}
+
+static void game_step_pop(Game *g, uint8_t input)
+{
+    GgPop *p = &g->pop;
+    if (gp_step(p, &g->hero[0], &g->cpu[0], input)) g->score = gg_points(p->pops, p->pops >= GP_QUALIFY);
+    if (p->done) g->over = 1;
+    g->frame++;
+    g->hero[0].spawn_inv = 0;
+    camera_follow(g);
 }
 
 static void game_step_dash(Game *g, uint8_t input)

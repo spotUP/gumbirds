@@ -1283,6 +1283,26 @@ static void draw_flap_dash(const GgDash *d) {
     text((u8)((40 - BLOW_TEXT_W) / 2), BLOW_TEXT_ROW + 2, PAL_TEXT, line);
 }
 
+/* Pop Drop on the fix layer: drop number, pops and total, with the last drop result; rewritten when any of them changes. */
+static void draw_pop_drop(const GgPop *p) {
+    u32 key = (u32)p->drop | (u32)p->pops << 4 | (u32)p->total << 8 | (u32)p->phase << 20 | (u32)p->last_pop << 23 | 1u << 24 | 1u << 25;
+    if (key == g_blow_key) return;
+    g_blow_key = key;
+    char line[BLOW_TEXT_W + 1], nb[10];
+    u8 i = 0;
+    const char *s = p->phase == GP_RESULT ? (p->pops >= GP_QUALIFY ? "QUALIFIED  POPS " : "NOT QUALIFIED  POPS ") : "DROP ";
+    while (s[i]) { line[i] = s[i]; i++; }
+    if (p->phase != GP_RESULT) { line[i++] = (char)('1' + (p->drop < GP_DROPS ? p->drop : GP_DROPS - 1u)); s = " OF 5  POPS "; for (u8 k = 0; s[k]; k++) line[i++] = s[k]; }
+    line[i++] = (char)('0' + p->pops); s = "  SCORE ";
+    for (u8 k = 0; s[k]; k++) line[i++] = s[k];
+    put_number(nb, p->total, 2);
+    for (u8 k = 0; nb[k] && i < BLOW_TEXT_W; k++) if (nb[k] != ' ') line[i++] = nb[k];
+    if (p->phase == GP_PAUSE) { s = p->last_pop ? "  POP" : "  MISS"; for (u8 k = 0; s[k] && i < BLOW_TEXT_W; k++) line[i++] = s[k]; }
+    while (i < BLOW_TEXT_W) line[i++] = ' ';
+    line[BLOW_TEXT_W] = 0;
+    text((u8)((40 - BLOW_TEXT_W) / 2), BLOW_TEXT_ROW + 2, PAL_TEXT, line);
+}
+
 /* Bubble Gather on the fix layer: caught of 20 and seconds left; hidden while the result screen covers the fix layer. */
 static void draw_gather(const Game *g) {
     u32 left = (GG_GATHER_CLOCK - g->gather_clock + 59u) / 60u;
@@ -1574,7 +1594,7 @@ static void draw_mode_select(u8 open, u8 mode, u8 rule, u8 event) {
     }
     gfx_text_backed(15, TITLE_SELECT_ROW + 4, PAL_HIGH, mode == GAME_MODE_GUM ? ">" : " ");
     gfx_text_backed(17, TITLE_SELECT_ROW + 4, mode == GAME_MODE_GUM ? PAL_HIGH : PAL_TEXT, "GUM GAMES");
-    if (mode == GAME_MODE_GUM) gfx_center_text(TITLE_GOAL_ROW, PAL_TEXT, event == GG_FLAP_DASH ? "FLAP DASH  LEFT OR RIGHT TO CHANGE    " : event == GG_BUBBLE_GATHER ? "BUBBLE GATHER  LEFT OR RIGHT TO CHANGE" : event == GG_BURST_RACE ? "BURST RACE  LEFT OR RIGHT TO CHANGE   " : "BIG BLOW  LEFT OR RIGHT TO CHANGE     ");
+    if (mode == GAME_MODE_GUM) gfx_center_text(TITLE_GOAL_ROW, PAL_TEXT, event == GG_POP_DROP ? "POP DROP  LEFT OR RIGHT TO CHANGE      " : event == GG_FLAP_DASH ? "FLAP DASH  LEFT OR RIGHT TO CHANGE    " : event == GG_BUBBLE_GATHER ? "BUBBLE GATHER  LEFT OR RIGHT TO CHANGE" : event == GG_BURST_RACE ? "BURST RACE  LEFT OR RIGHT TO CHANGE   " : "BIG BLOW  LEFT OR RIGHT TO CHANGE     ");
 }
 
 static void draw_title(const FlowView *v) {
@@ -1871,7 +1891,7 @@ static void draw(const FlowView *v) {
         if (v->game && v->game->mode == GAME_MODE_TRIP) draw_gum_meter(v->game->trip.gum);
         else set_distress(0);
         if (v->state == FLOW_ATTRACT_DEMO && v->game) draw_overlay(v);
-        if (v->state == FLOW_PLAYING && v->game && v->game->mode == GAME_MODE_GUM) { if (v->game->gg_gather) draw_gather(v->game); else if (v->game->gg_dash) draw_flap_dash(&v->game->dash); else if (v->game->gg_race) draw_burst_race(&v->game->race); else draw_big_blow(&v->game->blow); }
+        if (v->state == FLOW_PLAYING && v->game && v->game->mode == GAME_MODE_GUM) { if (v->game->gg_gather) draw_gather(v->game); else if (v->game->gg_pop) draw_pop_drop(&v->game->pop); else if (v->game->gg_dash) draw_flap_dash(&v->game->dash); else if (v->game->gg_race) draw_burst_race(&v->game->race); else draw_big_blow(&v->game->blow); }
         {
             /* mode name in the bottom-left corner while playing, written when the mode or rule changes only */
             u8 key = (v->state == FLOW_PLAYING && v->game) ? (v->game->party_rule != PARTY_NONE ? (u8)(8 + v->game->party_rule) : (u8)(1 + v->game->mode)) : 0;
