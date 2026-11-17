@@ -144,7 +144,7 @@ int main(void) {
             int32_t visible = (int32_t)(((int64_t)(FLIER_WORLD_H + ARC_BONUS_BOX) << 16) / arc_bonus_speed16(num));
             CHECK(visible >= ARC_BONUS_MIN_VISIBLE);
         }
-        CHECK(ARC_BONUS_WORLD_W == ARENA_W);
+        CHECK(ARC_BONUS_WORLD_W == SCREEN_W + 32);
     }
     /* Nozzle bonus: at most ARC_BONUS_LIVE_MAX alive, 20 in all, spawn gap 70..133 (longer after a skip), straight rise 40 px then sway up to 16 px, ends on a frame wrap after all 20 are gone. */
     {
@@ -181,8 +181,8 @@ int main(void) {
         CHECK(gap_min >= ARC_BONUS_SPAWN_MIN && gap_max >= gap_min); /* skipped spawns (pool full) only lengthen a gap, never below the minimum */
         CHECK(col_seen[0] && col_seen[1] && col_seen[2] && col_seen[3]);
         CHECK(ARC_BONUS_BUBBLES == 20 && ARC_BONUS_LIVE_MAX == 4 && ARC_BONUS_SPAWN_MIN == 70 && ARC_BONUS_SPAWN_MASK == 63);
-        CHECK(arc_nozzle_x(0) == 48 && arc_nozzle_x(1) == 120 && arc_nozzle_x(2) == 240 && arc_nozzle_x(3) == 312);
-        for (i = 0; i < ARC_NOZZLE_COUNT; i++) CHECK(arc_nozzle_x(i) >= 0 && arc_nozzle_x(i) + ARC_NOZZLE_W <= ARENA_W && arc_nozzle_top(i) > 0 && (i == 0 || arc_nozzle_x(i) >= arc_nozzle_x(i - 1) + ARC_NOZZLE_W));
+        CHECK(arc_nozzle_x(0) == 40 && arc_nozzle_x(1) == 100 && arc_nozzle_x(2) == 200 && arc_nozzle_x(3) == 260);
+        for (i = 0; i < ARC_NOZZLE_COUNT; i++) CHECK(arc_nozzle_x(i) >= 0 && arc_nozzle_x(i) + ARC_NOZZLE_W <= SCREEN_W && arc_nozzle_top(i) > 0 && (i == 0 || arc_nozzle_x(i) >= arc_nozzle_x(i - 1) + ARC_NOZZLE_W));
     }
     printf("%d checks, %d failures\n", checks, failures);
     return failures ? 1 : 0;

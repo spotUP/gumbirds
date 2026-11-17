@@ -97,17 +97,19 @@ void camera_scroll(Camera *c, uint32_t step16) {
     normalise(c);
 }
 
+int32_t arena_ring = ARENA_W;
+
 int camera_px(const Camera *c) { return (int)(c->cam >> 16); }
 
 int32_t camera_unwrapped_px(const Camera *c) { return c->lap + (int32_t)(c->cam >> 16); }
 
 int camera_screen_x(int world_px, int cam_px, int w) {
     int sx;
-    while (world_px < 0) world_px += ARENA_W;
-    while (world_px >= ARENA_W) world_px -= ARENA_W;
+    while (world_px < 0) world_px += arena_ring;
+    while (world_px >= arena_ring) world_px -= arena_ring;
     sx = world_px - cam_px;
-    if (sx < -w) sx += ARENA_W;
-    else if (sx >= ARENA_W - w) sx -= ARENA_W;
+    if (sx < -w) sx += arena_ring;
+    else if (sx >= arena_ring - w) sx -= arena_ring;
     return sx;
 }
 

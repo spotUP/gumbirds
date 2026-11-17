@@ -31,7 +31,7 @@
 #define ARC_FLOOR_Y 164               /* top of the bonus floor strip, px */
 #define ARC_LAYOUT_BONUS 24           /* stage.c layout of the bonus stage: floor strip and nozzle tops, no islands */
 #define ARC_BONUS_BOX 16              /* bubble box, px */
-#define ARC_BONUS_WORLD_W 384
+#define ARC_BONUS_WORLD_W 352 /* the one-screen field ring: 320 visible + 32 off-screen margin (FIELD_RING_W in arena.h) */
 #define ARC_LAYOUT_NONE (-1)
 #define ARC_LAYOUT_BASE 12 /* arcade stage n plays stage.c layout ARC_LAYOUT_BASE + n - 1 (the arena layouts 0..11 stay untouched) */
 #define ARC_PUMP_STAGES 4             /* blow-up animation steps: progress runs 0..ARC_PUMP_STAGES */

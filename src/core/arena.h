@@ -17,6 +17,13 @@
  * CITY_CAM_MAX, bg.c _Static_assert) was drawn for a camera of 0..64. Retire it with the ring plane art (plan item R8). */
 #define ARENA_CAM_MAX (ARENA_W - SCREEN_W)
 
+/* The ring the wrap maths runs on. ARENA_W everywhere except the one-screen modes (arcade bonus stage, Bubble Gather),
+ * which set FIELD_RING_W: the 320 px screen plus a 32 px off-screen margin so a single sprite copy always fits, with the
+ * camera pinned at 0 (game_set_ring in game.c). Defined in camera.c. */
+#define FIELD_RING_W (SCREEN_W + 32)
+extern int32_t arena_ring;
+#define ARENA_RING16 ((int32_t)arena_ring * 65536)
+
 /* Fold a difference of two coordinates on a ring of `w` units into (-w/2, w/2]. */
 static inline int32_t arena_fold(int32_t d, int32_t w) {
     if (d > w / 2) d -= w;
@@ -24,21 +31,21 @@ static inline int32_t arena_fold(int32_t d, int32_t w) {
     return d;
 }
 
-/* Wrap a 16.16 world x into [0, ARENA_W). Velocities are far below one arena width per frame. */
+/* Wrap a 16.16 world x into [0, arena_ring). Velocities are far below one arena width per frame. */
 static inline int32_t arena_wrap_x(int32_t x16) {
-    while (x16 < 0) x16 += ARENA_W16;
-    while (x16 >= ARENA_W16) x16 -= ARENA_W16;
+    while (x16 < 0) x16 += ARENA_RING16;
+    while (x16 >= ARENA_RING16) x16 -= ARENA_RING16;
     return x16;
 }
 
 /* Shortest signed distance a - b across the seam, whole pixels: arena_dx(383, 1) == -2. Result in (-192, 192]. */
-static inline int arena_dx(int a, int b) { return (int)arena_fold(a - b, ARENA_W); }
+static inline int arena_dx(int a, int b) { return (int)arena_fold(a - b, arena_ring); }
 
 /* The same in half pixels (x >> 15), the unit of the stomp feet box and the broad phase. */
-static inline int32_t arena_dx_half(int32_t a, int32_t b) { return arena_fold(a - b, 2 * ARENA_W); }
+static inline int32_t arena_dx_half(int32_t a, int32_t b) { return arena_fold(a - b, 2 * arena_ring); }
 
 /* The copy of x16 (16.16) nearest to ref16, i.e. x16 shifted by 0 or one arena width. Readers that compare
  * positions in their own units shift one operand with this and keep their maths unchanged. */
-static inline int32_t arena_near_x(int32_t ref16, int32_t x16) { return ref16 + arena_fold(x16 - ref16, ARENA_W16); }
+static inline int32_t arena_near_x(int32_t ref16, int32_t x16) { return ref16 + arena_fold(x16 - ref16, ARENA_RING16); }
 
 #endif

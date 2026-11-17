@@ -62,9 +62,9 @@ static const StageLayout layouts[] = {
       { { 123, 130 }, { 201, 106 }, { 336, 66 }, { 86, 90 }, { 148, 62 } }, 4 }, /* 22 R07 Two stairs */
     { { P(0, 164, 80), P(264, 148, 80), P(132, 120, 96), P(24, 96, 64), P(272, 80, 64), P(148, 42, 64) },
       { { 72, 90 }, { 288, 74 }, { 160, 114 }, { 200, 114 }, { 40, 90 }, { 312, 74 } }, 4 }, /* 23 R12b Mirror crown */
-    /* 24 bonus stage: a floor strip across the whole ring (island art is not drawn, island_layout.c) and the 4 gum nozzle tops
+    /* 24 bonus stage: a floor strip across the whole 352 px one-screen ring (island art is not drawn, island_layout.c) and the 4 gum nozzle tops
        (x, top = ARC_FLOOR_Y - height, 32 wide: arc_nozzle_x / arc_nozzle_top in arcade.c, checked in tests/host/test_arcade_game.c); no rivals. */
-    { { P(0, 164, 192), P(192, 164, 192), P(58, 140, 32), P(130, 124, 32), P(250, 132, 32), P(322, 128, 32) },
+    { { P(0, 164, 176), P(176, 164, 176), P(50, 140, 32), P(110, 124, 32), P(210, 132, 32), P(270, 128, 32) },
       { { 176, 150 } }, 0 }, /* 24 Bonus */
 };
 #define LAYOUT_TOTAL ((int)(sizeof layouts / sizeof layouts[0]))
