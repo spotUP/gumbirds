@@ -12,7 +12,7 @@ local L = {}
 for v in (os.getenv("BRAWL_BLOW_LAYOUT") or ""):gmatch("%d+") do L[#L + 1] = tonumber(v) end
 local O = { state = L[1], mode = L[2], race = L[3], phase = L[4], size = L[5], rival = L[6], winner = L[7], score = L[8] }
 local K = { playing = L[9], gum = L[10], intro = L[11], play = L[12], res = L[13] }
-local RIVAL, HERO = L[14], L[15]
+local RIVAL, HERO, GUM0, GUM1 = L[14], L[15], L[16], L[17]
 local mem = manager.machine.devices[":maincpu"].spaces["program"]
 local ports = manager.machine.ioport.ports
 local function field(tag, match)
@@ -49,6 +49,7 @@ if not (coin and start1 and up and abtn and bbtn and right) then finish(false, "
 
 local n, phase, t0, grew, bar_ok, press = 0, "boot", 0, 0, false, 0
 local rival_ok, rival_tiles, rival_bad = 0, {}, nil
+local bub0, bub1 = 0, 0   -- pump frames where the player's / the rival's gum bubble sprite has height and a tile
 emu.register_frame_done(function()
   n = n + 1
   if n > 30000 then finish(false, "watchdog in phase " .. phase) return end
@@ -72,6 +73,10 @@ emu.register_frame_done(function()
     local rx, hx, tile = r4 >> 7, h4 >> 7, fix[RIVAL * 64] or 0
     if rx >= 448 then rx = rx - 512 end   -- SCB4 x is 9 bits and wraps: left of the screen edge reads as 448..511
     if hx >= 448 then hx = hx - 512 end
+    if n - t0 > 4 then
+      if (fix[0x8200 + GUM0] or 0) & 63 ~= 0 and (fix[GUM0 * 64] or 0) ~= 0 then bub0 = bub0 + 1 end
+      if (fix[0x8200 + GUM1] or 0) & 63 ~= 0 and (fix[GUM1 * 64] or 0) ~= 0 then bub1 = bub1 + 1 end
+    end
     if n - t0 > 4 then   -- the queue has flushed the first frame of the pump phase
       if r3 & 63 == 0 or tile == 0 or rx <= hx or rx > 288 or hx < 0 then rival_bad = rival_bad or string.format("rival sprite %d scb3 %x x %d tile %x, hero x %d at pump frame %d", RIVAL, r3, rx, tile, hx, n - t0)
       else
@@ -96,10 +101,11 @@ emu.register_frame_done(function()
       local frames = 0
       for _ in pairs(rival_tiles) do frames = frames + 1 end
       if rival_bad or rival_ok < 30 or frames < 2 then finish(false, rival_bad or string.format("rival sprite seen %d frames with %d pump frames", rival_ok, frames)) return end
+      if bub0 < 30 or bub1 < 30 then finish(false, string.format("gum bubble sprites on screen for %d (player) and %d (rival) pump frames, want 30 each", bub0, bub1)) return end
       if b(O.winner) ~= 0 then finish(false, "winner " .. b(O.winner) .. ", want 0 (the player)") return end
       if score ~= 900 then finish(false, "score " .. score .. ", want 900") return end
       if lit(7) < 8 then finish(false, "result row 7 lit " .. lit(7)) return end
-      finish(true, string.format("Burst Race: GUM GAMES row + Right starts the race; bubble grew to %d, both bars drawn, rival bird sprite on screen; player burst first, score 900, status line lit", grew))
+      finish(true, string.format("Burst Race: GUM GAMES row + Right starts the race; bubble grew to %d, both bars drawn, rival bird sprite on screen, both gum bubbles drawn; player burst first, score 900, status line lit", grew))
     end
   end
 end)
