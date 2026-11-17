@@ -150,6 +150,22 @@ static void roost_digest(void)
     }
 }
 
+/* Gum Trip demo part: the attract demo pilot flying a trip, so the demo's hazard dodge (DEMO_HAZ_AHEAD) and its aim show.
+ * Several seeds, so the knob does not hang on one course that happens to hold no hazard near the flier. */
+static void trip_demo_digest(void)
+{
+    static Flow f;
+    uint32_t fr, seed;
+    for (seed = 0; seed < 4u; seed++) {
+        flow_init(&f, 0, 0);
+        f.demo_mode = GAME_MODE_TRIP;
+        for (fr = 1; fr <= 3000u; fr++) {
+            flow_step(&f, 0, 0, fr + seed * 977u); /* the frame counter seeds each demo game */
+            mix(f.state); mix(f.demo_in); mix((uint32_t)f.game.hero[0].x); mix((uint32_t)f.game.hero[0].y); mix(f.game.hero[0].balloons); mix(f.game.trip.hits);
+        }
+    }
+}
+
 /* Party how-to part: a PARTY start runs the how-to demo, then the real match with its long round banner. */
 static void party_howto_digest(void)
 {
@@ -443,6 +459,7 @@ int main(void)
     trip_island_digest();
     flow_digest();
     trip_digest();
+    trip_demo_digest();
     rival_probe();
     ai_probe();
     arena_digest();
