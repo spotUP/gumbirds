@@ -44,7 +44,9 @@ local function jet_visible(i)
   end
   return string.format("jet object %d tiles %04x %04x are not the tiles of one leak frame", i, c0, c1)
 end
-local STRIDE, POOL_MAX, TYPE_OFF = 20, 32, 16   -- sizeof(PoolObj), POOL_MAX, offsetof(PoolObj, type) (src/core/obj_pool.h)
+local STRIDE, POOL_MAX, TYPE_OFF, ANIM_OFF = 20, 32, 16, 18   -- sizeof(PoolObj), POOL_MAX, offsetof(PoolObj, type), offsetof(PoolObj, anim) (src/core/obj_pool.h)
+local pass_msg
+local pump_first, pump_n, pump_seen, pump_bad = tonumber(os.getenv("BRAWL_PUMP_FIRST")), tonumber(os.getenv("BRAWL_PUMP_COUNT")), 0, nil   -- pump clip sheet frames (sootling_tables.h)
 local n, phase, fc0, play_n, done = 0, "boot", nil, nil, false
 local function finish(ok, msg)
   if done then return end
@@ -64,7 +66,24 @@ emu.register_frame_done(function()
     if ss.step(n, state == 3) then phase = "play"; play_n = n end
   else
     mem:write_u8(flow_addr + O_BAL, 1); mem:write_u8(flow_addr + O_C0BAL, 1)
-    if n - play_n < 120 then return end
+    -- Rivals pump at the round start (about 200 frames): a bubble whose body shows a pump frame must stay drawn (SCB3 height > 0).
+    -- The last pump stage once used the burst pose, whose gum_show is 0, so the balloon vanished for the final quarter of the pump.
+    for i = 0, POOL_MAX - 1 do
+      local t, a = mem:read_u8(pool_addr + i * STRIDE + TYPE_OFF), mem:read_u8(pool_addr + i * STRIDE + ANIM_OFF)
+      if t >= 0xC0 and t < 0xE0 and a >= pump_first and a < pump_first + pump_n then
+        pump_seen = pump_seen + 1
+        -- its body (the object below) drawn and not blinking, so the bubble is not just off screen or blinking with it
+        local body = i - 1
+        local body_up = body >= 0 and mem:read_u8(pool_addr + body * STRIDE + TYPE_OFF) == a and (mem:read_u8(pool_addr + body * STRIDE + TYPE_OFF + 1) & 0x80) == 0 and (vram[0x8200 + 161 + body * 3] or 0) & 63 ~= 0
+        if body_up and (vram[0x8200 + 161 + i * 3] or 0) & 63 == 0 and not pump_bad then pump_bad = string.format("bubble object %d vanished on pump frame %d at play frame %d", i, a, n - play_n) end
+      end
+    end
+    if pump_bad then finish(false, pump_bad) return end
+    if n - play_n == 261 then
+      if pump_seen == 0 then finish(false, "no rival bubble was seen on a pump frame") else finish(true, pass_msg .. string.format("; %d bubble samples on pump frames all drawn", pump_seen)) end
+      return
+    end
+    if n - play_n ~= 120 then return end   -- the jet checks run at 120 frames; the pump scan above runs on to 261
     local t, low, jetp, jetc, bad = {}, 99, 0, 0, nil
     for i = 0, POOL_MAX - 1 do
       t[i] = mem:read_u8(pool_addr + i * STRIDE + TYPE_OFF)
@@ -79,6 +98,6 @@ emu.register_frame_done(function()
     for i = 0, POOL_MAX - 1 do
       if t[i] >= 0xE0 then local m = jet_visible(i); if m then finish(false, m) return end end
     end
-    finish(true, string.format("one balloon: %d player jet(s), %d computer jet(s), every computer jet above the lowest bubble (index %d)", jetp, jetc, low))
+    pass_msg = string.format("one balloon: %d player jet(s), %d computer jet(s), every computer jet above the lowest bubble (index %d)", jetp, jetc, low)
   end
 end)
