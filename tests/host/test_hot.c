@@ -35,7 +35,7 @@ int main(void) {
     /* a touch from the carrier hands the gum over once the cooldown has run out, and a human carrier scores */
     g.hot.carrier = 0; g.hot.cool = 0; g.hot.fuse = 5000;
     g.cpu_count = 1; flying();
-    put(&g.hero[0], 147, 120); put(&g.cpu[0], 153, 120);
+    put(&g.hero[0], 147, 140); put(&g.cpu[0], 153, 140);
     g.hero[0].vx = FL_PX(1); g.cpu[0].vx = -FL_PX(1);
     g.score = 0;
     game_step(&g, 0);
@@ -44,7 +44,7 @@ int main(void) {
 
     /* during the cooldown a touch passes nothing */
     c0 = g.hot.carrier;
-    put(&g.hero[0], 147, 120); put(&g.cpu[0], 153, 120);
+    put(&g.hero[0], 147, 140); put(&g.cpu[0], 153, 140);
     g.hero[0].vx = FL_PX(1); g.cpu[0].vx = -FL_PX(1);
     game_step(&g, 0);
     CHECK(g.hot.carrier == c0);
