@@ -435,6 +435,19 @@ test-flier: cart
 	cat $$T/result.txt; \
 	if grep -q '^PASS' $$T/result.txt; then rm -rf $$T; echo "[OK] make test-flier passed"; else echo "[FAIL] make test-flier, log kept in $$T"; exit 1; fi
 
+# Gum leak jets exist at one balloon and draw above their bubble (tests/mame/leak_check.lua). Run by `make test-leak` alone.
+test-leak: cart
+	@set -e; T=$$(mktemp -d $(BUILDDIR)/test-run.XXXXXX); \
+	BRAWL_FLOW_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flow"{print $$1}') \
+	BRAWL_FRAME_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_frame_counter"{print $$1}') \
+	BRAWL_FLIER_LAYOUT="$$($(M68KGCC) -std=c99 -S -o - tests/mame/flier_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
+	BRAWL_POOL_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_pool"{print $$1}') \
+	BRAWL_RESULT=$$T/result.txt \
+	SDL_VIDEODRIVER=dummy nice -n 19 $(MAME) -window -nomaximize -video none -sound none -nothrottle -seconds_to_run $(TEST_SECONDS) -noautosave -skip_gameinfo -hash $(ROM) -rp $(ROM) -nvram_directory $$T -autoboot_script tests/mame/leak_check.lua neogeo -cart1 $(GAMEROM) > $$T/mame.log 2>&1 || true; \
+	if [ ! -f $$T/result.txt ]; then tail -n 15 $$T/mame.log; echo "[FAIL] no result from leak Lua script"; exit 1; fi; \
+	cat $$T/result.txt; \
+	if grep -q '^PASS' $$T/result.txt; then rm -rf $$T; echo "[OK] make test-leak passed"; else echo "[FAIL] make test-leak, log kept in $$T"; exit 1; fi
+
 # Arcade mode reachability (tests/mame/arcade_check.lua): coin, ARCADE on the title select, Start, stage 1, forced stage clear to stage 2
 # (island VRAM words change), forced deaths to the continue state, A to continue. Run by `make test-arcade` alone.
 test-arcade: cart
