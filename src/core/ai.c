@@ -23,16 +23,16 @@ void ai_init(Ai *a, Rng *r, int rank) {
     Ai z = {0};
     *a = z;
     a->state = AI_CHASE;
-    a->think_cut = (uint8_t)((rank > 1 ? rank - 1 : 0) * AI_RANK_THINK_STEP);
+    a->think_cut = (int8_t)((rank - 1) * AI_RANK_THINK_STEP);
     a->timer = next_timer(a, r);
 }
 
-const Flier *ai_nearest(const Flier *self, const Flier *player, const Flier *cpus, int cpu_count) {
+const Flier *ai_nearest(const Flier *self, const Flier *humans, int human_count, const Flier *cpus, int cpu_count) {
     const Flier *best = 0;
     int32_t bd = 0;
     int i;
-    for (i = -1; i < cpu_count; i++) {
-        const Flier *c = i < 0 ? player : &cpus[i];
+    for (i = -human_count; i < cpu_count; i++) {
+        const Flier *c = i < 0 ? &humans[human_count + i] : &cpus[i];
         int32_t d;
         if (c == self || c->state > FLIER_PARACHUTE) continue;
         d = dist2(self, c);
@@ -74,15 +74,35 @@ int ai_flap_wanted(AiState s, int32_t dx, int32_t dy) {
     return cross(AI_FLAP_A0, (int16_t)dx, (int16_t)dy) < 0 || cross(AI_FLAP_A1 + 1, (int16_t)dx, (int16_t)dy) >= 0;
 }
 
+/* AI_HOLD: per frame, no thinks. The target rests where a standing flier's centre rests. */
+static void ai_hold_step(Ai *a, const Flier *self, const Flier *target, FlierInput *out) {
+    int dx = arena_dx(px(target->x), px(self->x)), dy = px(target->y) - px(self->y); /* dy > 0: the target is below */
+    int far = dx > AI_HOLD_NEAR_PX || dx < -AI_HOLD_NEAR_PX;
+    a->state = AI_HOLD;
+    a->dir = (int8_t)(dx > AI_HOLD_STEER_MIN ? 1 : dx < -AI_HOLD_STEER_MIN ? -1 : 0);
+    out->dir = a->dir;
+    if (self->flap_cd == 0 && !self->flap_prev) {
+        int want;
+        if (self->on_ground) want = far || dy < -AI_HOLD_LIFT_PX;
+        else want = far ? dy < AI_HOLD_CRUISE_PX : dy < -AI_HOLD_LAND_PX;
+        if (want) {
+            int8_t away = (int8_t)stage_overhead_edge_dir(self->x, self->y - flier_half_h(self));
+            out->flap = 1;
+            if (away) out->dir = away;
+        }
+    }
+}
+
 void ai_step(Ai *a, Rng *r, const Flier *self, const Flier *target, FlierInput *out) {
     out->flap = 0;
+    if (a->hold && target) { ai_hold_step(a, self, target, out); return; }
     if (a->timer > 0) a->timer--;
     if (a->timer == 0) {
         a->timer = next_timer(a, r);
         a->thinks++;
         a->dir = 0;
         if (target) {
-            AiState s = ai_decide(self, target);
+            AiState s = a->flee ? AI_FLEE : ai_decide(self, target);
             a->state = (uint8_t)s;
             if (s != AI_FILL) {
                 int16_t cx, cy;

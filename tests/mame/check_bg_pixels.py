@@ -1,6 +1,6 @@
 """Visual proof by pixels for the parallax background (python3.14 -I, Pillow).
 Usage: check_bg_pixels.py city_sprites.c obs_sprites.c pre_start.png bg_a.png bg_b.png result.txt.bg
-bg file (written by boot_check.lua at the two snapshot frames): "a x0 x1 x2 x3 x4 writes" / "b ..." (screen x of each
+bg file (written by boot_check.lua at the two snapshot frames): "p/a/b x0 x1 x2 x3 x4 writes mood" (p at pre_start) (mood = g_bg_mood: 0 city, 1 dusk, 2 storm) / "b ..." (screen x of each
 plane's first column as the game exported it, planes in draw order sky, far, mid A, mid B, near, and the plane write
 counter g_bg_x_writes).
 Checks, each independent of the hero and obstacle checks (only colours unique to one plane are counted; the colours of a
@@ -22,7 +22,8 @@ from PIL import Image
 
 PLANES = ["sky", "far", "midA", "midB", "near"]
 # Screen y band of each plane (CITY_TABLE_PLANE_TOP and bottom in build/gen/city_tables.h), read at run time.
-HERO_MASK = (28, 112)
+# Screen x range the hero sprite moves in: the camera centres the flier on screen x 160 (src/core/camera.c), box as in check_hero_pixels.py.
+HERO_MASK = (132, 188)
 BACKDROP = (0x1a, 0x12, 0x38)
 # Fix layer text colours as MAME draws them: every colour of fix palette 0 (white, PAL_TEXT in src/main.c) from the generated
 # build/gen/fix_font.h, decoded the way the pipeline encodes them.
@@ -53,14 +54,17 @@ def load_bg(path):
     return out
 
 
-def plane_colours(city_c, tables_h):
-    """Per plane: (set of RGB colours of the palettes its tiles use, top y, bottom y)."""
-    text = re.sub(r"/\*.*?\*/", "", open(city_c).read(), flags=re.S)
-    frames = re.search(r"city_frames\[[^\]]*\]\s*=\s*\{(.*?)\n\};", text, re.S).group(1)
+MOOD_SETS = ["city", "dusk", "storm"]  # g_bg_mood index -> generated set name; the plane layout is the same in every mood (src/bg.c asserts)
+
+
+def plane_colours(sets_c, name, tables_h):
+    """Per plane: (set of RGB colours of the palettes its tiles use, top y, bottom y) for mood set `name` generated in sets_c."""
+    text = re.sub(r"/\*.*?\*/", "", open(sets_c).read(), flags=re.S)
+    frames = re.search(name + r"_frames\[[^\]]*\]\s*=\s*\{(.*?)\n\};", text, re.S).group(1)
     rows = [[int(v) for v in r.split(",")] for r in re.findall(r"\{([\d, ]+)\}", frames)]
-    tile_pal = [int(v) for v in re.search(r"city_tile_pal\[[^\]]*\]\s*=\s*\{(.*?)\};", text, re.S).group(1).replace("\n", " ").split(",") if v.strip()]
-    tile_idx = [int(v, 16) if v.strip().startswith("0x") else int(v) for v in re.search(r"city_tile_index\[[^\]]*\]\s*=\s*\{(.*?)\};", text, re.S).group(1).replace("\n", " ").split(",") if v.strip()]
-    pal = pc.palettes_rgb(city_c, "city")
+    tile_pal = [int(v) for v in re.search(name + r"_tile_pal\[[^\]]*\]\s*=\s*\{(.*?)\};", text, re.S).group(1).replace("\n", " ").split(",") if v.strip()]
+    tile_idx = [int(v, 16) if v.strip().startswith("0x") else int(v) for v in re.search(name + r"_tile_index\[[^\]]*\]\s*=\s*\{(.*?)\};", text, re.S).group(1).replace("\n", " ").split(",") if v.strip()]
+    pal = pc.palettes_rgb(sets_c, name)
     head = open(tables_h).read()
     tops = [int(v) for v in re.search(r"CITY_TABLE_PLANE_TOP \{([^}]*)\}", head).group(1).split(",")]
     bottoms = [int(re.search(r"CITY_%s_BOTTOM (\d+)" % n.upper(), head).group(1)) for n in PLANES]
@@ -102,7 +106,8 @@ def main():
     tables_h = os.path.join(os.path.dirname(city_c), "city_tables.h")
     bg = load_bg(bg_txt)
     others = set(pc.colours(obs_c, "obs"))
-    planes = plane_colours(city_c, tables_h)
+    name = MOOD_SETS[bg["b"][6]]  # the mood on screen at the playing snapshot (boot_check.lua appends g_bg_mood)
+    planes = plane_colours(os.path.join(os.path.dirname(city_c), name + "_sprites.c"), name, tables_h)
     ok = True
 
     def uniq(i):
@@ -113,8 +118,12 @@ def main():
         return pc.exclusive(sorted(planes[i][0]), sorted(rest))
 
     sky_cols = sorted(planes[0][0] | {BACKDROP})
+    sets_dir = os.path.dirname(city_c)
     for tag, png in (("pre_start", pre), ("playing", b_png)):
-        n, size = pc.count(png, sky_cols, (0, 0, 320, 28))
+        # each snapshot's sky is that frame's mood (the title shows another mood than the round after it)
+        mood = MOOD_SETS[bg["p" if tag == "pre_start" else "b"][6]]
+        sky = sorted(plane_colours(os.path.join(sets_dir, mood + "_sprites.c"), mood, tables_h)[0][0] | {BACKDROP})
+        n, size = pc.count(png, sky, (0, 0, 320, 28))
         text, _ = pc.count(png, FIX_TEXT, (0, 0, 320, 28))
         total = 320 * 28 * (size[0] / 320.0) * (size[1] / 224.0) - text
         frac = n / total

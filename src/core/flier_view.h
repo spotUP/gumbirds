@@ -2,14 +2,16 @@
  * flier_view.h - which Sootling frame a flier shows. Pure, host tested (tests/host/test_flier_view.c); the Neo Geo
  * glue in src/main.c turns the frame into sprite registers. The sheet is a set of clips (assets/flier/sootling_sheet.json,
  * imported from the draft frames.json by tools/import_flier_sheet.py; the build writes the clip table and the per frame
- * ticks to build/gen/sootling_tables.h, src/main.c passes them in as FlierClips, so no timing number lives in C):
- *   flap2 / flap1  steady clips for 2 / 1 balloons in the air: played once per flap press (Flier.flapped), a press while
- *                  it plays restarts it, between presses the flier holds the rest frame (the clip's first frame)
- *   walk / land / breathe  ground clips, one per balloon count 0, 1, 2 (arrays indexed by balloons): walk while the flier
- *                  moves, breathe while it stands, land is a one shot started when it touches the ground
+ * ticks to build/gen/sootling_tables.h, src/main.c passes them in as FlierClips, so no timing number lives in C).
+ * The gum-mouth v4 bird holds the gum in its beak; clips:
+ *   fly            the constant blow loop while airborne with balloons
+ *   flap           one shot per flap press (Flier.flapped); a press while it plays restarts it, a press during settle cuts to it
+ *   settle         one shot when the flier turns in the air (the rest_fl / rest_fr foot-lag pendulum)
  *   idle           no balloons (also on a parachute)         fall   dead and falling
  *   pop2 / pop1    one shot, played when the 2nd / last balloon pops (a pop from 2 to 0 plays pop1)
  *   inflate        one shot, played when a balloon is gained and when a flier first shows (not with 0 balloons)
+ *   walk / land / breathe  ground clips: walk while the flier moves, breathe while it stands, land is a one shot on touch-down
+ *   pump           the landing blow-up, drawn by progress (flier_pump_frame), not played by time
  * A one shot plays to its end, then the steady clip of the moment takes over; falling cuts an inflate short.
  * Each frame lasts its number of 60 Hz ticks. The sprite is mirrored when the flier faces left.
  */
@@ -22,8 +24,8 @@
 typedef struct {
     const uint8_t *first, *count, *loop; /* per clip: first sheet frame, frames, 1 if it loops */
     const uint8_t *ticks;                /* per sheet frame: 60 Hz ticks it is shown */
-    uint8_t flap2, flap1, pop2, pop1, inflate, fall, idle; /* clip numbers */
-    uint8_t walk[3], land[3], breathe[3];                  /* ground clip numbers, indexed by balloon count 0, 1, 2 */
+    uint8_t flap, fly, settle, idle, pump, inflate, fall, pop2, pop1; /* clip numbers */
+    uint8_t walk, land, breathe;                                      /* ground clip numbers */
 } FlierClips;
 
 typedef struct {
@@ -31,7 +33,7 @@ typedef struct {
     uint8_t balloons;          /* balloons seen last step */
     uint8_t started;
     uint8_t prev_ground;       /* grounded last step (the 0 -> 1 edge starts the landing clip) */
-    uint8_t flapping;          /* 1 while a flap clip plays, 0 = parked on its first frame */
+    uint8_t facing;            /* facing last step (a change in the air starts the settle clip) */
 } FlierAnim;
 
 void flier_anim_init(FlierAnim *a);

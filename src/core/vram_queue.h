@@ -98,7 +98,7 @@ typedef struct {
     uint32_t fix_dirty[VQ_FIX_COLS];  /* per column, bit y: the wanted cell of row y changed since it was last queued (VQ_FIX_ROWS == 32) */
     u8 fix_any;                       /* some fix_dirty bit is set: a commit with no change returns at once (tests/host/test_vram_queue.c) */
     u16 scb_hw[VQ_SCB_WORDS];
-    u8 scb_valid[VQ_SCB_WORDS / 8];
+    u8 scb_valid[VQ_SCB_WORDS];       /* 1: scb_hw[i] holds the VRAM word. A byte, not a bit: the bit test was a variable shift per word, ~2x the run loop (vblank-demo.md Part 6) */
     VqStripKey strip[VQ_SPRITES];
 } VramQueue;
 
@@ -111,7 +111,7 @@ int vq_scb_word_push(VramQueue *q, u16 addr, u16 val);   /* vq_scb_word without 
  * part of the frame (PC profile, thoughts/shared/research/2026-11-09_test-laser-hit-fix.md). */
 static inline int vq_scb_same(const VramQueue *q, u16 addr, u16 val) {
     u16 i = (u16)(addr - VQ_SCB_BASE);
-    return i < VQ_SCB_WORDS && q->scb_hw[i] == val && (q->scb_valid[i >> 3] & (u8)(1u << (i & 7)));
+    return i < VQ_SCB_WORDS && q->scb_hw[i] == val && q->scb_valid[i];
 }
 static inline int vq_scb_word(VramQueue *q, u16 addr, u16 val) {
     return vq_scb_same(q, addr, val) ? 1 : vq_scb_word_push(q, addr, val);
@@ -150,6 +150,8 @@ void vq_fix_fill(VramQueue *q, u16 cell);
 /* Sets to `cell` every cell of the w x h rectangle at (x, y) whose caller shadow (row-major, w per row) differs, and updates the
  * shadow; cells the shadow already holds as `cell` are left alone. Returns the cells changed. */
 u16 vq_fix_clear_shadowed(VramQueue *q, u8 x, u8 y, u8 w, u8 h, u16 *shadow, u16 cell);
+/* Sets every cell of the w x h rectangle at (x, y) to `cell`, marking only the cells that change; nothing if it leaves the screen. */
+void vq_fix_clear(VramQueue *q, u8 x, u8 y, u8 w, u8 h, u16 cell);
 int vq_fix_commit(VramQueue *q);           /* queue the changed fix cells; 0 when the queue filled up (call again) */
 /* Same, but queues at most `budget` cells and returns 1 with the rest left dirty for the next call (a screen change spreads over frames). */
 int vq_fix_commit_n(VramQueue *q, u16 budget);

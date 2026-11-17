@@ -24,6 +24,8 @@
 #include "arc_elements.h"
 #include "result.h"
 
+#define HUMANS 2 /* human fighter slots: fighter index 0..HUMANS-1 are humans, computer fliers follow from HUMANS */
+
 /* Input bits, active when set. Buttons A..D map to the Neo Geo A, B, C, D buttons. */
 #define IN_A 0x01u /* flap (press); name entry: accept */
 #define IN_B 0x02u /* name entry: back; unused in play */
@@ -46,8 +48,20 @@ enum { GAME_MOOD_MOON, GAME_MOOD_DUSK, GAME_MOOD_STORM, GAME_MOOD_COUNT, BG_MOOD
 typedef enum {
     GAME_MODE_ARENA = 0,
     GAME_MODE_TRIP,
-    GAME_MODE_ARCADE
+    GAME_MODE_ARCADE,
+    GAME_MODE_PARTY /* title row and score table index only: game_set_mode plays it as arena, party_rule carries the rule */
 } GameMode;
+
+/* PARTY rules (Left/Right on the PARTY title row). PARTY_NONE = not a party game. Order = on-screen cycle order. */
+enum { PARTY_NONE = 0, PARTY_ROUND, PARTY_ROOST, PARTY_HOT, PARTY_ROULETTE, PARTY_RULE_COUNT };
+/* Rule of the Round twists, one per round (Game.twist). TWIST_NONE outside that rule. */
+enum { TWIST_NONE = 0, TWIST_ONE_GUM, TWIST_CROWDED, TWIST_SLOW, TWIST_QUICK, TWIST_MIRROR, TWIST_WINDY, TWIST_COUNT };
+/* Widest rule goal line in fix-layer columns (PARTY_GOAL_W); the title pads shorter lines to it. */
+#define PARTY_GOAL_W 36
+/* Rule name and goal line (the one table; owner-approved wording), twist name; "" for an unknown value. */
+const char *game_party_name(uint8_t rule);
+const char *game_party_goal(uint8_t rule);
+const char *game_twist_name(uint8_t twist);
 
 /* Round end (arena, real game): HOLD shows the banner for MATCH_END_FRAMES, PAN slides the camera back to the spawn with
  * the flier hidden, then the next round starts. Zero is RE_NONE so game_reset needs no init. */
@@ -55,19 +69,51 @@ enum RoundEnd { RE_NONE = 0, RE_HOLD, RE_PAN };
 /* Round start: ROUND nn, then GO!, with fliers, hazards and input frozen. Zero is RS_NONE. */
 enum RoundStart { RS_NONE = 0, RS_ROUND, RS_GO };
 
+/* Roost Rule (PARTY_ROOST): one island is the roost; a fighter standing alone on it earns a tick every ROOST_TICK_FRAMES. */
+#define ROOST_TICK_FRAMES 30
+#define ROOST_TARGET_TICKS 20
+#define ROOST_ROUND_FRAMES 2700
+#define ROOST_FIGHTERS (HUMANS + STAGE_SPAWN_COUNT)
+typedef struct {
+    uint8_t idx;       /* stage platform index of the roost */
+    uint8_t last;      /* roost of the previous round (0xFF = none): the next pick differs */
+    uint8_t paying;    /* 1 only while a tick is being scored: every other score path is shut in this rule */
+    uint16_t timer;    /* frames left in the round */
+    uint16_t acc;      /* frames the current sole stander has stood */
+    uint8_t sole;      /* fighter index standing alone (0xFF = nobody or shared) */
+    uint8_t ticks[ROOST_FIGHTERS]; /* ticks per fighter this round (humans first, then computer fliers) */
+    uint16_t total[ROOST_FIGHTERS]; /* ticks per fighter over the whole match: ROOST_TARGET_SCORE ends it */
+    Flier mark;        /* AI target: rests where a standing flier's centre rests; not a fighter */
+} Roost;
+
+/* Hot Gum state: the carrier fighter index (humans first, 0xFF none), frames of fuse left, frames before the gum can pass again. */
+typedef struct {
+    uint8_t carrier;
+    uint8_t cool;
+    uint16_t fuse;
+} Hot;
+
 typedef struct {
     Rng rng;
     uint32_t frame;      /* frames since reset */
     uint32_t distance;   /* 8.8 pixels travelled */
     uint32_t score;      /* total score: stomps, drowned and defeated computer fliers, match bonuses */
-    uint8_t mode;        /* GameMode; ARENA after game_reset */
+    uint8_t mode;        /* GameMode; ARENA after game_reset (PARTY runs as ARENA) */
+    uint8_t party_rule;  /* PARTY_NONE unless a PARTY game; set by flow after game_set_mode */
+    uint8_t twist;       /* TWIST_* of the current round (PARTY_ROUND only); match_start draws it, never the same twice in a row */
     uint8_t mood;        /* background mood (GAME_MOOD_*) the screen shows; game_reset keeps it, game_next_mood changes it */
     uint8_t over;        /* 1 when the player flier is DROWNED or GONE */
+    uint8_t players;     /* 1 or 2 humans in play (game_reset sets 1) */
+    uint8_t input2;      /* player 2 input byte (main.c sets it like start_in); unused while players == 1 */
+    uint8_t credits;     /* credits banked (main.c sets it from the BIOS each frame); the arcade continue needs one */
+    uint8_t round_winner;/* Arena two-player round end: BannerWinner (P1, P2 or computer) for the round clear banner */
+    uint8_t out_mask;    /* Arena two-player: bit h set once human h's death cost a life; cleared when it respawns (next round) */
+    uint8_t last_popper; /* human index that last popped or defeated a computer flier: the stage-clear banner winner */
 
     /* Arena slice: the flier replaces the runner hero in play. flier_steps counts flier_step calls (test sentinel). */
-    Flier flier;
+    Flier hero[HUMANS];  /* the humans: hero[0] is player 1; hero[1] stays GONE while players == 1 */
     uint32_t flier_steps;
-    uint32_t flaps;      /* flap press edges while the flier lives (sound event source) */
+    uint32_t flaps[HUMANS];      /* flap press edges while the flier lives (sound event source) */
 
     /* Computer fliers (src/core/ai.c). cpu[i] is live while state < FLIER_DROWNED; slots at or above cpu_count stay GONE.
      * Sentinels for tests: stomps, matches_won, cpu_alive, and the per-AI think counters. */
@@ -94,12 +140,19 @@ typedef struct {
     uint8_t trip_roof_fall; /* 1 from a roof death until the falling body reaches the floor line (its trip_splat frame) */
     uint8_t trip_hold;   /* hold steps taken at run start while the first screen chunks are built (one per game_step_trip), sentinel */
     ArcRun arc;          /* Arcade run (stage table, arcade.h), live in GAME_MODE_ARCADE; the arena step runs it */
-    uint8_t cont_a;      /* A was held on the previous arena step (press edge for the arcade continue) */
-    ArcLives lives;      /* Arcade lives: a flier death loses one, none left ends the run (continue screen: game_step_arena) */
+    uint8_t cont_a[HUMANS];      /* A was held on the previous arena step (press edge for the arcade continue) */
+    uint8_t start_in[HUMANS];    /* Start button changed to pressed this frame (main.c sets it from the BIOS); the arcade continue reads its edge */
+    uint8_t cont_start[HUMANS];  /* start_in on the previous arena step */
+    uint8_t credits_spent;       /* continues taken since main.c last paid them; main.c deducts one BIOS credit per count and clears it */
+    ArcLives lives[HUMANS];      /* Arcade lives: a flier death loses one, none left ends the run (continue screen: game_step_arena) */
+    ArcPump hpump[HUMANS]; /* per human: pumps its gum back up after a parachute landing (user decision 2026-11-16) */
     ArcPump pump[STAGE_SPAWN_COUNT]; /* per computer flier: blow-up window that decides its stomp score */
     ArcElements elems;   /* Arcade stage elements of the current stage (arc_elements.h), built by match_start, stepped in play only */
+    uint8_t bonus_caught[HUMANS]; /* bubbles each human popped in this bonus stage (bonus.caught is the team total) */
     ArcBonus bonus;      /* Arcade bonus stage, live while arc.state == ARC_BONUS after the banner hold */
     Result res;          /* Result screen after the bonus stage (result.h): active while it shows; arc.state stays ARC_BONUS */
+    Roost roost;         /* Roost Rule state (party_rule == PARTY_ROOST), reset by match_start */
+    Hot hot;             /* Hot Gum state (party_rule == PARTY_HOT), reset by match_start */
     Camera camera;       /* follows the living human fliers, stepped every game_step_arena; view reads game_camera_px */
 } Game;
 
@@ -111,6 +164,15 @@ void game_next_mood(Game *g);
 /* Sets the hazard kind and the kill line of the player and every computer flier. The one entry for the kind: call it after
  * game_reset (which clears it to spikes) and whenever the drawn kind changes; rematches keep it. */
 void game_set_hazard(Game *g, uint8_t kind);
+/* Arcade: player 2 joins now (players = 2, fresh lives, spawn beside player 1). The drop-in parachute and the credit are later phases. */
+void game_start_p2(Game *g);
+int game_can_join_p2(const Game *g);
+/* Lives, continues and per-human scores run: the arcade, and an Arena match with two humans (versus). */
+int game_lives_mode(const Game *g);
+/* Round clear banner winner (BannerWinner): the Arena versus winner, else the last popper. */
+int game_banner_winner(const Game *g);
+/* Real join (P2 Start mid play): parachute drop-in at the camera centre; 0 = refused. */
+int game_join_p2(Game *g);
 /* Arena step (used by the flow in play and demo): A flaps, left/right steer (nameentry.h bits). The run ends when the
  * flier is DROWNED or GONE. Score is survival time (distance advances SPEED_BASE per frame while alive). */
 void game_step_arena(Game *g, uint8_t input);
@@ -139,8 +201,15 @@ int game_flier_visible(const Game *g);
 /* Round start phase (RoundStart) and the round number to show (matches_won + 1). */
 int game_round_start_phase(const Game *g);
 int game_round_number(const Game *g);
-/* Text of the round-start phase when it is not "STAGE nn": line 0 and 1 of the bonus stage announcement, else 0. */
+/* Text of the round-start phase when it is not "ROUND nn": line 0 and 1 of the bonus stage announcement, or of a PARTY game
+ * (rule or twist name, then goal line; the view draws ROUND nn above it), else 0. */
 const char *game_round_start_text(const Game *g, int line);
+/* How-to overlay line 0..2 of a PARTY rule (PARTY_*), shown before round 1; "" for an unknown rule or line. */
+const char *game_party_howto(uint8_t rule, int line);
+/* Roost Rule: the roost platform's world rectangle (left x, top y, width) for the marker; returns 0 when the rule is not running. */
+int game_roost_rect(const Game *g, int *x, int *top, int *w);
+/* Hot Gum: the flier carrying the hot gum, or 0 when the rule is not running or the carrier is out of the air. */
+const Flier *game_hot_carrier(const Game *g);
 /* BANNER_* flags for the round banner: 0 in the arena, BANNER_STAGE in arcade, BANNER_BONUS while the arcade bonus stage runs. */
 int game_banner_flags(const Game *g);
 /* 1 while the hazard strip animation must hold: a round start phase or a round end hold/pan. Arena only. */

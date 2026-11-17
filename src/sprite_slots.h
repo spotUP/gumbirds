@@ -15,12 +15,13 @@
  *   111..112 the player's gum bubble (Gum Trip only, GUM_SPRITE, src/gum.c): 2 columns, drawn over the planes, under the islands
  *   113..115 the splash of a flier falling into water or lava (SPLASH_SPRITE, src/splash.c): 3 columns, drawn BEHIND the islands, pool and
  *            the hazard strip, so the liquid covers the splash base
- *   116..119 free (clouds and airship drift, BG-2)
+ *   116..117 player 2's gum bubble (GUM_P2_SPRITE, src/gum.c; Arena and Arcade co-op)
+ *   118..119 the Roost Rule marker (ROOST_SPRITE, src/main.c; PARTY): 2 columns on the glowing island. Clouds and airship drift (BG-2) need another slot
  *   120..160 floating islands (ISLAND_COUNT 41 = room for the stage platform columns, 22 in stage 1, and the Gum Trip islands): one sprite per column of each platform in
  *            stage table order, drawn by src/island.c; they sit below the pool so fliers draw in front
  *   161..256 object pool (POOL_SPRITE_COUNT = POOL_MAX x POOL_COLS, src/core/obj_pool.h): object i owns
  *            POOL_SPRITE_BASE + i * POOL_COLS; computer fliers draw through it
- *   257..259 hero (HERO_SPRITE_COUNT)
+ *   257..260 hero (HERO_SPRITE_COUNT): body 257..258, parachute 259..260
  *   261..308 plane 7 hazard strip: two banks of 24 sprites (bank 0 at 261, bank 1 at 285), one visible at a time
  *   309..318 plane 8 rain columns (reserved), 319..322 spray
  */
@@ -49,6 +50,9 @@
 #define BG_SPRITE_TOTAL (BG_SPRITE_END - BG_SKY_SPRITE) /* rows of the generated column tables; table index = slot - BG_SKY_SPRITE */
 #define GUM_SPRITE 111
 #define GUM_COUNT 2
+#define GUM_P2_SPRITE 116
+#define ROOST_SPRITE 118
+#define ROOST_COUNT 2
 #define SPLASH_SPRITE 113
 #define SPLASH_COUNT 3
 #define ISLAND_SPRITE 120
@@ -56,7 +60,8 @@
 #define POOL_SPRITE_BASE 161
 #define POOL_SPRITE_COUNT 96
 #define HERO_SPRITE 257
-#define HERO_SPRITE_COUNT 3
+#define HERO_SPRITE_COUNT 4 /* body 2 columns + parachute 2 columns (HERO_CHUTE_SPRITE) */
+#define HERO_CHUTE_SPRITE (HERO_SPRITE + 2)
 #define HAZARD_SPRITE 261
 #define HAZARD_COUNT 48
 #define FG_RAIN_SPRITE 309

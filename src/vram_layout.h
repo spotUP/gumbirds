@@ -23,6 +23,8 @@
 #include "gen/splash_sprites.h"
 #include "gen/arcade_sprites.h"
 #include "gen/resfx_sprites.h"
+#include "gen/chute_sprites.h"
+#include "gen/gumbubble_sprites.h"
 
 /* The ngdevkit logo tile block that opens the C-ROM (assets/base-crom-logo); the title logo (gen/logo_sprites.h, LOGO_TILE_COUNT) sits last. */
 #define BASE_LOGO_TILE_COUNT 256
@@ -77,9 +79,15 @@ _Static_assert((SPLASH_TILE_BASE & 7) == 0, "splash tile base is not 8-aligned")
 _Static_assert((ARCADE_TILE_BASE & 7) == 0, "arcade tile base is not 8-aligned");
 #define RESFX_TILE_BASE (ARCADE_TILE_BASE + ARCADE_TILE_COUNT) /* bonus result screen sprites (tools/build_result_art.py) */
 _Static_assert((RESFX_TILE_BASE & 7) == 0, "result sprite tile base is not 8-aligned");
+#define CHUTE_TILE_BASE (RESFX_TILE_BASE + RESFX_TILE_COUNT) /* parachute sprites (tools/make_chute_sheet.py), last in CROM_SETS */
+_Static_assert((CHUTE_TILE_BASE & 7) == 0, "parachute tile base is not 8-aligned");
+#define GUMBUBBLE_TILE_BASE (CHUTE_TILE_BASE + CHUTE_TILE_COUNT) /* Hot Gum bubble B (assets/gum_bubble), last in CROM_SETS */
+_Static_assert((GUMBUBBLE_TILE_BASE & 7) == 0, "gum bubble tile base is not 8-aligned");
 
 #define FIX_PAL_COUNT FIXFONT_PAL_COUNT /* fix palettes 0..4: white, pink, lime, gold, dim (build/gen/fix_font.h) */
-#define OBS_PAL_SLOT FIX_PAL_COUNT
+#define ATTRACT_PAL_SLOT FIX_PAL_COUNT /* one palette: the attract overlay icons (build/gen/attract_icons.h). Fix tiles hold a 4-bit palette, so it must sit in slots 0..15, never after the sprite palettes */
+_Static_assert(ATTRACT_PAL_SLOT < 16, "fix layer palettes are 4 bits: the overlay palette must be slot 0..15");
+#define OBS_PAL_SLOT (ATTRACT_PAL_SLOT + 1)
 #define CITY_PAL_SLOT (OBS_PAL_SLOT + OBS_PALETTE_COUNT)
 #define DUSK_PAL_SLOT (CITY_PAL_SLOT + CITY_PALETTE_COUNT) /* dusk mood planes; both moods stay loaded, a mood change rewrites only the strips (src/bg.c) */
 #define STORM_PAL_SLOT (DUSK_PAL_SLOT + DUSK_PALETTE_COUNT) /* storm mood planes, resident like dusk */
@@ -94,9 +102,12 @@ _Static_assert((RESFX_TILE_BASE & 7) == 0, "result sprite tile base is not 8-ali
 #define LOGO_PAL_SLOT (GUM_PAL_SLOT + GUM_PALETTE_COUNT) /* one palette: the moon logo (entries 1..15) */
 #define SPLASH_PAL_SLOT (LOGO_PAL_SLOT + 1) /* palette 0 water, 1 lava (animation order) */
 #define ARCADE_PAL_SLOT (SPLASH_PAL_SLOT + SPLASH_PALETTE_COUNT) /* palette p = arcade palette p (ARCADE_ANIM_* order: storm, player, computer, roof, nozzle, vent; the vent line glows, main.c arcade_elems_step) */
-#define ATTRACT_PAL_SLOT (ARCADE_PAL_SLOT + ARCADE_PALETTE_COUNT) /* one palette: the attract overlay icons (build/gen/attract_icons.h) */
 #define ATTRACT_FIX_BASE 0x400 /* first fix tile of the overlay icons: right after the 1024-tile font in the S-ROM (tools/build_attract_icons.py --fix-base) */
-#define RESFX_PAL_SLOT (ATTRACT_PAL_SLOT + 1) /* palette p = resfx palette p (RESFX_ANIM_* order: bubble, wheel, crank, glass, ticket) */
-_Static_assert(RESFX_PAL_SLOT + RESFX_PALETTE_COUNT <= 256, "palette slots exceed the 256 the hardware has");
+#define RESFX_PAL_SLOT (ARCADE_PAL_SLOT + ARCADE_PALETTE_COUNT) /* palette p = resfx palette p (RESFX_ANIM_* order: bubble, wheel, crank, glass, ticket) */
+#define CHUTE_PAL_SLOT (RESFX_PAL_SLOT + RESFX_PALETTE_COUNT) /* palette p = chute palette p (0 player, 1 computer) */
+#define SOOT_P2_PAL_SLOT (CHUTE_PAL_SLOT + CHUTE_PALETTE_COUNT) /* player 2: sootling_extra_palettes[0], the sun yellow swap of the player palette (hero shading kept) */
+#define CHUTE_P2_PAL_SLOT (SOOT_P2_PAL_SLOT + 1) /* player 2 parachute: chute_extra_palettes[0] */
+#define GUMBUBBLE_PAL_SLOT (CHUTE_P2_PAL_SLOT + 1) /* one palette: gum bubble B */
+_Static_assert(GUMBUBBLE_PAL_SLOT + GUMBUBBLE_PALETTE_COUNT <= 256, "palette slots exceed the 256 the hardware has");
 
 #endif

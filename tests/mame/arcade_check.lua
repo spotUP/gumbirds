@@ -6,7 +6,7 @@
 --       sprites ISLAND_SPRITE.. (SCB1 tiles, SCB3 y) 90 frames after each stage starts; the two hashes differ;
 --   A4. forced flier deaths (player state GONE) take the lives down one by one; the last one opens the continue state
 --       (lives 0, countdown ARC_CONTINUE_FRAMES counting down, flow still PLAYING, not GAME_OVER);
---   A5. A pressed in the continue state restores ARC_LIVES_START lives, score 0, state PLAY, same stage.
+--   A5. A in the continue state drops the count one second; Start restores ARC_LIVES_START lives, score 0, state PLAY, same stage.
 -- A8: stage 1 and 2 show the moon world (sky g_bg_mood, island look, hazard g_hazard_kind); ARCADE_WALK=1 checks every stage's block.
 -- A6: logic end stays under 224 on EVERY playing frame (steady and spike frames alike; 999 = past vblank end); steady = frames >3 after a stage/state change. ARCADE_WALK=1 (make test-arcade-walk): walks stages 1..12 instead of A2..A5.
 -- Also reports the max frame logic end (raster lines after vblank end) in arcade play. Env: BRAWL_FLOW_ADDR, BRAWL_FRAME_ADDR (hex),
@@ -367,19 +367,29 @@ emu.register_frame_done(function()
     local c = g(O_COUNT)
     if wait == 1 and c > K.cont_frames then finish(false, "A4 countdown " .. c .. " above " .. K.cont_frames) return end
     cd0 = cd0 or c
+    if wait == 25 then mem:write_u8(0x10fe00, 1) end -- a continue needs a banked credit; the stock BIOS does not count coins in play, so bank one directly
     if wait == 40 then
       if not (c < cd0) then finish(false, "A4 continue countdown does not run: " .. cd0 .. " -> " .. c) return end
-      abtn:set_value(1)
+      abtn:set_value(1); ca = c
     elseif wait == 46 then abtn:set_value(0)
-    elseif wait > 46 then
-      finish(false, "A5 A did not continue: " .. state())
+    elseif wait == 50 then
+      -- CONTINUE-SKIP: one A press dropped the count by a whole second (60 frames) on top of the 10 frames that ran
+      if not (c <= ca - 60) or c < ca - 80 or g(O_LSTATE) ~= K.life_cont then finish(false, "A5 one A press: countdown " .. ca .. " -> " .. c .. ", " .. state()) return end
+      start:set_value(1)
+    elseif wait == 56 then start:set_value(0)
+    elseif wait > 56 and not paid_at then
+      finish(false, "A5 Start did not continue: " .. state() .. string.format(" credit %02x", mem:read_u8(0x10fe00)))
     end
-    if wait >= 41 and wait <= 46 and g(O_LSTATE) == K.life_play then
-      abtn:set_value(0)
+    if paid_at and wait >= paid_at then
+      local cr = mem:read_u8(0x10fe00) -- a continue spends the one banked credit (the game deducts it; the BIOS refuses Start in play)
+      if cr ~= 0 then finish(false, string.format("A5b credit byte %02x after the continue, want 00 (one banked, one spent)", cr)) return end
+      finish(true, string.format("arcade entry, stage 1 -> CLEAR (%d frames) -> stage 2, islands differ, %d deaths -> paid continue (credit 1 -> 0) -> resumed; max logic end %.1f of 224", clear_frames, died, logic_max))
+    elseif not paid_at and wait >= 51 and wait <= 56 and g(O_LSTATE) == K.life_play then
+      start:set_value(0)
       if g(O_LIVES) ~= K.lives or g(O_SCORE) ~= 0 or g(O_STAGE) ~= 2 then finish(false, "A5 continue state wrong: " .. state() .. " score=" .. g(O_SCORE)) return end
       local ok, why = report()
       if not ok then finish(false, "A6 " .. why) return end
-      finish(true, string.format("arcade entry, stage 1 -> CLEAR (%d frames) -> stage 2, islands differ, %d deaths -> continue -> resumed; max logic end %.1f of 224", clear_frames, died, logic_max))
+      paid_at = wait + 4
     end
   end
 end)

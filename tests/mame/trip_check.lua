@@ -703,7 +703,7 @@ emu.register_frame_done(function() local ok_, err_ = pcall(function()
     if n >= phase_at + 40 and state == 0 then phase = "down"; phase_at = n; down:set_value(1) end
     return
   elseif phase == "down" then
-    if n == phase_at + 4 then down:set_value(0) end
+    if n == phase_at + 9 then down:set_value(0) end -- a 4 frame tap was dropped while the title loop was busy after the coin; 9 frames as in start_seq.lua
     if n == phase_at + 11 then near_title_vis = near_visible(); HZ.far_title = HZ.far_visible(); HZ.bd_title = mem:read_u16(HZ.BD_ADDR) end
     -- Course seed pin: the run's seed is g_frame_counter at the flow step that sees Start (src/core/flow.c start_game), and the
     -- hazards (from TRIP_DENSITY_START_PX) only appear for some seeds within the run. Pressing Start at a fixed g_frame_counter

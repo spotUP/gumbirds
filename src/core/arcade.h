@@ -110,14 +110,19 @@ int arc_nozzle_top(int i);               /* top, px; the solid top of the stage.
 void arc_bonus_init(ArcBonus *b, int number, uint32_t seed);
 /* One frame; when armed (the player still has a gum), the caller's rectangle (px) pops bubbles it overlaps. Returns bubbles popped this frame. No score is added. */
 int arc_bonus_step(ArcBonus *b, int armed, int rx, int ry, int rw, int rh);
+/* The catch test alone, for a second catcher after arc_bonus_step moved the bubbles this frame. Returns bubbles popped. */
+int arc_bonus_catch(ArcBonus *b, int armed, int rx, int ry, int rw, int rh);
 
 
 /* ---- rival pump-up (FQ4): one ArcPump per rival slot ---- */
-typedef enum { ARC_PUMP_IDLE = 0, ARC_PUMP_PUMPING, ARC_PUMP_FLYING, ARC_PUMP_DEFEATED } ArcPumpState;
-typedef struct { uint8_t state; uint8_t rank; int16_t frame; } ArcPump;
+typedef enum { ARC_PUMP_IDLE = 0, ARC_PUMP_PUMPING, ARC_PUMP_FLYING, ARC_PUMP_DEFEATED, ARC_PUMP_STANDING } ArcPumpState;
+typedef struct { uint8_t state; uint8_t rank; int16_t frame; uint8_t two; } ArcPump; /* two: 1 while two humans play (shorter windows) */
 /* Grounded spawn blows up gum for the rank's pump_frames; an air spawn skips straight to FLYING. */
 void arc_pump_start(ArcPump *p, int rank, int grounded);
-void arc_pump_step(ArcPump *p);           /* one frame; PUMPING becomes FLYING when the window ends */
+void arc_pump_step(ArcPump *p);           /* one frame; STANDING becomes PUMPING after ARC_REPUMP_STAND_FRAMES, PUMPING becomes FLYING when the window ends */
+/* Re-pump: a FLYING rival that stands alive with no gum waits ARC_REPUMP_STAND_FRAMES, then pumps the same window. Returns 1 if started. */
+int arc_pump_restand(ArcPump *p);
+int arc_pump_frames(const ArcPump *p);   /* pump window length of this rival: the rank table, or the 2P variant while p->two */
 int arc_pump_in_window(const ArcPump *p); /* 1 while PUMPING */
 /* A stomp or bump: inside the window the rival is defeated and the rank defeat score is returned; outside it returns 0 and changes nothing. */
 uint32_t arc_pump_resolve(ArcPump *p);
@@ -130,6 +135,8 @@ void arc_lives_start(ArcLives *l);
 /* The player lost a life: lives--, gum heals to ARC_GUM_HEAL for the next life; at 0 lives the continue countdown starts. */
 void arc_lose_life(ArcLives *l);
 /* One frame of the continue state. start_pressed with credits > 0 continues (full lives, score 0, gum healed, same stage: the caller keeps the stage) and returns 1 credit used; timeout ends the run. */
+/* One A press on the continue screen: the count drops by one displayed second; below zero the run ends. */
+void arc_continue_skip(ArcLives *l);
 int arc_continue_step(ArcLives *l, int start_pressed, int credits);
 int arc_continue_seconds(const ArcLives *l); /* digit to show, 10..0 */
 

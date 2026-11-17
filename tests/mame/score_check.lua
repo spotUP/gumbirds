@@ -3,12 +3,12 @@
 --   Phase 1 asserts:
 --     (a) fresh defaults: trip table rows 3000 down to 300 step 300, name "GUMTRIP "; arena table is whatever the
 --         core defaults (checked only for rows descending and non-empty names; values are in src/core/score_table.c).
---     (b) title shows no table and keeps mode select on fix rows 14/15; the attract table screen shows the arena caption
+--     (b) title shows no table and keeps mode select on fix rows 14/15; the attract table screen (caption row 10, first entry row 12) shows the arena caption
 --         then the trip caption, and g_table_mode_draws[0] and [1] both move.
 --     (c) a Gum Trip run (input death, Trip.bonus written: exemption in play_run) ends in the trip table only; the arena table is unchanged;
 --         a later arena run lands in the arena table only; each save bumps g_hiscore_saves by 1.
 --     (d) fix layer: no caption on name entry rows 13/14; save reminder keeps row 13 text and shows the caption on row 14 (the highlighted table is drawn below it); the title after it shows the caption on row 14 too (highlight kept).
---     (e) the 370-byte backup RAM image: 'ROOF', version 3, arena table at 6, trip table at 126, arcade table at 246, FNV-1a at 366.
+--     (e) the 500-byte backup RAM image: 'ROOF', version 4, arena table at 6, trip table at 126, arcade table at 246, party table at 366, rule tags at 486, FNV-1a at 496.
 --   Phase 2 (fresh boot, same nvram): image and flow tables hold both entries at the same rows, g_hiscore_saves is 0.
 -- Env (hex addresses from nm): BRAWL_FLOW_ADDR, BRAWL_FRAME_ADDR, BRAWL_HISCORE_ADDR, BRAWL_SAVES_ADDR,
 --   BRAWL_TABLEDRAWS_ADDR (g_table_mode_draws, u32[2]); BRAWL_SCORE_LAYOUT (score_probe.c output);
@@ -150,8 +150,8 @@ local function image_row(mode, row)
 end
 local function image_checks(tag)
   check(str(hs_addr, 4) == "ROOF", tag .. ": image magic is " .. str(hs_addr, 4))
-  check(mem:read_u16(hs_addr + 4) == 3, tag .. ": image version " .. mem:read_u16(hs_addr + 4))
-  check(IMAGE_SIZE == 370, tag .. ": SCORE_IMAGE_SIZE " .. IMAGE_SIZE)
+  check(mem:read_u16(hs_addr + 4) == 4, tag .. ": image version " .. mem:read_u16(hs_addr + 4))
+  check(IMAGE_SIZE == 500, tag .. ": SCORE_IMAGE_SIZE " .. IMAGE_SIZE)
   check(mem:read_u32(hs_addr + IMAGE_SIZE - 4) == fnv(hs_addr, IMAGE_SIZE - 4), tag .. ": image checksum mismatch")
   for m = 0, 1 do
     for r = 0, 9 do
@@ -250,11 +250,11 @@ local function phase1()
   local seen_a, seen_t = false, false
   until_(function() return g8(O_STATE) == S_TABLE end, 900, "attract table screen")
   for _ = 1, 520 do
-    local c = caption_at(6)
+    local c = caption_at(10)
     if c == 0 then seen_a = true elseif c == 1 then seen_t = true end
     if c ~= nil then
       local m, nm = c, tname(c, 0)
-      check(text_at(14, 8, nm), "table row 8 name does not match mode " .. m .. " row 0 (" .. nm .. ")")
+      check(text_at(14, 12, nm), "table row 12 name does not match mode " .. m .. " row 0 (" .. nm .. ")")
     end
     coroutine.yield()
   end
@@ -278,6 +278,8 @@ local function phase1()
   check(g8(O_LMODE) == 1, "last_mode not 1 after trip run")
   expect_t.trip = { nm, tscore_run, row }
   until_(function() return g8(O_STATE) == S_TITLE end, 2000, "title after trip run")
+  -- the game waits while the title background loads (main.c g_bg_paused, mood rewrite after a Gum Trip run): flow.timer stays 0 and the fix layer is not redrawn until it resumes
+  until_(function() return mem:read_u16(flow_addr + O_TIMER) >= 10 end, 900, "title background loaded (flow timer running)")
   wait(30)
   check(caption_at(14) == 1, "title after the save reminder row 14 caption is not GUM TRIP SCORES")
   -- arena run: highlight Arena again
@@ -297,6 +299,7 @@ local function phase1()
   check(caption_at(14) == 0, "save reminder row 14 caption is not ARENA SCORES")
   expect_t.arena = { anm, ascore, arow }
   until_(function() return g8(O_STATE) == S_TITLE end, 2000, "title after arena run (caption)")
+  until_(function() return mem:read_u16(flow_addr + O_TIMER) >= 10 end, 900, "title background loaded (flow timer running, arena run)")
   wait(30)
   check(caption_at(14) == 0, "title after the save reminder row 14 caption is not ARENA SCORES")
   -- the BIOS copies the work RAM block into backup RAM only when the game returns to it (main.c game_loop, g_bram_unsaved), which happens

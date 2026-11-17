@@ -21,6 +21,12 @@ BIOS_FIRST, BIOS_COUNT = 0x20, 95     # ASCII 0x20..0x7E: tile = code on page 0,
 BLANK = 255           # page 0 tile 0xFF: transparent, gfx_cls fill (outside the ASCII range 0x20..0x7E)
 BACKED = 96           # a backed copy of tile t (navy plate behind the glyph) is t + 96
 TALL_TOP, TALL_BOTTOM = 64 + GAME_BASE, 80 + GAME_BASE
+# UniBIOS 4.0 draws its boot screen from this S-ROM: tiles 0x116/0x117 (double rule), logo tiles 0x200-0x21F, 0x240, 0x25E.
+# All of them stay blank except the rule, which is hand-pixeled below (palette index 1 = ink, rows top to bottom).
+# The ASCII '@' (0x40) and '^' (0x5E) bottom halves would sit on logo tiles 0x240/0x25E, so they live at MOVED_BOTTOM instead.
+RULE_TILES = {0x117: {6: 0xFF}, 0x116: {1: 0xFF}}   # tile -> {pixel row: 8 ink pixels}: two 1-px lines with a 2-px gap across the pair
+MOVED_BOTTOM = {0x40: 0x2F0, 0x5E: 0x2F1}           # ASCII code -> page-2 slot unused by UniBIOS (codes 0xF0.. are outside ASCII); the '^' bottom half is blank by design
+BIOS_BLANK_SLOTS = [*range(0x200, 0x220), 0x240, 0x25E]
 PUNCT = ".,:!?-'/<>"  # tiles 36..45 in this order
 UPPER = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 DIGITS = "0123456789"
@@ -101,8 +107,12 @@ def main():
     for c in range(BIOS_FIRST, BIOS_FIRST + BIOS_COUNT):
         g = ink[(c - BIOS_FIRST) // 16 * 8:][:8, (c % 16) * 8:][:, :8]
         for page, rows in ((0, g), (1, np.repeat(g[:4], 2, axis=0)), (2, np.repeat(g[4:], 2, axis=0))):
-            y, x = (page * 256 + c) // 16 * 8, (c % 16) * 8
+            tile = MOVED_BOTTOM.get(c, page * 256 + c) if page == 2 else page * 256 + c
+            y, x = tile // 16 * 8, (tile % 16) * 8
             full[y:y + 8, x:x + 8] = rows
+    for tile, lines in RULE_TILES.items():
+        for row in lines:
+            full[tile // 16 * 8 + row, (tile % 16) * 8:(tile % 16) * 8 + 8] = 1
     if not ink.any() or full[(BLANK // 16) * 8:(BLANK // 16) * 8 + 8, (BLANK % 16) * 8:(BLANK % 16) * 8 + 8].any():
         sp.die("bios glyph sheet empty or tile %d not blank" % BLANK)
     atlas = full
@@ -141,6 +151,8 @@ def main():
          "#define FIXFONT_TILE_COUNT %d   /* tiles the sheet draws */" % len(t),
          "#define FIXFONT_SROM_TILES %d   /* tiles in the packed font; the rest of the S-ROM is zero */" % SROM_TOTAL,
          "#define FIXFONT_GAME_BASE %d    /* first game tile; pages 0x000..0x2FF are the BIOS ASCII font (tile = code, 0x100 + code, 0x200 + code) */" % GAME_BASE,
+         "#define FIXFONT_BIOS_TALL_AT_BOTTOM %d   /* tall '@' bottom half (the BIOS slot 0x240 is a UniBIOS logo tile) */" % MOVED_BOTTOM[0x40],
+         "#define FIXFONT_BIOS_TALL_CARET_BOTTOM %d   /* tall '^' bottom half (the BIOS slot 0x25E is a UniBIOS logo tile) */" % MOVED_BOTTOM[0x5E],
          "#define FIXFONT_BLANK %d        /* transparent tile 0xFF (outside ASCII 0x20..0x7E): gfx_cls fill, space and unknown characters */" % BLANK,
          "#define FIXFONT_BACKED %d       /* backed copy of tile t = t + FIXFONT_BACKED */" % BACKED,
          "#define FIXFONT_TALL_TOP %d     /* tall digit d: top tile FIXFONT_TALL_TOP + d, bottom FIXFONT_TALL_BOTTOM + d */" % TALL_TOP,

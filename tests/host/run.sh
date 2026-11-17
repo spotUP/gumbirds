@@ -65,6 +65,26 @@ tail -n 1 "$OUT/test_arcade_game.log"; grep FAIL "$OUT/test_arcade_game.log" | h
 $CC -o "$OUT/test_arc_gap" "$HERE/test_arc_gap.c" $SRC -lm >"$OUT/build.log" 2>&1 || { echo "[ERROR] arc_gap build failed"; tail -n 20 "$OUT/build.log"; exit 1; }
 nice -n 19 "$OUT/test_arc_gap" >"$OUT/test_arc_gap.log" 2>&1 || fail=1
 tail -n 1 "$OUT/test_arc_gap.log"; grep FAIL "$OUT/test_arc_gap.log" | head -n 10
+$CC -o "$OUT/test_coop" "$HERE/test_coop.c" $SRC -lm >"$OUT/build.log" 2>&1 || { echo "[ERROR] coop build failed"; tail -n 20 "$OUT/build.log"; exit 1; }
+nice -n 19 "$OUT/test_coop" >"$OUT/test_coop.log" 2>&1 || fail=1
+tail -n 1 "$OUT/test_coop.log"; grep FAIL "$OUT/test_coop.log" | head -n 10
+$CC -o "$OUT/test_party_round" "$HERE/test_party_round.c" $SRC -lm >"$OUT/build.log" 2>&1 || { echo "[ERROR] party_round build failed"; tail -n 20 "$OUT/build.log"; exit 1; }
+nice -n 19 "$OUT/test_party_round" >"$OUT/test_party_round.log" 2>&1 || fail=1
+tail -n 1 "$OUT/test_party_round.log"; grep FAIL "$OUT/test_party_round.log" | head -n 10
+$CC -o "$OUT/test_arena2p" "$HERE/test_arena2p.c" $SRC -lm >"$OUT/build.log" 2>&1 || { echo "[ERROR] arena2p build failed"; tail -n 20 "$OUT/build.log"; exit 1; }
+nice -n 19 "$OUT/test_arena2p" >"$OUT/test_arena2p.log" 2>&1 || fail=1
+tail -n 1 "$OUT/test_arena2p.log"; grep FAIL "$OUT/test_arena2p.log" | head -n 10
+
+$CC -o "$OUT/test_roost" "$HERE/test_roost.c" $SRC -lm >"$OUT/build.log" 2>&1 || { echo "[ERROR] roost build failed"; tail -n 20 "$OUT/build.log"; exit 1; }
+nice -n 19 "$OUT/test_roost" >"$OUT/test_roost.log" 2>&1 || fail=1
+tail -n 1 "$OUT/test_roost.log"; grep FAIL "$OUT/test_roost.log" | head -n 10
+$CC -o "$OUT/test_hot" "$HERE/test_hot.c" $SRC -lm >"$OUT/build.log" 2>&1 || { echo "[ERROR] hot build failed"; tail -n 20 "$OUT/build.log"; exit 1; }
+nice -n 19 "$OUT/test_hot" >"$OUT/test_hot.log" 2>&1 || fail=1
+tail -n 1 "$OUT/test_hot.log"; grep FAIL "$OUT/test_hot.log" | head -n 10
+$CC -o "$OUT/test_party_plain" "$HERE/test_party_plain.c" $SRC -lm >"$OUT/build.log" 2>&1 || { echo "[ERROR] party_plain build failed"; tail -n 20 "$OUT/build.log"; exit 1; }
+nice -n 19 "$OUT/test_party_plain" >"$OUT/test_party_plain.log" 2>&1 || fail=1
+tail -n 1 "$OUT/test_party_plain.log"; grep FAIL "$OUT/test_party_plain.log" | head -n 10
+
 $CC -o "$OUT/test_ai" "$HERE/test_ai.c" $SRC -lm >"$OUT/build.log" 2>&1 || { echo "[ERROR] ai build failed"; tail -n 20 "$OUT/build.log"; exit 1; }
 nice -n 19 "$OUT/test_ai" >"$OUT/test_ai.log" 2>&1 || fail=1
 tail -n 1 "$OUT/test_ai.log"; grep FAIL "$OUT/test_ai.log" | head -n 10
@@ -144,6 +164,8 @@ tail -n 1 "$OUT/test_islands.log"; grep -E 'FAIL|ERROR' "$OUT/test_islands.log" 
 # Looping planes: column W-1 next to column 0 of far, mid A, mid B and near in the generated sheet
 (cd "$ROOT" && nice -n 19 "$PYTHON" -I tests/host/test_city_join.py >"$OUT/test_city_join.log" 2>&1) || fail=1
 tail -n 1 "$OUT/test_city_join.log"; grep -E 'FAIL|ERROR' "$OUT/test_city_join.log" | head -n 10
+(cd "$ROOT" && nice -n 19 "$PYTHON" -I tests/host/test_attract_pal.py >"$OUT/test_attract_pal.log" 2>&1) || fail=1
+tail -n 1 "$OUT/test_attract_pal.log"
 
 # Knob completeness: every #define in tuning.h (except documented exemptions) has an override.
 # Exemptions: STAGE_ / FLIER_START_ are layout and spawn constants (stage.c table, game_reset).

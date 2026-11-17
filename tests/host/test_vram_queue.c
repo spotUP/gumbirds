@@ -1,5 +1,6 @@
 /* Host tests for the video write queue (src/core/vram_queue.c): dedup, ordering, overflow, fix diff. */
 #include <stdio.h>
+#include <string.h>
 #include "../../src/core/vram_queue.h"
 #include "gen/fix_font.h"
 
@@ -8,6 +9,58 @@ static int failures, checks;
 
 static VramQueue q;
 static const u16 tiles_a[4] = {1, 2, 3, 4}, tiles_b[4] = {5, 6, 7, 8};
+
+/* Reference model of the SCB shadow before the byte-per-word valid flag (bit array, vblank-demo.md Part 6): random runs,
+ * forgets and pushes must give the same queued ops and the same VRAM words. */
+static u16 ref_hw[VQ_SCB_WORDS], ref_vram[VQ_SCB_WORDS], q_vram[VQ_SCB_WORDS];
+static u8 ref_valid[VQ_SCB_WORDS / 8];
+static uint32_t lcg = 12345;
+static u16 rnd(u16 n) { lcg = lcg * 1103515245u + 12345u; return (u16)((lcg >> 16) % n); }
+static void drain_to(u16 *vram) {
+    const VqOp *op;
+    while ((op = vq_peek(&q))) {
+        if (op->kind == VQ_RUN) for (u8 k = 0; k < op->rows; k++) vram[op->a - VQ_SCB_BASE + k * op->b] = op->tiles[k * op->b];
+        else if (op->kind == VQ_WORD) vram[op->a - VQ_SCB_BASE] = op->b;
+        vq_pop(&q);
+    }
+}
+static void scb_shadow_equivalence(void)
+{
+    static const u16 vals[4] = {0, 0xFFF, 0x40, 0x1234};
+    u16 v[48];
+    vq_init(&q);
+    memset(ref_hw, 0, sizeof ref_hw); memset(ref_valid, 0, sizeof ref_valid);
+    for (int it = 0; it < 20000; it++) {
+        u16 i = rnd(VQ_SCB_WORDS - 200), mod = (u16)(1 + rnd(3)), n = (u16)(1 + rnd(48));
+        int what = rnd(4);
+        for (u16 k = 0; k < n; k++) v[k] = vals[rnd(4)];
+        if (what == 0) { vq_scb_forget(&q, (u16)(VQ_SCB_BASE + i), n);
+            for (u16 k = 0; k < n; k++) ref_valid[(i + k) >> 3] &= (u8)~(1u << ((i + k) & 7));
+        } else if (what == 1) { CHECK(vq_scb_word_push(&q, (u16)(VQ_SCB_BASE + i), v[0]));
+            ref_hw[i] = v[0]; ref_valid[i >> 3] |= (u8)(1u << (i & 7)); ref_vram[i] = v[0];
+        } else {
+            CHECK(vq_scb_run(&q, (u16)(VQ_SCB_BASE + i), mod, v, (u8)n));
+            int first = -1, last = 0;
+            for (u16 k = 0; k < n; k++) {
+                u16 j = (u16)(i + k * mod);
+                if (ref_hw[j] == v[k] && (ref_valid[j >> 3] & (1u << (j & 7)))) continue;
+                ref_hw[j] = v[k]; ref_valid[j >> 3] |= (u8)(1u << (j & 7));
+                if (first < 0) first = k;
+                last = k;
+            }
+            const VqOp *op = vq_peek(&q);
+            if (first < 0) CHECK(!op);
+            else {
+                CHECK(op && op->a == VQ_SCB_BASE + i + first * mod && op->rows == last - first + 1 && op->b == mod);
+                for (int k = first; k <= last; k++) ref_vram[i + k * mod] = v[k];
+            }
+        }
+        drain_to(q_vram);
+        for (u16 j = i; j < i + 48 * 3 && j < VQ_SCB_WORDS; j++)
+            if (q_vram[j] != ref_vram[j] || q.scb_hw[j] != ref_hw[j] || !q.scb_valid[j] != !(ref_valid[j >> 3] & (1u << (j & 7)))) { CHECK(0); return; }
+    }
+    CHECK(!memcmp(q_vram, ref_vram, sizeof q_vram));
+}
 
 static u16 total_cost(void)
 {
@@ -38,7 +91,7 @@ static void ramp_tests(void)
     CHECK(op->kind == VQ_RAMP && op->a == 0x8420 && op->rows == 5 && vq_cost(op) == VQ_US_RAMP + 5 * VQ_US_RAMP_WORD);
     vq_ramp_expand(op, out);
     CHECK(out[0] == 0x1000 && out[1] == 0x1800 && out[2] == 0x0F80 && out[3] == 0x1780 && out[4] == 0x1F80);
-    CHECK(q.scb_valid[(0x420) >> 3] == 0);            /* no shadow written */
+    CHECK(q.scb_valid[0x420] == 0);            /* no shadow written */
     vq_pop(&q);
     vq_ramp_expand(&(VqOp){ 0, 0, 0xF800, 0x0000, VQ_RAMP, 2, 0, 2 }, out);   /* u16 wrap: x 496 + 16 = 512 -> 0 */
     CHECK(out[0] == 0xF800 && out[1] == 0x0000);
@@ -55,6 +108,7 @@ static void ramp_tests(void)
 int main(void)
 {
     ramp_tests();
+    scb_shadow_equivalence();
     vq_init(&q);
     /* SCB words: first write queues, identical write queues nothing, changed write queues again */
     CHECK(vq_scb_word(&q, 0x8400, 7) && vq_pending(&q) == 1);
@@ -116,6 +170,14 @@ int main(void)
     CHECK(vq_peek(&q)->a == VQ_FIX_BASE + 2 * VQ_FIX_ROWS + 3 && vq_peek(&q)->b == 0x1042);
     (void)total_cost();
     vq_fix_put(&q, 40, 0, 1); /* out of range is ignored */
+    CHECK(commit_all() == 0);
+    /* rectangle clear: only the changed cell is pushed, and its address is the column-major one; off-screen is ignored */
+    vq_fix_put(&q, 5, 12, 0x1043);
+    CHECK(commit_all() == 1);
+    vq_fix_clear(&q, 4, 11, 3, 3, 0x20);
+    CHECK(vq_fix_commit(&q) && vq_pending(&q) == 1 && vq_peek(&q)->a == VQ_FIX_BASE + 5 * VQ_FIX_ROWS + 12 && vq_peek(&q)->b == 0x20);
+    (void)total_cost();
+    vq_fix_clear(&q, 38, 0, 3, 1, 0x1044);
     CHECK(commit_all() == 0);
     /* clear by shadow: only the cells the shadow says differ change (a 2 x 2 box at (3, 4), one cell already blank) */
     {

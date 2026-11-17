@@ -64,7 +64,7 @@ void flier_init(Flier *f, int32_t x, int32_t y, uint8_t balloons, uint8_t has_pa
     f->kill_y = FL_PX(FLIER_WATER_Y);
 }
 
-static void start_falling(Flier *f) {
+void flier_start_falling(Flier *f) {
     f->state = FLIER_FALLING;
     f->vx = 0;
     f->vy = FLIER_FALL_START_VY;
@@ -98,7 +98,7 @@ int flier_lose_balloon(Flier *f) {
         f->sway_phase = 0;
         f->sway_target = 0;
     } else {
-        start_falling(f);
+        flier_start_falling(f);
     }
     return 1;
 }
@@ -130,7 +130,7 @@ int flier_body_touching(const Flier *victim, const Flier *other) {
 
 int flier_body_kill(Flier *victim, const Flier *other) {
     if (!flier_body_touching(victim, other)) return 0;
-    start_falling(victim);
+    flier_start_falling(victim);
     return 1;
 }
 
@@ -280,7 +280,7 @@ void flier_step(Flier *f, const FlierInput *in, int32_t floor_y) {
             f->sway_phase += FLIER_SWAY_PHASE_STEP;
         }
         if (++f->sway_tick >= FLIER_SWAY_PERIOD) f->sway_tick = 0;
-        f->vx += mul_0_1(f->sway_target - f->vx);
+        f->vx += mul_0_1(f->sway_target + (in->dir > 0 ? FLIER_PARACHUTE_STEER : in->dir < 0 ? -FLIER_PARACHUTE_STEER : 0) - f->vx);
     } else if (!f->on_ground) {
         f->vy += f->balloons ? FLIER_GRAVITY_BALLOON : FLIER_GRAVITY_NO_BALLOON;
     }

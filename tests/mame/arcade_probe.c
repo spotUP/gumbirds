@@ -15,7 +15,7 @@
 unsigned int probe[] = {
     offsetof(Flow, state), G(mode), G(arc) + offsetof(ArcRun, stage), G(arc) + offsetof(ArcRun, state),
     G(lives) + offsetof(ArcLives, lives), G(lives) + offsetof(ArcLives, state), G(lives) + offsetof(ArcLives, countdown),
-    G(cpu_count), G(cpu) + offsetof(Flier, state), sizeof(Flier), G(flier) + offsetof(Flier, state), G(score), G(over),
+    G(cpu_count), G(cpu) + offsetof(Flier, state), sizeof(Flier), G(hero) + offsetof(Flier, state), G(score), G(over),
     G(lives) + offsetof(ArcLives, score),
     FLOW_PLAYING, GAME_MODE_ARCADE, ARC_PLAY, ARC_CLEAR, ARC_LIFE_PLAY, ARC_LIFE_CONTINUE, ARC_LIVES_START, ARC_CLEAR_FRAMES,
     ARC_CONTINUE_FRAMES, FLIER_GONE, ISLAND_SPRITE, ISLAND_COUNT, FLOW_GAME_OVER, ARC_LIFE_ENDED,

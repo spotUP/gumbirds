@@ -5,7 +5,7 @@
 #include <stddef.h>
 #include "../../src/core/flow.h"
 #define G(m) (offsetof(Flow, game) + offsetof(Game, m))
-#define F(m) (offsetof(Flow, game) + offsetof(Game, flier) + offsetof(Flier, m))
+#define F(m) (offsetof(Flow, game) + offsetof(Game, hero) + offsetof(Flier, m))
 unsigned int probe[] = {
     offsetof(Flow, state), G(frame), G(flier_steps), G(over), G(score),
     F(x), F(y), F(vx), F(vy), F(state), F(balloons), F(on_ground),

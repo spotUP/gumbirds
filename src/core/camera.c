@@ -45,9 +45,8 @@ int camera_arrived(const Camera *c, const int32_t *x, int n) {
     return (d < 0 ? -d : d) < (int32_t)CAM_DEAD_ZONE_PX * 65536;
 }
 
-void camera_step(Camera *c, const int32_t *x, int n) {
+static void ease_step(Camera *c, const int32_t *x, int n) {
     int32_t t, d, step;
-    if (n <= 0) return;
     t = camera_target(c->cam, x, n);
     d = t - c->cam;
     if (!c->moving) {
@@ -60,6 +59,36 @@ void camera_step(Camera *c, const int32_t *x, int n) {
     if (step < -(int32_t)CAM_MAX_STEP_PX * 65536) step = -(int32_t)CAM_MAX_STEP_PX * 65536;
     c->cam += step;
     normalise(c);
+}
+
+/* Camera clamped so the arc lo..hi (absolute x, lo <= hi) sits inside [CAM_EDGE_MARGIN_PX, SCREEN_W - margin]; an arc that
+ * cannot fit leaves cam alone. The copy of the arc nearest the camera is used, so the camera never changes side. */
+static int32_t fit_arc(int32_t cam, int32_t lo, int32_t hi) {
+    int32_t mid, p, lo_cam, hi_cam;
+    if (hi - lo > (int32_t)(SCREEN_W - 2 * CAM_EDGE_MARGIN_PX) * 65536) return cam;
+    mid = lo + ((hi - lo) >> 1);
+    p = arena_near_x(cam + (int32_t)(SCREEN_W / 2) * 65536, mid) - mid;
+    lo_cam = hi + p - (int32_t)(SCREEN_W - CAM_EDGE_MARGIN_PX) * 65536;
+    hi_cam = lo + p - (int32_t)CAM_EDGE_MARGIN_PX * 65536;
+    return cam < lo_cam ? lo_cam : cam > hi_cam ? hi_cam : cam;
+}
+
+/* Co-op soft edges: with two humans keep both inside the screen margins, whatever the easing did. Both arcs between them
+ * are tried (near 192 apart either may be on screen) and the smaller camera move wins, so the choice never jumps. */
+static void clamp_edges(Camera *c, const int32_t *x) {
+    int32_t lo = x[0], hi = arena_near_x(x[0], x[1]), a, b;
+    if (hi < lo) { lo = hi; hi = x[0]; }
+    a = fit_arc(c->cam, lo, hi); /* the shortest arc is at most half a ring, so it always fits */
+    b = fit_arc(c->cam, hi, lo + ARENA_W16);
+    if (ARENA_W16 - (hi - lo) <= (int32_t)(SCREEN_W - 2 * CAM_EDGE_MARGIN_PX) * 65536 && (b > c->cam ? b - c->cam : c->cam - b) < (a > c->cam ? a - c->cam : c->cam - a)) a = b;
+    c->cam = a;
+    normalise(c);
+}
+
+void camera_step(Camera *c, const int32_t *x, int n) {
+    if (n <= 0) return;
+    ease_step(c, x, n);
+    if (n == 2) clamp_edges(c, x); /* shortcut: two humans only (HUMANS 2) */
 }
 
 void camera_scroll(Camera *c, uint32_t step16) {

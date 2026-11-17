@@ -16,21 +16,30 @@
 #include "rng.h"
 #include "flier.h"
 
-typedef enum { AI_FILL = 0, AI_FLEE, AI_CHASE } AiState;
+/* AI_HOLD (PARTY Roost Rule): with Ai.hold set, ai_step skips the thinks and flies to the target (the roost mark), then stands on it.
+ * It flaps only while far from the target in x, or below it in the air, and never while standing on the island. */
+typedef enum { AI_FILL = 0, AI_FLEE, AI_CHASE, AI_HOLD } AiState;
+#define AI_HOLD_NEAR_PX 24    /* x distance under which the holder drops onto the island instead of cruising */
+#define AI_HOLD_STEER_MIN 3   /* x dead zone: it stops steering when this close to the mark */
+#define AI_HOLD_CRUISE_PX 24  /* far: flap while the mark is less than this far below (the holder cruises above it) */
+#define AI_HOLD_LAND_PX 2     /* near, airborne: flap only when more than this below the mark */
+#define AI_HOLD_LIFT_PX 4     /* standing: jump when the mark is higher than this */
 
 typedef struct {
     uint8_t state;    /* AiState */
     uint16_t timer;   /* frames until the next think */
     int8_t dir;       /* held between thinks */
     uint32_t thinks;  /* think count (test sentinel) */
-    uint8_t think_cut;/* frames shaved off every think period by the arcade rank */
+    int8_t think_cut;/* frames shaved off every think period by the rank; negative = slower than the arena value (party Slow Thinkers) */
+    uint8_t hold;     /* 1 = AI_HOLD: fly to the target and stand on it (set by game.c for the Roost Rule holder) */
+    uint8_t flee;     /* 1 = every think flees the target at any range (Hot Gum: rivals of the carrier; set by game.c) */
 } Ai;
 
 /* rank 1 is the arena AI; higher arcade ranks (arcade.h) think sooner. */
 void ai_init(Ai *a, Rng *r, int rank);
-/* Nearest live rival (state ALIVE or PARACHUTE) among the player and the computer fliers, by squared distance. NULL
+/* Nearest live rival (state ALIVE or PARACHUTE) among the humans and the computer fliers, by squared distance. NULL
  * when none. self is excluded by pointer. */
-const Flier *ai_nearest(const Flier *self, const Flier *player, const Flier *cpus, int cpu_count);
+const Flier *ai_nearest(const Flier *self, const Flier *humans, int human_count, const Flier *cpus, int cpu_count);
 /* The pure decision: state for a flier and its target (no side effects). */
 AiState ai_decide(const Flier *self, const Flier *target);
 /* One frame: counts the timer down; on zero thinks (state, dir) and re-arms with jitter. target may be

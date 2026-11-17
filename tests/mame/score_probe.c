@@ -18,7 +18,7 @@ unsigned int probe[] = {
     offsetof(Flow, entry) + offsetof(NameEntry, name), offsetof(Flow, entry) + offsetof(NameEntry, sym),
     offsetof(Flow, entry) + offsetof(NameEntry, pos), offsetof(Flow, entry) + offsetof(NameEntry, done),
     offsetof(Flow, entry) + offsetof(NameEntry, idle),
-    G(mode), G(score), G(over), G(trip) + offsetof(Trip, bonus), G(flier) + offsetof(Flier, state),
+    G(mode), G(score), G(over), G(trip) + offsetof(Trip, bonus), G(hero) + offsetof(Flier, state),
     NAME_TIMEOUT_FRAMES, SCORE_IMAGE_SIZE, FLIER_DROWNED, GAME_MODE_TRIP, FLOW_PLAYING,
     FLOW_GAME_OVER, FLOW_NAME_ENTRY, FLOW_SAVE_REMINDER, FLOW_ATTRACT_TABLE, FLOW_ATTRACT_TITLE,
 };

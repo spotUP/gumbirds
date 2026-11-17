@@ -7,6 +7,7 @@
 #include "gen/logo_sprites.h"
 #include "../../src/core/arcade.h"
 #include "../../src/core/arc_view.h"
+#include "../../src/core/obj_pool.h"
 
 static int checks, failures;
 #define CHECK(c) do { checks++; if (!(c)) { failures++; printf("FAIL %s:%d: %s\n", __FILE__, __LINE__, #c); } } while (0)
@@ -31,7 +32,7 @@ static void test_slots(void) {
     CHECK(GUM_SPRITE + GUM_COUNT <= SPLASH_SPRITE && SPLASH_SPRITE + SPLASH_COUNT <= ISLAND_SPRITE && SPLASH_COUNT == 3);   /* the splash draws behind the islands, pool and hazard strip */
     CHECK(SPLASH_SPRITE + SPLASH_COUNT <= HAZARD_SPRITE);
     CHECK(ISLAND_SPRITE + ISLAND_COUNT <= POOL_SPRITE_BASE);
-    CHECK(island_total_columns() == 22 && 22 <= ISLAND_COUNT);   /* stage 1 uses 22 of the range; the Gum Trip islands need the rest (user-approved, was ==) */
+    CHECK(island_total_columns() == 18 && 18 <= ISLAND_COUNT);   /* stage 1 uses 22 of the range; the Gum Trip islands need the rest (user-approved, was ==) */
     CHECK(POOL_SPRITE_BASE + POOL_SPRITE_COUNT <= HERO_SPRITE);
     CHECK(HERO_SPRITE + HERO_SPRITE_COUNT <= HAZARD_SPRITE);
     CHECK(HAZARD_SPRITE + HAZARD_COUNT <= FG_RAIN_SPRITE);
@@ -58,8 +59,8 @@ static void test_islands(void) {
     int sum = 0;
     for (int i = 0; i < STAGE_PLATFORM_COUNT; i++) sum += stage_platforms[i].w / 16;
     CHECK(row->count == ISLAND_COUNT);
-    CHECK(sum == 22);
-    CHECK(22 <= ISLAND_COUNT);
+    CHECK(sum == 18);
+    CHECK(18 <= ISLAND_COUNT);
     int worst = 0, wline = 0, lines_with_two = 0;
     for (int y = 0; y < SB_LINES; y++) {
         int cols = 0, islands = 0;
@@ -73,7 +74,7 @@ static void test_islands(void) {
         if (cols) CHECK(y >= row->y0 && y < row->y1);
     }
     CHECK(lines_with_two == 0);
-    CHECK(worst == row->per_line);
+    CHECK(worst <= row->per_line); /* arena gap change: the shorter islands peak at 6 columns, the 7 stays reserved */
     printf("islands: worst %d columns on one line (line %d), row per_line %d, lines %d..%d\n", worst, wline, row->per_line, row->y0, row->y1 - 1);
 }
 
@@ -95,16 +96,16 @@ static void test_lines(void) {
             }
             printf("mood %s, %s: worst sprites per line %d at line %d (limit %d)\n", mood->name, trip ? "Gum Trip" : "arena", worst, line0, SB_LIMIT);
             CHECK(worst >= 1);
-            /* the arena counts the stage platforms per line plus the gum row: the peak is 86 on lines 112..119 (was 90 on line 128,
+            /* the arena counts the stage platforms per line plus the gum row: the peak is 88 on lines 112..119 (86 plus the 2 Roost Rule marker sprites; was 90 on line 128,
              * flat 7 islands and no gum row), 79 on 120..127, 81 on 128..143. Moving a platform moves these pins on purpose.
              * 4 lower than before on every line: SB_GAMEPLAY_PER_LINE 18 -> 14 (budget-e, room for arcade stage elements). */
             if (!trip && !mood->rain) {
-                CHECK(worst == 86);
+                CHECK(worst == 87);
                 CHECK(line0 == 112);
-                CHECK(sprite_budget_line(m, 119, 0) == 86);
-                CHECK(sprite_budget_line(m, 120, 0) == 79);
-                CHECK(sprite_budget_line(m, 128, 0) == 81);
-                CHECK(sprite_budget_line(m, 143, 0) == 81);
+                CHECK(sprite_budget_line(m, 119, 0) == 87);
+                CHECK(sprite_budget_line(m, 120, 0) == 81);
+                CHECK(sprite_budget_line(m, 128, 0) == 83);
+                CHECK(sprite_budget_line(m, 143, 0) == 83);
             }
         }
     }
@@ -155,24 +156,35 @@ static void test_title(void) {
    test adds their columns to the arena's line sum: every arcade stage, every tick of a long run (vent phases, sparks, grabber), worst line. */
 static void test_arcade_elements(void) {
     int worst = 0;
+    /* Co-op: the P2 body and parachute are pool objects 30 and 31 and sit inside the gameplay reserve. */
+    CHECK(POOL_SPRITE_BASE + POOL_MAX * POOL_COLS <= HERO_SPRITE);
+    CHECK(sprite_budget_line(0, 100, 0) <= SB_LIMIT);
     CHECK(ARC_ELEM_SPRITE >= FG_RAIN_SPRITE && ARC_ELEM_SPRITE + ARC_ELEM_COUNT == TRIP_STRIP_SPRITE + 1); /* rain, spray and the first strip slot, idle in arcade stages */
     printf("arcade worst scanline per stage 1..12:");
     for (int st = 1; st <= 12; st++) {
         ArcElements a;
         ArcSprite s[ARC_VIEW_MAX];
-        int sw = 0;
+        int sw = 0, peak = 0;
         stage_select(arc_stage_layout(st));
         arc_elements_init(&a, st - 1);
         for (int t = 0; t < 700; t++, arc_elements_step(&a)) {
             int n = arc_view_build(&a, (unsigned)t, s), cols = 0;
             for (int i = 0; i < n; i++) cols += ARC_VIEW_COLS[s[i].piece];
             CHECK(cols <= ARC_ELEM_COUNT); /* every block gets its columns, also the spark of the last vent */
+            if (cols > peak) peak = cols;
+            int killing = 0, sparks = 0;
+            for (int i = 0; i < a.n; i++)
+                if (a.el[i].kind == ARC_EL_VENT && a.el[i].timer >= ARC_VENT_LAUNCH && a.el[i].timer < ARC_VENT_LAUNCH + ARC_VENT_BURST_TICKS) killing++;
+            for (int i = 0; i < n; i++) if (s[i].piece == ARCV_SPARK) sparks++;
+            CHECK(sparks == killing); /* a plume that can kill always has its spark sprite (no invisible kill) */
             for (int y = 0; y < SB_LINES; y++) {
-                int c = sprite_budget_line(0, y, 0) + arc_view_line(s, n, y);
+                int c = sprite_budget_line_arcade(0, y) + arc_view_line(s, n, y);
                 if (c > sw) sw = c;
             }
         }
         printf(" %d", sw);
+        CHECK(peak <= ARC_ELEM_COUNT); /* element columns of the stage fit the range (R10 needs exactly 15 of 15) */
+        CHECK(st != 10 || peak == 15);
         CHECK(sw <= SB_LIMIT);
         if (sw > worst) worst = sw;
     }

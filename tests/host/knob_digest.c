@@ -54,12 +54,15 @@ static void flow_digest(void)
         case FLOW_PLAYING:
             if (!f.demo) {
                 if (f.game.stomps < want_stomps && f.game.frame < 600u) stomp_assist(&f.game);
-                else if (!gapped) { f.game.flier.x = FL_PX(100); f.game.flier.y = FL_PX(100); gapped = 1; }
+                else if (!gapped) { f.game.hero[0].x = FL_PX(100); f.game.hero[0].y = FL_PX(100); gapped = 1; }
             }
             /* Arena: random flaps (1 in 16 frames) and steering so the flier eventually leaves the islands and drowns. */
             if (f.game.frame < 40u && ((in_state >> 8) & 15u) == 0u) in |= IN_A;   /* flaps only early, so the run ends */
             if (((in_state >> 20) & 3u) == 0u) in |= IN_LEFT;
             else if (((in_state >> 20) & 3u) == 1u) in |= IN_RIGHT;
+            break;
+        case FLOW_GAME_OVER:
+            if (f.timer == 20) in = IN_A;   /* early skip, ignored until GAMEOVER_SKIP_FRAMES */
             break;
         case FLOW_NAME_ENTRY:
             entry_frame++;
@@ -77,7 +80,7 @@ static void flow_digest(void)
         }
         flow_step(&f, in, start, fr);
         if (f.dirty) { mix(0xD1u); f.dirty = 0; }
-        mix(f.state); mix(f.timer); mix(f.game.score); mix(f.game.flier_steps); mix(f.game.flaps); mix((uint32_t)f.game.flier.x); mix((uint32_t)f.game.flier.y); mix((uint32_t)game_camera_px(&f.game)); mix((uint32_t)f.highlight);
+        mix(f.state); mix(f.timer); mix(f.game.score); mix(f.game.flier_steps); mix(f.game.flaps[0]); mix((uint32_t)f.game.hero[0].x); mix((uint32_t)f.game.hero[0].y); mix((uint32_t)game_camera_px(&f.game)); mix((uint32_t)f.highlight);
         mix(f.reset_hold);
         mix(f.ov.key); mix(f.demo_in);                  /* the attract overlay state (ATTRACT_HOLD_FRAMES) */
         if (f.state == FLOW_ATTRACT_TABLE && (f.timer == 100u || f.timer == 200u)) { /* which mode's table the screen shows (SCORE_TABLE_SWAP_FRAMES) */
@@ -97,7 +100,7 @@ static void flow_digest(void)
     }
     mix(title_visits); mix(entry_visits);
 #ifdef KNOB_DEBUG
-    fprintf(stderr, "title %u entry %u last %u\n", (unsigned)title_visits, (unsigned)entry_visits, (unsigned)f.last_score);
+    fprintf(stderr, "title %u entry %u last %u\n", (unsigned)title_visits, (unsigned)entry_visits, (unsigned)f.last_score[0]);
 #endif
 }
 
@@ -116,7 +119,7 @@ static void arena_digest(void)
         if (((in_state >> 20) & 7u) < 2u) in |= IN_A;
         if (((in_state >> 12) & 3u) == 0u) in |= IN_LEFT;
         else if (((in_state >> 12) & 3u) == 1u) in |= IN_RIGHT;
-        if (g.flier.state >= FLIER_FALLING) flier_init(&g.flier, FL_PX(FLIER_START_X), FL_PX(FLIER_START_Y), FLIER_START_BALLOONS, 0);
+        if (g.hero[0].state >= FLIER_FALLING) flier_init(&g.hero[0], FL_PX(FLIER_START_X), FL_PX(FLIER_START_Y), FLIER_START_BALLOONS, 0);
         g.over = 0;
         if (f % 700u < 40u) stomp_assist(&g);
         if (f % 400u == 0u) for (i = 0; i < g.cpu_count; i++) { g.cpu[i].invincible = 0; while (flier_lose_balloon(&g.cpu[i])) { g.cpu[i].invincible = 0; } if (g.cpu[i].state == FLIER_FALLING) { g.cpu[i].state = FLIER_ALIVE; g.cpu[i].vy = 0; } }
@@ -124,7 +127,55 @@ static void arena_digest(void)
         game_step_arena(&g, in);
         mix(g.stomps); mix(g.score); mix(g.distance); mix(g.matches_won); mix(g.round_end); mix(g.round_timer); mix(g.round_start); mix(g.round_start_timer); mix(g.cpu_count); mix(g.cpu_alive);
         for (i = 0; i < g.cpu_count; i++) { mix((uint32_t)g.cpu[i].x); mix((uint32_t)g.cpu[i].y); mix(g.cpu[i].state); mix(g.cpu[i].balloons); mix(g.cpu[i].invincible); mix(g.ai[i].thinks); mix(g.ai[i].state); }
-        mix((uint32_t)g.flier.x); mix(g.flier.balloons); mix(g.flier.invincible); mix((uint32_t)flier_view_visible(&g.flier, g.frame)); mix((uint32_t)game_camera_px(&g));
+        mix((uint32_t)g.hero[0].x); mix(g.hero[0].balloons); mix(g.hero[0].invincible); mix((uint32_t)flier_view_visible(&g.hero[0], g.frame)); mix((uint32_t)game_camera_px(&g));
+    }
+}
+
+/* Roost Rule part: the hero stands on the roost for a stretch, so SCORE_ROOST_TICK shows in the score. */
+static void roost_digest(void)
+{
+    static Game g;
+    uint32_t f;
+    game_reset(&g, 11);
+    game_set_mode(&g, GAME_MODE_ARENA);
+    g.party_rule = PARTY_ROOST;
+    for (f = 0; f < 900u; f++) {
+        if (g.round_start == RS_NONE && g.roost.idx < STAGE_PLATFORM_COUNT) {
+            const StagePlatform *p = &stage_platforms[g.roost.idx];
+            g.hero[0].x = FL_PX(p->x + p->w / 2); g.hero[0].y = FL_PX(p->y) - flier_half_h(&g.hero[0]);
+            g.hero[0].vx = 0; g.hero[0].vy = 0; g.hero[0].on_ground = 1; g.hero[0].state = FLIER_ALIVE;
+        }
+        game_step(&g, 0);
+        mix(g.score); mix(g.roost.ticks[0]); mix(g.roost.timer); mix(g.over); mix(g.roost.total[0]); /* ROOST_TARGET_SCORE ends the match */
+    }
+}
+
+/* Gum Trip demo part: the attract demo pilot flying a trip, so the demo's hazard dodge (DEMO_HAZ_AHEAD) and its aim show.
+ * Several seeds, so the knob does not hang on one course that happens to hold no hazard near the flier. */
+static void trip_demo_digest(void)
+{
+    static Flow f;
+    uint32_t fr, seed;
+    for (seed = 0; seed < 4u; seed++) {
+        flow_init(&f, 0, 0);
+        f.demo_mode = GAME_MODE_TRIP;
+        for (fr = 1; fr <= 3000u; fr++) {
+            flow_step(&f, 0, 0, fr + seed * 977u); /* the frame counter seeds each demo game */
+            mix(f.state); mix(f.demo_in); mix((uint32_t)f.game.hero[0].x); mix((uint32_t)f.game.hero[0].y); mix(f.game.hero[0].balloons); mix(f.game.trip.hits);
+        }
+    }
+}
+
+/* Party how-to part: a PARTY start runs the how-to demo, then the real match with its long round banner. */
+static void party_howto_digest(void)
+{
+    static Flow f;
+    uint32_t fr;
+    flow_init(&f, 0, 0);
+    f.mode = GAME_MODE_PARTY; f.party_rule = PARTY_ROUND;
+    for (fr = 1; fr <= 1800u; fr++) {
+        flow_step(&f, 0, fr == 1, fr);
+        mix(f.state); mix(f.howto); mix(f.timer); mix(f.game.rounds); mix(f.game.round_start); mix(f.game.round_start_timer); mix(f.game.frame); mix(f.game.twist);
     }
 }
 
@@ -140,7 +191,7 @@ static void arcade_pass(int stage)
     g.arc.stage = stage;
     for (f = 1; f <= 3000u; f++) {
         game_step(&g, (f % 5u) < 2u ? IN_A : 0);
-        mix(g.score); mix(g.lives.lives); mix(g.over); mix((uint32_t)g.flier.x); mix((uint32_t)g.flier.y);
+        mix(g.score); mix(g.lives[0].lives); mix(g.over); mix((uint32_t)g.hero[0].x); mix((uint32_t)g.hero[0].y);
         for (i = 0; i < g.cpu_count; i++) { mix((uint32_t)g.cpu[i].x); mix(g.ai[i].thinks); mix(g.pump[i].state); }
         if (g.over) { mix(f); game_reset(&g, 5150u + f); game_set_mode(&g, GAME_MODE_ARCADE); g.arc.stage = stage; }
     }
@@ -162,7 +213,7 @@ static void spawn_digest(void)
     for (f = 1; f <= 800u; f++) {
         g.over = 0;
         game_step_arena(&g, f > 700u ? IN_RIGHT : 0);
-        mix(g.flier.balloons); mix(g.flier.spawn_inv); mix(g.stomps); mix(g.flier.state); mix((uint32_t)g.flier.y);
+        mix(g.hero[0].balloons); mix(g.hero[0].spawn_inv); mix(g.stomps); mix(g.hero[0].state); mix((uint32_t)g.hero[0].y);
     }
 }
 
@@ -232,11 +283,11 @@ static void trip_digest(void)
     for (f = 1; f <= 60000u; f++) {
         /* a steered pilot (trip_steer.h) reading the live course: collects pickups, lands, flies into hazards in turn */
         uint8_t in = trip_steer(&g, (f % 4000u) < 2400u ? STEER_AVOID : (f % 4000u) < 3200u ? STEER_LAND : STEER_HIT);
-        if (f % 90u == 0u) trip_pickup(&g.trip, &g.flier);
-        if (f % 611u == 0u) trip_hit(&g.trip, &g.flier);
+        if (f % 90u == 0u) trip_pickup(&g.trip, &g.hero[0]);
+        if (f % 611u == 0u) trip_hit(&g.trip, &g.hero[0]);
         game_step(&g, in);
         mix(g.trip.px); mix(g.trip.speed); mix(g.trip.gum); mix(g.trip.streak); mix(g.score); mix(g.over);
-        mix((uint32_t)g.flier.x); mix(g.flier.balloons); mix((uint32_t)g.flier.y); mix(g.flier.invincible); mix((uint32_t)flier_view_visible(&g.flier, g.frame));
+        mix((uint32_t)g.hero[0].x); mix(g.hero[0].balloons); mix((uint32_t)g.hero[0].y); mix(g.hero[0].invincible); mix((uint32_t)flier_view_visible(&g.hero[0], g.frame));
         mix(g.trip_rival_events); mix(g.trip_rivals.spawned); mix(g.trip_rivals.popped); mix(g.trip_rivals.hits); mix(g.trip_rivals.retired);
         { int r; for (r = 0; r < TRIP_RIVAL_MAX; r++) if (g.trip_rivals.r[r].active) { mix((uint32_t)g.trip_rivals.r[r].f.x); mix((uint32_t)g.trip_rivals.r[r].f.y); mix(g.trip_rivals.r[r].variant); mix(g.trip_rivals.r[r].f.balloons); mix(g.trip_rivals.r[r].thinks); } }
         mix(g.trip_events); mix(g.trip.pickups); mix(g.trip.hits); mix(g.trip_gen.made); mix(g.trip_gen.drops);
@@ -287,7 +338,7 @@ static void ai_probe(void)
 
 /* Flier view part: scripted runs of flier_anim_step for 2, 1 and 0 balloons. Standing, walking at two speeds (one between
  * the default and the overridden walk threshold), a landing, and in the air one flap press with rest frames around it, so
- * the walk, landing, breathing, walk threshold and flap hold knobs all change a frame number. */
+ * the walk, landing, breathing and walk threshold knobs all change a frame number. */
 static void flier_view_digest(void)
 {
     static const uint8_t k_first[] = SOOTLING_TABLE_CLIP_FIRST;
@@ -295,11 +346,9 @@ static void flier_view_digest(void)
     static const uint8_t k_loop[] = SOOTLING_TABLE_CLIP_LOOP;
     static const uint8_t k_ticks[] = SOOTLING_TABLE_FRAME_TICKS;
     static const FlierClips clips = { k_first, k_count, k_loop, k_ticks,
-        SOOTLING_CLIP_FLAP2, SOOTLING_CLIP_FLAP1, SOOTLING_CLIP_POP2, SOOTLING_CLIP_POP1,
-        SOOTLING_CLIP_INFLATE, SOOTLING_CLIP_FALL, SOOTLING_CLIP_IDLE,
-        { SOOTLING_CLIP_WALK0, SOOTLING_CLIP_WALK1, SOOTLING_CLIP_WALK2 },
-        { SOOTLING_CLIP_LAND0, SOOTLING_CLIP_LAND1, SOOTLING_CLIP_LAND2 },
-        { SOOTLING_CLIP_BREATHE0, SOOTLING_CLIP_BREATHE1, SOOTLING_CLIP_BREATHE2 } };
+        SOOTLING_CLIP_FLAP, SOOTLING_CLIP_FLY, SOOTLING_CLIP_SETTLE, SOOTLING_CLIP_IDLE, SOOTLING_CLIP_PUMP,
+        SOOTLING_CLIP_INFLATE, SOOTLING_CLIP_FALL, SOOTLING_CLIP_POP2, SOOTLING_CLIP_POP1,
+        SOOTLING_CLIP_WALK, SOOTLING_CLIP_LAND, SOOTLING_CLIP_BREATHE };
     static const int32_t speeds[3] = { 0, 40000, 91750 }; /* 0, 0.61 and 1.4 px per frame */
     int b, seg, i, flip;
     for (b = 2; b >= 0; b--) {
@@ -347,20 +396,82 @@ static void splash_view_digest(void)
     }
 }
 
+/* Pump windows per rank and player count: the 2P variants shape the digest through the step counts. */
+static void pump_digest(void)
+{
+    int rank, two, n;
+    for (rank = 1; rank <= ARC_RANK_MAX; rank++)
+        for (two = 0; two <= 1; two++) {
+            ArcPump p;
+            arc_pump_start(&p, rank, 1); p.two = (uint8_t)two;
+            for (n = 0; arc_pump_in_window(&p) && n < 1000; n++) arc_pump_step(&p);
+            mix((uint32_t)n);
+            arc_pump_start(&p, rank, 0); p.two = (uint8_t)two; arc_pump_restand(&p);
+            for (n = 0; p.state == ARC_PUMP_STANDING && n < 1000; n++) arc_pump_step(&p);
+            mix((uint32_t)n);
+        }
+}
+
+/* Co-op: P1 flies right alone with P2 parked, so the soft wall and camera margin decide where both end up. */
+static void coop_digest(void)
+{
+    static Game g;
+    int f;
+    game_reset(&g, 1);
+    game_start_p2(&g);
+    g.hero[0].x = FL_PX(40); g.hero[1].x = FL_PX(190); /* camera starts at 32: P1 begins inside the margin */
+    for (f = 0; f < 600; f++) {
+        game_step_arena(&g, IN_RIGHT | IN_A);
+        if (f % 10 == 0) { mix((uint32_t)game_camera_px(&g)); mix((uint32_t)g.hero[0].x); }
+    }
+}
+
+/* Hot Gum part: fuse pops, passes and the score show the HOT_ knobs. */
+static void hot_digest(void)
+{
+    static Game g;
+    uint32_t f;
+    int i, won;
+    for (won = 0; won <= 20; won += (won == 0 ? 2 : 18)) { /* 0: plain; 2: the step shows; 20: the minimum shows */
+        game_reset(&g, 13);
+        game_set_mode(&g, GAME_MODE_ARENA);
+        g.party_rule = PARTY_HOT;
+        g.matches_won = (uint8_t)won;
+        for (f = 0; f < 1500u; f++) {
+            if (f % 100u == 50u && g.cpu_count > 0 && g.round_start == RS_NONE) { /* a human carrier meets a rival: the pass, its cooldown and score */
+                Flier *h = &g.hero[0], *c = &g.cpu[0];
+                g.hot.carrier = 0; g.hot.cool = 0;
+                h->state = c->state = FLIER_ALIVE; h->balloons = c->balloons = 2; g.pump[0].state = ARC_PUMP_FLYING;
+                h->x = FL_PX(147); c->x = FL_PX(153); h->y = c->y = FL_PX(60);
+                h->vx = FL_PX(1); c->vx = -FL_PX(1); h->vy = c->vy = 0;
+            }
+            game_step(&g, (uint8_t)((f & 32u) ? IN_RIGHT : IN_LEFT) | ((f & 8u) ? IN_A : 0));
+            mix(g.score); mix(g.hot.carrier); mix(g.hot.fuse); mix(g.hot.cool); mix(g.over); mix(g.matches_won);
+            for (i = 0; i < g.cpu_count; i++) mix(g.cpu[i].balloons);
+        }
+    }
+}
+
 int main(void)
 {
     trip_island_digest();
     flow_digest();
     trip_digest();
+    trip_demo_digest();
     rival_probe();
     ai_probe();
     arena_digest();
+    roost_digest();
+    hot_digest();
+    party_howto_digest();
     arcade_digest();
     spawn_digest();
     flier_physics_digest();
     flier_view_digest();
     gum_view_digest();
     splash_view_digest();
+    coop_digest();
+    pump_digest();
     printf("%08x\n", (unsigned)h);
     return 0;
 }

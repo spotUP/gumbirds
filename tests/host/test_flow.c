@@ -231,17 +231,23 @@ static void scenario_full(const HiscoreTable *pre, const char *want_name)
     CHECK(r.f.state == FLOW_PLAYING && !r.f.demo);
     /* Arena slice: put the flier over the gap between islands (x 100 has no platform below) so it drowns. */
     earn_score(&r, 1500);                       /* stomps give the points; the table minimum is 1000 */
-    r.f.game.flier.x = FL_PX(120);
-    r.f.game.flier.y = FL_PX(100);
+    r.f.game.hero[0].x = FL_PX(120);
+    r.f.game.hero[0].y = FL_PX(100);
     rig_until(&r, FLOW_GAME_OVER, IN_A, 60000);
     CHECK(r.f.state == FLOW_GAME_OVER);
-    CHECK(r.f.game.over && r.f.last_score == r.f.game.score && r.f.last_score > 0);
+    CHECK(r.f.game.over && r.f.last_score[0] == r.f.game.score && r.f.last_score[0] > 0);
     CHECK(r.saves == 0);                        /* nothing saved before the entry */
-    learned_score = r.f.last_score;
-    row = expect_row(&before, r.f.last_score);
+    learned_score = r.f.last_score[0];
+    row = expect_row(&before, r.f.last_score[0]);
     CHECK(row >= 0);
 
-    rig_ticks(&r, 0, GAMEOVER_FRAMES);
+    /* GAME OVER text: an early A press is ignored, A after GAMEOVER_SKIP_FRAMES skips to the name entry */
+    rig_ticks(&r, 0, 5);
+    rig_press(&r, IN_A);
+    CHECK(r.f.state == FLOW_GAME_OVER);
+    rig_ticks(&r, 0, GAMEOVER_SKIP_FRAMES);
+    CHECK(r.f.state == FLOW_GAME_OVER && GAMEOVER_SKIP_FRAMES + 7 < GAMEOVER_FRAMES);
+    rig_press(&r, IN_A);
     CHECK(r.f.state == FLOW_NAME_ENTRY);
     for (i = 0; want_name[i]; i++) {
         int k, target = want_name[i] - 'A';
@@ -266,6 +272,9 @@ static void scenario_full(const HiscoreTable *pre, const char *want_name)
     flow_view(&r.f, &v);
     CHECK(v.highlight == row);
     CHECK(r.saves == 1);
+    /* the mode list takes rows 23..27, where the highlighted table sits: opening it drops the table (owner 2026-11-17) */
+    rig_tick(&r, IN_A, 0);
+    CHECK(r.f.state == FLOW_ATTRACT_TITLE && r.f.select_open && r.f.highlight == -1);
     rig_ticks(&r, 0, ATTRACT_TITLE_FRAMES);
     CHECK(r.f.state == FLOW_ATTRACT_TABLE && r.f.highlight == -1);   /* the title timeout clears the highlight */
     /* BG4: start in the table opens mode select on the title */
@@ -324,8 +333,8 @@ static void test_full_flow(void)
         }
         rig_begin(&r, 424242);
         earn_score(&r, 1500);
-        r.f.game.flier.x = FL_PX(120);
-        r.f.game.flier.y = FL_PX(100);
+        r.f.game.hero[0].x = FL_PX(120);
+        r.f.game.hero[0].y = FL_PX(100);
         rig_until(&r, FLOW_GAME_OVER, IN_A, 60000);
         rig_ticks(&r, 0, GAMEOVER_FRAMES);
         CHECK(r.f.state == FLOW_ATTRACT_TITLE && r.saves == 0 && r.f.new_row == -1);
@@ -363,7 +372,7 @@ static void test_cycle_and_demo(void)
     CHECK(saw_table && saw_demo && saw_title_again);
     CHECK(r.saves == 0 && !r.f.dirty);
     CHECK(memcmp(&before, &r.f.tables.t[0], sizeof before) == 0);
-    CHECK(r.f.last_score == 0 && r.f.new_row == -1);
+    CHECK(r.f.last_score[0] == 0 && r.f.new_row == -1);
 
     /* the demo actually plays: input moves the game */
     rig_until(&r, FLOW_ATTRACT_DEMO, 0, 100000);
@@ -373,12 +382,12 @@ static void test_cycle_and_demo(void)
     if (r.f.state == FLOW_ATTRACT_DEMO) CHECK(r.f.game.frame >= 299 && r.f.game.flier_steps > 0);
 
     /* the demo flier survives the whole demo window: 12 demos from different start frames (the seed is the frame counter) each
-     * end with it alive. The demo pilot cannot dodge computer fliers, so this guards DEMO_HOVER_Y / DEMO_SWEEP_FRAMES. */
+     * end with it alive. The demo pilot flies the rival AI, dodges rivals above and hazards ahead, so this guards demo_input. */
     for (run = 0; run < 12; run++) {
         rig_until(&r, FLOW_ATTRACT_TITLE, 0, 100000);
         rig_until(&r, FLOW_ATTRACT_DEMO, 0, 100000);
         for (i = 0; i < ATTRACT_DEMO_FRAMES - 1 && r.f.state == FLOW_ATTRACT_DEMO; i++) rig_tick(&r, 0, 0);
-        CHECK(r.f.state == FLOW_ATTRACT_DEMO && !r.f.game.over && r.f.game.flier.state == FLIER_ALIVE && r.f.game.flier_steps > 0);
+        CHECK(r.f.state == FLOW_ATTRACT_DEMO && !r.f.game.over && r.f.game.hero[0].state == FLIER_ALIVE && r.f.game.flier_steps > 0);
     }
 
     /* BG4 (changed by the coin item): a taken credit during the demo starts a game at once, no second press */
@@ -386,6 +395,38 @@ static void test_cycle_and_demo(void)
     rig_tick(&r, 0, 1);
     CHECK(r.f.state == FLOW_PLAYING && !r.f.demo && r.f.game.frame == 0 && r.f.game.rounds == 1);
     /* a real run that dies still saves nothing without a rank (table full of big scores) */
+}
+
+/* The demo pilot is the rival AI, not a script: the same start gives the same input trace, and the trace is not the old fixed
+ * sweep (left/right switching every DEMO_SWEEP_FRAMES): over three demos the stick changes sides at other frames too. */
+static uint32_t demo_trace(int *off_script)
+{
+    Rig r;
+    uint32_t h = 2166136261u;
+    int i, n, prev = -1;
+    memset(&r, 0, sizeof r);
+    flow_init(&r.f, NULL, 0);
+    *off_script = 0;
+    for (n = 0; n < 3; n++) {
+        rig_until(&r, FLOW_ATTRACT_DEMO, 0, 100000);
+        for (i = 0; i < ATTRACT_DEMO_FRAMES - 1 && r.f.state == FLOW_ATTRACT_DEMO; i++) {
+            int side = (r.f.demo_in & IN_LEFT) ? 1 : (r.f.demo_in & IN_RIGHT) ? 2 : 0;
+            rig_tick(&r, 0, 0);
+            if (prev != -1 && side != prev && r.f.timer % DEMO_SWEEP_FRAMES != 0) (*off_script)++;
+            prev = side;
+            h = (h ^ r.f.demo_in) * 16777619u;
+        }
+        rig_until(&r, FLOW_ATTRACT_TITLE, 0, 100000);
+    }
+    return h;
+}
+
+static void test_demo_pilot(void)
+{
+    int a, b;
+    uint32_t h1 = demo_trace(&a), h2 = demo_trace(&b);
+    CHECK(h1 == h2 && a == b);
+    CHECK(a > 0);
 }
 
 /* DUSK-1: every pass through the attract title shows another mood than the pass before, and every mood shows. */
@@ -446,11 +487,11 @@ static void test_demo_modes(void)
         rig_until(&r, FLOW_ATTRACT_DEMO, 0, 100000);
         for (i = 0; i < 3 && r.f.game.mode != GAME_MODE_ARCADE; i++) { r.f.state = FLOW_ATTRACT_TABLE; r.f.timer = ATTRACT_TABLE_FRAMES; rig_until(&r, FLOW_ATTRACT_DEMO, 0, 100000); }
         rig_ticks(&r, 0, 120);
-        r.f.game.score = 777; r.f.game.lives.lives = 1; r.f.game.arc.stage = 5;
+        r.f.game.score = 777; r.f.game.lives[0].lives = 1; r.f.game.arc.stage = 5;
         r.f.mode = c ? GAME_MODE_ARCADE : GAME_MODE_ARENA;
         rig_tick(&r, 0, 1);
         CHECK(r.f.state == FLOW_PLAYING && !r.f.demo && r.f.game.mode == r.f.mode && r.f.game.score == 0 && r.f.game.frame == 0);
-        if (c) CHECK(r.f.game.arc.stage == 1 && r.f.game.lives.lives == ARC_LIVES_START);
+        if (c) CHECK(r.f.game.arc.stage == 1 && r.f.game.lives[0].lives == ARC_LIVES_START);
         r.f.state = FLOW_ATTRACT_TABLE; r.f.timer = ATTRACT_TABLE_FRAMES; r.f.demo = 0;
     }
 }
@@ -462,6 +503,7 @@ static void test_operator_reset(void)
     int i;
     FlowView v;
     memset(&r, 0, sizeof r);
+    memset(&def, 0, sizeof def); /* zero the tail padding so memcmp is deterministic */
     score_tables_defaults(&def);
     flow_init(&r.f, NULL, 0);
     hiscore_insert(&r.f.tables.t[0], "MINE", 50000);
@@ -496,6 +538,7 @@ static void test_operator_reset(void)
     /* the saved image is the defaults */
     {
         Flow g;
+        memset(&g, 0, sizeof g);
         flow_init(&g, r.backup, sizeof r.backup);
         CHECK(memcmp(&g.tables, &def, sizeof def) == 0);
     }
@@ -523,13 +566,17 @@ static void test_mode_select(void)
     memset(&r, 0, sizeof r);
     flow_init(&r.f, NULL, 0);
     CHECK(r.f.state == FLOW_ATTRACT_TITLE && r.f.mode == GAME_MODE_ARENA);   /* default arena */
-    /* three entries Arena, Gum Trip, Arcade: Down steps forward, Up back, both wrap */
+    /* four entries Arena, Gum Trip, Arcade, Party: Down steps forward, Up back, both wrap */
     rig_press(&r, IN_DOWN);
     CHECK(r.f.mode == GAME_MODE_TRIP);
     rig_press(&r, IN_DOWN);
     CHECK(r.f.mode == GAME_MODE_ARCADE);
     rig_press(&r, IN_DOWN);
+    CHECK(r.f.mode == GAME_MODE_PARTY);
+    rig_press(&r, IN_DOWN);
     CHECK(r.f.mode == GAME_MODE_ARENA);
+    rig_press(&r, IN_UP);
+    CHECK(r.f.mode == GAME_MODE_PARTY);
     rig_press(&r, IN_UP);
     CHECK(r.f.mode == GAME_MODE_ARCADE);
     rig_press(&r, IN_UP);
@@ -547,7 +594,51 @@ static void test_mode_select(void)
     rig_press(&r, IN_UP | IN_DOWN);
     CHECK(r.f.mode == GAME_MODE_ARCADE);
     rig_press(&r, IN_DOWN);
-    CHECK(r.f.mode == GAME_MODE_ARENA);
+    CHECK(r.f.mode == GAME_MODE_PARTY);
+    /* Left/Right on the PARTY row cycle the rule, both wrap; the mode does not move */
+    CHECK(r.f.party_rule == PARTY_ROUND);
+    rig_press(&r, IN_RIGHT); CHECK(r.f.party_rule == PARTY_ROOST && r.f.mode == GAME_MODE_PARTY);
+    rig_press(&r, IN_RIGHT); CHECK(r.f.party_rule == PARTY_HOT);
+    rig_press(&r, IN_RIGHT); CHECK(r.f.party_rule == PARTY_ROULETTE);
+    rig_press(&r, IN_RIGHT); CHECK(r.f.party_rule == PARTY_ROUND);
+    rig_press(&r, IN_LEFT); CHECK(r.f.party_rule == PARTY_ROULETTE);
+    {
+        FlowView v;
+        flow_view(&r.f, &v);
+        CHECK(v.party_rule == PARTY_ROULETTE);
+    }
+    /* Start plays PARTY as arena (P2 can join), tagged with the rule; game over scores into table 3 with the tag */
+    rig_begin(&r, 0);
+    /* the how-to demo comes first: no rounds, the pilot plays; A skips it into the real match; a timeout also ends it */
+    CHECK(r.f.howto && r.f.game.party_rule == PARTY_ROULETTE && !r.f.game.rounds && r.f.state == FLOW_PLAYING);
+    rig_ticks(&r, 0, 100);
+    CHECK(r.f.howto && r.f.game.flier_steps > 90 && r.f.timer == 100);
+    rig_tick(&r, IN_A, 0);
+    CHECK(!r.f.howto && r.f.game.rounds && r.f.game.frame == 0 && r.f.game.cont_a[0] == 1);
+    rig_ticks(&r, IN_A, 5); /* the held skip press does not skip the round banner */
+    CHECK(r.f.game.round_start == RS_ROUND && r.f.game.round_start_timer > 3);
+    r.f.howto = 1; r.f.game.rounds = 0; r.f.timer = PARTY_HOWTO_FRAMES - 2; /* the timeout ends the how-to too */
+    rig_tick(&r, 0, 0);
+    CHECK(r.f.howto);
+    rig_tick(&r, 0, 0);
+    CHECK(!r.f.howto && r.f.game.rounds && r.f.game.frame == 0);
+    CHECK(r.f.state == FLOW_PLAYING && r.f.game.mode == GAME_MODE_ARENA && r.f.game.party_rule == PARTY_ROULETTE && r.f.game.rounds);
+    r.f.game.cpu_count = 1;
+    CHECK(game_can_join_p2(&r.f.game));
+    /* P2 Start mid-match restarts the whole match: both humans, scores and rounds zero, rule kept, a refused join changes nothing */
+    r.f.game.score = 500; r.f.game.matches_won = 3;
+    CHECK(flow_join_p2(&r.f, 99));
+    CHECK(r.f.state == FLOW_PLAYING && r.f.game.players == 2 && r.f.game.score == 0 && r.f.game.matches_won == 0);
+    CHECK(r.f.game.party_rule == PARTY_ROULETTE && r.f.game.rounds && r.f.game.hero[1].state == FLIER_ALIVE && r.f.game.lives[0].score == 0 && r.f.game.lives[1].score == 0);
+    r.f.game.cpu_count = 1;
+    r.f.game.score = 500;
+    CHECK(!flow_join_p2(&r.f, 99) && r.f.game.score == 500);
+    r.f.game.over = 1; r.f.game.score = 20000;
+    rig_tick(&r, 0, 0);
+    CHECK(r.f.last_mode == GAME_MODE_PARTY && r.f.last_rule == PARTY_ROULETTE);
+    CHECK(score_insert_rule(&r.f.tables, r.f.last_mode, "PTY", 20000, r.f.last_rule) == 0 && r.f.tables.party_rule[0] == PARTY_ROULETTE);
+    memset(&r, 0, sizeof r);
+    flow_init(&r.f, NULL, 0);
     /* the view carries the selection */
     {
         FlowView v;
@@ -557,13 +648,13 @@ static void test_mode_select(void)
     }
     /* Start begins the selected mode through the real path; the trip core runs (sentinel), the arena core does not */
     rig_begin(&r, 0);
-    CHECK(r.f.state == FLOW_PLAYING && r.f.game.mode == GAME_MODE_TRIP && r.f.game.flier.no_wrap);
+    CHECK(r.f.state == FLOW_PLAYING && r.f.game.mode == GAME_MODE_TRIP && r.f.game.hero[0].no_wrap);
     for (i = 0; i < 30; i++) rig_tick(&r, 0, 0);
     /* the run-start hold (one chunk build per tick, at most 3, none in the Start tick) takes ticks without a trip step */
     CHECK(r.f.game.trip_hold >= 1 && r.f.game.trip_hold <= 3 && game_trip_ready(&r.f.game));
     CHECK(r.f.game.trip.steps == 30 - r.f.game.trip_hold && r.f.game.flier_steps == r.f.game.trip.steps && r.f.game.cpu_count == 0);
     /* game over returns to the title with the selection kept */
-    r.f.game.flier.state = FLIER_GONE;
+    r.f.game.hero[0].state = FLIER_GONE;
     rig_tick(&r, 0, 0);
     CHECK(r.f.state == FLOW_GAME_OVER);
     rig_until(&r, FLOW_ATTRACT_TITLE, 0, 3000);
@@ -581,7 +672,7 @@ static void test_mode_select(void)
     rig_begin(&r, 0);
     for (i = 0; i < 30 + ROUND_START_TEXT_FRAMES + ROUND_GO_TEXT_FRAMES; i++) rig_tick(&r, 0, 0);   /* round 1 starts frozen (ME18) */
     CHECK(r.f.state == FLOW_PLAYING && r.f.game.mode == GAME_MODE_ARENA && r.f.game.trip.steps == 0 && r.f.game.flier_steps == 30);
-    CHECK(!r.f.game.flier.no_wrap);
+    CHECK(!r.f.game.hero[0].no_wrap);
     /* the reset combo still works and does not toggle the mode */
     memset(&r, 0, sizeof r);
     flow_init(&r.f, NULL, 0);
@@ -590,7 +681,7 @@ static void test_mode_select(void)
     /* Start with ARCADE highlighted begins the arcade run through the real path */
     memset(&r, 0, sizeof r);
     flow_init(&r.f, NULL, 0);
-    rig_press(&r, IN_UP);
+    rig_press(&r, IN_UP); rig_press(&r, IN_UP);   /* Up wraps through PARTY */
     CHECK(r.f.mode == GAME_MODE_ARCADE);
     rig_begin(&r, 0);
     CHECK(r.f.state == FLOW_PLAYING && r.f.game.mode == GAME_MODE_ARCADE && r.f.game.arc.stage == 1);
@@ -609,7 +700,7 @@ static void run_mode_to_table(Rig *r, uint8_t m, uint32_t score)
     r->f.game.score = score;
     r->f.game.over = 1;
     rig_tick(r, 0, 0);
-    CHECK(r->f.state == FLOW_GAME_OVER && r->f.last_mode == m && r->f.last_score == score);
+    CHECK(r->f.state == FLOW_GAME_OVER && r->f.last_mode == m && r->f.last_score[0] == score);
     rig_until(r, FLOW_NAME_ENTRY, 0, 3000);
     CHECK(r->f.state == FLOW_NAME_ENTRY);
     rig_ticks(r, 0, NAME_TIMEOUT_FRAMES + 5);
@@ -692,7 +783,7 @@ static void test_score_modes(void)
     /* the first new entry writes the version 2 image */
     run_mode_to_table(&r, GAME_MODE_TRIP, 4000);
     CHECK(r.saves == 1);
-    { Flow g; flow_init(&g, r.backup, sizeof r.backup); CHECK(memcmp(&g.tables, &r.f.tables, sizeof g.tables) == 0 && g.tables.t[0].score[0] == 424242); }
+    { Flow g; memset(&g, 0, sizeof g); flow_init(&g, r.backup, sizeof r.backup); CHECK(memcmp(&g.tables, &r.f.tables, sizeof g.tables) == 0 && g.tables.t[0].score[0] == 424242); }
 }
 
 /* Menu buttons: A is a second Start on the attract screens (never begins a game by itself), B goes back to the title. */
@@ -751,7 +842,7 @@ static void test_menu_buttons(void)
     flow_init(&r.f, NULL, 0);
     r.f.credit_hold = 1;
     rig_ticks(&r, 0, 4 * (ATTRACT_TITLE_FRAMES + ATTRACT_TABLE_FRAMES + ATTRACT_DEMO_FRAMES));
-    CHECK(r.f.state == FLOW_ATTRACT_TITLE);
+    CHECK(r.f.state == FLOW_ATTRACT_TITLE && r.f.select_open); /* back from a game with credits banked: the mode list shows */
     r.f.credit_hold = 0;
     rig_until(&r, FLOW_ATTRACT_TABLE, 0, 100000);
     r.f.credit_hold = 1;
@@ -816,6 +907,67 @@ static void test_name_entry_start(void)
     CHECK(r.f.entry.pos == 1);
 }
 
+/* Two humans, both scores rank: P1 enters first with its own input, then P2 with input2 and start_in[1]; one reminder after both. */
+static void test_two_entries(void)
+{
+    Rig r;
+    memset(&r, 0, sizeof r);
+    flow_init(&r.f, NULL, 0);
+    rig_until(&r, FLOW_ATTRACT_TITLE, 0, 10000);
+    rig_begin(&r, 0);
+    r.f.game.players = 2;
+    r.f.game.score = 900000;
+    r.f.game.lives[1].score = 800000;
+    r.f.game.over = 1;
+    rig_tick(&r, 0, 0);
+    CHECK(r.f.last_players == 2 && r.f.last_score[0] == 900000 && r.f.last_score[1] == 800000);
+    rig_until(&r, FLOW_NAME_ENTRY, 0, 3000);
+    CHECK(r.f.state == FLOW_NAME_ENTRY && r.f.entry_h == 0);
+    r.f.game.input2 = IN_UP; /* P2's stick must not move P1's entry */
+    rig_tick(&r, 0, 0);
+    r.f.game.input2 = 0;
+    CHECK(r.f.entry.sym[0] == 0 && r.f.entry.pos == 0);
+    rig_press(&r, IN_A);
+    CHECK(r.f.entry.pos == 1 && r.f.entry.name[0] == 'A');
+    { int i; for (i = 0; i < NAME_LEN + 2 && r.f.entry_h == 0; i++) rig_press(&r, IN_A); }
+    CHECK(r.f.state == FLOW_NAME_ENTRY && r.f.entry_h == 1 && r.f.entry.pos == 0 && !r.f.entry.done);
+    CHECK(r.f.tables.t[r.f.last_mode].score[0] == 900000);
+    { FlowView v; flow_view(&r.f, &v); CHECK(v.entry_h == 1 && v.players == 2 && v.score == 800000); }
+    rig_tick(&r, IN_UP, 0); /* P1's stick must not move P2's entry */
+    rig_tick(&r, 0, 0);
+    CHECK(r.f.entry.sym[0] == 0);
+    r.f.game.input2 = IN_UP; rig_tick(&r, 0, 0); r.f.game.input2 = 0; rig_tick(&r, 0, 0);
+    CHECK(r.f.entry.sym[0] != 0);
+    r.f.game.start_in[1] = 1; rig_tick(&r, 0, 0); r.f.game.start_in[1] = 0; rig_tick(&r, 0, 0); /* P2 Start confirms a letter */
+    CHECK(r.f.entry.pos == 1);
+    rig_ticks(&r, 0, NAME_TIMEOUT_FRAMES + 5);
+    CHECK(r.f.state == FLOW_SAVE_REMINDER && r.f.tables.t[r.f.last_mode].score[1] == 800000);
+}
+
+/* A real tap (2-4 frames) of Down right after a coin must step the mode, whatever the idle gap, from the title, table and demo. */
+static void test_coin_then_tap(void)
+{
+    int from, gap, hold;
+    for (from = 0; from < 3; from++) {
+        for (gap = 0; gap <= 20; gap++) {
+            for (hold = 2; hold <= 4; hold++) {
+                Rig r;
+                memset(&r, 0, sizeof r);
+                flow_init(&r.f, NULL, 0);
+                if (from == 1) rig_until(&r, FLOW_ATTRACT_TABLE, 0, 5000);
+                if (from == 2) rig_until(&r, FLOW_ATTRACT_DEMO, 0, 9000);
+                r.f.credit_hold = 1;
+                flow_coin(&r.f);
+                rig_ticks(&r, 0, gap);
+                rig_ticks(&r, IN_DOWN, hold);
+                rig_ticks(&r, 0, 2);
+                CHECK(r.f.mode == GAME_MODE_TRIP);
+                CHECK(r.f.state == FLOW_ATTRACT_TITLE);
+            }
+        }
+    }
+}
+
 int main(void)
 {
     test_nameentry();
@@ -823,12 +975,15 @@ int main(void)
     test_nameentry_stuck_button();
     test_full_flow();
     test_cycle_and_demo();
+    test_demo_pilot();
     test_demo_modes();
     test_operator_reset();
     test_mode_select();
+    test_coin_then_tap();
     test_menu_buttons();
     test_score_modes();
     test_name_entry_start();
+    test_two_entries();
     printf("test_flow: %d checks, %d failures\n", checks, failures);
     return failures ? 1 : 0;
 }

@@ -51,7 +51,7 @@ int main(void)
     CHECK(score_insert(&s, 1, "LOW", a) == -1);
     CHECK(score_insert(&s, 1, "LOW", 0) == -1);
     for (i = 0; i < HISCORE_ENTRIES; i++) CHECK(sc(&s, 1, i) == before[i]);
-    CHECK(!score_qualifies(&s, 3, 99999) && score_insert(&s, 3, "X", 99999) == -1);
+    CHECK(!score_qualifies(&s, 4, 99999) && score_insert(&s, 4, "X", 99999) == -1);
 
     /* modes never mix */
     score_tables_defaults(&s);
@@ -68,7 +68,7 @@ int main(void)
     CHECK(sc(&s, 1, 1) == 999999 && score_qualifies(&s, 1, 4000000000u));
 
     /* entry bounds */
-    CHECK(!score_entry(&s, 0, 10, nm, NULL) && !score_entry(&s, 3, 0, nm, NULL));
+    CHECK(!score_entry(&s, 0, 10, nm, NULL) && !score_entry(&s, 4, 0, nm, NULL));
 
     /* image round trip and size */
     CHECK(score_serialise(&s, img, SCORE_IMAGE_SIZE - 1) == 0);
@@ -129,10 +129,43 @@ int main(void)
     }
     /* v3: arcade score lands in table 3 only, round trips */
     score_tables_defaults(&s);
-    CHECK(SCORE_MODES == 3 && score_insert(&s, 2, "ARC", 123456) == 0);
+    CHECK(SCORE_MODES == 4 && score_insert(&s, 2, "ARC", 123456) == 0);
     CHECK(sc(&s, 2, 0) == 123456 && sc(&s, 0, 0) != 123456 && sc(&s, 1, 0) != 123456);
     CHECK(score_serialise(&s, img, sizeof img) == SCORE_IMAGE_SIZE);
     CHECK(score_load(&s2, img, SCORE_IMAGE_SIZE) == 1 && memcmp(&s, &s2, sizeof s) == 0);
+
+    /* v4: party rows carry a rule tag that shifts with the rows and round trips */
+    score_tables_defaults(&s);
+    CHECK(score_insert_rule(&s, 3, "AAA", 50000, 2) == 0 && score_insert_rule(&s, 3, "BBB", 60000, 4) == 0);
+    CHECK(s.party_rule[0] == 4 && s.party_rule[1] == 2 && s.party_rule[2] == 0);
+    CHECK(score_insert(&s, 3, "CCC", 1000000) == 0 && s.party_rule[0] == 0 && s.party_rule[1] == 4 && s.party_rule[2] == 2);
+    CHECK(sc(&s, 0, 0) != 1000000 && score_insert_rule(&s, 0, "ARN", 999999, 3) == 0 && s.party_rule[0] == 0);
+    CHECK(score_serialise(&s, img, sizeof img) == SCORE_IMAGE_SIZE);
+    CHECK(score_load(&s2, img, SCORE_IMAGE_SIZE) == 1 && memcmp(&s, &s2, sizeof s) == 0);
+    img[SCORE_IMAGE_SIZE - 5] = 9; /* bad tag (and bad checksum) */
+    CHECK(score_load(&s2, img, SCORE_IMAGE_SIZE) == 0);
+
+    /* v3 image (370 bytes, three tables): loads as 4 with the party table at defaults */
+    {
+        ScoreTables d;
+        uint8_t v3[370];
+        unsigned k;
+        uint32_t h = 2166136261u;
+        score_tables_defaults(&d);
+        score_insert(&d, 0, "OLD", 88888);
+        score_insert(&d, 2, "ARC", 77777);
+        score_serialise(&d, img, sizeof img);
+        for (k = 0; k < 366; k++) v3[k] = img[k];
+        v3[4] = 0; v3[5] = 3;
+        for (k = 0; k < 366; k++) { h ^= v3[k]; h *= 16777619u; }
+        v3[366] = (uint8_t)(h >> 24); v3[367] = (uint8_t)(h >> 16); v3[368] = (uint8_t)(h >> 8); v3[369] = (uint8_t)h;
+        CHECK(score_load(&s2, v3, sizeof v3) == 4);
+        CHECK(sc(&s2, 0, 0) == 88888 && sc(&s2, 2, 0) == 77777);
+        score_tables_defaults(&d);
+        CHECK(memcmp(&s2.t[3], &d.t[3], sizeof d.t[3]) == 0 && memcmp(s2.party_rule, d.party_rule, sizeof d.party_rule) == 0);
+        v3[100] ^= 1;
+        CHECK(score_load(&s2, v3, sizeof v3) == 0);
+    }
 
     /* shown mode */
     CHECK(score_shown_mode(FLOW_ATTRACT_TITLE, 0, 1, 5, 240) == 0);

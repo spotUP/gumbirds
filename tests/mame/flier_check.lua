@@ -84,19 +84,40 @@ local cpu_n, cpu_x0, cpu_y0, cpu_x1, thinks0, cpu_report
 local function release() abtn:set_value(0); rbtn:set_value(0); lbtn:set_value(0) end
 local drive = dofile("tests/mame/flier_drive.lua")(mem, flow_addr, lay, abtn, lbtn, rbtn)   -- walk off the island and drown
 
--- Sootling clip numbers and sheet frames (assets/flier/sootling_sheet.json; build/gen/sootling_tables.h)
-local CLIP_FLAP2, CLIP_WALK2, CLIP_BREATHE2 = 0, 10, 12
-local WALK2_FIRST, WALK2_LAST = 77, 84     -- sheet frames of the 8 WALK2 frames
-local FLAP_REST = 0                        -- sheet frame the flap clip rests on (first frame of FLAP2)
-local FLAP_FRAMES, FLAP_HOLD = 8, 2        -- frames in a flap play and ticks each (FLIER_FLAP_HOLD, src/core/tuning.h)
+-- Sootling clip numbers, frame counts and per frame ticks come from the build (BRAWL_SOOT_TABLES = build/gen/sootling_tables.h,
+-- written from assets/flier/sootling_sheet.json), so a new sheet needs no edit here.
+local function load_tables(path)
+  local f = assert(io.open(path or "", "r"), "missing BRAWL_SOOT_TABLES")
+  local src = f:read("*a"); f:close()
+  local function list(name)
+    local body = assert(src:match("#define " .. name .. " {([^}]*)}"), name)
+    local t = {}
+    for v in body:gmatch("%d+") do t[#t + 1] = tonumber(v) end
+    return t
+  end
+  local function clip(name) return tonumber((assert(src:match("#define SOOTLING_CLIP_" .. name .. " (%d+)"), name))) end
+  return { first = list("SOOTLING_TABLE_CLIP_FIRST"), count = list("SOOTLING_TABLE_CLIP_COUNT"), ticks = list("SOOTLING_TABLE_FRAME_TICKS"),
+    flap = clip("FLAP"), fly = clip("FLY"), walk = clip("WALK"), breathe = clip("BREATHE") }
+end
+local T = load_tables(os.getenv("BRAWL_SOOT_TABLES"))
+local CLIP_WALK, CLIP_BREATHE = T.walk, T.breathe
+local WALK_FIRST = T.first[CLIP_WALK + 1]
+local WALK_LAST = WALK_FIRST + T.count[CLIP_WALK + 1] - 1
+local FLAP_FIRST = T.first[T.flap + 1]
+local FLAP_FRAMES = T.count[T.flap + 1]
+local FLAP_LAST = FLAP_FIRST + FLAP_FRAMES - 1
+local FLY_FIRST = T.first[T.fly + 1]
+local FLY_LAST = FLY_FIRST + T.count[T.fly + 1] - 1
+local FLAP_TOTAL = 0   -- ticks of one whole flap play
+for i = FLAP_FIRST, FLAP_LAST do FLAP_TOTAL = FLAP_TOTAL + T.ticks[i + 1] end
 local FLAP_COOLDOWN = 9                    -- FLIER_FLAP_COOLDOWN (src/core/tuning.h)
 local WV_SETTLE, WV_WALK_FRAMES, WV_STOP_FRAMES = 60, 16, 90   -- settle: the put-back lands the player, let the landing clip finish
 local wv_frames, wv_tiles, wv_seen
 local fv_stage, fv_t, fv_rec = 0, 0, {}
 
--- Flap animation seen in the ROM. Stage 1: no input, airborne, every shown frame is the rest frame. Stage 2: one
--- two-frame press: rest, then the remaining frames of one play each held FLAP_HOLD, then rest again for good. Stage 3:
--- two presses FLAP_COOLDOWN frames apart: the second restarts the play, so the rest frame shows 9 frames after the first press.
+-- Flap animation seen in the ROM. Stage 1: no input, airborne, every shown frame is a frame of the fly (blow) loop.
+-- Stage 2: one press: the flap clip plays all its frames, each held its sheet ticks (T.ticks), then the fly loop takes over.
+-- Stage 3: two presses FLAP_COOLDOWN frames apart: the second restarts the play on its first frame.
 -- Returns true when finished. The player is put high above the island before each stage so it stays airborne.
 local function flapview_step()
   if not view_addr then finish(false, "missing BRAWL_SOOTVIEW_ADDR") return false end
@@ -127,9 +148,9 @@ local function flapview_step()
     end
     if fv_t >= 110 then
       for i, v in ipairs(fv_rec) do
-        if v ~= FLAP_REST then finish(false, string.format("flap view: released for %d frames, sheet frame %d at sample %d, want the rest frame %d every frame", fv_t, v, i, FLAP_REST)) return false end
+        if v < FLY_FIRST or v > FLY_LAST then finish(false, string.format("flap view: released for %d frames, sheet frame %d at sample %d, want the fly loop frames %d..%d", fv_t, v, i, FLY_FIRST, FLY_LAST)) return false end
       end
-      cpu_report = cpu_report .. string.format("; flap rest frame held %d samples", #fv_rec)
+      cpu_report = cpu_report .. string.format("; fly loop held %d samples", #fv_rec)
       lift(); fv_stage = 2
     end
     return false
@@ -143,24 +164,29 @@ local function flapview_step()
   end
   if fv_stage == 2 then
     fv_t = fv_t + 1
-    -- rest for 20 frames, press at t = 21 and 22, then record FLAP_FRAMES * FLAP_HOLD + 30 frames
+    -- fly for 20 frames, press at t = 21 and 22, then record the whole flap play + 30 frames
     abtn:set_value((fv_t == 21 or fv_t == 22) and 1 or 0)
     if fv_t > 20 then
       if not airborne_or_fail() then return false end
       fv_rec[#fv_rec + 1] = shown()
     end
-    if fv_t >= 20 + FLAP_FRAMES * FLAP_HOLD + 30 then
+    if fv_t >= 20 + FLAP_TOTAL + 30 then
       abtn:set_value(0)
       local r = runs(fv_rec)
-      -- runs: rest (merged with play frame 0), FLAP_FRAMES - 1 increasing frames held FLAP_HOLD, rest to the end
-      local msg = ""
-      for _, x in ipairs(r) do msg = msg .. string.format(" %d x%d", x[1], x[2]) end
-      if #r ~= FLAP_FRAMES + 1 then finish(false, string.format("flap view: %d runs, want %d (rest, %d frames, rest); runs:%s", #r, FLAP_FRAMES + 1, FLAP_FRAMES - 1, msg)) return false end
-      if r[1][1] ~= FLAP_REST or r[#r][1] ~= FLAP_REST then finish(false, "flap view: the play does not start and end on the rest frame; runs:" .. msg) return false end
-      for i = 2, FLAP_FRAMES do
-        if r[i][1] <= r[i - 1][1] or r[i][2] ~= FLAP_HOLD then finish(false, string.format("flap view: play frame run %d is %d x%d, want increasing frames held %d; runs:%s", i, r[i][1], r[i][2], FLAP_HOLD, msg)) return false end
+      -- runs: the FLAP_FRAMES flap frames in order, each held its sheet ticks, then fly loop frames. Skip the fly runs before the press.
+      local msg, k0 = "", nil
+      for i, x in ipairs(r) do
+        msg = msg .. string.format(" %d x%d", x[1], x[2])
+        if not k0 and x[1] == FLAP_FIRST then k0 = i end
       end
-      if r[#r][2] < 10 then finish(false, "flap view: the rest frame did not stay after the play; runs:" .. msg) return false end
+      if not k0 then finish(false, "flap view: the flap clip never showed; runs:" .. msg) return false end
+      for i = 0, FLAP_FRAMES - 1 do
+        local x = r[k0 + i]
+        local want = T.ticks[FLAP_FIRST + i + 1]
+        if not x or x[1] ~= FLAP_FIRST + i or x[2] ~= want then finish(false, string.format("flap view: flap frame %d is %s, want sheet frame %d held %d; runs:%s", i, x and (x[1] .. " x" .. x[2]) or "missing", FLAP_FIRST + i, want, msg)) return false end
+      end
+      local after = r[k0 + FLAP_FRAMES]
+      if not after or after[1] < FLY_FIRST or after[1] > FLY_LAST then finish(false, "flap view: the fly loop did not take over after the play; runs:" .. msg) return false end
       cpu_report = cpu_report .. "; flap play:" .. msg
       lift(); fv_stage = 3
     end
@@ -174,13 +200,13 @@ local function flapview_step()
     if not airborne_or_fail() then return false end
     fv_rec[#fv_rec + 1] = shown()
   end
-  if fv_t >= p2 + FLAP_FRAMES * FLAP_HOLD + 10 then
+  if fv_t >= p2 + FLAP_TOTAL + 10 then
     abtn:set_value(0)
-    -- fv_rec[k] is the sample at t = 20 + k. The play after press 1 is on its fifth frame by p2 - 1 (not rest);
-    -- the restart by press 2 shows the rest frame within two samples of p2.
+    -- fv_rec[k] is the sample at t = 20 + k. The play after press 1 is past its first frame by p2 - 1 (a flap frame, not the first);
+    -- the restart by press 2 shows the first flap frame within two samples of p2.
     local before, after = fv_rec[p2 - 1 - 20], math.min(fv_rec[p2 - 20] or -1, fv_rec[p2 + 1 - 20] or -1)
-    if before == FLAP_REST then finish(false, string.format("flap view: the first play was already back at rest before the second press; balloons %d; frames %s", mem:read_u8(flow_addr + O_BAL), table.concat(fv_rec, ","))) return false end
-    if after ~= FLAP_REST then finish(false, string.format("flap view: the second press %d frames after the first did not restart the play (frames %s)", FLAP_COOLDOWN, table.concat(fv_rec, ","))) return false end
+    if (before or -1) < FLAP_FIRST + 1 or before > FLAP_LAST then finish(false, string.format("flap view: the first play was not past its first frame before the second press (sheet frame " .. tostring(before) .. "); balloons %d; frames %s", mem:read_u8(flow_addr + O_BAL), table.concat(fv_rec, ","))) return false end
+    if after ~= FLAP_FIRST then finish(false, string.format("flap view: the second press %d frames after the first did not restart the play (frames %s)", FLAP_COOLDOWN, table.concat(fv_rec, ","))) return false end
     cpu_report = cpu_report .. string.format("; second press %d frames after the first restarted the play", FLAP_COOLDOWN)
     return true
   end
@@ -264,7 +290,10 @@ emu.register_frame_done(function() local ok_, err_ = pcall(function()
       local ptile, ctile, cdraws = mem:read_u16(soot_addr + 6), mem:read_u16(soot_addr + 8), mem:read_u16(soot_addr + 10)
       if ptile < sbase or ptile >= sbase + scount then finish(false, string.format("player sprite tile %d outside Sootling range %d+%d", ptile, sbase, scount)) return end
       if ctile < sbase or ctile >= sbase + scount or cdraws < 100 then finish(false, string.format("computer flier tile %d (draws %d) outside Sootling range %d+%d", ctile, cdraws, sbase, scount)) return end
-      cpu_report = string.format("Sootling tiles drawn (player %d, computer %d, range %d+%d, %d computer draws); ", ptile, ctile, sbase, scount, cdraws) .. string.format("%d computer fliers moved, %d thinks in 150 frames", cpu_n, thinks)
+      -- Computer gum bubble (pool_show_gum): the sentinels say a bubble from the gum sheet was placed for a computer flier
+      local gbase, gcount, gtile, gdraws = mem:read_u16(soot_addr + 12), mem:read_u16(soot_addr + 14), mem:read_u16(soot_addr + 16), mem:read_u16(soot_addr + 18)
+      if gdraws < 100 or gtile < gbase or gtile >= gbase + gcount then finish(false, string.format("computer gum bubble tile %d (draws %d) outside gum range %d+%d, want a bubble drawn for a computer flier", gtile, gdraws, gbase, gcount)) return end
+      cpu_report = string.format("Sootling tiles drawn (player %d, computer %d, range %d+%d, %d computer draws); ", ptile, ctile, sbase, scount, cdraws) .. string.format("%d computer fliers moved, %d thinks in 150 frames", cpu_n, thinks) .. string.format("; computer gum bubble tile %d (%d draws)", gtile, gdraws)
       si_before = mem:read_u16(flow_addr + O_SPAWN)
       -- SI: spawn protection counted down while the player gave no input (read at start and now, 150+ frames apart)
       if si_start == 0 or si_before >= si_start then finish(false, string.format("spawn_inv did not count down with no input: %d at start, %d after %d frames", si_start, si_before, tick)) return end
@@ -423,8 +452,8 @@ emu.register_frame_done(function() local ok_, err_ = pcall(function()
     if tick > 300 then finish(false, "no side pop in 300 frames") end
     return
   elseif phase == "walkview" then
-    -- Walk cycle through the real ROM: hold right on the island, the player clip must be WALK2 with sheet frames
-    -- 77..84 and more than one distinct tile written to the sprite registers; after letting go it must settle in BREATHE2.
+    -- Walk cycle through the real ROM: hold right on the island, the player clip must be the walk clip with its sheet frames
+    -- (from the build tables) and more than one distinct tile written to the sprite registers; after letting go it must settle in the breathe clip.
     if state ~= FLOW_PLAYING then finish(false, "left PLAYING during the walk view check") return end
     if not view_addr then finish(false, "missing BRAWL_SOOTVIEW_ADDR") return end
     if tick == 0 then wv_frames, wv_tiles, wv_seen = {}, {}, 0 end
@@ -433,9 +462,9 @@ emu.register_frame_done(function() local ok_, err_ = pcall(function()
     local clip, frame = mem:read_u16(view_addr), mem:read_u16(view_addr + 2)
     if tick > WV_SETTLE and tick <= WV_SETTLE + WV_WALK_FRAMES then
       rbtn:set_value(1)
-      if clip == CLIP_WALK2 then
+      if clip == CLIP_WALK then
         wv_seen = wv_seen + 1
-        if frame < WALK2_FIRST or frame > WALK2_LAST then finish(false, string.format("walk: sheet frame %d outside the WALK2 frames %d..%d", frame, WALK2_FIRST, WALK2_LAST)) return end
+        if frame < WALK_FIRST or frame > WALK_LAST then finish(false, string.format("walk: sheet frame %d outside the walk frames %d..%d", frame, WALK_FIRST, WALK_LAST)) return end
         wv_frames[frame] = true
         wv_tiles[mem:read_u16(soot_addr + 6)] = true
       end
@@ -447,17 +476,17 @@ emu.register_frame_done(function() local ok_, err_ = pcall(function()
       for _ in pairs(wv_frames) do nf = nf + 1 end
       for t in pairs(wv_tiles) do nt = nt + 1 end
       local sbase, scount = mem:read_u16(soot_addr), mem:read_u16(soot_addr + 2)
-      if wv_seen < 4 then finish(false, string.format("walk: clip WALK2 (%d) seen on only %d of %d frames of holding right (last clip %d)", CLIP_WALK2, wv_seen, WV_WALK_FRAMES, clip)) return end
-      if nf < 2 or nt < 2 then finish(false, string.format("walk: %d distinct sheet frames and %d distinct tiles while walking, want at least 2 each", nf, nt)) return end
+      if wv_seen < 4 then finish(false, string.format("walk: walk clip (%d) seen on only %d of %d frames of holding right (last clip %d)", CLIP_WALK, wv_seen, WV_WALK_FRAMES, clip)) return end
+      -- the two walk frames can share their first tile (g_soot_range[3] is only the first tile of a frame), so tiles need only be present
+      if nf < 2 or nt < 1 then finish(false, string.format("walk: %d distinct sheet frames and %d distinct tiles while walking, want at least 2 frames", nf, nt)) return end
       for t in pairs(wv_tiles) do
         if t < sbase or t >= sbase + scount then finish(false, string.format("walk: tile %d outside Sootling range %d+%d", t, sbase, scount)) return end
       end
-      cpu_report = cpu_report .. string.format("; walk: clip WALK2 on %d frames, %d sheet frames, %d tiles", wv_seen, nf, nt)
+      cpu_report = cpu_report .. string.format("; walk: walk clip on %d frames, %d sheet frames, %d tiles", wv_seen, nf, nt)
     end
     if tick == WV_SETTLE + WV_WALK_FRAMES + WV_STOP_FRAMES then
-      -- a computer flier may pop a balloon meanwhile: the breathing clip follows the balloon count then
       local bal = mem:read_u8(flow_addr + O_BAL)
-      local want = ({ [0] = 9, [1] = 15, [2] = CLIP_BREATHE2 })[bal]
+      local want = CLIP_BREATHE   -- one breathe clip for any balloon count
       if clip ~= want then finish(false, string.format("walk: after stopping the clip is %d with %d balloons, want %s", clip, bal, tostring(want))) return end
       cpu_report = cpu_report .. string.format("; stopped into breathing clip %d (%d balloons)", clip, bal)
       phase = "flap"; tick = 0

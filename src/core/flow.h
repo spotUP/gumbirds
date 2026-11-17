@@ -57,13 +57,20 @@ typedef struct {
     uint8_t credit_hold;     /* caller sets it each frame: 1 while credits are in; attract then holds the title (PRESS START) until Start */
     uint8_t demo;            /* 1 when game is the attract demo */
     uint8_t demo_in;         /* input the scripted demo fed the game on the last demo frame (demo_input() computes it) */
+    Ai demo_ai;              /* the rival AI flying the demo flier (demo_input) */
     AttractOverlay ov;       /* how-to-play state for the demo overlay, stepped with demo_in */
     uint8_t demo_mode;       /* GameMode the NEXT attract demo plays; start_game advances it arena, Gum Trip, arcade, arena ... (game.mode is the running demo's mode) */
     uint8_t title_mood;      /* GAME_MOOD_* the last attract title showed (0xFF before the first): the next title shows another */
     uint8_t reset_flash;     /* 1 for the frames after an operator reset (draw a message) */
     uint16_t reset_hold;     /* frames the reset combo has been held */
     uint8_t reset_fired;     /* combo already fired, wait for release */
-    uint32_t last_score;     /* score of the last real run */
+    uint32_t last_score[2];  /* score of each human in the last real run ([1] is 0 unless last_players == 2); [0] first: the probes read its offset */
+    uint8_t last_players;    /* humans in the last real run */
+    uint8_t entry_h;         /* human whose ranking score the name entry is taking (P1 then P2) */
+    uint8_t party_rule;      /* PARTY_* picked on the PARTY title row (Left/Right); kept across runs */
+    uint8_t last_rule;       /* PARTY_* of the last real run: tag of its PARTY table entry */
+    uint8_t howto;           /* 1 while the PARTY how-to demo runs inside FLOW_PLAYING (computer bird, no rounds); A or Start ends it */
+    uint8_t howto_a2;        /* P2 A held last frame (press edge for the how-to skip) */
     uint8_t last_mode;       /* GameMode of the last real run: its table is scored and shown after the run */
     ScoreTables tables;      /* one table per GameMode (score_table.h) */
     Game game;
@@ -78,15 +85,20 @@ typedef struct {
     int highlight;           /* -1 unless table_mode is the mode of the run that made the entry */
     const Game *game;        /* valid in PLAYING, GAME_OVER and ATTRACT_DEMO */
     const NameEntry *entry;  /* valid in NAME_ENTRY: name, pos, sym[] */
-    uint32_t score;          /* score to show on game over / name entry / reminder */
+    uint32_t score;          /* score to show on game over / name entry / reminder (the entering human's) */
+    uint8_t players;         /* humans in the last run; 2 draws the entering player's label */
+    uint8_t entry_h;         /* human entering a name (0 or 1) */
     int reset_progress;      /* 0..100 percent of the reset hold, for a progress bar */
     int reset_flash;
     uint8_t mode;            /* GameMode highlighted on the title */
+    uint8_t party_rule;      /* PARTY_* highlighted on the PARTY row */
     uint8_t select_open;     /* title: mode select opened by a start press */
+    uint8_t howto;           /* PLAYING: the PARTY how-to demo is running (draw the overlay for party_rule of game) */
     uint8_t ov_key;          /* ATTRACT_DEMO: AttractOverlay key (AO_*), AO_NONE before the first demo frame */
 } FlowView;
 
 /* Start in ATTRACT_TITLE. image/len is the backup RAM content (NULL allowed: defaults). */
+int flow_join_p2(Flow *f, uint32_t seed);
 void flow_init(Flow *f, const uint8_t *image, size_t len);
 
 /* One frame. input is the raw held bits (IN_A..IN_D, IN_UP..IN_RIGHT). start_pressed is 1

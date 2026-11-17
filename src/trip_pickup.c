@@ -20,6 +20,7 @@ _Static_assert(TRIPPICKUP_MAX_COLUMNS == TRIP_VIEW_PICKUP_COLS, "pickup frame wi
 volatile u16 g_trip_pickup_draws;
 volatile u16 g_trip_pickup_loads;
 static u8 g_on;
+static u8 g_off;            /* 1 after a frame without a course cleared the effect and the slots: later such frames change nothing */
 static TripPickupFx g_fx;   /* collect effect state (core) */
 static u32 g_key[SLOTS];   /* chunk wx + 1 shown in the slot, 0 = hidden */
 static s8 g_frame[SLOTS];  /* frame loaded in the slot: idle 0..15, collect 16 + frame, -1 = none */
@@ -56,6 +57,7 @@ static void load_frame(int r, int anim, int frame, int top) {
 }
 
 void trip_pickup_step(const TripGen *g, uint32_t scroll_px, uint32_t steps, int ready) {
+    if (!g && g_off) return; /* arena frames: the update and hide below are no-ops once done (vblank-demo.md Part 7) */
     int frame = trip_view_pickup_frame(steps);
     if (!g_on) {
         gfx_sprite_unchained(TRIP_PICKUP_SPRITE, TRIP_PICKUP_COUNT);
@@ -63,7 +65,8 @@ void trip_pickup_step(const TripGen *g, uint32_t scroll_px, uint32_t steps, int 
         hide_all(); trip_pickup_fx_init(&g_fx); g_on = 1;
     }
     trip_pickup_fx_update(&g_fx, g, steps, g && ready);
-    if (!g || !ready) { hide_all(); return; }
+    if (!g || !ready) { hide_all(); g_off = !g; return; }
+    g_off = 0;
     for (int r = 0; r < SLOTS; r++) {
         const TripChunk *ch = trip_view_ring_chunk(g, r, 1);
         int fx = trip_pickup_fx_frame(&g_fx, r, steps);

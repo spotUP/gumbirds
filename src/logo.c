@@ -69,11 +69,13 @@ void logo_step(int active) {
     if (!active) { if (g_shown) hide(); g_frame = 0; g_acc = 0; g_ticks = 0; return; }
     if (!g_shown) {
         gfx_sprite_unchained(LOGO_SPRITE, LOGO_COUNT); /* every sprite is placed on its own */
+        load_frame(g_frame); g_loaded = g_frame;
+        /* Heights after the tiles: a flush split over two vblanks showed the strips over the kill-strip tiles for a frame (test-logo L4). */
         for (int i = 0; i < LOGO_STRIP_COUNT; i++) {
-            gfx_word((u16)(ADDR_SCB3 + LOGO_SPRITE + i), gfx_scb3_word(STRIP_H[i], STRIP_Y[i]));
             gfx_word((u16)(ADDR_SCB4 + LOGO_SPRITE + i), gfx_scb4_word(STRIP_X[i]));
+            gfx_word((u16)(ADDR_SCB3 + LOGO_SPRITE + i), gfx_scb3_word(STRIP_H[i], STRIP_Y[i]));
         }
-        g_shown = 1; g_loaded = -1;
+        g_shown = 1;
     } else {
         g_acc += FRAME_MS_PER_VIDEO_FRAME;
         while (g_acc >= FRAME_MS[g_frame]) { g_acc -= FRAME_MS[g_frame]; g_frame = (g_frame + 1) % LOGO_FRAME_COUNT; g_ticks++; }

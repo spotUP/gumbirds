@@ -6,7 +6,7 @@
 #include "../../src/core/flow.h"
 #include "../../src/sprite_slots.h"
 #define G(m) (offsetof(Flow, game) + offsetof(Game, m))
-#define F(m) (offsetof(Flow, game) + offsetof(Game, flier) + offsetof(Flier, m))
+#define F(m) (offsetof(Flow, game) + offsetof(Game, hero) + offsetof(Flier, m))
 unsigned int probe[] = {
     POOL_SPRITE_BASE, HERO_SPRITE + HERO_SPRITE_COUNT,
     offsetof(Flow, state), G(cpu_count), G(matches_won),

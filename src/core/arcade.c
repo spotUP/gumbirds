@@ -87,6 +87,19 @@ void arc_bonus_init(ArcBonus *b, int number, uint32_t seed) {
     for (i = 0; i < ARC_BONUS_LIVE_MAX; i++) { ArcBubble *u = &b->b[i]; u->live = 0; u->age = 0; u->ph = 0; u->amp = 0; u->nozzle = 0; u->x = u->x0 = 0; u->y16 = 0; }
 }
 
+int arc_bonus_catch(ArcBonus *b, int armed, int rx, int ry, int rw, int rh) {
+    int i, popped = 0;
+    if (!armed) return 0;
+    for (i = 0; i < ARC_BONUS_LIVE_MAX; i++) {
+        ArcBubble *u = &b->b[i];
+        int y = (int)(u->y16 >> 16);
+        if (u->live && u->x < rx + rw && rx < u->x + ARC_BONUS_BOX && y < ry + rh && ry < y + ARC_BONUS_BOX) {
+            u->live = 0; b->nlive--; b->caught++; popped++; /* no score here: the result screen tallies caught x value + perfect */
+        }
+    }
+    return popped;
+}
+
 int arc_bonus_step(ArcBonus *b, int armed, int rx, int ry, int rw, int rh) {
     int i, popped = 0;
     if (b->over) return 0;
@@ -115,10 +128,8 @@ int arc_bonus_step(ArcBonus *b, int armed, int rx, int ry, int rw, int rh) {
             u->x = (int16_t)(u->x0 + ((sway_tab[u->ph] * u->amp) >> 4));
         }
         if (y + ARC_BONUS_BOX <= 0) { u->live = 0; b->nlive--; continue; } /* escaped 16 px past the top: freed silently */
-        if (armed && u->x < rx + rw && rx < u->x + ARC_BONUS_BOX && y < ry + rh && ry < y + ARC_BONUS_BOX) {
-            u->live = 0; b->nlive--; b->caught++; popped++; /* no score here: the result screen tallies caught x value + perfect */
-        }
     }
+    popped = arc_bonus_catch(b, armed, rx, ry, rw, rh);
     if (b->spawned == ARC_BONUS_BUBBLES && !b->nlive && !(b->frame & 255)) { /* the reference waits for its frame counter to wrap */
         b->over = 1;
         b->perfect = b->caught == ARC_BONUS_BUBBLES;
@@ -126,13 +137,26 @@ int arc_bonus_step(ArcBonus *b, int armed, int rx, int ry, int rw, int rh) {
     return popped;
 }
 
+int arc_pump_frames(const ArcPump *p) {
+    static const int16_t two[ARC_RANK_MAX] = { ARC_PUMP_FRAMES_2P_R1, ARC_PUMP_FRAMES_2P_R2, ARC_PUMP_FRAMES_2P_R3 };
+    return p->two ? two[p->rank - 1] : arc_rank(p->rank)->pump_frames;
+}
 void arc_pump_start(ArcPump *p, int rank, int grounded) {
-    p->rank = (uint8_t)(rank < 1 ? 1 : (rank > ARC_RANK_MAX ? ARC_RANK_MAX : rank)); p->frame = 0;
+    p->rank = (uint8_t)(rank < 1 ? 1 : (rank > ARC_RANK_MAX ? ARC_RANK_MAX : rank)); p->frame = 0; p->two = 0;
     p->state = grounded ? ARC_PUMP_PUMPING : ARC_PUMP_FLYING;
 }
+int arc_pump_restand(ArcPump *p) {
+    if (p->state != ARC_PUMP_FLYING) return 0;
+    p->state = ARC_PUMP_STANDING; p->frame = 0;
+    return 1;
+}
 void arc_pump_step(ArcPump *p) {
+    if (p->state == ARC_PUMP_STANDING) {
+        if (++p->frame >= (p->two ? ARC_REPUMP_STAND_FRAMES_2P : ARC_REPUMP_STAND_FRAMES)) { p->state = ARC_PUMP_PUMPING; p->frame = 0; }
+        return;
+    }
     if (p->state != ARC_PUMP_PUMPING) return;
-    if (++p->frame >= arc_rank(p->rank)->pump_frames) p->state = ARC_PUMP_FLYING;
+    if (++p->frame >= arc_pump_frames(p)) p->state = ARC_PUMP_FLYING;
 }
 int arc_pump_in_window(const ArcPump *p) { return p->state == ARC_PUMP_PUMPING; }
 uint32_t arc_pump_resolve(ArcPump *p) {
@@ -143,7 +167,7 @@ uint32_t arc_pump_resolve(ArcPump *p) {
 int arc_pump_progress(const ArcPump *p) {
     /* floor(frame * STAGES / pump_frames) clamped to STAGES, by compares: this runs per pumping rival per frame
        and a 32-bit divide is a libgcc call on the 68000. */
-    int pf = arc_rank(p->rank)->pump_frames, t = p->frame * ARC_PUMP_STAGES, n = 0, acc = pf;
+    int pf = arc_pump_frames(p), t = p->frame * ARC_PUMP_STAGES, n = 0, acc = pf;
     while (n < ARC_PUMP_STAGES && t >= acc) { n++; acc += pf; }
     return n;
 }
@@ -164,5 +188,10 @@ int arc_continue_step(ArcLives *l, int start_pressed, int credits) {
     }
     if (--l->countdown <= 0) { l->countdown = 0; l->state = ARC_LIFE_ENDED; }
     return 0;
+}
+void arc_continue_skip(ArcLives *l) {
+    if (l->state != ARC_LIFE_CONTINUE) return;
+    l->countdown -= 60; /* arc_continue_seconds = ceil(countdown / 60): 60 frames is exactly one count */
+    if (l->countdown <= 0) { l->countdown = 0; l->state = ARC_LIFE_ENDED; }
 }
 int arc_continue_seconds(const ArcLives *l) { return (l->countdown + 59) / 60; }

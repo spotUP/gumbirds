@@ -437,6 +437,14 @@ static void test_water_and_balloons(void) {
     for (int i = 0; i < 60; i++) step(&c, 0, 0);
     CHECK(labs(c.vx) <= FLIER_PARACHUTE_SWAY);
     int32_t tgt = c.sway_target;
+    /* steering under the parachute (owner 2026-11-17): held right drifts right past the sway, held left drifts left */
+    {
+        Flier r = c, l = c;
+        int32_t x0 = c.x;
+        for (int i = 0; i < 60; i++) { step(&r, 1, 0); step(&l, -1, 0); }
+        CHECK(r.state == FLIER_PARACHUTE && r.vx > FLIER_PARACHUTE_SWAY && r.x > x0 + FL_PX(20));
+        CHECK(l.state == FLIER_PARACHUTE && l.vx < -FLIER_PARACHUTE_SWAY && l.x < x0 - FL_PX(20));
+    }
     CHECK(tgt != 0 || c.sway_phase != 0);
     /* parachute ends on landing */
     Flier d;

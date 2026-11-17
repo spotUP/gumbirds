@@ -18,6 +18,7 @@ local hs_size    = tonumber(os.getenv("BRAWL_HISCORE_SIZE"), 16)
 local result     = os.getenv("BRAWL_RESULT")
 local bg_x_addr = tonumber(os.getenv("BRAWL_BG_X_ADDR"), 16)            -- g_bg_plane_x[5] (s16 each)
 local bg_writes_addr = tonumber(os.getenv("BRAWL_BG_WRITES_ADDR"), 16)  -- g_bg_x_writes
+local bg_mood_addr = tonumber(os.getenv("BRAWL_MOOD_ADDR"), 16)            -- g_bg_mood (u8): the tile set on screen, picks the checker's palettes
 local mem  = manager.machine.devices[":maincpu"].spaces["program"]
 local ports = manager.machine.ioport.ports
 
@@ -84,7 +85,7 @@ local bg_lines = {}
 local function bg_record(tag)
   local xs = {}
   for p = 0, 4 do xs[#xs + 1] = mem:read_i16(bg_x_addr + 2 * p) end
-  bg_lines[#bg_lines + 1] = string.format("%s %s %d", tag, table.concat(xs, " "), mem:read_u32(bg_writes_addr))
+  bg_lines[#bg_lines + 1] = string.format("%s %s %d %d", tag, table.concat(xs, " "), mem:read_u32(bg_writes_addr), mem:read_u8(bg_mood_addr))
 end
 
 local function finish(ok, msg)
@@ -114,6 +115,7 @@ emu.register_frame_done(function()
     st_early = mem:read_u8(flow_addr)
     img_before = image()
   elseif n == 350 then screen:snapshot("pre_start.png")
+    bg_record("p")
   elseif play_n and n == play_n + BG_A then
     screen:snapshot("bg_a.png")
     bg_record("a")

@@ -31,6 +31,8 @@ void res_start(Result *r, int caught, int number, int perfect, uint32_t score)
     r->bonus = perfect ? (uint32_t)arc_bonus_perfect(number) : 0u;
     r->total_left = (uint32_t)caught * r->each;
     r->score_shown = score;
+    r->two = 0;
+    r->score2 = 0;
     r->t = 0;
     r->pop_cur = 0;
     r->pop_acc = 0;

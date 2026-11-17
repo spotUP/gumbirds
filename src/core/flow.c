@@ -23,9 +23,12 @@ static void start_game(Flow *f, uint32_t seed, int demo)
         f->demo_mode = (uint8_t)(f->demo_mode == GAME_MODE_ARCADE ? GAME_MODE_ARENA : f->demo_mode + 1); /* count and wrap, no % */
     } else {
         game_set_mode(&f->game, f->mode);
+        if (f->mode == GAME_MODE_PARTY) f->game.party_rule = f->party_rule;
     }
     f->demo = (uint8_t)demo;
+    f->howto = 0;
     f->demo_in = 0;
+    if (demo) ai_init(&f->demo_ai, &f->game.rng, DEMO_AI_RANK);
     attract_overlay_reset(&f->ov);
     f->game.rounds = (uint8_t)(!demo && f->mode != GAME_MODE_TRIP); /* real arena games get the round end and round start phases */
     f->highlight = -1;
@@ -33,6 +36,34 @@ static void start_game(Flow *f, uint32_t seed, int demo)
     f->reset_flash = 0;
     f->select_open = 0;
     enter(f, demo ? FLOW_ATTRACT_DEMO : FLOW_PLAYING);
+}
+
+/* Start on the title or a table screen: a PARTY match opens with the how-to demo (the attract demo pilot, party rule on, fixed seed),
+ * any other mode starts at once. The demo runs as FLOW_PLAYING with howto set and no round phases. */
+static void start_title_game(Flow *f, uint32_t seed)
+{
+    if (f->mode != GAME_MODE_PARTY) {
+        start_game(f, seed, 0);
+        return;
+    }
+    start_game(f, PARTY_HOWTO_SEED, 0);
+    f->game.rounds = 0;
+    ai_init(&f->demo_ai, &f->game.rng, DEMO_AI_RANK);
+    f->howto = 1;
+    f->howto_a2 = 1; /* a P2 A still held from the title does not skip */
+}
+
+/* P2 Start in play (a credit was taken). Arcade: parachute drop-in. Arena and Party: the whole match restarts through start_game with both humans
+ * (scores, rounds, CPUs fresh; party_rule kept). Returns 0 when refused (the caller keeps the credit). */
+int flow_join_p2(Flow *f, uint32_t seed)
+{
+    Game *g = &f->game;
+    if (f->state != FLOW_PLAYING || !game_can_join_p2(g)) return 0;
+    if (g->mode != GAME_MODE_ARENA) return game_join_p2(g);
+    start_game(f, seed, 0);
+    arc_lives_start(&g->lives[0]);
+    game_start_p2(g);
+    return 1;
 }
 
 void flow_init(Flow *f, const uint8_t *image, size_t len)
@@ -43,15 +74,20 @@ void flow_init(Flow *f, const uint8_t *image, size_t len)
     f->demo = 0;
     f->demo_mode = GAME_MODE_ARENA;
     f->demo_in = 0;
+    f->howto = 0;
     attract_overlay_reset(&f->ov);
     f->select_open = 0;
     f->credit_hold = 0;
     f->mode = GAME_MODE_ARENA;
+    f->party_rule = PARTY_ROUND;
+    f->last_rule = PARTY_NONE;
     f->input_prev = 0;
     f->reset_flash = 0;
     f->reset_hold = 0;
     f->reset_fired = 0;
-    f->last_score = 0;
+    f->last_score[0] = f->last_score[1] = 0;
+    f->last_players = 1;
+    f->entry_h = 0;
     f->last_mode = GAME_MODE_ARENA;
     /* a version 1 image (arena only) loads with the trip table at defaults; dirty stays 0 so the version 2 image is
      * written back on the first new entry, not at boot (user 2026-11-11) */
@@ -71,20 +107,107 @@ static int ranks(const Flow *f, uint32_t score)
     return score_qualifies(&f->tables, f->last_mode, score);
 }
 
-/* Scripted demo input: hover. Flap (press edge: release the frame after a press; and the flap cooldown is over) whenever the flier is
- * below DEMO_HOVER_Y, sweep right and left, switching every DEMO_SWEEP_FRAMES frames of the demo. In Gum Trip the roof kills
- * (2026-11-15) and the window moves, so the flier hovers at the middle of the cave window it is in instead. */
+/* Start the name entry of the first human from h on whose score ranks (checked against the table as it is now, so P2 sees P1's row). 0 when none. */
+static int next_entry(Flow *f, int h)
+{
+    for (; h < f->last_players; h++) {
+        if (ranks(f, f->last_score[h])) {
+            f->entry_h = (uint8_t)h;
+            nameentry_init(&f->entry);
+            enter(f, FLOW_NAME_ENTRY);
+            return 1;
+        }
+    }
+    return 0;
+}
+
+/* Nearest gum pickup ahead in the Gum Trip chunk ring, as a screen position (x ahead of the flier, y world); 0 when none is built. */
+static int demo_pickup(const Game *g, const Flier *fl, int32_t *tx, int32_t *ty)
+{
+    int s = g->trip_gen.head, i, best = 0;
+    int32_t bx = 0;
+    for (i = 0; i < g->trip_gen.count; i++, s = (s + 1 == TRIP_GEN_RING) ? 0 : s + 1) {
+        const TripChunk *c = &g->trip_gen.ring[s];
+        int32_t x = (int32_t)(c->wx - g->trip.px) + c->pickup.x;
+        if (c->pickup.present && x >= (fl->x >> 16) && (!best || x < bx)) { best = 1; bx = x; *ty = FL_PX(c->pickup.y - 8); } /* aim high: sinking onto its centre grazes the rock below */
+    }
+    *tx = FL_PX(bx);
+    return best;
+}
+
+/* Gum Trip: move the aim ty off any hazard in the next DEMO_HAZ_AHEAD px, to whichever side of its sweep the band [lo, hi] holds.
+ * A sweep too wide for the band falls back to the hazard's box now. */
+static int32_t demo_haz_aim(const Game *g, const Flier *fl, int32_t ty, int32_t lo, int32_t hi)
+{
+    int s = g->trip_gen.head, i, k, fx = (int)(fl->x >> 16), y = (int)(ty >> 16);
+    lo = (lo >> 16) + FLIER_HALF_W; hi = (hi >> 16) - FLIER_HALF_W;
+    for (i = 0; i < g->trip_gen.count; i++, s = (s + 1 == TRIP_GEN_RING) ? 0 : s + 1) {
+        const TripChunk *c = &g->trip_gen.ring[s];
+        int base = (int)(int32_t)(c->wx - g->trip.px);
+        for (k = 0; k < c->n_haz; k++) {
+            const TripGenHazard *h = &c->haz[k];
+            int dx = base + h->x - fx, m = h->hh + 12 + 4, hy = trip_hit_haz_y(h, g->trip.steps), up, dn;
+            if (dx < -(h->hw + FLIER_HALF_W) || dx > DEMO_HAZ_AHEAD + h->hw) continue;
+            up = h->y - h->amp - m; dn = h->y + h->amp + m;
+            if (up < lo && dn > hi) { up = hy - m; dn = hy + m; }   /* sweep fills the band: dodge the box where it is */
+            if (y <= up || y >= dn) continue;
+            y = (up >= lo && (dn > hi || y - up < dn - y)) ? up : (dn <= hi ? dn : y);
+        }
+    }
+    return FL_PX(y);
+}
+
+/* Demo input: a competent player, not a script. Arena and arcade: the rival AI (ai.c) steers the player flier at the nearest rival
+ * while it holds the high line (flaps whenever below DEMO_HOVER_Y), so rivals that rise to it get stomped; it steps out from under
+ * any rival above. Arcade also steers off vents and
+ * grabbers like a rival does. Gum Trip: steer to the nearest gum pickup ahead, its height held inside the middle half of the cave
+ * window (an aim near the rock overshoots into it) and moved off hazards ahead (demo_haz_aim); flaps on the predicted height, so a
+ * climb coasting into the roof does not flap again. With no target it hovers and sweeps as the old script did. The AI runs on even
+ * demo frames only (frame cost); an odd frame holds the steering and drops A, so the press edge survives. Every frame carries exactly
+ * one side bit (the overlay shows one). */
 static uint8_t demo_input(Flow *f)
 {
-    const Flier *fl = &f->game.flier;
-    int32_t hover = FL_PX(DEMO_HOVER_Y), lo, hi;
-    uint8_t in = 0;
-    if (f->game.mode == GAME_MODE_TRIP && trip_hit_window(&f->game.trip, &f->game.trip_gen, fl, &lo, &hi)) hover = lo + ((hi - lo) >> 1);
-    if (!fl->flap_prev && fl->flap_cd == 0 && fl->y > hover) {
-        in |= IN_A;
+    Game *g = &f->game;
+    const Flier *fl = &g->hero[0];
+    int32_t lo = 0, hi = 0, tx, ty;
+    uint8_t side = (uint8_t)(f->demo_in & (IN_LEFT | IN_RIGHT)), in;
+    const Flier *t;
+    int can_flap = !fl->flap_prev && fl->flap_cd == 0, low;
+    int32_t py = fl->y + (fl->vy << 4); /* where it will be in 16 frames: a climb or a fall coasts on */
+    low = fl->y > FL_PX(DEMO_HOVER_Y);                          /* below the roof line: may flap */
+    if (side != IN_LEFT) side = IN_RIGHT;
+    if (f->timer & 1u) return side;
+    if (g->mode == GAME_MODE_TRIP && trip_hit_window(&g->trip, &g->trip_gen, fl, &lo, &hi)) {
+        int32_t q = (hi - lo) >> 2;
+        ty = lo + (q << 1);
+        if (demo_pickup(g, fl, &tx, &ty)) side = ((tx - fl->x) >> 16) < -2 ? IN_LEFT : IN_RIGHT;
+        if (ty < lo + q) ty = lo + q;
+        if (ty > hi - q) ty = hi - q;
+        ty = demo_haz_aim(g, fl, ty, lo, hi);
+        return (uint8_t)(side | (can_flap && py > ty ? IN_A : 0));
     }
-    in |= ((f->timer / DEMO_SWEEP_FRAMES) & 1u) ? IN_LEFT : IN_RIGHT;
-    return in;
+    t = g->mode == GAME_MODE_TRIP ? 0 : ai_nearest(fl, g->hero, g->players, g->cpu, g->cpu_count); /* none while the last rival falls: hover */
+    if (t) {
+        FlierInput ci;
+        int near, k;
+        ai_step(&f->demo_ai, &g->rng, fl, t, &ci);
+        if (ci.dir) side = ci.dir > 0 ? IN_RIGHT : IN_LEFT;
+        in = side;
+        near = (t->x - fl->x < FL_PX(DEMO_DODGE_DX)) && (fl->x - t->x < FL_PX(DEMO_DODGE_DX));
+        if (can_flap && low) in |= IN_A; /* hold the high line */
+        for (k = 0; k < g->cpu_count; k++) { /* any rival above, not only the target, stomps: step out from under the first one */
+            const Flier *c = &g->cpu[k];
+            if (c->state == FLIER_ALIVE && c->y < fl->y && c->x - fl->x < FL_PX(DEMO_DODGE_DX) && fl->x - c->x < FL_PX(DEMO_DODGE_DX)) { t = c; near = 1; break; }
+        }
+        if (near && t->y < fl->y) in = (uint8_t)((t->x > fl->x ? IN_LEFT : IN_RIGHT) | (in & IN_A)); /* step out from under a rival above, no climb into it */
+        if (g->mode == GAME_MODE_ARCADE) {
+            int away = arc_elements_avoid_dir(&g->elems, (int)(fl->x >> 16), (int)(fl->y >> 16), FLIER_HALF_W, (int)(flier_half_h(fl) >> 16), fl->vx);
+            if (away) in = (uint8_t)((away > 0 ? IN_RIGHT : IN_LEFT) | (can_flap ? IN_A : 0));
+        }
+        return in;
+    }
+    in = ((f->timer / DEMO_SWEEP_FRAMES) & 1u) ? IN_LEFT : IN_RIGHT;
+    return (uint8_t)(in | (can_flap && low ? IN_A : 0));
 }
 
 static void title_reset_combo(Flow *f, uint8_t input)
@@ -105,13 +228,16 @@ static void title_reset_combo(Flow *f, uint8_t input)
     }
 }
 
-/* Title mode select: a press edge steps through Arena, Gum Trip, Arcade: Down forward, Up back, both wrap (both on one frame: forward). A held stick does not repeat. */
+/* Title mode select: a press edge steps through Arena, Gum Trip, Arcade, Party: Down forward, Up back, both wrap (both on one frame: forward). A held stick does not repeat. */
 static void title_mode_select(Flow *f, uint8_t input)
 {
-    uint8_t edge = (uint8_t)(input & ~f->input_prev & (IN_UP | IN_DOWN));
-    if (edge) {
-        if (edge & IN_DOWN) f->mode = f->mode == GAME_MODE_ARCADE ? GAME_MODE_ARENA : (uint8_t)(f->mode + 1);
-        else f->mode = f->mode == GAME_MODE_ARENA ? GAME_MODE_ARCADE : (uint8_t)(f->mode - 1);
+    uint8_t edge = (uint8_t)(input & ~f->input_prev & (IN_UP | IN_DOWN | IN_LEFT | IN_RIGHT));
+    if (edge & (IN_UP | IN_DOWN)) {
+        if (edge & IN_DOWN) f->mode = f->mode == GAME_MODE_PARTY ? GAME_MODE_ARENA : (uint8_t)(f->mode + 1);
+        else f->mode = f->mode == GAME_MODE_ARENA ? GAME_MODE_PARTY : (uint8_t)(f->mode - 1);
+    } else if (edge && f->mode == GAME_MODE_PARTY) { /* Left/Right on the PARTY row cycle the rule (Right forward) */
+        if (edge & IN_RIGHT) f->party_rule = f->party_rule == PARTY_RULE_COUNT - 1 ? PARTY_ROUND : (uint8_t)(f->party_rule + 1);
+        else f->party_rule = f->party_rule == PARTY_ROUND ? PARTY_RULE_COUNT - 1 : (uint8_t)(f->party_rule - 1);
     }
 }
 
@@ -138,13 +264,16 @@ void flow_step(Flow *f, uint8_t input, uint8_t start_pressed, uint32_t frame_cou
     if (f->credit_hold && !start_pressed && (f->state == FLOW_ATTRACT_TABLE || f->state == FLOW_ATTRACT_DEMO)) flow_coin(f);
     switch (f->state) {
     case FLOW_ATTRACT_TITLE:
+        /* banked credits keep the mode list open, however the title was entered (a game end resets select_open) */
+        if (f->credit_hold) f->select_open = 1;
         title_reset_combo(f, input);
         title_mode_select(f, input);
+        if (f->select_open) f->highlight = -1; /* the mode list covers the highlighted table's rows (owner 2026-11-17) */
         if (start_pressed && (input & FLOW_RESET_COMBO) != FLOW_RESET_COMBO) {
             /* start_pressed means a credit was taken: it always becomes a game, in the highlighted mode */
-            start_game(f, frame_counter, 0);
+            start_title_game(f, frame_counter);
         } else if (a_edge && (input & FLOW_RESET_COMBO) != FLOW_RESET_COMBO) {
-            if (!f->select_open) { f->select_open = 1; f->timer = 0; } /* A without a credit only opens the select */
+            if (!f->select_open) { f->select_open = 1; f->highlight = -1; f->timer = 0; } /* A without a credit only opens the select */
         } else if (f->timer >= ATTRACT_TITLE_FRAMES && !f->credit_hold) {
             f->reset_flash = 0;
             f->select_open = 0;
@@ -155,7 +284,7 @@ void flow_step(Flow *f, uint8_t input, uint8_t start_pressed, uint32_t frame_cou
     case FLOW_ATTRACT_TABLE:
         if (start_pressed) {
             f->highlight = -1;
-            start_game(f, frame_counter, 0);
+            start_title_game(f, frame_counter);
         } else if (a_edge || b_edge) {
             f->highlight = -1;
             enter(f, FLOW_ATTRACT_TITLE);
@@ -167,7 +296,7 @@ void flow_step(Flow *f, uint8_t input, uint8_t start_pressed, uint32_t frame_cou
         break;
     case FLOW_ATTRACT_DEMO:
         if (start_pressed) {
-            start_game(f, frame_counter, 0);
+            start_title_game(f, frame_counter);
         } else if (a_edge || b_edge) {
             f->demo = 0;
             enter(f, FLOW_ATTRACT_TITLE);
@@ -184,30 +313,43 @@ void flow_step(Flow *f, uint8_t input, uint8_t start_pressed, uint32_t frame_cou
         }
         break;
     case FLOW_PLAYING:
+        if (f->howto) {
+            uint8_t a2 = (uint8_t)(f->game.input2 & IN_A);
+            if (start_pressed || a_edge || (a2 && !f->howto_a2) || f->game.start_in[1] || f->timer >= PARTY_HOWTO_FRAMES || f->game.over) {
+                start_game(f, frame_counter, 0); /* the real match, round 1 banner next */
+                f->game.cont_a[0] = (uint8_t)((input & IN_A) ? 1 : 0); /* the skipping press must not also skip the round banner */
+                f->game.cont_start[0] = f->game.start_in[0];
+            } else {
+                f->demo_in = demo_input(f);
+                if (!game_begin(&f->game)) game_step(&f->game, f->demo_in);
+            }
+            f->howto_a2 = a2;
+            break;
+        }
         game_step(&f->game, input);
         if (f->game.over) {
-            f->last_score = f->game.score;
-            f->last_mode = f->game.mode;
+            f->last_players = f->game.players;
+            f->last_score[0] = f->game.score;
+            f->last_score[1] = f->game.players == 2 ? f->game.lives[1].score : 0;
+            f->entry_h = 0;
+            f->last_mode = f->mode; /* the title pick: PARTY plays as arena, so game.mode would lose the PARTY table */
+            f->last_rule = f->game.party_rule;
             enter(f, FLOW_GAME_OVER);
         }
         break;
     case FLOW_GAME_OVER:
-        if (f->timer >= GAMEOVER_FRAMES) {
-            if (ranks(f, f->last_score)) {
-                nameentry_init(&f->entry);
-                enter(f, FLOW_NAME_ENTRY);
-            } else {
-                enter(f, FLOW_ATTRACT_TITLE);
-            }
+        if (f->timer >= GAMEOVER_FRAMES || (a_edge && f->timer >= GAMEOVER_SKIP_FRAMES)) { /* main.c folds a Start press into A here */
+            if (!next_entry(f, 0)) enter(f, FLOW_ATTRACT_TITLE);
         }
         break;
     case FLOW_NAME_ENTRY:
-        nameentry_step(&f->entry, start_pressed ? (uint8_t)(input | IN_A) : input); /* NE1: Start confirms a letter like A */
+        if (f->entry_h == 0) nameentry_step(&f->entry, start_pressed ? (uint8_t)(input | IN_A) : input); /* NE1: Start confirms a letter like A */
+        else nameentry_step(&f->entry, f->game.start_in[1] ? (uint8_t)(f->game.input2 | IN_A) : f->game.input2); /* P2's own stick and Start */
         if (f->entry.done) {
-            f->new_row = (int8_t)score_insert(&f->tables, f->last_mode, f->entry.name, f->last_score);
+            f->new_row = (int8_t)score_insert_rule(&f->tables, f->last_mode, f->entry.name, f->last_score[f->entry_h], f->last_rule);
             f->highlight = f->new_row;
             f->dirty = 1;
-            enter(f, FLOW_SAVE_REMINDER);
+            if (!next_entry(f, f->entry_h + 1)) enter(f, FLOW_SAVE_REMINDER);
         }
         break;
     case FLOW_SAVE_REMINDER:
@@ -228,12 +370,16 @@ void flow_view(const Flow *f, FlowView *v)
     v->highlight = v->table_mode == f->last_mode ? f->highlight : -1;
     v->game = &f->game;
     v->entry = &f->entry;
-    v->score = f->last_score;
+    v->score = f->last_score[f->entry_h];
+    v->players = f->last_players;
+    v->entry_h = f->entry_h;
     v->reset_progress = f->reset_hold >= RESET_HOLD_FRAMES
                             ? 100
                             : (int)(((uint32_t)f->reset_hold * 100u) / RESET_HOLD_FRAMES);
     v->reset_flash = f->reset_flash;
     v->mode = f->mode;
+    v->party_rule = f->party_rule;
     v->select_open = f->select_open;
+    v->howto = f->howto;
     v->ov_key = f->ov.key;
 }

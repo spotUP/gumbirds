@@ -8,9 +8,9 @@
 #include <ngdevkit/neogeo.h>
 
 /* Flush time per vblank in microseconds. Vblank is 40 lines of 64 us = 2560 us from the interrupt ack; the flush
- * starts about 30 us after it. 2000 us leaves about 8 lines of margin for cost estimate error
+ * starts about 30 us after it. 1800 us leaves about 12 lines of margin for cost estimate error
  * (thoughts/shared/research/2026-11-09_vblank-writes.md). */
-#define GFX_FLUSH_BUDGET_US 2000u
+#define GFX_FLUSH_BUDGET_US 1800u
 
 #define GFX_AUTOANIM_DEFAULT_FRAMES 1 /* counter speed at boot and when no auto-animated strip is shown */
 void gfx_autoanim_speed(u8 frames_per_step); /* LSPC auto-animation: counter steps every N video frames (REG_LSPCMODE bits 15..8 = N-1) */
@@ -21,6 +21,7 @@ extern volatile u16 g_swap_count;     /* bank swaps done by gfx_flush since boot
  * counter (see gfx_flush). show_word is the head SCB3 word of the shown strip. Both heads must be hidden (0). */
 void gfx_swap_arm(u16 head0, u16 head1, u8 cols, u16 show_word); /* cols: SCB3 words per bank, the first at head */
 void gfx_swap_disarm(void);
+u8 gfx_swap_shown(void); /* bank (0 or 1) whose SCB3 words the last swap wrote with the show word; 1 before the first swap */
 void gfx_init(void);                /* forget the hardware state (boot, BIOS resume) */
 #include "core/vram_queue.h"
 extern VramQueue g_gfx_q;
@@ -46,10 +47,13 @@ void gfx_text_backed(u8 x, u8 y, u8 pal, const char *s);
 void gfx_text_tall(u8 x, u8 y, u8 pal, const char *s);
 void gfx_text_tall_backed(u8 x, u8 y, u8 pal, const char *s);
 void gfx_center_text(u8 y, u8 pal, const char *s);
+/* The cells gfx_center_text of a w-space string writes on rows y..y+h-1, in one vq_fix_clear pass. */
+void gfx_center_blank(u8 y, u8 h, u8 w, u8 pal);
 void gfx_cls(void);
 void gfx_commit_all(void);          /* commit every changed fix cell now (init and reset paths, outside the frame budget) */
 void gfx_commit(void);              /* fold the fix layer changes into the queue (end of the frame's logic) */
 void gfx_wait_vblank(void);         /* park until the next vblank; the vblank callback flushes the queue */
+u8 gfx_frame_wrapped(void);         /* 1 when a vblank passed since the last park: this frame's logic overran into the next frame */
 void gfx_flush(void);               /* runs only from the vblank callback in gfx.c */
 void gfx_drain(void);               /* init only: wait vblank and flush until the queue is empty */
 u16 gfx_last_flush_us(void);         /* estimated time of the last flush */

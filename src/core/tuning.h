@@ -59,6 +59,16 @@
 #ifndef DEMO_HOVER_Y
 #define DEMO_HOVER_Y 50
 #endif
+/* 2026-11-16: the demo flier is flown by the rival AI (flow.c demo_input) at this rank; hover and sweep above are the no-target fallback. */
+#ifndef DEMO_DODGE_DX
+#define DEMO_DODGE_DX 40 /* demo flier steps away from a rival above it closer than this many px sideways */
+#endif
+#ifndef DEMO_AI_RANK
+#define DEMO_AI_RANK 3
+#endif
+#ifndef DEMO_HAZ_AHEAD
+#define DEMO_HAZ_AHEAD 72 /* Gum Trip: the demo flier aims off hazards this many px ahead */
+#endif
 #ifndef DEMO_SWEEP_FRAMES
 #define DEMO_SWEEP_FRAMES 90
 #endif
@@ -70,6 +80,9 @@
 #endif
 
 /* Game over screen length. */
+#ifndef GAMEOVER_SKIP_FRAMES
+#define GAMEOVER_SKIP_FRAMES 30 /* A or Start skips the GAME OVER text only after this many frames, so a flap mash does not skip it */
+#endif
 #ifndef GAMEOVER_FRAMES
 #define GAMEOVER_FRAMES 180
 #endif
@@ -172,9 +185,6 @@
 #ifndef FLIER_WALK_MIN_VX
 #define FLIER_WALK_MIN_VX 8192 /* 16.16 px/frame: a grounded flier slower than this (0.125 px/frame, the first two frames of ground acceleration or the last two of braking) stands and breathes instead of walking */
 #endif
-#ifndef FLIER_FLAP_HOLD
-#define FLIER_FLAP_HOLD 2 /* ticks per flap frame: 8 frames, 16 ticks per play; a press sooner than that cuts the wingbeat and restarts it */
-#endif
 
 /* Arena slice (src/core/stage.c, game_step_arena). The stage layout is picked per round: up to 8 platform rectangles in the 384x180 world
  * (world 384x180, ARENA_W in arena.h; world y = screen y; each flier's kill_y, set per hazard kind, kills; FLIER_WATER_Y is only the default). Platforms are solid on every side (flier_collide_solids), the box STAGE_PLATFORM_H deep.
@@ -191,6 +201,12 @@
 #ifndef FLIER_START_X
 #define FLIER_START_X 40
 #endif
+#ifndef FLIER_START_GAP
+#define FLIER_START_GAP 24 /* px between the player 1 and player 2 spawn points */
+#endif
+#ifndef FLIER_START_JOIN_Y
+#define FLIER_START_JOIN_Y 8 /* px: where a joining player 2 appears (top of the screen) */
+#endif
 #ifndef FLIER_START_Y
 #define FLIER_START_Y 158
 #endif
@@ -198,7 +214,7 @@
 #define FLIER_HIT_COOLDOWN 20 /* frames of immunity after a balloon pops (BR-D4); was 60. The parachute window stays FLIER_INVINCIBLE_PARACHUTE */
 #endif
 #ifndef FLIER_SPAWN_INVINCIBLE
-#define FLIER_SPAWN_INVINCIBLE 600 /* frames the player is immune after a spawn; any left/right/flap input ends it early (BR-D5) */
+#define FLIER_SPAWN_INVINCIBLE 180 /* 3 s (owner 2026-11-16: 10 s felt endless); frames the player is immune after a spawn; any left/right/flap input ends it early (BR-D5) */
 #endif
 #ifndef FLIER_BLINK_HALF_PERIOD
 #define FLIER_BLINK_HALF_PERIOD 4 /* frames shown, then the same number hidden, while a flier is protected (invincible or spawn_inv) */
@@ -206,7 +222,22 @@
 #ifndef FLIER_START_BALLOONS
 #define FLIER_START_BALLOONS 2
 #endif
-
+#ifndef ARC_REPUMP_STAND_FRAMES
+#define ARC_REPUMP_STAND_FRAMES 60 /* arcade: a rival standing alive with no gum waits this long, then pumps (stage-start window) (user decision 2026-11-16) */
+#endif
+/* Two humans in play: rivals pump up and stand up sooner, same rival count (owner 2026-11-16). Pump frames per rank 1..3. */
+#ifndef ARC_PUMP_FRAMES_2P_R1
+#define ARC_PUMP_FRAMES_2P_R1 110
+#endif
+#ifndef ARC_PUMP_FRAMES_2P_R2
+#define ARC_PUMP_FRAMES_2P_R2 90
+#endif
+#ifndef ARC_PUMP_FRAMES_2P_R3
+#define ARC_PUMP_FRAMES_2P_R3 65
+#endif
+#ifndef ARC_REPUMP_STAND_FRAMES_2P
+#define ARC_REPUMP_STAND_FRAMES_2P 40
+#endif
 /* Computer fliers (src/core/ai.c, design doc 3.1 and 5.1). Distances are screen pixels: the reference values (50, 75,
  * 32) halved for the 0.5 reference scale. Angles are Q15 components of the unit direction to the target. */
 #ifndef CPU_START_COUNT
@@ -257,7 +288,33 @@
 #define CAM_MAX_STEP_PX 2 /* at most this many pixels per frame (twice the human top speed) */
 #endif
 
+#ifndef CAM_EDGE_MARGIN_PX
+#define CAM_EDGE_MARGIN_PX 24 /* co-op: both humans stay this far inside the screen edges (soft wall) */
+#endif
+
 /* Arena scoring (design 3.3, NOT IN REFERENCE, placeholders for the user to tune). */
+#ifndef ROOST_TARGET_SCORE
+#define ROOST_TARGET_SCORE 5000 /* Roost Rule match: first bird to this score wins (owner 2026-11-16). Host run, 8 seeds, human parked, 5 min: the leading computer bird scores 400..2400 per minute (median ~1300), so 5000 is about 3.8 min; a contesting human slows it. */
+#endif
+#ifndef SCORE_ROOST_TICK
+#define SCORE_ROOST_TICK 100 /* Roost Rule: a sole stander on the roost, per tick */
+#endif
+/* Hot Gum (PARTY_HOT). Placeholders for the owner to tune. */
+#ifndef HOT_FUSE_FRAMES
+#define HOT_FUSE_FRAMES 720 /* frames from a new carrier until the gum pops one balloon: 12 s in the first round */
+#endif
+#ifndef HOT_FUSE_STEP
+#define HOT_FUSE_STEP 90 /* the fuse is this much shorter for every round won */
+#endif
+#ifndef HOT_FUSE_MIN
+#define HOT_FUSE_MIN 360 /* shortest fuse */
+#endif
+#ifndef HOT_PASS_COOLDOWN
+#define HOT_PASS_COOLDOWN 60 /* frames after a pass before the gum can be passed again (stops ping-pong on a long contact) */
+#endif
+#ifndef SCORE_HOT_PASS
+#define SCORE_HOT_PASS 200 /* a human passes the hot gum */
+#endif
 #ifndef SCORE_STOMP_POP
 #define SCORE_STOMP_POP 500 /* player stomp pops a computer balloon */
 #endif
@@ -275,6 +332,15 @@
 #endif
 #ifndef ROUND_START_TEXT_FRAMES
 #define ROUND_START_TEXT_FRAMES 60 /* "ROUND nn" shown with everything frozen (user decision 2026-11-11) */
+#endif
+#ifndef PARTY_ROUND_START_TEXT_FRAMES
+#define PARTY_ROUND_START_TEXT_FRAMES 360 /* PARTY round banner (rule or twist explanation) hold, A or Start skips (owner 2026-11-16: 180 was too fast to read) */
+#endif
+#ifndef PARTY_HOWTO_FRAMES
+#define PARTY_HOWTO_FRAMES 900 /* PARTY how-to demo before round 1, A or Start skips (owner 2026-11-16: 480 was too fast to read) */
+#endif
+#ifndef PARTY_HOWTO_SEED
+#define PARTY_HOWTO_SEED 0x4857u /* fixed seed: the how-to demo plays the same match every time */
 #endif
 #ifndef ROUND_GO_TEXT_FRAMES
 #define ROUND_GO_TEXT_FRAMES 30 /* "GO!" shown with everything frozen */
@@ -313,17 +379,17 @@
 #ifndef GUM_POP_FRAMES
 #define GUM_POP_FRAMES 3
 #endif
-/* Where the bubble hangs on the player (src/core/gum_view.c, Sootling E art): its bottom edge sits GUM_BIRD_ROW pixels below the
- * bird sprite top plus the per frame dy; its string column is the bird's string column, GUM_BIRD_DX / GUM_BIRD_DX_FLIP pixels
- * from the bird centre (the mirrored bird's string is one pixel further left). */
+/* Where the bubble hangs on the player (src/core/gum_view.c, gum-mouth v4 art): its bottom edge sits GUM_BIRD_ROW pixels below the
+ * bird sprite top plus the per frame dy (0 on the hanging poses); its column is the beak grip of the frame, GUM_BIRD_DX /
+ * GUM_BIRD_DX_FLIP pixels plus the frame's grip offset from the bird centre (mirrored for a flipped bird). */
 #ifndef GUM_BIRD_ROW
-#define GUM_BIRD_ROW 8
+#define GUM_BIRD_ROW 14
 #endif
 #ifndef GUM_BIRD_DX
-#define GUM_BIRD_DX 1
+#define GUM_BIRD_DX 0
 #endif
 #ifndef GUM_BIRD_DX_FLIP
-#define GUM_BIRD_DX_FLIP 0
+#define GUM_BIRD_DX_FLIP -1
 #endif
 /* Game frames per sheet frame of the splash a flier makes in water and in lava (src/core/splash_view.c; assets/splash/splash.json). */
 #ifndef SPLASH_TICKS

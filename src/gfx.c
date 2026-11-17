@@ -10,8 +10,6 @@ volatile u16 g_gfx_flush_max;
 volatile u16 g_pal_words_frame_max; /* most palette words written in one flush (test sentinel) */
 volatile u16 g_gfx_backlog_max; /* most queue ops left over after a flush (test sentinel; init drains count too) */
 
-void gfx_init(void) { vq_init(&g_gfx_q); }
-
 /* The mode register is written by the next gfx_flush, so like every LSPC write it lands inside vblank (tests/mame/
  * vblank_check.lua counts register writes outside it). Timer interrupt off. */
 static volatile u16 g_lspc_mode;
@@ -40,6 +38,7 @@ void gfx_swap_arm(u16 head0, u16 head1, u8 cols, u16 show_word) {
     g_swap_on = 1;
 }
 void gfx_swap_disarm(void) { g_swap_on = 0; }
+u8 gfx_swap_shown(void) { return g_swap_vis; }
 volatile u32 g_vq_ramp_ops;
 volatile u16 g_swap_count;
 
@@ -93,7 +92,15 @@ void gfx_wait_vblank(void) {
     g_parked = 1;
     while (!g_vb_flag) { }
     g_parked = 0;
+    g_vb_flag = 0; /* set again only by a vblank that comes before the next park: gfx_frame_wrapped */
 }
+
+u8 gfx_frame_wrapped(void) { return g_vb_flag; }
+
+/* A BIOS re-entry (USER 3 on a coin) leaves the old main thread parked in gfx_wait_vblank with g_parked still 1, and the
+ * resume runs with interrupts on: a vblank flush racing video_init's pushes replayed stale ring ops (an attract overlay
+ * icon cell 7 frames after the coin, tests/mame/unibios_check.lua). Unpark before the queue is reset. */
+void gfx_init(void) { g_parked = 0; vq_init(&g_gfx_q); }
 
 void gfx_drain(void) {
     while (vq_pending(&g_gfx_q)) gfx_wait_vblank();
@@ -126,6 +133,10 @@ void gfx_center_text(u8 y, u8 pal, const char *s) {
     u8 n = 0;
     while (s[n]) n++;
     gfx_text((u8)((VQ_FIX_COLS - n) / 2), y, pal, s);
+}
+
+void gfx_center_blank(u8 y, u8 h, u8 w, u8 pal) {
+    vq_fix_clear(&g_gfx_q, (u8)((VQ_FIX_COLS - w) / 2), y, w, h, (u16)((pal << 12) | fixfont_map[' ']));
 }
 
 void gfx_cls(void) { vq_fix_fill(&g_gfx_q, SROM_EMPTY_TILE); }

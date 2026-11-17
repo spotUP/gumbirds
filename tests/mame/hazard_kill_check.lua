@@ -70,12 +70,13 @@ local rs = dofile("tests/mame/round_skip.lua")(mem, flow_addr, flay) -- rs.win()
 local adv_from = nil
 -- ROT1: the arena layout rotates per round (src/core/stage.c layouts). stage_platforms is a RAM copy of the current layout: four int16 x, y, w, h each.
 local stage_addr = tonumber(os.getenv("BRAWL_STAGE_ADDR") or "", 16)
-local HOME = "0,164,80,12 280,148,80,12" -- every layout of src/core/stage.c starts with the two home islands
+-- Every layout of src/core/stage.c starts with the two home islands at y 164 and 148; x and width differ per layout (48..80 wide, arena vs arcade), so only the rows are fixed.
+local HOME_Y = { 164, 148 }
 local function layout_now()
   local t = {}
   for i = 0, 7 do t[#t + 1] = string.format("%d,%d,%d,%d", mem:read_i16(stage_addr + i * 8), mem:read_i16(stage_addr + i * 8 + 2), mem:read_i16(stage_addr + i * 8 + 4), mem:read_i16(stage_addr + i * 8 + 6)) end
   local text = table.concat(t, " ")
-  if text:sub(1, #HOME) ~= HOME then return nil, text end
+  for i = 1, 2 do if mem:read_i16(stage_addr + (i - 1) * 8 + 2) ~= HOME_Y[i] then return nil, text end end
   return text
 end
 local lay_prev, lay_seen, lay_cur = nil, {}, nil
