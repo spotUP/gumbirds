@@ -62,6 +62,7 @@ enum { TWIST_NONE = 0, TWIST_ONE_GUM, TWIST_CROWDED, TWIST_SLOW, TWIST_QUICK, TW
 const char *game_party_name(uint8_t rule);
 const char *game_party_goal(uint8_t rule);
 const char *game_twist_name(uint8_t twist);
+
 /* Round end (arena, real game): HOLD shows the banner for MATCH_END_FRAMES, PAN slides the camera back to the spawn with
  * the flier hidden, then the next round starts. Zero is RE_NONE so game_reset needs no init. */
 enum RoundEnd { RE_NONE = 0, RE_HOLD, RE_PAN };
@@ -99,7 +100,6 @@ typedef struct {
     uint32_t score;      /* total score: stomps, drowned and defeated computer fliers, match bonuses */
     uint8_t mode;        /* GameMode; ARENA after game_reset (PARTY runs as ARENA) */
     uint8_t party_rule;  /* PARTY_NONE unless a PARTY game; set by flow after game_set_mode */
-    uint32_t roulette_seed; /* PARTY_ROULETTE: drawn by match_start of round 1; game_roulette_kind(g) shuffles from it */
     uint8_t twist;       /* TWIST_* of the current round (PARTY_ROUND only); match_start draws it, never the same twice in a row */
     uint8_t mood;        /* background mood (GAME_MOOD_*) the screen shows; game_reset keeps it, game_next_mood changes it */
     uint8_t over;        /* 1 when the player flier is DROWNED or GONE */
@@ -164,8 +164,6 @@ void game_next_mood(Game *g);
 /* Sets the hazard kind and the kill line of the player and every computer flier. The one entry for the kind: call it after
  * game_reset (which clears it to spikes) and whenever the drawn kind changes; rematches keep it. */
 void game_set_hazard(Game *g, uint8_t kind);
-/* Hazard (HZ_*) of the round now (matches_won) under PARTY_ROULETTE: seeded shuffle, never the same kind twice in a row. */
-uint8_t game_roulette_kind(const Game *g);
 /* Arcade: player 2 joins now (players = 2, fresh lives, spawn beside player 1). The drop-in parachute and the credit are later phases. */
 void game_start_p2(Game *g);
 int game_can_join_p2(const Game *g);
