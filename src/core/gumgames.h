@@ -9,7 +9,7 @@
 #define GG_QUALIFY_POINTS 500u
 #define GG_STAGE_POINTS 100u
 
-enum { GG_BIG_BLOW, GG_BURST_RACE, GG_BUBBLE_GATHER };
+enum { GG_BIG_BLOW, GG_BURST_RACE, GG_BUBBLE_GATHER, GG_FLAP_DASH };   /* Flap Dash uses record slot 3 (a spare) */
 
 /* Alternate A/B mash counter: a press counts only when it is the other button than the last counted one. */
 typedef struct { uint8_t last; uint16_t count; } GgMash;

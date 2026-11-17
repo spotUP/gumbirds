@@ -413,7 +413,11 @@ void game_gg_start_dash(Game *g)
 
 static void game_step_dash(Game *g, uint8_t input)
 {
-    gumdash_step(&g->dash, &g->hero[0], input);
+    GgDash *d = &g->dash;
+    if (gumdash_step(d, &g->hero[0], input)) g->score = gg_points(GD_LAPS, d->frames <= gumdash_mark(0));   /* stage = laps, qualified on the first-loop mark */
+    if (d->done && ++d->end_t >= GD_RESULT_FRAMES) g->over = 1;
+    g->frame++;
+    g->hero[0].spawn_inv = 0;
     camera_follow(g);
 }
 

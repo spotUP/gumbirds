@@ -1264,6 +1264,25 @@ static void draw_burst_race(const GgRace *r) {
     text((u8)((40 - BLOW_TEXT_W) / 2), BLOW_TEXT_ROW + 2, PAL_TEXT, msg);
 }
 
+/* Flap Dash on the fix layer: one status line (lap, seconds, qualifying mark), rewritten when the lap or the second changes. */
+static void draw_flap_dash(const GgDash *d) {
+    u32 secs = d->frames / 60u;
+    u32 key = (u32)d->laps | (u32)d->done << 4 | secs << 8;
+    if (key == g_blow_key) return;
+    g_blow_key = key;
+    char line[BLOW_TEXT_W + 1], nb[10];
+    u8 i = 0;
+    const char *p = d->done ? (d->frames <= gumdash_mark(0) ? "FINISHED  QUALIFIED  TIME " : "FINISHED  NOT QUALIFIED  TIME ") : "LAP ";
+    while (p[i]) { line[i] = p[i]; i++; }
+    if (!d->done) { line[i++] = (char)('1' + d->laps); line[i++] = ' '; line[i++] = 'O'; line[i++] = 'F'; line[i++] = ' '; line[i++] = (char)('0' + GD_LAPS); line[i++] = ' '; line[i++] = ' '; line[i++] = 'T'; line[i++] = 'I'; line[i++] = 'M'; line[i++] = 'E'; line[i++] = ' '; }
+    put_number(nb, secs, 3);
+    for (u8 k = 0; nb[k] && i < BLOW_TEXT_W; k++) if (nb[k] != ' ') line[i++] = nb[k];
+    if (!d->done) { line[i++] = ' '; line[i++] = ' '; line[i++] = 'M'; line[i++] = 'A'; line[i++] = 'R'; line[i++] = 'K'; line[i++] = ' '; put_number(nb, gumdash_mark(0) / 60u, 3); for (u8 k = 0; nb[k] && i < BLOW_TEXT_W; k++) if (nb[k] != ' ') line[i++] = nb[k]; }
+    while (i < BLOW_TEXT_W) line[i++] = ' ';
+    line[BLOW_TEXT_W] = 0;
+    text((u8)((40 - BLOW_TEXT_W) / 2), BLOW_TEXT_ROW + 2, PAL_TEXT, line);
+}
+
 static void hero_and_mode(const FlowView *v) {
     if (world_shown(v)) {
         bios_user_mode = (v->state == FLOW_PLAYING || g_start_pending) ? 2 : 1; /* the demo is attract: mode 1 (see below) */
@@ -1534,7 +1553,7 @@ static void draw_mode_select(u8 open, u8 mode, u8 rule, u8 event) {
     }
     gfx_text_backed(15, TITLE_SELECT_ROW + 4, PAL_HIGH, mode == GAME_MODE_GUM ? ">" : " ");
     gfx_text_backed(17, TITLE_SELECT_ROW + 4, mode == GAME_MODE_GUM ? PAL_HIGH : PAL_TEXT, "GUM GAMES");
-    if (mode == GAME_MODE_GUM) gfx_center_text(TITLE_GOAL_ROW, PAL_TEXT, event == GG_BURST_RACE ? "BURST RACE  LEFT OR RIGHT TO CHANGE" : "BIG BLOW  LEFT OR RIGHT TO CHANGE   ");
+    if (mode == GAME_MODE_GUM) gfx_center_text(TITLE_GOAL_ROW, PAL_TEXT, event == GG_FLAP_DASH ? "FLAP DASH  LEFT OR RIGHT TO CHANGE  " : event == GG_BURST_RACE ? "BURST RACE  LEFT OR RIGHT TO CHANGE" : "BIG BLOW  LEFT OR RIGHT TO CHANGE   ");
 }
 
 static void draw_title(const FlowView *v) {
@@ -1831,7 +1850,7 @@ static void draw(const FlowView *v) {
         if (v->game && v->game->mode == GAME_MODE_TRIP) draw_gum_meter(v->game->trip.gum);
         else set_distress(0);
         if (v->state == FLOW_ATTRACT_DEMO && v->game) draw_overlay(v);
-        if (v->state == FLOW_PLAYING && v->game && v->game->mode == GAME_MODE_GUM) { if (v->game->gg_race) draw_burst_race(&v->game->race); else draw_big_blow(&v->game->blow); }
+        if (v->state == FLOW_PLAYING && v->game && v->game->mode == GAME_MODE_GUM) { if (v->game->gg_dash) draw_flap_dash(&v->game->dash); else if (v->game->gg_race) draw_burst_race(&v->game->race); else draw_big_blow(&v->game->blow); }
         {
             /* mode name in the bottom-left corner while playing, written when the mode or rule changes only */
             u8 key = (v->state == FLOW_PLAYING && v->game) ? (v->game->party_rule != PARTY_NONE ? (u8)(8 + v->game->party_rule) : (u8)(1 + v->game->mode)) : 0;

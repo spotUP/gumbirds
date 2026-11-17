@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include "gg_flapdash.h"
 #include "game.h"
+#include "flow.h"
 
 static int fails;
 #define CHECK(c) do { if (!(c)) { printf("FAIL line %d: %s\n", __LINE__, #c); fails++; } } while (0)
@@ -72,6 +73,34 @@ int main(void)
     { Game g; game_reset(&g, 1); game_set_mode(&g, GAME_MODE_GUM); game_gg_start_dash(&g);
       for (i = 0; i < 200; i++) game_step(&g, (uint8_t)((i % 6 == 0) ? ((i / 6) & 1 ? IN_A : IN_B) : 0));
       CHECK(g.dash.frames == 200 && g.hero[0].x != 0 && g.cpu_count == 0); }
+
+    /* flow: Right twice from Big Blow picks Flap Dash (a third Right wraps), Start runs it; a finished run ends the event after the result and keeps the best (lowest) time */
+    {
+        Flow f;
+        flow_init(&f, 0, 0);
+        f.mode = GAME_MODE_GUM; f.gg_event = GG_BIG_BLOW;
+        flow_coin(&f);
+        flow_step(&f, IN_RIGHT, 0, 0); flow_step(&f, 0, 0, 0);
+        flow_step(&f, IN_RIGHT, 0, 0); flow_step(&f, 0, 0, 0);
+        CHECK(f.gg_event == GG_FLAP_DASH);
+        flow_step(&f, IN_RIGHT, 0, 0); flow_step(&f, 0, 0, 0);
+        CHECK(f.gg_event == GG_BIG_BLOW);
+        flow_step(&f, IN_LEFT, 0, 0); flow_step(&f, 0, 0, 0);
+        CHECK(f.gg_event == GG_FLAP_DASH);
+        f.tables.gg_record[GG_FLAP_DASH] = 900;
+        flow_step(&f, 0, 1, 1);
+        CHECK(f.state == FLOW_PLAYING && f.game.gg_dash);
+        f.game.dash.done = 1; f.game.dash.frames = 1000; f.game.dash.laps = GD_LAPS;
+        for (i = 0; i < (int)GD_RESULT_FRAMES + 2; i++) flow_step(&f, 0, 0, 0);
+        CHECK(f.state == FLOW_GAME_OVER && f.tables.gg_record[GG_FLAP_DASH] == 900);
+        flow_init(&f, 0, 0);
+        f.mode = GAME_MODE_GUM; f.gg_event = GG_FLAP_DASH;
+        flow_coin(&f);
+        flow_step(&f, 0, 1, 1);
+        f.game.dash.done = 1; f.game.dash.frames = 800;
+        for (i = 0; i < (int)GD_RESULT_FRAMES + 2; i++) flow_step(&f, 0, 0, 0);
+        CHECK(f.tables.gg_record[GG_FLAP_DASH] == 800);
+    }
 
     puts(fails ? "FAIL test_gg_flapdash" : "PASS test_gg_flapdash");
     return fails != 0;

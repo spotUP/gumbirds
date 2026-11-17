@@ -25,6 +25,7 @@ static void start_game(Flow *f, uint32_t seed, int demo)
         game_set_mode(&f->game, f->mode);
         if (f->mode == GAME_MODE_PARTY) f->game.party_rule = f->party_rule;
         if (f->mode == GAME_MODE_GUM && f->gg_event == GG_BURST_RACE) game_gg_start_race(&f->game);
+        if (f->mode == GAME_MODE_GUM && f->gg_event == GG_FLAP_DASH) game_gg_start_dash(&f->game);
     }
     f->demo = (uint8_t)demo;
     f->howto = 0;
@@ -236,8 +237,11 @@ static void title_mode_select(Flow *f, uint8_t input)
     if (edge & (IN_UP | IN_DOWN)) {
         if (edge & IN_DOWN) f->mode = f->mode == GAME_MODE_GUM ? GAME_MODE_ARENA : (uint8_t)(f->mode + 1);
         else f->mode = f->mode == GAME_MODE_ARENA ? GAME_MODE_GUM : (uint8_t)(f->mode - 1);
-    } else if (edge && f->mode == GAME_MODE_GUM) { /* Left/Right on the GUM GAMES row pick the event (Big Blow, Burst Race) */
-        f->gg_event = (uint8_t)(f->gg_event == GG_BIG_BLOW ? GG_BURST_RACE : GG_BIG_BLOW);
+    } else if (edge && f->mode == GAME_MODE_GUM) { /* Left/Right on the GUM GAMES row pick the event (Big Blow, Burst Race, Flap Dash; Right forward, both wrap) */
+        static const uint8_t pick[3] = { GG_BIG_BLOW, GG_BURST_RACE, GG_FLAP_DASH };
+        uint8_t i = (uint8_t)(f->gg_event == GG_BURST_RACE ? 1 : f->gg_event == GG_FLAP_DASH ? 2 : 0);
+        i = (edge & IN_RIGHT) ? (uint8_t)(i == 2 ? 0 : i + 1) : (uint8_t)(i == 0 ? 2 : i - 1);
+        f->gg_event = pick[i];
     } else if (edge && f->mode == GAME_MODE_PARTY) { /* Left/Right on the PARTY row cycle the rule (Right forward) */
         if (edge & IN_RIGHT) f->party_rule = f->party_rule == PARTY_RULE_COUNT - 1 ? PARTY_ROUND : (uint8_t)(f->party_rule + 1);
         else f->party_rule = f->party_rule == PARTY_ROUND ? PARTY_RULE_COUNT - 1 : (uint8_t)(f->party_rule - 1);
@@ -337,9 +341,10 @@ void flow_step(Flow *f, uint8_t input, uint8_t start_pressed, uint32_t frame_cou
             f->entry_h = 0;
             f->last_mode = f->mode; /* the title pick: PARTY plays as arena, so game.mode would lose the PARTY table */
             f->last_rule = f->game.party_rule;
-            if (f->game.mode == GAME_MODE_GUM && f->game.gg_race) { /* Burst Race: the fastest win is the record (lower is better, 0 = none) */
-                uint32_t t = f->game.race.seq.best[0];
-                if (t && (!f->tables.gg_record[GG_BURST_RACE] || t < f->tables.gg_record[GG_BURST_RACE])) { f->tables.gg_record[GG_BURST_RACE] = t; f->dirty = 1; }
+            if (f->game.mode == GAME_MODE_GUM && (f->game.gg_race || f->game.gg_dash)) { /* Burst Race and Flap Dash: the fastest time is the record (lower is better, 0 = none) */
+                uint8_t ev = f->game.gg_race ? GG_BURST_RACE : GG_FLAP_DASH;
+                uint32_t t = f->game.gg_race ? f->game.race.seq.best[0] : f->game.dash.done ? f->game.dash.frames : 0;
+                if (t && (!f->tables.gg_record[ev] || t < f->tables.gg_record[ev])) { f->tables.gg_record[ev] = t; f->dirty = 1; }
             } else if (f->game.mode == GAME_MODE_GUM) { /* Big Blow: the best size is the event record */
                 uint32_t best = f->game.blow.seq.best[0];
                 if (best > f->tables.gg_record[GG_BIG_BLOW]) { f->tables.gg_record[GG_BIG_BLOW] = best; f->dirty = 1; }

@@ -392,6 +392,7 @@ test: cart
 	@$(MAKE) --no-print-directory test-party
 	@$(MAKE) --no-print-directory test-gum-big-blow
 	@$(MAKE) --no-print-directory test-gum-burst-race
+	@$(MAKE) --no-print-directory test-gum-flap-dash
 	@$(MAKE) --no-print-directory test-party-roost
 	@$(MAKE) --no-print-directory test-party-hot
 	@$(MAKE) --no-print-directory test-party-roulette
@@ -953,6 +954,20 @@ test-gum-burst-race: cart bios
 	cat $$T/result.txt; \
 	if grep -q '^PASS' $$T/result.txt; then rm -rf $$T; echo "[OK] make test-gum-burst-race passed"; else echo "[FAIL] make test-gum-burst-race, log kept in $$T"; exit 1; fi
 
+# Gum Games Flap Dash (tests/mame/gum_flap_dash_check.lua): UniBIOS, one coin, Up to the GUM GAMES row, Right twice picks the event, Start: A/B mashing flies three laps,
+# the HUD, the lap count, the score and the saved record are checked. `make test-gum-flap-dash` alone.
+test-gum-flap-dash: cart bios
+	@if [ ! -f "$(UNIBIOS)" ]; then echo "[FAIL] UNIBIOS file not found: $(UNIBIOS)"; exit 1; fi
+	@$(MAKE) --no-print-directory $(UNIBIOS_DIR)/neogeo.zip
+	@set -e; T=$$(mktemp -d $(BUILDDIR)/test-run.XXXXXX); \
+	BRAWL_FLOW_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flow"{print $$1}') \
+	BRAWL_BLOW_LAYOUT="$$($(M68KGCC) $(NGCFLAGS) -Ibuild -std=c99 -S -o - tests/mame/gum_flap_dash_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
+	BRAWL_RESULT=$$T/result.txt \
+	SDL_VIDEODRIVER=dummy nice -n 19 $(MAME) -window -nomaximize -video none -sound none -nothrottle -seconds_to_run 300 -noautosave -skip_gameinfo -hash $(ROM) -rp "$(UNIBIOS_DIR);$(ROM)" -bios unibios40 -nvram_directory $$T -autoboot_script tests/mame/gum_flap_dash_check.lua neogeo -cart1 $(GAMEROM) > $$T/mame.log 2>&1 || true; \
+	if [ ! -f $$T/result.txt ]; then tail -n 15 $$T/mame.log; echo "[FAIL] no result from Flap Dash Lua script"; exit 1; fi; \
+	cat $$T/result.txt; \
+	if grep -q '^PASS' $$T/result.txt; then rm -rf $$T; echo "[OK] make test-gum-flap-dash passed"; else echo "[FAIL] make test-gum-flap-dash, log kept in $$T"; exit 1; fi
+
 # Ring reachability (tests/mame/ring_check.lua): holds Left until the player's world x wraps across the seam, then Right
 # back; every PLAYING frame the flier is on screen (ring maths with g_cam_px), the hero SCB3 height is non-zero, the
 # camera moves at most CAM_MAX_STEP_PX per frame (ring distance), and both seam crossings happened. `make test-ring` alone.
@@ -1121,7 +1136,7 @@ test-logo: cart bios
 	cat $$T/result.txt; \
 	if grep -q '^PASS' $$T/result.txt; then rm -rf $$T; echo "[OK] make test-logo passed"; else echo "[FAIL] make test-logo, log kept in $$T"; exit 1; fi
 
-.PHONY: run test test-mood test-arcade test-arcade-walk test-arcade-bonus test-crom test-srom test-debug-header test-camera test-sprite-peak test-left-column test-flier test-small-sootling test-reach test-vblank test-scroll test-slots test-hazard test-hazard-kill test-soft-reset test-ring test-solid test-trip test-score test-sound test-unibios test-coop test-arena-join test-party test-party-roost test-party-hot test-party-roulette test-party-name test-gum-big-blow test-gum-burst-race test-logo
+.PHONY: run test test-mood test-arcade test-arcade-walk test-arcade-bonus test-crom test-srom test-debug-header test-camera test-sprite-peak test-left-column test-flier test-small-sootling test-reach test-vblank test-scroll test-slots test-hazard test-hazard-kill test-soft-reset test-ring test-solid test-trip test-score test-sound test-unibios test-coop test-arena-join test-party test-party-roost test-party-hot test-party-roulette test-party-name test-gum-big-blow test-gum-burst-race test-gum-flap-dash test-logo
 
 # Header dependencies from -MMD (build/**/*.d): a changed header rebuilds every object that includes it.
 -include $(shell find $(BUILDDIR) -name '*.d' 2>/dev/null)

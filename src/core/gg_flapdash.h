@@ -10,11 +10,12 @@
 #define GD_MAX_VX FL_PX(2)             /* CAM_MAX_STEP_PX: above this the bird outruns the camera */
 #define GD_FLOOR_Y FL_PX(190)          /* surface under the hero's feet */
 #define GD_MARK_FRAMES 1500u           /* qualifying time on the first medley loop (25 s; the cap alone needs about 580) */
+#define GD_RESULT_FRAMES 150u          /* result screen after the finish, then the event is over (one run, no retry) */
 #define GD_MARK_MIN 700u               /* floor of the tightened mark: the top air speed alone needs about 690 */
 
 typedef struct {
     GgMash mash;
-    uint8_t prev_in, laps, done;
+    uint8_t prev_in, laps, done, end_t;   /* end_t: frames shown on the result after the finish */
     uint32_t frames;
     int32_t lap_dist;                  /* 16.16 px travelled in the current lap, 0..ARENA_W16 */
 } GgDash;
