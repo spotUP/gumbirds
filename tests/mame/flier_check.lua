@@ -290,7 +290,10 @@ emu.register_frame_done(function() local ok_, err_ = pcall(function()
       local ptile, ctile, cdraws = mem:read_u16(soot_addr + 6), mem:read_u16(soot_addr + 8), mem:read_u16(soot_addr + 10)
       if ptile < sbase or ptile >= sbase + scount then finish(false, string.format("player sprite tile %d outside Sootling range %d+%d", ptile, sbase, scount)) return end
       if ctile < sbase or ctile >= sbase + scount or cdraws < 100 then finish(false, string.format("computer flier tile %d (draws %d) outside Sootling range %d+%d", ctile, cdraws, sbase, scount)) return end
-      cpu_report = string.format("Sootling tiles drawn (player %d, computer %d, range %d+%d, %d computer draws); ", ptile, ctile, sbase, scount, cdraws) .. string.format("%d computer fliers moved, %d thinks in 150 frames", cpu_n, thinks)
+      -- Computer gum bubble (pool_show_gum): the sentinels say a bubble from the gum sheet was placed for a computer flier
+      local gbase, gcount, gtile, gdraws = mem:read_u16(soot_addr + 12), mem:read_u16(soot_addr + 14), mem:read_u16(soot_addr + 16), mem:read_u16(soot_addr + 18)
+      if gdraws < 100 or gtile < gbase or gtile >= gbase + gcount then finish(false, string.format("computer gum bubble tile %d (draws %d) outside gum range %d+%d, want a bubble drawn for a computer flier", gtile, gdraws, gbase, gcount)) return end
+      cpu_report = string.format("Sootling tiles drawn (player %d, computer %d, range %d+%d, %d computer draws); ", ptile, ctile, sbase, scount, cdraws) .. string.format("%d computer fliers moved, %d thinks in 150 frames", cpu_n, thinks) .. string.format("; computer gum bubble tile %d (%d draws)", gtile, gdraws)
       si_before = mem:read_u16(flow_addr + O_SPAWN)
       -- SI: spawn protection counted down while the player gave no input (read at start and now, 150+ frames apart)
       if si_start == 0 or si_before >= si_start then finish(false, string.format("spawn_inv did not count down with no input: %d at start, %d after %d frames", si_start, si_before, tick)) return end
