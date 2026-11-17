@@ -1,6 +1,7 @@
 -- Gum Games Pop Drop check (make test-gum-pop-drop): UniBIOS 4.0, one coin, Down to the GUM GAMES row, Right three times picks Pop Drop, Start:
 --   P1. the game is PLAYING in GAME_MODE_GUM with Pop Drop running (gg_pop 1) and the HUD row (fix row 7) is lit;
 --   P2. each drop the target balloon is parked under the hero while it hangs, then C cuts the chute: five centred pops, total near the maximum;
+--   P0. the GET SET / GO! countdown runs (cd_t counts up from 0) and its first glyph column (slot 309, ARC_ELEM_SPRITE) is on screen while it does;
 --   P3. the run ends: the result shows, A leaves it, the flow reaches GAME_OVER, the record equals the total.
 -- Env: BRAWL_FLOW_ADDR (hex), BRAWL_BLOW_LAYOUT (gum_pop_drop_probe.c output), BRAWL_RESULT.
 local flow_addr = tonumber(os.getenv("BRAWL_FLOW_ADDR"), 16)
@@ -8,7 +9,7 @@ local result = os.getenv("BRAWL_RESULT")
 local L = {}
 for v in (os.getenv("BRAWL_BLOW_LAYOUT") or ""):gmatch("%d+") do L[#L + 1] = tonumber(v) end
 local O = { state = L[1], mode = L[2], pop = L[3], phase = L[4], pops = L[5], total = L[6], drop = L[7], score = L[8], record = L[9],
-            hx = L[10], tx = L[11], res = L[12] }
+            hx = L[10], tx = L[11], res = L[12], cdt = L[18] }
 local K = { playing = L[13], gum = L[14], over = L[15], hang = L[16], fall = L[17] }
 local mem = manager.machine.devices[":maincpu"].spaces["program"]
 local ports = manager.machine.ioport.ports
@@ -44,7 +45,8 @@ local function finish(ok, msg)
 end
 if not (coin and start1 and up and abtn and cbtn and pick) then finish(false, "missing ports") end
 
-local n, phase, t0, hud = 0, "boot", 0, false
+local n, phase, t0, hud, cd_shown = 0, "boot", 0, false, 0
+local CD_SLOT = 309 -- ARC_ELEM_SPRITE (src/sprite_slots.h)
 emu.register_frame_done(function()
   n = n + 1
   if n > 30000 then finish(false, "watchdog in phase " .. phase) return end
@@ -59,6 +61,8 @@ emu.register_frame_done(function()
   elseif phase == "pop" then
     if b(O.mode) ~= K.gum or b(O.pop) ~= 1 then finish(false, string.format("mode %d pop %d, want GAME_MODE_GUM %d and pop 1", b(O.mode), b(O.pop), K.gum)) return end
     if lit(7) >= 8 then hud = true end
+    local cd = mem:read_u16(flow_addr + O.cdt)   -- uint16_t; the word shows for cd_t 1..90 (gg_countdown.h): SCB3 height > 0, full size SCB2
+    if cd >= 1 and cd <= 90 and ((fix[0x8200 + CD_SLOT] or 0) & 0x3f) > 0 and (fix[0x8000 + CD_SLOT] or 0) == 0x0fff then cd_shown = cd_shown + 1 end
     if b(O.res) == 1 or b(O.state) == K.over then phase = "result"; t0 = n; cbtn:set_value(0) return end
     local ph = b(O.phase)
     if ph == K.hang or ph == K.fall then mem:write_u32(flow_addr + O.tx, mem:read_u32(flow_addr + O.hx)) end   -- park the balloon under the hero
@@ -72,12 +76,13 @@ emu.register_frame_done(function()
     abtn:set_value(((n - t0) % 4) == 0 and 1 or 0)
     if b(O.state) == K.over then
       local pops, total, score, rec = b(O.pops), mem:read_u16(flow_addr + O.total), mem:read_u32(flow_addr + O.score), mem:read_u32(flow_addr + O.record)
+      if cd_shown < 60 then finish(false, string.format("countdown word on screen %d frames, want >= 60", cd_shown)) return end
       if not hud then finish(false, "HUD row never lit") return end
       if pops ~= 5 then finish(false, string.format("pops %d, want 5", pops)) return end
       if total < 50 then finish(false, string.format("total %d for 5 centred pops, want >= 50", total)) return end
       if score == 0 then finish(false, "score 0 after qualifying") return end
       if rec ~= total then finish(false, string.format("record %d, total %d", rec, total)) return end
-      finish(true, string.format("Pop Drop: GUM GAMES row + Right x3 starts it; HUD lit, %d pops, total %d, score %d, record saved", pops, total, score))
+      finish(true, string.format("Pop Drop: GUM GAMES row + Right x3 starts it; countdown shown, HUD lit, %d pops, total %d, score %d, record saved", pops, total, score))
     elseif n - t0 > 1500 then finish(false, "result never led to game over") end
   end
 end)
