@@ -68,6 +68,7 @@ if not (coin and start1 and start2 and p2a) then finish(false, "missing ports: "
 
 local n, phase, t0, fc0 = 0, "boot", 0, nil
 local c_before, y0, nflap, ins_c24 = nil, nil, 0, nil
+local lift
 local function press(f, k, from) f:set_value((k >= from and (k - from) < 15) and 1 or 0) end
 emu.register_frame_done(function()
   n = n + 1
@@ -111,17 +112,18 @@ emu.register_frame_done(function()
       y0 = s32(O.hy + O.szf); phase = "flap"; t0 = n
     end
   elseif phase == "flap" then
-    press(p2a, k, 5)
-    if k == 40 then
-      local st = hero1(O.hstate)
-      if st ~= K.alive then finish(false, "hero[1] state " .. st .. " after P2 flap, want ALIVE " .. K.alive) return end
+    -- A parachute no longer releases on a flap (b0b00e8): P2 lands, stands, pumps the gum with A presses, then lifts off
+    p2a:set_value((k % 12) < 6 and 1 or 0)
+    if k > 700 then finish(false, "hero[1] state " .. hero1(O.hstate) .. " balloons " .. hero1(P2.bal) .. " after 700 frames of P2 flaps, want ALIVE with 2") return end
+    if k >= 40 and hero1(O.hstate) == K.alive and hero1(P2.bal) == 2 then lift = lift or k end
+    if lift and k >= lift + 10 then -- a few frames after lift-off, so the sprites are drawn
       -- C2b. P2 keeps its 2 balloons and the body sprite (pool object POOL_MAX - 2) shows a sheet tile in the P2 palette slot
       if hero1(P2.bal) ~= 2 then finish(false, "hero[1] balloons " .. hero1(P2.bal) .. " after the chute, want 2") return end
       local tile, attr = fix[P2.spr * 64] or 0, fix[P2.spr * 64 + 1] or 0
       if tile < 0x728 or (attr >> 8) ~= PAL.soot2 then finish(false, string.format("P2 body sprite %d tile %x attr %x, want a sheet tile in palette slot %d", P2.spr, tile, attr, PAL.soot2)) return end
       -- C2c. P2's gum bubble (sprites 116..117, SCB3 at 0x8200 + slot, height in the low 6 bits) is drawn above the bird
       if ((fix[0x8200 + 116] or 0) & 0x3f) == 0 then finish(false, "P2 gum bubble sprite 116 has SCB3 height 0, want the bubble drawn") return end
-      phase = "refuse"; t0 = n
+      p2a:set_value(0); phase = "refuse"; t0 = n
     end
   elseif phase == "refuse" then
     if k == 1 then coin:set_value(1) end
