@@ -8,7 +8,7 @@ local result = os.getenv("BRAWL_RESULT")
 local L = {}
 for v in (os.getenv("BRAWL_BLOW_LAYOUT") or ""):gmatch("%d+") do L[#L + 1] = tonumber(v) end
 local O = { state = L[1], mode = L[2], fling = L[3], phase = L[4], dist = L[5], score = L[6], record = L[7], foul = L[8], best = L[9] }
-local K = { playing = L[10], gum = L[11], trip = L[12], over = L[13], gfend = L[14], windup = L[15] }
+local K = { playing = L[10], gum = L[11], trip = L[12], over = L[13], gfend = L[14], windup = L[15], card = L[16] }
 local mem = manager.machine.devices[":maincpu"].spaces["program"]
 local ports = manager.machine.ioport.ports
 local function field(tag, match)
@@ -44,6 +44,7 @@ end
 if not (coin and start1 and up and abtn and bbtn and cbtn and pick) then finish(false, "missing ports") end
 
 -- per attempt: mash 40 frames, pause, hold C 50 frames (about 35 degrees), release, then wait for the flight and the landing
+local cardn, maxlit, maxrow = 0, 0, -1
 local n, phase, t0, hud, trips, attempts, lastphase = 0, "boot", 0, false, 0, 0, -1
 emu.register_frame_done(function()
   n = n + 1
@@ -59,9 +60,15 @@ emu.register_frame_done(function()
   elseif phase == "fling" then
     if b(O.state) == K.over then phase = "check" return end
     if b(O.fling) ~= 1 then finish(false, "gg_fling not set") return end
+    if b(K.card) == 1 then   -- rules card: A is ignored for its first 30 frames, then one press dismisses it
+      cardn = cardn + 1
+      abtn:set_value((cardn >= 40 and cardn < 44) and 1 or 0)
+      return
+    end
     local mode, ph = b(O.mode), b(O.phase)
     if mode == K.trip then trips = trips + 1 end
-    if mode == K.gum and lit(7) >= 8 then hud = true end
+    if lit(7) >= 8 then hud = true end
+    for r = 0, 27 do if lit(r) > maxlit then maxlit = lit(r); maxrow = r end end
     if ph == K.windup and lastphase ~= K.windup then t0 = n + (attempts == 0 and 61 or 0); attempts = attempts + 1 end   -- GET SET freezes the first windup for 60 frames
     lastphase = ph
     local k = n - t0
@@ -75,7 +82,7 @@ emu.register_frame_done(function()
     if n > 20000 then finish(false, string.format("never ended: mode %d phase %d attempts %d trips %d", mode, ph, attempts, trips)) end
   elseif phase == "check" then
     local dist, score, rec, best = mem:read_u32(flow_addr + O.dist), mem:read_u32(flow_addr + O.score), mem:read_u32(flow_addr + O.record), mem:read_u32(flow_addr + O.best)
-    if not hud then finish(false, "HUD row never lit") return end
+    if not hud then finish(false, "HUD row never lit, max lit " .. maxlit .. " row " .. maxrow .. string.format(" cardn %d attempts %d trips %d n %d", cardn, attempts, trips, n)) return end
     if trips < 1 then finish(false, "mode never flipped to TRIP") return end
     if attempts < 3 then finish(false, string.format("only %d attempts seen", attempts)) return end
     if best < 1 then finish(false, "best distance 0") return end
