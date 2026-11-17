@@ -280,7 +280,7 @@ void flier_step(Flier *f, const FlierInput *in, int32_t floor_y) {
             f->sway_phase += FLIER_SWAY_PHASE_STEP;
         }
         if (++f->sway_tick >= FLIER_SWAY_PERIOD) f->sway_tick = 0;
-        f->vx += mul_0_1(f->sway_target - f->vx);
+        f->vx += mul_0_1(f->sway_target + (in->dir > 0 ? FLIER_PARACHUTE_STEER : in->dir < 0 ? -FLIER_PARACHUTE_STEER : 0) - f->vx);
     } else if (!f->on_ground) {
         f->vy += f->balloons ? FLIER_GRAVITY_BALLOON : FLIER_GRAVITY_NO_BALLOON;
     }

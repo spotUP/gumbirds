@@ -2019,7 +2019,8 @@ static void game_loop(void) {
                 const Game *sg = view.game;   /* Gum Trip: its own floor death starts the gum splat (the splosh edge needs a water or lava kind) */
                 splash_update(splash_enabled((world || view.state == FLOW_GAME_OVER) && sg, trip_game),
                               trip_game ? sg->trip_splat : se->n_splosh > 0, trip_game ? SPLASH_KIND_GUM : sg ? sg->hazard_kind : 0,
-                              trip_game ? sg->hero[0].x >> 16 : se->splosh_x, trip_game ? sg->trip_splat_y : 0, g_cam_px);
+                              trip_game ? sg->hero[0].x >> 16 : se->splosh_x, trip_game ? sg->trip_splat_y : 0,
+                              trip_game ? game_flier_cam_px(sg) : g_cam_px); /* the trip flier lives in screen space (owner 2026-11-17: splat far from the death) */
             }
             logo_step(view.state == FLOW_ATTRACT_TITLE);
             title_soot_step(view.state == FLOW_ATTRACT_TITLE);

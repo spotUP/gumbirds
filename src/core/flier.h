@@ -36,6 +36,7 @@
 #define FLIER_FALL_START_VY        (-27307) /* 50 px/s up when a fall starts (3.5) */
 #define FLIER_PARACHUTE_GRAVITY    2048     /* same as the with-gum gravity: a parachute falls twice as fast as before (user decision 2026-11-16; was 1024) */
 #define FLIER_PARACHUTE_SWAY       17476    /* 32 px/s sway amplitude (3.5) */
+#define FLIER_PARACHUTE_STEER      49152    /* 45 px/s held left/right under a parachute, on top of the sway (owner 2026-11-17: steer the drop away from water) */
 /* Lerp weights (parachute sway 0.1) is the shift-add function in flier.c. */
 #define FLIER_INVINCIBLE_POP       FLIER_HIT_COOLDOWN /* frames of immunity after losing a balloon (4.2; tuning.h, was 60) */
 #define FLIER_INVINCIBLE_PARACHUTE 30       /* 500 ms when the last balloon goes and a parachute opens (4.2) */

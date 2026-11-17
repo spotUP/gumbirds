@@ -66,10 +66,15 @@ static void chute_pump_test(void) {
     g.hero[1].x = FL_PX(stage_spawns[0].x); /* over a spawn island, clear of the hazard and the stage elements */
     for (n = 0; g.hero[1].state == FLIER_PARACHUTE && n < 900; n++) { CHECK(g.hero[1].balloons == 0); game_step(&g, 0); }
     CHECK(g.hero[1].state == FLIER_ALIVE && g.hero[1].on_ground);
-    for (n = 0; !arc_pump_in_window(&g.hpump[1]) && n < 200; n++) { game_step(&g, 0); }
-    CHECK(arc_pump_in_window(&g.hpump[1]));
-    for (n = 0; arc_pump_in_window(&g.hpump[1]) && n < 400; n++) game_step(&g, 0);
-    CHECK(g.hero[1].state == FLIER_ALIVE && g.hero[1].balloons == FLIER_START_BALLOONS);
+    /* the player pumps with A, one stage per press (owner 2026-11-17): no press, no pump; a held A is one press */
+    for (n = 0; n < 300; n++) game_step(&g, 0);
+    CHECK(g.hpump[1].state == ARC_PUMP_STANDING && g.hero[1].balloons == 0 && g.hero[1].on_ground);
+    g.input2 = IN_A;
+    for (n = 0; n < 30; n++) game_step(&g, 0);
+    CHECK(arc_pump_in_window(&g.hpump[1]) && arc_pump_progress(&g.hpump[1]) == 1 && g.hero[1].on_ground);
+    for (n = 1; n < ARC_PUMP_STAGES; n++) { g.input2 = 0; game_step(&g, 0); g.input2 = IN_A; game_step(&g, 0); }
+    g.input2 = 0; game_step(&g, 0);
+    CHECK(!arc_pump_in_window(&g.hpump[1]) && g.hero[1].state == FLIER_ALIVE && g.hero[1].balloons == FLIER_START_BALLOONS);
 }
 
 /* Arcade re-pump (user decision 2026-11-16): a rival that loses its last gum in the air parachutes down, stands

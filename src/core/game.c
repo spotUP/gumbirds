@@ -874,11 +874,18 @@ void game_step_arena(Game *g, uint8_t input)
             ArcPump *hp = &g->hpump[h];
             int hpumping = arc_pump_in_window(hp), hsit = hp->state == ARC_PUMP_STANDING;
             if (hf->state != FLIER_ALIVE && (hsit || hpumping)) hp->state = ARC_PUMP_FLYING;
+            uint8_t raw_flap = in.flap;
             hp->two = (uint8_t)(g->players == 2);
-            arc_pump_step(hp);
+            if (in.flap && !hf->flap_prev && (hsit || hpumping)) {
+                /* players pump with A, one blow-up stage per press, no timer (owner 2026-11-17) */
+                if (hsit) { hp->state = ARC_PUMP_PUMPING; hp->frame = 0; }
+                hp->frame = (int16_t)(hp->frame + (arc_pump_frames(hp) + ARC_PUMP_STAGES - 1) / ARC_PUMP_STAGES);
+                if (hp->frame >= arc_pump_frames(hp)) hp->state = ARC_PUMP_FLYING;
+            }
             if (arc_pump_in_window(hp) && hf->balloons == 0) flier_add_balloon(hf);
             if (hsit || hpumping || arc_pump_in_window(hp)) { in.dir = 0; in.flap = 0; }
             arena_flier_step(g, hf, &in);
+            if (hsit || hpumping) hf->flap_prev = raw_flap; /* the press edge must see the real button while the flap is held off */
             if (g->mode == GAME_MODE_ARCADE) arc_element_apply(&g->elems, hf);
             if (hpumping && !arc_pump_in_window(hp)) {
                 while (hf->balloons < FLIER_START_BALLOONS && flier_add_balloon(hf)) {}
@@ -931,6 +938,7 @@ void game_step_arena(Game *g, uint8_t input)
             ci.dir = 0;
             ci.flap = 0;
         }
+        if (c->state == FLIER_PARACHUTE) ci.dir = 0; /* parachute steering is for players only (owner 2026-11-17); rivals keep the sway drop */
         arena_flier_step(g, c, &ci);
         if (g->mode == GAME_MODE_ARCADE) arc_element_apply(&g->elems, c);
         if (pumping && !arc_pump_in_window(&g->pump[i])) {
