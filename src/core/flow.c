@@ -268,11 +268,12 @@ void flow_step(Flow *f, uint8_t input, uint8_t start_pressed, uint32_t frame_cou
         if (f->credit_hold) f->select_open = 1;
         title_reset_combo(f, input);
         title_mode_select(f, input);
+        if (f->select_open) f->highlight = -1; /* the mode list covers the highlighted table's rows (owner 2026-11-17) */
         if (start_pressed && (input & FLOW_RESET_COMBO) != FLOW_RESET_COMBO) {
             /* start_pressed means a credit was taken: it always becomes a game, in the highlighted mode */
             start_title_game(f, frame_counter);
         } else if (a_edge && (input & FLOW_RESET_COMBO) != FLOW_RESET_COMBO) {
-            if (!f->select_open) { f->select_open = 1; f->timer = 0; } /* A without a credit only opens the select */
+            if (!f->select_open) { f->select_open = 1; f->highlight = -1; f->timer = 0; } /* A without a credit only opens the select */
         } else if (f->timer >= ATTRACT_TITLE_FRAMES && !f->credit_hold) {
             f->reset_flash = 0;
             f->select_open = 0;

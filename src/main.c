@@ -151,6 +151,7 @@ static u16 g_banner_shadow[BANNER_W * BANNER_H]; /* cell last sent: only changed
 #define RES_FILL_PER_FRAME 80
 static u16 g_res_shadow[RESV_W * RESV_H];
 static u8 g_res_up, g_res_col, g_res_row, g_res_pend;
+static u8 g_hl_up; /* a highlighted table is on the fix layer outside the table state */
 static u16 g_res_filled;
 /* Result screen sprites behind the windows of the fix scene (draw_result_fx): setup stage, frames loaded (0xFF none), sky cycle steps. */
 static u8 g_resfx_stage, g_resfx_bub[RES_SLOTS], g_resfx_wheel[5], g_resfx_crank, g_resfx_sky, g_resfx_star;
@@ -1504,6 +1505,10 @@ static void draw(const FlowView *v) {
         resfx_hide();
         g_draw_state = -1; /* the result screen is over: clear the fix layer, the HUD comes back */
     }
+    if (g_hl_up && v->highlight < 0) {
+        g_hl_up = 0;
+        g_draw_state = -1; /* the title's highlighted table is gone (the mode list opened): clear its rows */
+    }
     if ((int)v->state != g_draw_state) {
         gfx_cls();
         title_reset();
@@ -1751,8 +1756,10 @@ static void draw(const FlowView *v) {
         gfx_center_text(13, PAL_TEXT, "OPEN THE MENU TO SAVE");
         break;
     }
-    if (v->state != FLOW_ATTRACT_TABLE && v->highlight >= 0)
+    if (v->state != FLOW_ATTRACT_TABLE && v->highlight >= 0) {
+        g_hl_up = 1;
         draw_table(v->table, v->table_mode, v->highlight, 16);
+    }
 }
 
 /*

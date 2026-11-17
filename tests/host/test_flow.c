@@ -272,6 +272,9 @@ static void scenario_full(const HiscoreTable *pre, const char *want_name)
     flow_view(&r.f, &v);
     CHECK(v.highlight == row);
     CHECK(r.saves == 1);
+    /* the mode list takes rows 23..27, where the highlighted table sits: opening it drops the table (owner 2026-11-17) */
+    rig_tick(&r, IN_A, 0);
+    CHECK(r.f.state == FLOW_ATTRACT_TITLE && r.f.select_open && r.f.highlight == -1);
     rig_ticks(&r, 0, ATTRACT_TITLE_FRAMES);
     CHECK(r.f.state == FLOW_ATTRACT_TABLE && r.f.highlight == -1);   /* the title timeout clears the highlight */
     /* BG4: start in the table opens mode select on the title */
