@@ -382,6 +382,12 @@ test: cart
 	@$(MAKE) --no-print-directory test-logo
 	@$(MAKE) --no-print-directory test-solid
 	@$(MAKE) --no-print-directory test-trip
+	@$(MAKE) --no-print-directory test-title-pause
+	@$(MAKE) --no-print-directory test-arena-join
+	@$(MAKE) --no-print-directory test-party
+	@$(MAKE) --no-print-directory test-party-roost
+	@$(MAKE) --no-print-directory test-party-hot
+	@$(MAKE) --no-print-directory test-party-name
 	@$(MAKE) --no-print-directory test-sound
 	@set -e; T=$$(mktemp -d $(BUILDDIR)/test-run.XXXXXX); \
 	BRAWL_FRAME_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_frame_counter"{print $$1}') \
