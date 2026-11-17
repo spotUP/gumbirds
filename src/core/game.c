@@ -184,9 +184,12 @@ static void game_step_gum(Game *g, uint8_t input)
     if (b->phase == GG_BLOW_END) g->over = 1;
 }
 
+static void game_step_dash(Game *g, uint8_t input);
 void game_step(Game *g, uint8_t input)
 {
-    if (g->mode == GAME_MODE_GUM) {
+    if (g->gg_dash) {
+        game_step_dash(g, input);
+    } else if (g->mode == GAME_MODE_GUM) {
         game_step_gum(g, input);
     } else if (g->mode == GAME_MODE_TRIP) {
         game_step_trip(g, input);
@@ -376,6 +379,21 @@ static void camera_follow(Game *g)
     int n = human_xs(g, humans);
     camera_step(&g->camera, humans, n);
     coop_wall(g);
+}
+
+void game_gg_start_dash(Game *g)
+{
+    g->gg_dash = 1;
+    g->players = 1;
+    g->cpu_count = 0;
+    gumdash_init(&g->dash, &g->hero[0]);
+    camera_init(&g->camera);
+}
+
+static void game_step_dash(Game *g, uint8_t input)
+{
+    gumdash_step(&g->dash, &g->hero[0], input);
+    camera_follow(g);
 }
 
 /* Arena and arcade share the round phases (pan, ROUND/STAGE banner, frozen hazards). */
