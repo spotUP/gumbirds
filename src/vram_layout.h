@@ -25,6 +25,7 @@
 #include "gen/resfx_sprites.h"
 #include "gen/chute_sprites.h"
 #include "gen/gumbubble_sprites.h"
+#include "gen/gumleak_sprites.h"
 
 /* The ngdevkit logo tile block that opens the C-ROM (assets/base-crom-logo); the title logo (gen/logo_sprites.h, LOGO_TILE_COUNT) sits last. */
 #define BASE_LOGO_TILE_COUNT 256
