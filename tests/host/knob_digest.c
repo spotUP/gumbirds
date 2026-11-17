@@ -345,10 +345,12 @@ static void flier_view_digest(void)
     static const uint8_t k_count[] = SOOTLING_TABLE_CLIP_COUNT;
     static const uint8_t k_loop[] = SOOTLING_TABLE_CLIP_LOOP;
     static const uint8_t k_ticks[] = SOOTLING_TABLE_FRAME_TICKS;
+    static const uint8_t k_sway[] = SOOTLING_TABLE_SWAY;
     static const FlierClips clips = { k_first, k_count, k_loop, k_ticks,
         SOOTLING_CLIP_FLAP, SOOTLING_CLIP_FLY, SOOTLING_CLIP_SETTLE, SOOTLING_CLIP_IDLE, SOOTLING_CLIP_PUMP,
         SOOTLING_CLIP_INFLATE, SOOTLING_CLIP_FALL, SOOTLING_CLIP_POP2, SOOTLING_CLIP_POP1,
-        SOOTLING_CLIP_WALK, SOOTLING_CLIP_LAND, SOOTLING_CLIP_BREATHE };
+        SOOTLING_CLIP_WALK, SOOTLING_CLIP_LAND, SOOTLING_CLIP_BREATHE,
+        k_sway, SOOTLING_CLIP_FLAP_R, SOOTLING_CLIP_FLAP_L };
     static const int32_t speeds[3] = { 0, 40000, 91750 }; /* 0, 0.61 and 1.4 px per frame */
     int b, seg, i, flip;
     for (b = 2; b >= 0; b--) {

@@ -3,6 +3,7 @@
 void flier_anim_init(FlierAnim *a)
 {
     a->clip = a->frame = a->tick = a->balloons = a->started = a->prev_ground = a->facing = 0;
+    a->sway_clip = a->sway_frame = a->sway_tick = 0;
 }
 
 static void play(FlierAnim *a, uint8_t clip)
@@ -50,9 +51,20 @@ uint8_t flier_anim_step(FlierAnim *a, const Flier *f, const FlierClips *c, int *
     } else if (grounded && !a->prev_ground) {
         play(a, c->land);
     } else if (f->flapped && steady == c->fly && (a->clip == c->fly || a->clip == c->flap || a->clip == c->settle)) {
+        if (a->clip != c->flap) { /* the sway keeps its phase under the wingbeat */
+            a->sway_clip = a->clip;
+            a->sway_frame = a->frame;
+            a->sway_tick = a->tick;
+        }
         play(a, c->flap); /* a press restarts the wingbeat */
-    } else if (facing != a->facing && steady == c->fly && (a->clip == c->fly || a->clip == c->settle)) {
-        play(a, c->settle); /* a turn in the air: the damped sway, mirrored by the flip */
+    }
+    if (facing != a->facing && steady == c->fly) {
+        if (a->clip == c->flap) { /* a turn under a wingbeat: the sway starts below it */
+            a->sway_clip = c->settle;
+            a->sway_frame = a->sway_tick = 0;
+        } else if (a->clip == c->fly || a->clip == c->settle) {
+            play(a, c->settle); /* a turn in the air: the damped sway, mirrored by the flip */
+        }
     }
     a->facing = facing;
     a->balloons = f->balloons;
@@ -63,11 +75,26 @@ uint8_t flier_anim_step(FlierAnim *a, const Flier *f, const FlierClips *c, int *
     if (c->loop[a->clip] && a->clip != steady) play(a, steady);
     {
         uint8_t shown = (uint8_t)(c->first[a->clip] + a->frame);
+        if (a->clip == c->flap) { /* the wingbeat shows on the body the sway has now, and the sway runs on */
+            uint8_t s = (uint8_t)(c->first[a->sway_clip] + a->sway_frame);
+            if (c->sway[s]) shown = (uint8_t)(c->first[c->sway[s] == 1 ? c->flap_r : c->flap_l] + a->frame);
+            if (++a->sway_tick >= c->ticks[s]) {
+                a->sway_tick = 0;
+                if (++a->sway_frame >= c->count[a->sway_clip]) { /* fly loops; settle ends into fly */
+                    a->sway_clip = c->fly;
+                    a->sway_frame = 0;
+                }
+            }
+        }
         if (++a->tick >= hold_of(c, a->clip, a->frame, shown)) {
             a->tick = 0;
             if (++a->frame >= c->count[a->clip]) {
                 if (c->loop[a->clip]) a->frame = 0;
-                else play(a, steady);
+                else if (a->clip == c->flap) { /* back to the sway where it is now */
+                    a->clip = a->sway_clip;
+                    a->frame = a->sway_frame;
+                    a->tick = a->sway_tick;
+                } else play(a, steady);
             }
         }
         return shown;

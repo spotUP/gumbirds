@@ -97,7 +97,7 @@ local function load_tables(path)
   end
   local function clip(name) return tonumber((assert(src:match("#define SOOTLING_CLIP_" .. name .. " (%d+)"), name))) end
   return { first = list("SOOTLING_TABLE_CLIP_FIRST"), count = list("SOOTLING_TABLE_CLIP_COUNT"), ticks = list("SOOTLING_TABLE_FRAME_TICKS"),
-    flap = clip("FLAP"), fly = clip("FLY"), walk = clip("WALK"), breathe = clip("BREATHE") }
+    flap = clip("FLAP"), flap_r = clip("FLAP_R"), flap_l = clip("FLAP_L"), fly = clip("FLY"), walk = clip("WALK"), breathe = clip("BREATHE") }
 end
 local T = load_tables(os.getenv("BRAWL_SOOT_TABLES"))
 local CLIP_WALK, CLIP_BREATHE = T.walk, T.breathe
@@ -108,6 +108,15 @@ local FLAP_FRAMES = T.count[T.flap + 1]
 local FLAP_LAST = FLAP_FIRST + FLAP_FRAMES - 1
 local FLY_FIRST = T.first[T.fly + 1]
 local FLY_LAST = FLY_FIRST + T.count[T.fly + 1] - 1
+-- A flap during a swung sway frame shows the same wing arc on the swung body: clips flap_r / flap_l, same frame count and ticks as flap.
+-- flap_off: the place in the flap play (0 = first frame) of a shown sheet frame, nil when the frame is not a flap frame.
+local function flap_off(v)
+  for _, c in ipairs({ T.flap, T.flap_r, T.flap_l }) do
+    local o = (v or -1) - T.first[c + 1]
+    if o >= 0 and o < FLAP_FRAMES then return o end
+  end
+  return nil
+end
 local FLAP_TOTAL = 0   -- ticks of one whole flap play
 for i = FLAP_FIRST, FLAP_LAST do FLAP_TOTAL = FLAP_TOTAL + T.ticks[i + 1] end
 local FLAP_COOLDOWN = 9                    -- FLIER_FLAP_COOLDOWN (src/core/tuning.h)
@@ -177,15 +186,17 @@ local function flapview_step()
       local msg, k0 = "", nil
       for i, x in ipairs(r) do
         msg = msg .. string.format(" %d x%d", x[1], x[2])
-        if not k0 and x[1] == FLAP_FIRST then k0 = i end
+        if not k0 and flap_off(x[1]) == 0 then k0 = i end
       end
       if not k0 then finish(false, "flap view: the flap clip never showed; runs:" .. msg) return false end
+      -- The sway can change side inside one flap frame (two runs, e.g. flap_r then flap): add up the runs of one flap place.
+      local j = k0
       for i = 0, FLAP_FRAMES - 1 do
-        local x = r[k0 + i]
-        local want = T.ticks[FLAP_FIRST + i + 1]
-        if not x or x[1] ~= FLAP_FIRST + i or x[2] ~= want then finish(false, string.format("flap view: flap frame %d is %s, want sheet frame %d held %d; runs:%s", i, x and (x[1] .. " x" .. x[2]) or "missing", FLAP_FIRST + i, want, msg)) return false end
+        local held, want = 0, T.ticks[FLAP_FIRST + i + 1]
+        while r[j] and flap_off(r[j][1]) == i do held = held + r[j][2]; j = j + 1 end
+        if held ~= want then finish(false, string.format("flap view: flap frame %d held %d, want %d; runs:%s", i, held, want, msg)) return false end
       end
-      local after = r[k0 + FLAP_FRAMES]
+      local after = r[j]
       if not after or after[1] < FLY_FIRST or after[1] > FLY_LAST then finish(false, "flap view: the fly loop did not take over after the play; runs:" .. msg) return false end
       cpu_report = cpu_report .. "; flap play:" .. msg
       lift(); fv_stage = 3
@@ -204,9 +215,9 @@ local function flapview_step()
     abtn:set_value(0)
     -- fv_rec[k] is the sample at t = 20 + k. The play after press 1 is past its first frame by p2 - 1 (a flap frame, not the first);
     -- the restart by press 2 shows the first flap frame within two samples of p2.
-    local before, after = fv_rec[p2 - 1 - 20], math.min(fv_rec[p2 - 20] or -1, fv_rec[p2 + 1 - 20] or -1)
-    if (before or -1) < FLAP_FIRST + 1 or before > FLAP_LAST then finish(false, string.format("flap view: the first play was not past its first frame before the second press (sheet frame " .. tostring(before) .. "); balloons %d; frames %s", mem:read_u8(flow_addr + O_BAL), table.concat(fv_rec, ","))) return false end
-    if after ~= FLAP_FIRST then finish(false, string.format("flap view: the second press %d frames after the first did not restart the play (frames %s)", FLAP_COOLDOWN, table.concat(fv_rec, ","))) return false end
+    local before, after = fv_rec[p2 - 1 - 20], math.min(flap_off(fv_rec[p2 - 20]) or 99, flap_off(fv_rec[p2 + 1 - 20]) or 99)
+    if (flap_off(before) or 0) < 1 then finish(false, string.format("flap view: the first play was not past its first frame before the second press (sheet frame " .. tostring(before) .. "); balloons %d; frames %s", mem:read_u8(flow_addr + O_BAL), table.concat(fv_rec, ","))) return false end
+    if after ~= 0 then finish(false, string.format("flap view: the second press %d frames after the first did not restart the play (frames %s)", FLAP_COOLDOWN, table.concat(fv_rec, ","))) return false end
     cpu_report = cpu_report .. string.format("; second press %d frames after the first restarted the play", FLAP_COOLDOWN)
     return true
   end
