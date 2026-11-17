@@ -687,7 +687,7 @@ static void pool_show_leak(PoolObj *p, u8 i, u16 *scb3) {
         GumLeakPose gp;
         if (!gum_leak_pose((uint8_t)p->x, (uint32_t)p->y, fr, flip, cx, top, &gp)) goto hide;
         ax = ax_t[gp.idx]; ay = ay_t[gp.idx]; cw = gp.w;
-        x = gp.x + (flip ? cw - ax - l->tiles_w * 16 : ax);
+        x = gp.x + ax;
         y = gp.y + ay;
     } else {
         flip = (p->flags & POOL_F_FLIP) != 0;
@@ -698,18 +698,19 @@ static void pool_show_leak(PoolObj *p, u8 i, u16 *scb3) {
         const GumFrame *f = &gum_frames[gum_anims[gum_view_anim(GUM_VIEW_LEVELS, GUM_STATE_WOBBLE)].first_frame + wob];
         int bx = camera_screen_x(obj_pool_px(p->x) - FLIER_HALF_W - SOOT_BOX_DX, (p->flags & POOL_F_SCREEN) ? 0 : g_cam_px, SOOT_COLUMNS * 16);
         cw = f->tiles_w * 16; ax = ax_t[wob];
-        x = bx + SOOT_COLUMNS * 8 - cw / 2 + o.dx + (flip ? cw - ax - l->tiles_w * 16 : ax);
+        x = bx + SOOT_COLUMNS * 8 - cw / 2 + o.dx + ax;
         y = obj_pool_px(p->y) - bf->tiles_h * 16 - f->tiles_h * 16 + o.dy + ay_t[wob];
     }
     if (!camera_visible(x, l->tiles_w * 16)) goto hide;
+    /* the hole and jet never mirror with the bird's facing (owner 2026-11-17); flip only moves the bubble */
     u16 slot = obj_pool_sprite(&g_pool, i);
-    u8 key = (u8)(lf + 1 + (flip ? 128 : 0));
+    u8 key = (u8)(lf + 1);
     if (g_pool_drawn[i] != key) {
         const u16 *t = &gumleak_tile_index[l->tile_offset];
-        u16 attr = (u16)((GUM_PAL_SLOT + l->palette) << 8 | (flip ? SOOT_FLIP : 0));
+        u16 attr = (u16)((GUM_PAL_SLOT + l->palette) << 8);
         /* one strip per column straight from the const table: the queue keeps the tile pointer, a stack copy would be read after return */
         for (int c = 0; c < l->tiles_w; c++)
-            gfx_sprite_strips((u16)(slot + c), 1, l->tiles_h, t + (flip ? l->tiles_w - 1 - c : c) * l->tiles_h, GUMLEAK_TILE_BASE, attr);
+            gfx_sprite_strips((u16)(slot + c), 1, l->tiles_h, t + c * l->tiles_h, GUMLEAK_TILE_BASE, attr);
         if (g_pool_cols[i] != l->tiles_w) { gfx_sprite_chain(slot, l->tiles_w); g_pool_cols[i] = l->tiles_w; }
         g_pool_drawn[i] = key;
     }
