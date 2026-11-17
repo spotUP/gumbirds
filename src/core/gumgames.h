@@ -73,6 +73,7 @@ void gg_blow_step(GgBlow *b, uint8_t in1, uint8_t in2);
 #define GG_RACE_CPU_PERIOD 5u          /* the computer bird presses every 5th frame (about 0.6 size per frame net of the leak) */
 #define GG_RACE_CLOCK 1800u            /* two idle humans: after 30 s the bigger bubble wins, a tie goes to P1 */
 #define GG_RACE_INTRO_FRAMES 150u
+#define GG_RACE_RIVAL_GAP 48           /* px from the player's bird to the computer / P2 bird */
 #define GG_RACE_RESULT_FRAMES 150u
 enum { GG_RACE_INTRO, GG_RACE_PLAY, GG_RACE_RESULT, GG_RACE_END };
 typedef struct {

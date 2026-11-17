@@ -525,8 +525,11 @@ static void pool_sync_cpus(const Game *g) {
 /* Player 2: body and parachute in pool objects P2_OBJ_BODY / P2_OBJ_CHUTE, claimed once P2 has joined and kept until the
  * world is left (pool_free_all). A hidden P2 keeps the objects with POOL_F_BLINK set, so a computer flier never allocates
  * them. A bounced body draws from a dead body slot instead (owner DEAD_OWNER_HERO(1)). */
+static u8 g_p2_cpu;   /* 1 = the P2 body object shows the Burst Race computer bird */
 static void pool_sync_p2(const Game *g) {
-    if (g->players < 2) return;
+    if (g->players < 2 && !g->gg_race) return;
+    u8 cpu = g->gg_race && g->players < 2;   /* Burst Race against the computer: the rival sheet and palette */
+    if (cpu != g_p2_cpu) { g_p2_cpu = cpu; g_pool_drawn[P2_OBJ_BODY] = 0; }
     const Flier *fl = &g->hero[1];
     if (!obj_pool_is_live(&g_pool, P2_OBJ_BODY)) {
         if (!obj_pool_claim(&g_pool, P2_OBJ_BODY) || !obj_pool_claim(&g_pool, P2_OBJ_CHUTE)) return;
@@ -595,6 +598,8 @@ static int human_leaks(const Game *g, int pl) {
 }
 /* Arena / arcade bubble level of a human: full, or growing while that human pumps after a parachute landing. */
 static u8 human_bubble_level(const Game *g, int pl) { return pump_level(&g->hpump[pl], g->hero[pl].state == FLIER_ALIVE); }
+/* Burst Race bubble of side s: the pump size on the same 1..16 levels (at least 1, so the bubble shows from the first frame); gum_step takes it as a gum value. */
+static uint16_t race_gum(const Game *g, int s) { uint16_t v = (uint16_t)(g->race.size[s] * (GUM_MAX / GG_BLOW_MAX)); return v ? v : 1; }
 static void human_leak_sync(const Game *g) {
     for (int pl = 0; pl < HUMANS; pl++) {
         int want = (g->mode == GAME_MODE_TRIP ? pl == 0 : (pl == 0 || g->players == 2)) && human_leaks(g, pl);
@@ -746,7 +751,7 @@ static void pool_show_hero(PoolObj *p, u8 i, u16 *scb3) {
     if (p->type & 0x80) { pool_show_chute(p, i, scb3); return; }
     if (p->flags & POOL_F_BLINK) { g_blink_pool[0]++; if (g_pool_drawn[i]) pool_hide_run(i); return; } /* the animation kept stepping in the sync; the hide costs queue words once */
     g_blink_pool[1]++;
-    int p2 = i == P2_OBJ_BODY;
+    int p2 = i == P2_OBJ_BODY && !g_p2_cpu;
     u8 fi = soot_frame(p2 ? SOOTLING_ANIM_PLAYER : SOOTLING_ANIM_CPU, p->type);
     const SootlingFrame *f = &sootling_frames[fi];
     int flip = (p->flags & POOL_F_FLIP) != 0;
@@ -754,7 +759,7 @@ static void pool_show_hero(PoolObj *p, u8 i, u16 *scb3) {
     u16 slot = obj_pool_sprite(&g_pool, i);
     if (!camera_visible(x, SOOT_COLUMNS * 16)) { pool_hide_run(i); return; }
     int top = obj_pool_px(p->y) - f->tiles_h * 16;
-    if (p2) { g_gum_pose[1].drawn = 1; g_gum_pose[1].frame = p->type; g_gum_pose[1].flip = (u8)flip; g_gum_pose[1].cx = x + SOOT_COLUMNS * 8; g_gum_pose[1].top = top; }
+    if (i == P2_OBJ_BODY) { g_gum_pose[1].drawn = 1; g_gum_pose[1].frame = p->type; g_gum_pose[1].flip = (u8)flip; g_gum_pose[1].cx = x + SOOT_COLUMNS * 8; g_gum_pose[1].top = top; }
     const u16 *tiles = &sootling_tile_index[f->tile_offset];
     u8 key = (u8)(p->type + 1 + (flip ? 128 : 0)); /* frame and mirror state the strips hold; the computer palette only, so the clip frame is unique */
     if (g_pool_drawn[i] != key) {
@@ -1371,7 +1376,7 @@ static void hero_and_mode(const FlowView *v) {
         hero_show(v->game, game_flier_cam_px(v->game));
         if (v->game->mode == GAME_MODE_TRIP) pool_sync_trip(v->game, game_trip_ready(v->game));
         pool_sync_cpus(v->game);
-        if (v->game->mode == GAME_MODE_ARCADE || v->game->mode == GAME_MODE_ARENA) pool_sync_p2(v->game);
+        if (v->game->mode == GAME_MODE_ARCADE || v->game->mode == GAME_MODE_ARENA || v->game->gg_race) pool_sync_p2(v->game);
         if (v->game->mode == GAME_MODE_TRIP) pool_sync_rivals(v->game);
         human_leak_sync(v->game);
         if (g_pool_stress) pool_stress();
@@ -2379,10 +2384,11 @@ static void game_loop(void) {
             trip_pickup_step(trip_game ? &view.game->trip_gen : 0, trip_game ? view.game->trip.px : 0, trip_game ? view.game->trip.steps : 0, trip_game && game_trip_ready(view.game));
             /* Arena: the bubble is always full size (no gum value, no pop); Gum Trip: its gum meter. */
             u8 arena = world && (view.game->mode == GAME_MODE_ARENA || view.game->mode == GAME_MODE_ARCADE);
-            gum_step(0, arena || (trip && game_trip_ready(view.game)), trip ? view.game->trip.gum : (arena ? (uint16_t)(human_bubble_level(view.game, 0) * (GUM_MAX / GUM_VIEW_LEVELS)) : GUM_MAX), (trip || arena) ? view.game->frame : 0, g_gum_pose[0].drawn, g_gum_pose[0].frame, g_gum_pose[0].flip, g_gum_pose[0].cx, g_gum_pose[0].top, world && human_leaks(view.game, 0));
+            u8 race = world && view.game->gg_race;
+            gum_step(0, arena || race || (trip && game_trip_ready(view.game)), trip ? view.game->trip.gum : (race ? race_gum(view.game, 0) : arena ? (uint16_t)(human_bubble_level(view.game, 0) * (GUM_MAX / GUM_VIEW_LEVELS)) : GUM_MAX), (trip || arena || race) ? view.game->frame : 0, g_gum_pose[0].drawn, g_gum_pose[0].frame, g_gum_pose[0].flip, g_gum_pose[0].cx, g_gum_pose[0].top, world && human_leaks(view.game, 0));
             roost_marker_step(arena && view.state == FLOW_PLAYING ? view.game : 0);
             hot_bubble_step(arena && view.state == FLOW_PLAYING ? view.game : 0);
-            gum_step(1, arena && view.game->players == 2, (uint16_t)(human_bubble_level(view.game, 1) * (GUM_MAX / GUM_VIEW_LEVELS)), view.game->frame, g_gum_pose[1].drawn, g_gum_pose[1].frame, g_gum_pose[1].flip, g_gum_pose[1].cx, g_gum_pose[1].top, world && human_leaks(view.game, 1));
+            gum_step(1, race || (arena && view.game->players == 2), race ? race_gum(view.game, 1) : (uint16_t)(human_bubble_level(view.game, 1) * (GUM_MAX / GUM_VIEW_LEVELS)), view.game->frame, g_gum_pose[1].drawn, g_gum_pose[1].frame, g_gum_pose[1].flip, g_gum_pose[1].cx, g_gum_pose[1].top, world && human_leaks(view.game, 1));
             {   /* the splash starts from the same crossing that plays the splosh sound; it keeps running through Game Over */
                 const SoundEvents *se = sound_events();
                 const Game *sg = view.game;   /* Gum Trip: its own floor death starts the gum splat (the splosh edge needs a water or lava kind) */
