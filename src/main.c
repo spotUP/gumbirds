@@ -1623,38 +1623,49 @@ static void title_soot_step(int active) {
     }
 }
 
-static void draw_mode_select(u8 open, u8 mode, u8 rule, u8 event) {
-    u8 key = open ? (u8)(1 + mode + (mode == GAME_MODE_PARTY ? rule * 8 : 0)) : 0;
+/* Centred backed line on a title row (the row is blanked to the open sky first). */
+static void title_line(u8 row, u8 pal, const char *str) {
+    u8 n = 0;
+    while (str[n]) n++;
+    text(2, row, PAL_TEXT, BANNER_BLANK);
+    gfx_text_backed((u8)((VQ_FIX_COLS - n) / 2), row, pal, str);
+}
+
+/* One list line: cursor at col 15, name at col 17 padded over the previous line's text. */
+static void sub_line(u8 row, u8 on, const char *name) {
+    char buf[16];
+    u8 i = 0;
+    while (name[i] && i < 15) { buf[i] = name[i]; i++; }
+    while (i < 15) buf[i++] = ' ';
+    buf[15] = 0;
+    text(2, row, PAL_TEXT, BANNER_BLANK);
+    gfx_text_backed(15, row, PAL_HIGH, on ? ">" : " ");
+    gfx_text_backed(17, row, on ? PAL_HIGH : PAL_TEXT, buf);
+}
+
+static void draw_mode_select(u8 open, u8 mode, u8 rule, u8 event, u8 sub) {
+    u8 sel = mode == GAME_MODE_PARTY ? rule : event;
+    u8 key = open ? (u8)(1 + mode + (sub ? 8 + sel * 8 : 0)) : 0; /* the submenu cursor is part of the key: the view redraws when it moves */
     if (key == g_title.select) return;
     g_title.select = key;
     g_title.players_cr = 0xFF; /* the goal line shares the players row: redraw it after any change */
     if (!open) { text(15, TITLE_SELECT_ROW, PAL_TEXT, "          "); text(15, TITLE_SELECT_ROW + 1, PAL_TEXT, "          "); text(15, TITLE_SELECT_ROW + 2, PAL_TEXT, "          "); text(15, TITLE_SELECT_ROW + 3, PAL_TEXT, "                          "); text(15, TITLE_SELECT_ROW + 4, PAL_TEXT, "          "); text(2, TITLE_GOAL_ROW, PAL_TEXT, "                                    "); return; }
-    gfx_text_backed(15, TITLE_SELECT_ROW, PAL_HIGH, mode == GAME_MODE_ARENA ? ">" : " ");
-    gfx_text_backed(17, TITLE_SELECT_ROW, mode == GAME_MODE_ARENA ? PAL_HIGH : PAL_TEXT, "ARENA   ");
-    gfx_text_backed(15, TITLE_SELECT_ROW + 1, PAL_HIGH, mode == GAME_MODE_TRIP ? ">" : " ");
-    gfx_text_backed(17, TITLE_SELECT_ROW + 1, mode == GAME_MODE_TRIP ? PAL_HIGH : PAL_TEXT, "GUM TRIP");
-    gfx_text_backed(15, TITLE_SELECT_ROW + 2, PAL_HIGH, mode == GAME_MODE_ARCADE ? ">" : " ");
-    gfx_text_backed(17, TITLE_SELECT_ROW + 2, mode == GAME_MODE_ARCADE ? PAL_HIGH : PAL_TEXT, "ARCADE  ");
-    /* PARTY row and goal line: centred, so the row is cleared to the open sky first (unbacked blanks), then drawn backed */
-    text(2, TITLE_SELECT_ROW + 3, PAL_TEXT, BANNER_BLANK);
-    text(2, TITLE_GOAL_ROW, PAL_TEXT, BANNER_BLANK);
-    if (mode == GAME_MODE_PARTY) {
-        const char *name = game_party_name(rule), *goal = game_party_goal(rule);
-        u8 n = 0, g = 0;
-        while (name[n]) n++;
-        while (goal[g]) g++;
-        u8 x = (u8)((VQ_FIX_COLS - 6 - n) / 2); /* "PARTY " + rule name */
-        gfx_text_backed((u8)(x - 2), TITLE_SELECT_ROW + 3, PAL_HIGH, ">");
-        gfx_text_backed(x, TITLE_SELECT_ROW + 3, PAL_HIGH, "PARTY ");
-        gfx_text_backed((u8)(x + 6), TITLE_SELECT_ROW + 3, PAL_TEXT, name);
-        gfx_text_backed((u8)((VQ_FIX_COLS - g) / 2), TITLE_GOAL_ROW, PAL_TEXT, goal);
-    } else {
-        gfx_text_backed(15, TITLE_SELECT_ROW + 3, PAL_HIGH, " ");
-        gfx_text_backed(17, TITLE_SELECT_ROW + 3, PAL_TEXT, "PARTY");
+    if (sub && mode == GAME_MODE_GUM) { /* six events on rows 23..28 (the goal row) */
+        for (u8 i = 0; i < GG_PICK_COUNT; i++) sub_line((u8)(TITLE_SELECT_ROW + i), flow_gg_event(i) == event, flow_gg_name(i));
+        return;
     }
-    gfx_text_backed(15, TITLE_SELECT_ROW + 4, PAL_HIGH, mode == GAME_MODE_GUM ? ">" : " ");
-    gfx_text_backed(17, TITLE_SELECT_ROW + 4, mode == GAME_MODE_GUM ? PAL_HIGH : PAL_TEXT, "GUM GAMES");
-    if (mode == GAME_MODE_GUM) gfx_center_text(TITLE_GOAL_ROW, PAL_TEXT, event == GG_FLING ? "GUM FLING  LEFT OR RIGHT TO CHANGE    " : event == GG_POP_DROP ? "POP DROP  LEFT OR RIGHT TO CHANGE      " : event == GG_FLAP_DASH ? "FLAP DASH  LEFT OR RIGHT TO CHANGE    " : event == GG_BUBBLE_GATHER ? "BUBBLE GATHER  LEFT OR RIGHT TO CHANGE" : event == GG_BURST_RACE ? "BURST RACE  LEFT OR RIGHT TO CHANGE   " : "BIG BLOW  LEFT OR RIGHT TO CHANGE     ");
+    if (sub) { /* PARTY rules on rows 23..25, blank rows after, the picked rule's goal line on the goal row */
+        for (u8 r = PARTY_ROUND; r < PARTY_RULE_COUNT; r++) sub_line((u8)(TITLE_SELECT_ROW + r - PARTY_ROUND), r == rule, game_party_name(r));
+        for (u8 r = PARTY_RULE_COUNT - 1; r < 5; r++) text(2, (u8)(TITLE_SELECT_ROW + r), PAL_TEXT, BANNER_BLANK);
+        title_line(TITLE_GOAL_ROW, PAL_TEXT, game_party_goal(rule));
+        return;
+    }
+    static const char *const names[5] = { "ARENA", "GUM TRIP", "ARCADE", "PARTY", "GUM GAMES" };
+    static const u8 order[5] = { GAME_MODE_ARENA, GAME_MODE_TRIP, GAME_MODE_ARCADE, GAME_MODE_PARTY, GAME_MODE_GUM };
+    for (u8 i = 0; i < 5; i++) sub_line((u8)(TITLE_SELECT_ROW + i), order[i] == mode, names[i]);
+    if (mode == GAME_MODE_PARTY) title_line(TITLE_GOAL_ROW, PAL_TEXT, "A TO CHOOSE A RULE");
+    else if (mode == GAME_MODE_GUM) title_line(TITLE_GOAL_ROW, PAL_TEXT, "A TO CHOOSE A GAME");
+    else text(2, TITLE_GOAL_ROW, PAL_TEXT, BANNER_BLANK);
 }
 
 static void draw_title(const FlowView *v) {
@@ -1688,7 +1699,7 @@ static void draw_title(const FlowView *v) {
             if (line == TL_PRESS) g_title_press_draws++;
         }
     }
-    draw_mode_select(v->select_open, v->mode, v->party_rule, v->gg_event);
+    draw_mode_select(v->select_open, v->mode, v->party_rule, v->gg_event, v->sub_open);
 }
 
 /* Attract how-to-play overlay (fix layer, bottom left: cols 1..13, rows 21..26; the title's reserved cells are rows 3, 22-25 from col 11 on, row 29, so only
@@ -2305,7 +2316,7 @@ static void game_loop(void) {
         u8 coined = coin_drain((uint8_t *)&g_coin_calls);
         __asm__ volatile ("move.w #0x2000,%%sr" ::: "memory");
         if (coined && !start) flow_coin(&g_flow);
-        if (a_edge && !start && g_flow.state <= FLOW_ATTRACT_DEMO && bios_user_mode == 1 && (in & FLOW_RESET_COMBO) != FLOW_RESET_COMBO && take_credit()) start = 1;
+        if (a_edge && !start && g_flow.state <= FLOW_ATTRACT_DEMO && bios_user_mode == 1 && (in & FLOW_RESET_COMBO) != FLOW_RESET_COMBO && !flow_a_opens_submenu(&g_flow) && take_credit()) start = 1;
         g_flow.game.input2 = pad_to_core(bios_p2current);
         while (g_flow.game.credits_spent) { take_credit(); g_flow.game.credits_spent--; } /* a continue costs a credit (BIOS refuses Start in play) */
         g_flow.game.credits = credits_now();

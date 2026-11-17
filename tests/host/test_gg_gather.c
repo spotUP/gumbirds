@@ -6,8 +6,8 @@
 static int fails;
 #define CHECK(c) do { if (!(c)) { printf("FAIL line %d: %s\n", __LINE__, #c); fails++; } } while (0)
 
-static void right(Flow *f) { flow_step(f, IN_RIGHT, 0, 0); flow_step(f, 0, 0, 0); }
-static void left(Flow *f) { flow_step(f, IN_LEFT, 0, 0); flow_step(f, 0, 0, 0); }
+static void right(Flow *f) { flow_step(f, IN_DOWN, 0, 0); flow_step(f, 0, 0, 0); }
+static void left(Flow *f) { flow_step(f, IN_UP, 0, 0); flow_step(f, 0, 0, 0); }
 
 int main(void)
 {
@@ -44,6 +44,7 @@ int main(void)
         flow_init(&f, 0, 0);
         f.mode = GAME_MODE_GUM; f.gg_event = GG_BIG_BLOW;
         flow_coin(&f);
+        flow_step(&f, IN_A, 0, 0); flow_step(&f, 0, 0, 0);
         left(&f);
         CHECK(f.gg_event == GG_FLING);
         left(&f); CHECK(f.gg_event == GG_FLAP_DASH);
@@ -67,6 +68,7 @@ int main(void)
         flow_init(&f, 0, 0);
         f.mode = GAME_MODE_GUM; f.gg_event = GG_BUBBLE_GATHER;
         flow_coin(&f);
+        flow_step(&f, IN_A, 0, 0); flow_step(&f, 0, 0, 0);
         flow_step(&f, 0, 1, 1);
         f.game.bonus.over = 1; f.game.bonus.caught = 14;
         for (i = 0; i < 6000 && f.state == FLOW_PLAYING; i++) flow_step(&f, i % 4 == 0 ? IN_A : 0, 0, 0);

@@ -18,7 +18,7 @@ local function field(tag, match)
   for fname, f in pairs(p.fields) do if fname:find(match, 1, true) then return f end end
 end
 local coin, start1, up = field(":AUDIO_COIN", "Coin 1"), field(":edge:joy:START", "1 Player Start"), field(":edge:joy:JOY1", "P1 Up")
-local abtn, cbtn, right = field(":edge:joy:JOY1", "P1 A"), field(":edge:joy:JOY1", "P1 C"), field(":edge:joy:JOY1", "P1 Right")
+local abtn, cbtn, pick = field(":edge:joy:JOY1", "P1 A"), field(":edge:joy:JOY1", "P1 C"), field(":edge:joy:JOY1", "P1 Down")
 local ss = dofile("tests/mame/start_seq.lua")(coin, start1, up)
 local function b(o) return mem:read_u8(flow_addr + o) end
 local fix, vaddr, vmod = {}, 0, 1
@@ -42,7 +42,7 @@ local function finish(ok, msg)
   print("BRAWL_TEST " .. (ok and "PASS " or "FAIL ") .. msg)
   manager.machine:exit()
 end
-if not (coin and start1 and up and abtn and cbtn and right) then finish(false, "missing ports") end
+if not (coin and start1 and up and abtn and cbtn and pick) then finish(false, "missing ports") end
 
 local n, phase, t0, hud = 0, "boot", 0, false
 emu.register_frame_done(function()
@@ -54,8 +54,8 @@ emu.register_frame_done(function()
   elseif phase == "start" then
     -- the shared sequence presses Down at +70..+78 (the GUM GAMES row); Right taps at +80..+83, +88..+91 and +96..+99 reach Pop Drop (fourth event) before Start
     local k = n - t0
-    right:set_value(((k >= 80 and k < 84) or (k >= 88 and k < 92) or (k >= 96 and k < 100)) and 1 or 0)
-    if ss.step(n, playing, 1) then phase = "pop"; t0 = n; right:set_value(0) end
+    pick:set_value(((k >= 86 and k < 90) or (k >= 92 and k < 96) or (k >= 98 and k < 102)) and 1 or 0); abtn:set_value((k >= 80 and k < 84) and 1 or 0) -- A opens the GUM GAMES list, Down picks
+    if ss.step(n, playing, 1) then phase = "pop"; t0 = n; pick:set_value(0) end
   elseif phase == "pop" then
     if b(O.mode) ~= K.gum or b(O.pop) ~= 1 then finish(false, string.format("mode %d pop %d, want GAME_MODE_GUM %d and pop 1", b(O.mode), b(O.pop), K.gum)) return end
     if lit(7) >= 8 then hud = true end

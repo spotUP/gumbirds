@@ -68,11 +68,12 @@ int main(void)
         flow_init(&fl, 0, 0);
         fl.mode = GAME_MODE_GUM; fl.gg_event = GG_BIG_BLOW;
         flow_coin(&fl);
-        flow_step(&fl, IN_LEFT, 0, 0); flow_step(&fl, 0, 0, 0);
+        flow_step(&fl, IN_A, 0, 0); flow_step(&fl, 0, 0, 0); /* A opens the GUM GAMES list */
+        flow_step(&fl, IN_UP, 0, 0); flow_step(&fl, 0, 0, 0);
         CHECK(fl.gg_event == GG_FLING);
-        flow_step(&fl, IN_RIGHT, 0, 0); flow_step(&fl, 0, 0, 0);
+        flow_step(&fl, IN_DOWN, 0, 0); flow_step(&fl, 0, 0, 0);
         CHECK(fl.gg_event == GG_BIG_BLOW);
-        for (i = 0; i < 5; i++) { flow_step(&fl, IN_RIGHT, 0, 0); flow_step(&fl, 0, 0, 0); }
+        for (i = 0; i < 5; i++) { flow_step(&fl, IN_DOWN, 0, 0); flow_step(&fl, 0, 0, 0); }
         CHECK(fl.gg_event == GG_FLING);
         flow_step(&fl, 0, 1, 1);
         CHECK(fl.state == FLOW_PLAYING && fl.game.gg_fling && fl.game.players == 1);

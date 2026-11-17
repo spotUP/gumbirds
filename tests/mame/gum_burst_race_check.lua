@@ -1,4 +1,4 @@
--- Gum Games Burst Race check (make test-gum-burst-race): UniBIOS 4.0, one coin, Up to the GUM GAMES row, Right to pick Burst Race, Start:
+-- Gum Games Burst Race check (make test-gum-burst-race): UniBIOS 4.0, one coin, Up to the GUM GAMES row, A opens the list, Down picks Burst Race, Start:
 --   R1. the game is PLAYING in GAME_MODE_GUM with the race running (gg_race 1) and the intro hands over to the pump phase;
 --   R2. alternating A and B presses grow the player's bubble; both fix-layer power bars (rows 26 and 24, columns 12..27) show a filled first cell
 --       and an empty last cell;
@@ -21,7 +21,7 @@ local function field(tag, match)
   for fname, f in pairs(p.fields) do if fname:find(match, 1, true) then return f end end
 end
 local coin, start1, up = field(":AUDIO_COIN", "Coin 1"), field(":edge:joy:START", "1 Player Start"), field(":edge:joy:JOY1", "P1 Up")
-local abtn, bbtn, right = field(":edge:joy:JOY1", "P1 A"), field(":edge:joy:JOY1", "P1 B"), field(":edge:joy:JOY1", "P1 Right")
+local abtn, bbtn, pick = field(":edge:joy:JOY1", "P1 A"), field(":edge:joy:JOY1", "P1 B"), field(":edge:joy:JOY1", "P1 Down")
 local ss = dofile("tests/mame/start_seq.lua")(coin, start1, up)
 local function b(o) return mem:read_u8(flow_addr + o) end
 local fix, vaddr, vmod = {}, 0, 1
@@ -45,7 +45,7 @@ local function finish(ok, msg)
   print("BRAWL_TEST " .. (ok and "PASS " or "FAIL ") .. msg)
   manager.machine:exit()
 end
-if not (coin and start1 and up and abtn and bbtn and right) then finish(false, "missing ports") end
+if not (coin and start1 and up and abtn and bbtn and pick) then finish(false, "missing ports") end
 
 local n, phase, t0, grew, bar_ok, press = 0, "boot", 0, 0, false, 0
 local rival_ok, rival_tiles, rival_bad = 0, {}, nil
@@ -57,10 +57,10 @@ emu.register_frame_done(function()
   if phase == "boot" then
     if n == 600 then phase = "start"; t0 = n; ss.begin(n) end
   elseif phase == "start" then
-    -- the shared sequence presses Down at +70..+78 (the GUM GAMES row); Right at +85..+92 picks Burst Race before Start at +100
+    -- the shared sequence presses Down at +70..+78 (the GUM GAMES row); A at +80 opens the list, Down at +88..+95 picks Burst Race before Start at +100
     local k = n - t0
-    right:set_value((k >= 85 and k < 93) and 1 or 0)
-    if ss.step(n, playing, 1) then phase = "intro"; t0 = n; right:set_value(0) end
+    pick:set_value((k >= 88 and k < 96) and 1 or 0); abtn:set_value((k >= 80 and k < 84) and 1 or 0) -- A opens the GUM GAMES list, Down picks
+    if ss.step(n, playing, 1) then phase = "intro"; t0 = n; pick:set_value(0) end
   elseif phase == "intro" then
     if b(O.mode) ~= K.gum or b(O.race) ~= 1 then finish(false, string.format("mode %d race %d, want GAME_MODE_GUM %d and race 1", b(O.mode), b(O.race), K.gum)) return end
     if b(O.phase) == K.play then phase = "pump"; t0 = n
