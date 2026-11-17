@@ -2349,7 +2349,7 @@ static void game_loop(void) {
         if (view.state == FLOW_PLAYING && view.game && view.game->res.active) {
             /* Bonus result screen (it covers the world): hide the strip and load the next stage's strip tiles once the fill is done,
              * so the stage entry frame's hazard start only places it (two banks there cost about 113 lines, reports/stage-spike.md). */
-            if (g_res_filled == RESV_W * RESV_H) {
+            if (g_res_filled == RESV_W * RESV_H && !view.game->gg_gather) { /* GUM mode has no next stage: arc.stage is not its stage */
                 hazard_step(0, g_cam_px);
                 hazard_game_restart(world_get(world_of_stage(arc_next_stage(view.game->arc.stage)))->hazard);
                 hazard_preload();

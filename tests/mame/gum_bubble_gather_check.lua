@@ -79,7 +79,8 @@ emu.register_frame_done(function()
       local caught, score, rec = mem:read_u32(flow_addr + O.caught), mem:read_u32(flow_addr + O.score), mem:read_u32(flow_addr + O.record)
       if not hud then finish(false, "HUD row never lit") return end
       if maxcaught < 1 then finish(false, "no bubble caught") return end
-      if score < maxcaught * 300 then finish(false, string.format("score %d for %d caught, want >= %d", score, maxcaught, maxcaught * 300)) return end
+      local want = maxcaught * 300 + (maxcaught >= 12 and 500 or 0) -- 12 of 20 qualifies: +500 (GG_GATHER_QUALIFY, GG_QUALIFY_POINTS)
+      if score < want then finish(false, string.format("score %d for %d caught, want >= %d", score, maxcaught, want)) return end
       if rec ~= maxcaught then finish(false, string.format("record %d, caught %d", rec, maxcaught)) return end
       finish(true, string.format("Bubble Gather: GUM GAMES row + Right x2 starts it; HUD lit, %d caught, score %d, record saved", maxcaught, score))
     elseif n - t0 > 1500 then finish(false, "result never led to game over") end

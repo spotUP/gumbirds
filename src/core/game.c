@@ -858,7 +858,10 @@ static void game_step_gather(Game *g, uint8_t input)
         g->bonus_caught[0] = (uint8_t)(g->bonus_caught[0] + arc_bonus_step(&g->bonus, armed, cx - ARC_BONUS_CATCH_HALF_W, cy - ARC_BONUS_CATCH_HALF_H, 2 * ARC_BONUS_CATCH_HALF_W, 2 * ARC_BONUS_CATCH_HALF_H));
         if (f->state == FLIER_GONE) player_spawn_h(g, 0);
         if (++g->gather_clock >= GG_GATHER_CLOCK) g->bonus.over = 1;
-        if (g->bonus.over) res_start(&g->res, g->bonus.caught, g->bonus.number, g->bonus.perfect, g->score);
+        if (g->bonus.over) {
+            if (g->bonus.caught >= (int)GG_GATHER_QUALIFY) score_add(g, GG_QUALIFY_POINTS); /* same bonus as the other events' qualify */
+            res_start(&g->res, g->bonus.caught, g->bonus.number, g->bonus.perfect, g->score);
+        }
     }
     f->spawn_inv = 0;
     camera_follow(g);
