@@ -1,0 +1,155 @@
+{
+ "source": "thoughts/shared/drafts/2026-11-17-countdown-a2/draw_countdown_a2.py (owner-approved A2, hand-placed glyph grids rendered as-is). One frame per glyph, left-aligned in whole 16x32 columns (getset G E T S E T = 12 columns, go G O ! = 5). countdown_*_x = pixel x of each glyph inside the 172 / 98 px wide word (draft spacing); hot = Hot Gum palette swap",
+ "animations": {
+  "getset": [
+   {
+    "x": 0,
+    "y": 0,
+    "w": 32,
+    "h": 32
+   },
+   {
+    "x": 32,
+    "y": 0,
+    "w": 32,
+    "h": 32
+   },
+   {
+    "x": 64,
+    "y": 0,
+    "w": 32,
+    "h": 32
+   },
+   {
+    "x": 96,
+    "y": 0,
+    "w": 32,
+    "h": 32
+   },
+   {
+    "x": 128,
+    "y": 0,
+    "w": 32,
+    "h": 32
+   },
+   {
+    "x": 160,
+    "y": 0,
+    "w": 32,
+    "h": 32
+   }
+  ],
+  "go": [
+   {
+    "x": 0,
+    "y": 32,
+    "w": 32,
+    "h": 32
+   },
+   {
+    "x": 32,
+    "y": 32,
+    "w": 32,
+    "h": 32
+   },
+   {
+    "x": 64,
+    "y": 32,
+    "w": 16,
+    "h": 32
+   }
+  ]
+ },
+ "tables": {
+  "getset_x": [
+   0,
+   30,
+   56,
+   92,
+   122,
+   148
+  ],
+  "getset_w": [
+   32,
+   32,
+   32,
+   32,
+   32,
+   32
+  ],
+  "go_x": [
+   0,
+   30,
+   60
+  ],
+  "go_w": [
+   32,
+   32,
+   16
+  ]
+ },
+ "extra_palettes": {
+  "hot": [
+   [
+    8,
+    8,
+    24
+   ],
+   [
+    255,
+    173,
+    33
+   ],
+   [
+    255,
+    222,
+    74
+   ],
+   [
+    255,
+    255,
+    255
+   ],
+   [
+    255,
+    247,
+    173
+   ],
+   [
+    255,
+    123,
+    24
+   ],
+   [
+    189,
+    33,
+    33
+   ],
+   [
+    231,
+    57,
+    33
+   ],
+   [
+    140,
+    16,
+    49
+   ],
+   [
+    214,
+    41,
+    123
+   ],
+   [
+    255,
+    140,
+    181
+   ],
+   [
+    90,
+    8,
+    49
+   ]
+  ]
+ }
+}
