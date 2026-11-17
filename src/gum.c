@@ -29,7 +29,7 @@ static void hide(int pl) {
     g_key[pl] = -1;
 }
 
-void gum_step(int pl, int active, uint16_t gum, uint32_t frame, int drawn, uint8_t bird_frame, int flip, int cx, int top) {
+void gum_step(int pl, int active, uint16_t gum, uint32_t frame, int drawn, uint8_t bird_frame, int flip, int cx, int top, int leaking) {
     uint8_t level = active ? gum_view_level(gum) : 0;
     if (!active) { g_pop_t[pl] = -1; g_last_level[pl] = 0; hide(pl); return; }
     if (level > 0) g_pop_t[pl] = -1;
@@ -38,7 +38,7 @@ void gum_step(int pl, int active, uint16_t gum, uint32_t frame, int drawn, uint8
     g_last_level[pl] = level;
     uint8_t anim, sheet;
     if (g_pop_t[pl] >= 0) { anim = g_pop_anim[pl]; sheet = gum_view_frame(GUM_STATE_POP, (uint32_t)g_pop_t[pl]); }
-    else if (level > 0) { anim = gum_view_anim(level, GUM_STATE_WOBBLE); sheet = gum_view_frame(GUM_STATE_WOBBLE, frame); }
+    else if (level > 0) { anim = gum_view_anim(level, GUM_STATE_WOBBLE); sheet = gum_view_frame(GUM_STATE_WOBBLE, gum_view_wobble_clock(frame, leaking)); }
     else { hide(pl); return; }
     GumOffset o = gum_view_offset(bird_frame, flip);
     if (!drawn || !o.show) { hide(pl); return; }
@@ -52,4 +52,16 @@ void gum_step(int pl, int active, uint16_t gum, uint32_t frame, int drawn, uint8
     /* The bubble hangs on the bird's string: o.dy puts its bottom edge on the string top, o.dx its string column on the bird's. */
     gfx_sprite_place(slot_of(pl), f->tiles_w, f->tiles_h, cx - f->tiles_w * 8 + o.dx, top - f->tiles_h * 16 + o.dy);
     g_gum_draws += (u16)(pl == 0);
+}
+
+int gum_leak_pose(uint8_t level, uint32_t frame, uint8_t bird_frame, int flip, int cx, int top, GumLeakPose *out) {
+    GumOffset o = gum_view_offset(bird_frame, flip);
+    if (level == 0 || !o.show) return 0;
+    uint8_t anim = gum_view_anim(level, GUM_STATE_WOBBLE), sheet = gum_view_frame(GUM_STATE_WOBBLE, gum_view_wobble_clock(frame, 1));
+    const GumFrame *f = &gum_frames[gum_anims[anim].first_frame + sheet];
+    out->w = (int16_t)(f->tiles_w * 16);
+    out->x = (int16_t)(cx - f->tiles_w * 8 + o.dx);
+    out->y = (int16_t)(top - f->tiles_h * 16 + o.dy);
+    out->idx = (uint8_t)((16 - level) * 6 + sheet % 6);
+    return 1;
 }

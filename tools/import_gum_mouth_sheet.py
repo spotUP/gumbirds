@@ -38,7 +38,7 @@ CLIPS = [  # (name, loop, [(frame, ticks)])
     ("fly", 1, [(POSE[SWP[i]][BL[i % 6]], 5) for i in range(12)]),
     ("settle", 0, settle()),
     ("idle", 1, [(n, 6) for n in BL]),
-    ("pump", 0, [("stand_in", 6), ("stand_puff", 4), ("stand_blast", 5), ("burst", 5)]),
+    ("pump", 0, [("stand_in", 6), ("stand_puff", 4), ("stand_blast", 5), ("stand_puff", 5)]),
     ("inflate", 0, [("in", 4), ("puff", 4), ("blast", 4), ("puff", 4)]),
     ("fall", 1, [("strain", 6), ("burst", 6)]),
     ("pop2", 0, [("strain", 4), ("burst", 4)]),

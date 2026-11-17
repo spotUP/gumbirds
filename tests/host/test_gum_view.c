@@ -85,6 +85,28 @@ int main(void)
         GumOffset o = gum_view_offset((uint8_t)k, k & 1);
         check(o.dx == 0 && o.dy == 0 && o.show == 0, "out of range offset", o.dx + o.dy + o.show, 0);
     }
+    /* Leak rule: arena / arcade at exactly 1 balloon (human or computer, same function); Trip below half with a bubble left. */
+    for (k = 0; k <= 4; k++) check(gum_view_leaks_balloons((uint8_t)k) == (k == 1), "leak shows at exactly 1 balloon", k, k == 1);
+    check(gum_view_leaks_gum(0) == 0, "no leak without a bubble", 0, 0);
+    check(gum_view_leaks_gum(1) == 1 && gum_view_leaks_gum(GUM_MAX / 2 - 1) == 1, "leak below half", 1, 1);
+    check(gum_view_leaks_gum(GUM_MAX / 2) == 0 && gum_view_leaks_gum(GUM_MAX) == 0, "no leak at or above half", GUM_MAX / 2, 0);
+    for (k = 0; k < 4 * GUM_LEAK_FRAMES * GUM_LEAK_TICK; k++) {
+        check(gum_view_leak_frame((uint32_t)k) == (k / GUM_LEAK_TICK) % GUM_LEAK_FRAMES, "leak frame clock", k, 0);
+        check(gum_view_frame(GUM_STATE_WOBBLE, gum_view_wobble_clock((uint32_t)k, 1)) == gum_view_leak_frame((uint32_t)k) % GUM_VIEW_WOBBLE_SHEET, "damaged wobble follows the leak frame", k, 0);
+        check(gum_view_wobble_clock((uint32_t)k, 0) == (uint32_t)k, "healthy wobble clock unchanged", k, k);
+    }
+    /* Pump-up: grows 1..16, swells every stroke, never exceeds full, ends at full without a jump. */
+    {
+        int pf = 200, e, swell = 0;
+        for (e = 0; e < pf; e++) {
+            int l = gum_view_pump_level(e, pf, 16), base = 1 + e * 15 / pf;
+            check(l >= base && l <= 16 && l <= base + GUM_PUMP_SWELL, "pump level within growth + swell", e, l);
+            if (l > base) swell++;
+        }
+        check(swell > pf / 3, "bubble swells on a good part of each stroke", swell, pf / 3);
+        check(gum_view_pump_level(pf - 1, pf, 16) >= 15 && gum_view_pump_level(pf, pf, 16) == 16, "pump ends at full", 0, 16);
+        check(gum_view_pump_level(0, pf, 16) == 3 && gum_view_pump_level(pf / 4, pf, 16) == 6 && gum_view_pump_level(pf / 4 - 1, pf, 16) == 4, "swell at a stroke start, settled at its end", gum_view_pump_level(pf / 4, pf, 16), 6);
+    }
     printf(bad ? "FAIL gum_view (%d)\n" : "PASS gum_view\n", bad);
     return bad != 0;
 }

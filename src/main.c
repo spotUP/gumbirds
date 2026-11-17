@@ -28,6 +28,7 @@
 #include "core/arc_view.h"
 #include "gen/trippickup_tables.h"
 #include "gen/gumbubble_tables.h"
+#include "gen/gumleak_tables.h"
 #include "gfx.h"
 #include "sprite_slots.h"
 #include "vram_layout.h"
@@ -279,7 +280,7 @@ _Static_assert(ISLAND_SPRITE + ISLAND_COUNT <= POOL_SPRITE_BASE, "island sprites
 #define P2_OBJ_BODY (POOL_MAX - 2)
 #define P2_OBJ_CHUTE (POOL_MAX - 1)
 #define CHUTE_ANIM_PLAYER2 CHUTE_ANIM_PLAYER /* same frames as the player, the P2 palette (CHUTE_P2_PAL_SLOT) swaps the colours */
-_Static_assert(3 * STAGE_SPAWN_COUNT + 2 <= POOL_MAX - 2, "computer fliers plus parachutes plus gum bubbles would reach the P2 pool objects");
+_Static_assert(4 * STAGE_SPAWN_COUNT + HUMANS <= POOL_MAX - 2, "computer fliers plus parachutes, gum bubbles and air jets, plus the player jets, would reach the P2 pool objects");
 _Static_assert(GUM_COUNT <= POOL_COLS, "a gum bubble object fits a pool sprite run");
 _Static_assert(POOL_SPRITE_BASE + POOL_SPRITE_COUNT <= HERO_SPRITE, "object pool sprites overlap hero");
 _Static_assert(HERO_SPRITE + HERO_SPRITE_COUNT <= HAZARD_SPRITE, "hero overlaps hazard sprites");
@@ -357,12 +358,16 @@ static u8 g_cpu_obj[STAGE_SPAWN_COUNT]; /* pool index of computer flier i, POOL_
 static u8 g_rival_obj[TRIP_RIVAL_MAX];  /* pool index of Gum Trip rival i, POOL_NONE when not drawn */
 
 static u8 g_gum_obj[STAGE_SPAWN_COUNT];   /* third pool object of computer flier i: its gum bubble (type 0xC0 | wobble sheet frame, anim = bird frame), POOL_NONE when not drawn */
+static u8 g_leak_obj[STAGE_SPAWN_COUNT];   /* air-jet pool object of a leaking computer bubble, POOL_NONE otherwise */
+static u8 g_rival_leak_obj[TRIP_RIVAL_MAX];
+static u8 g_human_leak_obj[HUMANS];        /* air jet of a leaking player bubble (hardware sprites 111/116, src/gum.c): a pool object type 0xF0 | leak frame, anim = player, x = gum level, y = frame */
 static u8 g_rival_gum_obj[TRIP_RIVAL_MAX]; /* the same for Gum Trip rival i */
 static u8 g_chute_obj[STAGE_SPAWN_COUNT]; /* second pool object of computer flier i: its parachute (type 0x80 | frame), POOL_NONE when not drawn */
 
 static void pool_reset(void) {
-    for (int i = 0; i < STAGE_SPAWN_COUNT; i++) g_chute_obj[i] = g_gum_obj[i] = POOL_NONE;
-    for (int i = 0; i < TRIP_RIVAL_MAX; i++) g_rival_gum_obj[i] = POOL_NONE;
+    for (int i = 0; i < STAGE_SPAWN_COUNT; i++) g_chute_obj[i] = g_gum_obj[i] = g_leak_obj[i] = POOL_NONE;
+    for (int i = 0; i < TRIP_RIVAL_MAX; i++) g_rival_gum_obj[i] = g_rival_leak_obj[i] = POOL_NONE;
+    for (int i = 0; i < HUMANS; i++) g_human_leak_obj[i] = POOL_NONE;
     for (int i = 0; i < STAGE_SPAWN_COUNT; i++) g_cpu_obj[i] = POOL_NONE;
     for (int i = 0; i < TRIP_RIVAL_MAX; i++) g_rival_obj[i] = POOL_NONE;
     obj_pool_init(&g_pool, POOL_SPRITE_BASE);
@@ -370,8 +375,9 @@ static void pool_reset(void) {
 }
 
 static void pool_free_all(void) {
-    for (int i = 0; i < STAGE_SPAWN_COUNT; i++) g_chute_obj[i] = g_gum_obj[i] = POOL_NONE;
-    for (int i = 0; i < TRIP_RIVAL_MAX; i++) g_rival_gum_obj[i] = POOL_NONE;
+    for (int i = 0; i < STAGE_SPAWN_COUNT; i++) g_chute_obj[i] = g_gum_obj[i] = g_leak_obj[i] = POOL_NONE;
+    for (int i = 0; i < TRIP_RIVAL_MAX; i++) g_rival_gum_obj[i] = g_rival_leak_obj[i] = POOL_NONE;
+    for (int i = 0; i < HUMANS; i++) g_human_leak_obj[i] = POOL_NONE;
     for (int i = 0; i < STAGE_SPAWN_COUNT; i++) g_cpu_obj[i] = POOL_NONE;
     for (int i = 0; i < TRIP_RIVAL_MAX; i++) g_rival_obj[i] = POOL_NONE;
     for (int i = POOL_MAX - 1; i >= 0; i--) obj_pool_free(&g_pool, (u8)i); /* descending: the free list ends up 0..31 again, so P2_OBJ_BODY / P2_OBJ_CHUTE stay at its tail */
@@ -422,9 +428,15 @@ static void chute_obj_set(const Game *g, u8 k, int flip, const Flier *c, int32_t
     if (flier_view_visible(c, g->frame)) p->flags &= (u8)~POOL_F_BLINK; else p->flags |= POOL_F_BLINK;
 }
 
+_Static_assert(GUM_PUMP_STROKES == ARC_PUMP_STAGES, "one bubble beat per pump stage (the chin stroke)");
+/* Bubble level while its owner pumps (grows 1..16 with a swell per stroke, gum_view_pump_level); 16 otherwise. */
+static u8 pump_level(const ArcPump *pp, int alive) {
+    return alive && arc_pump_in_window(pp) ? gum_view_pump_level(pp->frame, arc_pump_frames(pp), GUM_VIEW_LEVELS) : (u8)GUM_VIEW_LEVELS;
+}
+
 /* The gum bubble of a computer flier or rival: a pool object of its own (POOL_F_HERO, type 0xC0 | wobble sheet frame, anim = the body's sheet frame) beside the body.
  * The bubble is always full size, like the player's in the arena; gum_view_offset decides per body frame whether it shows (pool_show_gum). */
-static void gum_obj_sync(u8 *slot, int want, const Game *g, const PoolObj *body) {
+static void gum_obj_sync(u8 *slot, int want, const Game *g, const PoolObj *body, int leaking, u8 level) {
     u8 k = *slot;
     if (!want) { if (k != POOL_NONE) { obj_pool_free(&g_pool, k); *slot = POOL_NONE; } return; }
     if (k == POOL_NONE) {
@@ -435,8 +447,33 @@ static void gum_obj_sync(u8 *slot, int want, const Game *g, const PoolObj *body)
     PoolObj *p = &g_pool.obj[k];
     p->flags = (u8)(p->flags | POOL_F_HERO);
     p->flags = (u8)((p->flags & ~(POOL_F_FLIP | POOL_F_BLINK | POOL_F_SCREEN)) | (body->flags & (POOL_F_FLIP | POOL_F_BLINK | POOL_F_SCREEN)));
-    p->type = (u8)(0xC0 | gum_view_frame(GUM_STATE_WOBBLE, g->frame));
-    p->anim = body->type;
+    p->type = (u8)(0xC0 | gum_view_frame(GUM_STATE_WOBBLE, (uint32_t)gum_view_wobble_clock(g->frame, leaking)));
+    p->anim = body->type; p->anim_tick = level;   /* anim_tick: bubble level 1..16 (pool_show_gum / pool_show_leak) */
+    p->x = body->x; p->y = body->y;
+}
+
+_Static_assert(GUM_WOBBLE_FRAMES == 2 * GUM_LEAK_TICK, "double-speed wobble steps once per leak frame");
+
+/* Air jet of a leaking computer bubble: pool object type 0xE0 | leak frame, anim = body frame, placed from the bubble object it follows. */
+static void leak_obj_sync(u8 *slot, u8 *gslot, int want, const Game *g, const PoolObj *body, u8 level) {
+    u8 k = *slot;
+    if (!want || *gslot == POOL_NONE) { if (k != POOL_NONE) { obj_pool_free(&g_pool, k); *slot = POOL_NONE; } return; }
+    if (k == POOL_NONE) {
+        k = obj_pool_alloc(&g_pool, 0, 0, 0, 0, 0);
+        if (k == POOL_NONE) return;
+        *slot = k;
+    }
+    if (*slot < *gslot) {   /* a lower sprite index draws behind: the jet must sit above its bubble, so swap the two objects (and their draw caches) */
+        u8 t = *slot; *slot = *gslot; *gslot = t;
+        g_pool_drawn[*slot] = g_pool_drawn[*gslot] = 0; g_pool_cols[*slot] = g_pool_cols[*gslot] = 0;
+        gum_obj_sync(gslot, 1, g, body, 1, level);
+        k = *slot;
+    }
+    PoolObj *p = &g_pool.obj[k];
+    p->flags = (u8)((p->flags | POOL_F_HERO) & ~(POOL_F_FLIP | POOL_F_BLINK | POOL_F_SCREEN));
+    p->flags = (u8)(p->flags | (body->flags & (POOL_F_FLIP | POOL_F_BLINK | POOL_F_SCREEN)));
+    p->type = (u8)(0xE0 | gum_view_leak_frame(g->frame));
+    p->anim = body->type; p->anim_tick = level;
     p->x = body->x; p->y = body->y;
 }
 
@@ -451,7 +488,8 @@ static void pool_sync_cpus(const Game *g) {
         if (!visible || cpu_show_front(g, i)) {
             if (k != POOL_NONE) { obj_pool_free(&g_pool, k); g_cpu_obj[i] = POOL_NONE; }
             chute_obj_sync(g, i, 0, 0, c, feet);
-            gum_obj_sync(&g_gum_obj[i], 0, g, 0);
+            gum_obj_sync(&g_gum_obj[i], 0, g, 0, 0, 0);
+            leak_obj_sync(&g_leak_obj[i], &g_gum_obj[i], 0, g, 0, 0);
             continue;
         }
         if (k == POOL_NONE) {
@@ -470,7 +508,9 @@ static void pool_sync_cpus(const Game *g) {
         p->y = feet;
         if (flier_view_visible(c, g->frame)) p->flags &= (u8)~POOL_F_BLINK; else p->flags |= POOL_F_BLINK;
         chute_obj_sync(g, i, c->state == FLIER_PARACHUTE, flip, c, feet);
-        gum_obj_sync(&g_gum_obj[i], 1, g, p);
+        u8 lvl = pump_level(&g->pump[i], c->state == FLIER_ALIVE);
+        gum_obj_sync(&g_gum_obj[i], 1, g, p, gum_view_leaks_balloons(c->balloons), lvl);
+        leak_obj_sync(&g_leak_obj[i], &g_gum_obj[i], gum_view_leaks_balloons(c->balloons), g, p, lvl);
     }
 }
 
@@ -517,7 +557,8 @@ static void pool_sync_rivals(const Game *g) {
         int feet = (int)((c->y + flier_half_h(c)) >> 16);
         if (!r->active || !flier_body_visible(c) || (feet > SCREEN_H && c->state < FLIER_FALLING)) {
             if (k != POOL_NONE) { obj_pool_free(&g_pool, k); g_rival_obj[i] = POOL_NONE; }
-            gum_obj_sync(&g_rival_gum_obj[i], 0, g, 0);
+            gum_obj_sync(&g_rival_gum_obj[i], 0, g, 0, 0, 0);
+            leak_obj_sync(&g_rival_leak_obj[i], &g_rival_gum_obj[i], 0, g, 0, 0);
             continue;
         }
         if (k == POOL_NONE) {
@@ -534,7 +575,33 @@ static void pool_sync_rivals(const Game *g) {
         p->x = c->x;
         p->y = (int32_t)(c->y + flier_half_h(c));
         if (flier_view_visible(c, g->frame)) p->flags &= (u8)~POOL_F_BLINK; else p->flags |= POOL_F_BLINK;
-        gum_obj_sync(&g_rival_gum_obj[i], 1, g, p);
+        gum_obj_sync(&g_rival_gum_obj[i], 1, g, p, gum_view_leaks_balloons(c->balloons), GUM_VIEW_LEVELS);   /* rivals do not pump */
+        leak_obj_sync(&g_rival_leak_obj[i], &g_rival_gum_obj[i], gum_view_leaks_balloons(c->balloons), g, p, GUM_VIEW_LEVELS);
+    }
+}
+
+/* Player bubble jet (look only): leaking = Gum Trip gum below half for player 1, one balloon left in the arena and arcade. */
+static int human_leaks(const Game *g, int pl) {
+    if (g->mode == GAME_MODE_TRIP) return pl == 0 && game_trip_ready(g) && gum_view_leaks_gum(g->trip.gum);
+    return gum_view_leaks_balloons(g->hero[pl].balloons);
+}
+/* Arena / arcade bubble level of a human: full, or growing while that human pumps after a parachute landing. */
+static u8 human_bubble_level(const Game *g, int pl) { return pump_level(&g->hpump[pl], g->hero[pl].state == FLIER_ALIVE); }
+static void human_leak_sync(const Game *g) {
+    for (int pl = 0; pl < HUMANS; pl++) {
+        int want = (g->mode == GAME_MODE_TRIP ? pl == 0 : (pl == 0 || g->players == 2)) && human_leaks(g, pl);
+        u8 *slot = &g_human_leak_obj[pl];
+        if (!want) { if (*slot != POOL_NONE) { obj_pool_free(&g_pool, *slot); *slot = POOL_NONE; } continue; }
+        if (*slot == POOL_NONE) {
+            *slot = obj_pool_alloc(&g_pool, 0, 0, 0, 0, 0);
+            if (*slot == POOL_NONE) continue;
+        }
+        PoolObj *p = &g_pool.obj[*slot];
+        p->flags = (u8)(p->flags | POOL_F_HERO);
+        p->type = (u8)(0xF0 | gum_view_leak_frame(g->frame));
+        p->anim = (u8)pl;
+        p->x = g->mode == GAME_MODE_TRIP ? gum_view_level(g->trip.gum) : human_bubble_level(g, pl);
+        p->y = (int32_t)g->frame;
     }
 }
 
@@ -591,12 +658,13 @@ static void pool_show_gum(PoolObj *p, u8 i, u16 *scb3) {
     GumOffset o = gum_view_offset(p->anim, flip);
     if (!o.show) { if (g_pool_drawn[i]) pool_hide_run(i); return; }
     const SootlingFrame *bf = &sootling_frames[soot_frame(SOOTLING_ANIM_CPU, p->anim)];
-    const GumFrame *f = &gum_frames[gum_anims[gum_view_anim(GUM_VIEW_LEVELS, GUM_STATE_WOBBLE)].first_frame + (p->type & 7)];
+    int lvl = p->anim_tick;
+    const GumFrame *f = &gum_frames[gum_anims[gum_view_anim((uint8_t)lvl, GUM_STATE_WOBBLE)].first_frame + (p->type & 7)];
     int bx = camera_screen_x(obj_pool_px(p->x) - FLIER_HALF_W - SOOT_BOX_DX, (p->flags & POOL_F_SCREEN) ? 0 : g_cam_px, SOOT_COLUMNS * 16);
     int x = bx + SOOT_COLUMNS * 8 - f->tiles_w * 8 + o.dx;
     if (!camera_visible(x, f->tiles_w * 16)) { if (g_pool_drawn[i]) pool_hide_run(i); return; }
     u16 slot = obj_pool_sprite(&g_pool, i);
-    u8 key = (u8)((p->type & 7) + 1);
+    u8 key = (u8)((p->type & 7) + 1 + lvl * 8);   /* level 1..16 and wobble frame 0..5 */
     if (g_pool_drawn[i] != key) {
         gfx_sprite_strips(slot, f->tiles_w, f->tiles_h, &gum_tile_index[f->tile_offset], GUM_TILE_BASE, (u16)((GUM_PAL_SLOT + f->palette) << 8));
         if (g_pool_cols[i] != f->tiles_w) { gfx_sprite_chain(slot, f->tiles_w); g_pool_cols[i] = f->tiles_w; }
@@ -608,7 +676,64 @@ static void pool_show_gum(PoolObj *p, u8 i, u16 *scb3) {
     g_pool_scb4[i] = gfx_scb4_word(x);
 }
 
+/* Air jet (type 0xE0 | leak frame; 0xF0 = a player's bubble, pose from gum_step's inputs): anchored on the bubble cell's rim for the
+ * wobble frame and gum level, mirrored with the body. Computer bubbles are level 16. */
+static void pool_show_leak(PoolObj *p, u8 i, u16 *scb3) {
+    static const int8_t ax_t[] = GUMLEAK_TABLE_ANCHOR_DX, ay_t[] = GUMLEAK_TABLE_ANCHOR_DY;
+    if (p->flags & POOL_F_BLINK) { if (g_pool_drawn[i]) pool_hide_run(i); return; }
+    int lf = p->type & 15, x, y, cw, ax, ay, flip;
+    const GumleakFrame *l = &gumleak_frames[lf];
+    if (p->type & 0x10) {   /* player bubble: the same cell gum_step places, from the pose of this frame */
+        int pl = p->anim, cx, top;
+        u8 fr;
+        if (pl == 0) { if (!g_gum_pose[0].drawn) goto hide; fr = g_gum_pose[0].frame; flip = g_gum_pose[0].flip; cx = g_gum_pose[0].cx; top = g_gum_pose[0].top; }
+        else {   /* player 2's pose is only set in pool_show_hero, which can run after this object: derive it from the body object */
+            const PoolObj *b = &g_pool.obj[P2_OBJ_BODY];
+            if (b->flags & POOL_F_BLINK) goto hide;
+            fr = b->type; flip = (b->flags & POOL_F_FLIP) != 0;
+            cx = camera_screen_x(obj_pool_px(b->x) - FLIER_HALF_W - SOOT_BOX_DX, (b->flags & POOL_F_SCREEN) ? 0 : g_cam_px, SOOT_COLUMNS * 16) + SOOT_COLUMNS * 8;
+            top = obj_pool_px(b->y) - sootling_frames[soot_frame(SOOTLING_ANIM_PLAYER, fr)].tiles_h * 16;
+        }
+        GumLeakPose gp;
+        if (!gum_leak_pose((uint8_t)p->x, (uint32_t)p->y, fr, flip, cx, top, &gp)) goto hide;
+        ax = ax_t[gp.idx]; ay = ay_t[gp.idx]; cw = gp.w;
+        x = gp.x + ax;
+        y = gp.y + ay;
+    } else {
+        flip = (p->flags & POOL_F_FLIP) != 0;
+        GumOffset o = gum_view_offset(p->anim, flip);
+        if (!o.show) goto hide;
+        int wob = lf % GUM_WOBBLE_FRAMES;
+        const SootlingFrame *bf = &sootling_frames[soot_frame(SOOTLING_ANIM_CPU, p->anim)];
+        int lvl = p->anim_tick, row = (GUM_VIEW_LEVELS - lvl) * GUM_VIEW_WOBBLE_SHEET + wob;   /* anchor row as gum_leak_pose */
+        const GumFrame *f = &gum_frames[gum_anims[gum_view_anim((uint8_t)lvl, GUM_STATE_WOBBLE)].first_frame + wob];
+        int bx = camera_screen_x(obj_pool_px(p->x) - FLIER_HALF_W - SOOT_BOX_DX, (p->flags & POOL_F_SCREEN) ? 0 : g_cam_px, SOOT_COLUMNS * 16);
+        cw = f->tiles_w * 16; ax = ax_t[row];
+        x = bx + SOOT_COLUMNS * 8 - cw / 2 + o.dx + ax;
+        y = obj_pool_px(p->y) - bf->tiles_h * 16 - f->tiles_h * 16 + o.dy + ay_t[row];
+    }
+    if (!camera_visible(x, l->tiles_w * 16)) goto hide;
+    /* the hole and jet never mirror with the bird's facing (owner 2026-11-17); flip only moves the bubble */
+    u16 slot = obj_pool_sprite(&g_pool, i);
+    u8 key = (u8)(lf + 1);
+    if (g_pool_drawn[i] != key) {
+        const u16 *t = &gumleak_tile_index[l->tile_offset];
+        u16 attr = (u16)((GUM_PAL_SLOT + l->palette) << 8);
+        /* one strip per column straight from the const table: the queue keeps the tile pointer, a stack copy would be read after return */
+        for (int c = 0; c < l->tiles_w; c++)
+            gfx_sprite_strips((u16)(slot + c), 1, l->tiles_h, t + c * l->tiles_h, GUMLEAK_TILE_BASE, attr);
+        if (g_pool_cols[i] != l->tiles_w) { gfx_sprite_chain(slot, l->tiles_w); g_pool_cols[i] = l->tiles_w; }
+        g_pool_drawn[i] = key;
+    }
+    scb3[i] = gfx_scb3_word(l->tiles_h, y);
+    g_pool_scb4[i] = gfx_scb4_word(x);
+    return;
+hide:
+    if (g_pool_drawn[i]) pool_hide_run(i);
+}
+
 static void pool_show_hero(PoolObj *p, u8 i, u16 *scb3) {
+    if ((p->type & 0xE0) == 0xE0) { pool_show_leak(p, i, scb3); return; }
     if ((p->type & 0xC0) == 0xC0) { pool_show_gum(p, i, scb3); return; }
     if (p->type & 0x80) { pool_show_chute(p, i, scb3); return; }
     if (p->flags & POOL_F_BLINK) { g_blink_pool[0]++; if (g_pool_drawn[i]) pool_hide_run(i); return; } /* the animation kept stepping in the sync; the hide costs queue words once */
@@ -1075,6 +1200,7 @@ static void hero_and_mode(const FlowView *v) {
         pool_sync_cpus(v->game);
         if (v->game->mode == GAME_MODE_ARCADE || v->game->mode == GAME_MODE_ARENA) pool_sync_p2(v->game);
         if (v->game->mode == GAME_MODE_TRIP) pool_sync_rivals(v->game);
+        human_leak_sync(v->game);
         if (g_pool_stress) pool_stress();
         pool_show();
     } else {
@@ -2075,10 +2201,10 @@ static void game_loop(void) {
             trip_pickup_step(trip_game ? &view.game->trip_gen : 0, trip_game ? view.game->trip.px : 0, trip_game ? view.game->trip.steps : 0, trip_game && game_trip_ready(view.game));
             /* Arena: the bubble is always full size (no gum value, no pop); Gum Trip: its gum meter. */
             u8 arena = world && (view.game->mode == GAME_MODE_ARENA || view.game->mode == GAME_MODE_ARCADE);
-            gum_step(0, arena || (trip && game_trip_ready(view.game)), trip ? view.game->trip.gum : GUM_MAX, (trip || arena) ? view.game->frame : 0, g_gum_pose[0].drawn, g_gum_pose[0].frame, g_gum_pose[0].flip, g_gum_pose[0].cx, g_gum_pose[0].top);
+            gum_step(0, arena || (trip && game_trip_ready(view.game)), trip ? view.game->trip.gum : (arena ? (uint16_t)(human_bubble_level(view.game, 0) * (GUM_MAX / GUM_VIEW_LEVELS)) : GUM_MAX), (trip || arena) ? view.game->frame : 0, g_gum_pose[0].drawn, g_gum_pose[0].frame, g_gum_pose[0].flip, g_gum_pose[0].cx, g_gum_pose[0].top, world && human_leaks(view.game, 0));
             roost_marker_step(arena && view.state == FLOW_PLAYING ? view.game : 0);
             hot_bubble_step(arena && view.state == FLOW_PLAYING ? view.game : 0);
-            gum_step(1, arena && view.game->players == 2, GUM_MAX, view.game->frame, g_gum_pose[1].drawn, g_gum_pose[1].frame, g_gum_pose[1].flip, g_gum_pose[1].cx, g_gum_pose[1].top);
+            gum_step(1, arena && view.game->players == 2, (uint16_t)(human_bubble_level(view.game, 1) * (GUM_MAX / GUM_VIEW_LEVELS)), view.game->frame, g_gum_pose[1].drawn, g_gum_pose[1].frame, g_gum_pose[1].flip, g_gum_pose[1].cx, g_gum_pose[1].top, world && human_leaks(view.game, 1));
             {   /* the splash starts from the same crossing that plays the splosh sound; it keeps running through Game Over */
                 const SoundEvents *se = sound_events();
                 const Game *sg = view.game;   /* Gum Trip: its own floor death starts the gum splat (the splosh edge needs a water or lava kind) */

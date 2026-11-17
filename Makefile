@@ -66,7 +66,7 @@ include emu.mk
 # Note: build rules (%.c -> %.o -> %.elf) are defined in Makefile.build
 ELF=$(BUILDDIR)/rom.elf
 CORE_SRCS=rng game hiscore nameentry flow attract_overlay obstacle_view bg_scroll flier_view gum_view vram_queue obj_pool sound_queue sound_events flier stage island_layout ai camera trip trip_gen trip_cave trip_hit trip_rival score_table trip_view trip_pickup_fx banner splash_view arcade arc_elements arc_view result result_view
-$(ELF):	$(BUILDDIR)/src/main.o $(BUILDDIR)/gen/sootling_sprites.o $(BUILDDIR)/gen/hazard_sprites.o $(BUILDDIR)/gen/island_sprites.o $(BUILDDIR)/gen/island_garden_sprites.o $(BUILDDIR)/gen/island_deck_sprites.o $(BUILDDIR)/gen/tripstrip_sprites.o $(BUILDDIR)/gen/trippickup_sprites.o $(BUILDDIR)/gen/triphaz_sprites.o $(BUILDDIR)/gen/gum_sprites.o $(BUILDDIR)/gen/splash_sprites.o $(BUILDDIR)/gen/arcade_sprites.o $(BUILDDIR)/gen/resfx_sprites.o $(BUILDDIR)/gen/chute_sprites.o $(BUILDDIR)/gen/gumbubble_sprites.o $(BUILDDIR)/gen/obs_sprites.o $(BUILDDIR)/gen/city_sprites.o $(BUILDDIR)/gen/dusk_sprites.o $(BUILDDIR)/gen/storm_sprites.o $(BUILDDIR)/src/bg.o $(BUILDDIR)/src/gfx.o $(BUILDDIR)/src/hazard.o $(BUILDDIR)/src/island.o $(BUILDDIR)/src/trip_strip.o $(BUILDDIR)/src/trip_pickup.o $(BUILDDIR)/src/gum.o $(BUILDDIR)/src/logo.o $(BUILDDIR)/src/splash.o $(BUILDDIR)/src/sound.o $(CORE_SRCS:%=$(BUILDDIR)/src/core/%.o)
+$(ELF):	$(BUILDDIR)/src/main.o $(BUILDDIR)/gen/sootling_sprites.o $(BUILDDIR)/gen/hazard_sprites.o $(BUILDDIR)/gen/island_sprites.o $(BUILDDIR)/gen/island_garden_sprites.o $(BUILDDIR)/gen/island_deck_sprites.o $(BUILDDIR)/gen/tripstrip_sprites.o $(BUILDDIR)/gen/trippickup_sprites.o $(BUILDDIR)/gen/triphaz_sprites.o $(BUILDDIR)/gen/gum_sprites.o $(BUILDDIR)/gen/splash_sprites.o $(BUILDDIR)/gen/arcade_sprites.o $(BUILDDIR)/gen/resfx_sprites.o $(BUILDDIR)/gen/chute_sprites.o $(BUILDDIR)/gen/gumbubble_sprites.o $(BUILDDIR)/gen/gumleak_sprites.o $(BUILDDIR)/gen/obs_sprites.o $(BUILDDIR)/gen/city_sprites.o $(BUILDDIR)/gen/dusk_sprites.o $(BUILDDIR)/gen/storm_sprites.o $(BUILDDIR)/src/bg.o $(BUILDDIR)/src/gfx.o $(BUILDDIR)/src/hazard.o $(BUILDDIR)/src/island.o $(BUILDDIR)/src/trip_strip.o $(BUILDDIR)/src/trip_pickup.o $(BUILDDIR)/src/gum.o $(BUILDDIR)/src/logo.o $(BUILDDIR)/src/splash.o $(BUILDDIR)/src/sound.o $(CORE_SRCS:%=$(BUILDDIR)/src/core/%.o)
 $(PROM1): $(ELF)
 
 
@@ -100,7 +100,7 @@ $(SROM1): $(BUILDDIR)/gen/fix_font.fix $(BUILDDIR)/gen/attract_icons.fix $(BUILD
 # logo during the attract mode.
 # Note: build rules (%.gif -> %.c<1,2>) are defined in Makefile.build
 # Obstacle tiles come after the logo (256 tiles = OBS_TILE_BASE in src/vram_layout.h), city tiles after the obstacles (bases in src/vram_layout.h, from the generated headers); prerequisite order = cat order.
-CROM_SETS=assets/base-crom-logo gen/obs gen/city gen/dusk gen/storm gen/sootling gen/hazard gen/island gen/island_garden gen/island_deck gen/tripstrip gen/trippickup gen/triphaz gen/gum gen/logo gen/splash gen/arcade gen/resfx gen/chute gen/gumbubble
+CROM_SETS=assets/base-crom-logo gen/obs gen/city gen/dusk gen/storm gen/sootling gen/hazard gen/island gen/island_garden gen/island_deck gen/tripstrip gen/trippickup gen/triphaz gen/gum gen/logo gen/splash gen/arcade gen/resfx gen/chute gen/gumbubble gen/gumleak
 CROM_LAYOUT=$(BUILDDIR)/gen/crom-layout.stamp
 $(CROM1): $(CROM_SETS:%=$(BUILDDIR)/%.c1) $(CROM_LAYOUT)
 $(CROM2): $(CROM_SETS:%=$(BUILDDIR)/%.c2) $(CROM_LAYOUT)
@@ -205,11 +205,16 @@ $(BUILDDIR)/gen/gumbubble.c1 $(BUILDDIR)/gen/gumbubble.c2 $(BUILDDIR)/gen/gumbub
 	$(PYTHON) -I tools/build_gumbubble_sprites.py --out $(BUILDDIR)/gen
 $(BUILDDIR)/gen/gumbubble_sprites.o: $(BUILDDIR)/gen/gumbubble_sprites.c
 	$(M68KGCC) $(NGCFLAGS) $(CFLAGS) -c $< -o $@
+# Gum leak (air jet + hole over a damaged bubble, 12 frames of 32x16). C-ROM position: last, after the gum bubble set, so no earlier tile base moves.
+$(BUILDDIR)/gen/gumleak.c1 $(BUILDDIR)/gen/gumleak.c2 $(BUILDDIR)/gen/gumleak_sprites.c $(BUILDDIR)/gen/gumleak_sprites.h $(BUILDDIR)/gen/gumleak_tables.h: assets/gum_leak/gum_leak_sheet.png assets/gum_leak/gum_leak_sheet.json tools/build_gumleak_sprites.py tools/sprite_pipeline.py
+	$(PYTHON) -I tools/build_gumleak_sprites.py --out $(BUILDDIR)/gen
+$(BUILDDIR)/gen/gumleak_sprites.o: $(BUILDDIR)/gen/gumleak_sprites.c
+	$(M68KGCC) $(NGCFLAGS) $(CFLAGS) -c $< -o $@
 # Title logo (tools/build_logo_sprites.py over assets/logo/): animated strips and free pieces, no .c file (macros only in logo_sprites.h). C-ROM position: after the gum set, so no earlier tile base moves.
 $(BUILDDIR)/gen/logo.c1 $(BUILDDIR)/gen/logo.c2 $(BUILDDIR)/gen/logo_sprites.h: assets/logo/logo_rim.json assets/logo/logo_rim_frames_1x.png assets/logo/logo_rim_pieces_1x.png assets/logo/logo_pieces.json tools/build_logo_sprites.py
 	$(PYTHON) -I tools/build_logo_sprites.py --out $(BUILDDIR)/gen
 
-$(BUILDDIR)/src/main.o $(BUILDDIR)/src/bg.o $(BUILDDIR)/src/gfx.o $(BUILDDIR)/src/hazard.o $(BUILDDIR)/src/island.o $(BUILDDIR)/src/trip_strip.o $(BUILDDIR)/src/trip_pickup.o $(BUILDDIR)/src/gum.o $(BUILDDIR)/src/logo.o $(BUILDDIR)/src/splash.o $(BUILDDIR)/src/core/sprite_budget.o $(BUILDDIR)/src/core/island_layout.o $(BUILDDIR)/src/core/banner.o $(BUILDDIR)/src/core/result_view.o $(BUILDDIR)/src/core/result.o: $(BUILDDIR)/gen/result_scene.h $(BUILDDIR)/gen/result_paths.h $(BUILDDIR)/gen/resfx_sprites.h $(BUILDDIR)/gen/chute_sprites.h $(BUILDDIR)/gen/gumbubble_sprites.h $(BUILDDIR)/gen/fix_font.h $(BUILDDIR)/gen/attract_icons.h src/core/attract_overlay.h $(BUILDDIR)/gen/tripmeter.h $(BUILDDIR)/gen/island_tables.h $(BUILDDIR)/gen/city_tables.h $(BUILDDIR)/gen/dusk_tables.h $(BUILDDIR)/gen/storm_tables.h $(BUILDDIR)/gen/island_sprites.h $(BUILDDIR)/gen/island_garden_sprites.h $(BUILDDIR)/gen/island_deck_sprites.h $(BUILDDIR)/gen/tripstrip_sprites.h $(BUILDDIR)/gen/tripstrip_tables.h $(BUILDDIR)/gen/trippickup_sprites.h $(BUILDDIR)/gen/trippickup_tables.h $(BUILDDIR)/gen/triphaz_sprites.h $(BUILDDIR)/gen/triphaz_tables.h $(BUILDDIR)/gen/gum_sprites.h $(BUILDDIR)/gen/gum_tables.h $(BUILDDIR)/gen/logo_sprites.h src/logo.h $(BUILDDIR)/gen/splash_sprites.h $(BUILDDIR)/gen/splash_tables.h $(BUILDDIR)/gen/arcade_sprites.h $(BUILDDIR)/gen/arcade_tables.h src/splash.h src/core/splash_view.h $(BUILDDIR)/gen/hazard_sprites.h $(BUILDDIR)/gen/obs_sprites.h $(BUILDDIR)/gen/city_sprites.h $(BUILDDIR)/gen/dusk_sprites.h $(BUILDDIR)/gen/storm_sprites.h $(BUILDDIR)/gen/sootling_sprites.h src/core/flier_view.h src/core/gum_view.h src/vram_layout.h src/sprite_slots.h src/bg.h src/gfx.h src/hazard.h src/island.h src/core/island_layout.h src/core/vram_queue.h
+$(BUILDDIR)/src/main.o $(BUILDDIR)/src/bg.o $(BUILDDIR)/src/gfx.o $(BUILDDIR)/src/hazard.o $(BUILDDIR)/src/island.o $(BUILDDIR)/src/trip_strip.o $(BUILDDIR)/src/trip_pickup.o $(BUILDDIR)/src/gum.o $(BUILDDIR)/src/logo.o $(BUILDDIR)/src/splash.o $(BUILDDIR)/src/core/sprite_budget.o $(BUILDDIR)/src/core/island_layout.o $(BUILDDIR)/src/core/banner.o $(BUILDDIR)/src/core/result_view.o $(BUILDDIR)/src/core/result.o: $(BUILDDIR)/gen/result_scene.h $(BUILDDIR)/gen/result_paths.h $(BUILDDIR)/gen/resfx_sprites.h $(BUILDDIR)/gen/chute_sprites.h $(BUILDDIR)/gen/gumbubble_sprites.h $(BUILDDIR)/gen/gumleak_sprites.h $(BUILDDIR)/gen/gumleak_tables.h $(BUILDDIR)/gen/fix_font.h $(BUILDDIR)/gen/attract_icons.h src/core/attract_overlay.h $(BUILDDIR)/gen/tripmeter.h $(BUILDDIR)/gen/island_tables.h $(BUILDDIR)/gen/city_tables.h $(BUILDDIR)/gen/dusk_tables.h $(BUILDDIR)/gen/storm_tables.h $(BUILDDIR)/gen/island_sprites.h $(BUILDDIR)/gen/island_garden_sprites.h $(BUILDDIR)/gen/island_deck_sprites.h $(BUILDDIR)/gen/tripstrip_sprites.h $(BUILDDIR)/gen/tripstrip_tables.h $(BUILDDIR)/gen/trippickup_sprites.h $(BUILDDIR)/gen/trippickup_tables.h $(BUILDDIR)/gen/triphaz_sprites.h $(BUILDDIR)/gen/triphaz_tables.h $(BUILDDIR)/gen/gum_sprites.h $(BUILDDIR)/gen/gum_tables.h $(BUILDDIR)/gen/logo_sprites.h src/logo.h $(BUILDDIR)/gen/splash_sprites.h $(BUILDDIR)/gen/splash_tables.h $(BUILDDIR)/gen/arcade_sprites.h $(BUILDDIR)/gen/arcade_tables.h src/splash.h src/core/splash_view.h $(BUILDDIR)/gen/hazard_sprites.h $(BUILDDIR)/gen/obs_sprites.h $(BUILDDIR)/gen/city_sprites.h $(BUILDDIR)/gen/dusk_sprites.h $(BUILDDIR)/gen/storm_sprites.h $(BUILDDIR)/gen/sootling_sprites.h src/core/flier_view.h src/core/gum_view.h src/vram_layout.h src/sprite_slots.h src/bg.h src/gfx.h src/hazard.h src/island.h src/core/island_layout.h src/core/vram_queue.h
 
 
 
@@ -431,6 +436,22 @@ test-flier: cart
 	if [ ! -f $$T/result.txt ]; then tail -n 15 $$T/mame.log; echo "[FAIL] no result from flier Lua script"; exit 1; fi; \
 	cat $$T/result.txt; \
 	if grep -q '^PASS' $$T/result.txt; then rm -rf $$T; echo "[OK] make test-flier passed"; else echo "[FAIL] make test-flier, log kept in $$T"; exit 1; fi
+
+# Gum leak jets exist at one balloon and draw above their bubble (tests/mame/leak_check.lua). Run by `make test-leak` alone.
+test-leak: cart
+	@set -e; T=$$(mktemp -d $(BUILDDIR)/test-run.XXXXXX); \
+	BRAWL_FLOW_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flow"{print $$1}') \
+	BRAWL_FRAME_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_frame_counter"{print $$1}') \
+	BRAWL_FLIER_LAYOUT="$$($(M68KGCC) -std=c99 -S -o - tests/mame/flier_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
+	BRAWL_POOL_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_pool"{print $$1}') \
+	BRAWL_LEAKIDX_ADDR=$$($(NM) $(ELF) | awk '$$3=="gumleak_tile_index"{print $$1}') \
+	BRAWL_PUMP_FIRST=$$(awk '/SOOTLING_TABLE_CLIP_FIRST/{print $$8+0}' $(BUILDDIR)/gen/sootling_tables.h) \
+	BRAWL_PUMP_COUNT=$$(awk '/SOOTLING_TABLE_CLIP_COUNT/{print $$8+0}' $(BUILDDIR)/gen/sootling_tables.h) \
+	BRAWL_RESULT=$$T/result.txt \
+	SDL_VIDEODRIVER=dummy nice -n 19 $(MAME) -window -nomaximize -video none -sound none -nothrottle -seconds_to_run $(TEST_SECONDS) -noautosave -skip_gameinfo -hash $(ROM) -rp $(ROM) -nvram_directory $$T -autoboot_script tests/mame/leak_check.lua neogeo -cart1 $(GAMEROM) > $$T/mame.log 2>&1 || true; \
+	if [ ! -f $$T/result.txt ]; then tail -n 15 $$T/mame.log; echo "[FAIL] no result from leak Lua script"; exit 1; fi; \
+	cat $$T/result.txt; \
+	if grep -q '^PASS' $$T/result.txt; then rm -rf $$T; echo "[OK] make test-leak passed"; else echo "[FAIL] make test-leak, log kept in $$T"; exit 1; fi
 
 # Arcade mode reachability (tests/mame/arcade_check.lua): coin, ARCADE on the title select, Start, stage 1, forced stage clear to stage 2
 # (island VRAM words change), forced deaths to the continue state, A to continue. Run by `make test-arcade` alone.
