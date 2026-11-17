@@ -1323,14 +1323,6 @@ static void draw_burst_race(const GgRace *r) {
     text((u8)((40 - BLOW_TEXT_W) / 2), BLOW_TEXT_ROW + 2, PAL_TEXT, msg);
 }
 
-/* Gum Fling sound ids: aliases to existing samples, all here. Placeholders: the feature/fling-sfx branch replaces them with
- * dedicated samples (change only these lines). */
-#define SND_SFX_FLING_TICK SND_SFX_TALLY_TICK
-#define SND_SFX_FLING_THROW SND_SFX_RIVAL_LAUNCH
-#define SND_SFX_FLING_LAND SND_SFX_SPLOSH
-#define SND_SFX_FLING_FOUL SND_SFX_BUMP
-#define SND_SFX_FLING_WIN SND_SFX_PERFECT
-#define SND_SFX_FLING_LOSE SND_SFX_DEFEAT
 
 /* Gum Fling on the fix layer: power bar on BLOW_BAR_ROW, angle needle bar two rows above (0..90 degrees over BLOW_BAR_CELLS,
  * safe 15..75 cells lime, foul ends pink), a status line, and in the flight view a mark flag that scrolls in with the course.
@@ -2507,7 +2499,7 @@ static void game_loop(void) {
         if (view.game && view.state == FLOW_PLAYING && g_flow.game.gg_fling && g_flow.game.fling.sfx) { /* Gum Fling sounds */
             u8 fe = g_flow.game.fling.sfx;
             g_flow.game.fling.sfx = 0;
-            if (fe & GF_SFX_TICK) sound_play_sfx(SND_SFX_FLING_TICK);
+            if (fe & GF_SFX_TICK) sound_play_sfx((u8)(SND_SFX_FLING_RUNUP_1 + g_flow.game.fling.power * 4u / (GF_POWER_MAX + 1u))); /* run-up tick rises with power */
             if (fe & GF_SFX_THROW) sound_play_sfx(SND_SFX_FLING_THROW);
             if (fe & GF_SFX_LAND) sound_play_sfx(SND_SFX_FLING_LAND);
             if (fe & GF_SFX_FOUL) sound_play_sfx(SND_SFX_FLING_FOUL);
