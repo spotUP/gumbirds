@@ -338,6 +338,18 @@ emu.register_frame_done(function()
       mem:read_u8(0x10fdaf), mem:read_u8(0x10fdae), mem:read_u8(0x10fdda), mem:read_u8(0x10fddb), mem:read_u8(0x10fdb4))
     if sig ~= co.sig then co.sig = sig; print(string.format("BRAWL_LOG +%d %s", wait, sig)) end
     if fl == K.game_over and not co.go then co.go = wait end
+    -- GAME OVER text: the big words at fix cols 15..23, row 14 must hold letter tiles 30 frames in (the tall font has digits only: it drew blanks) (not blank, not the cleared tile)
+    if co.go and not co.txt and fl == K.game_over and wait - co.go == 30 then
+      local glyph = 0
+      for c = 15, 23 do for r = 14, 14 do
+        local t = (vram[0x7000 + c * 32 + r] or 0) & 0xfff
+        if t ~= K.fix_blank and t ~= 0xff and t ~= 0 then glyph = glyph + 1 end
+      end end
+      co.txt = true
+      if os.getenv("GO_DUMP") then for r = 12, 16 do local l = {} for c = 12, 26 do l[#l+1] = string.format("%04x", vram[0x7000 + c * 32 + r] or 0xffff) end print("GO_ROW" .. r .. " " .. table.concat(l, " ")) end end
+      print(string.format("GAMEOVER_TEXT glyph cells %d of 8 (blank tile %x)", glyph, K.fix_blank))
+      if glyph < 8 then finish(false, "A7b GAME OVER text missing from the fix layer: " .. glyph .. " of 8 cells") return end
+    end
     if co.go and fl <= 2 and not co.att then co.att = wait end
     local comp = mem:read_u8(0x10fdda)
     if co.att and comp < (co.cmin or 0xff) then co.cmin = comp end

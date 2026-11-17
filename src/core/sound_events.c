@@ -72,6 +72,7 @@ static uint16_t death_events(SoundEvents *e, const Game *g, uint8_t playing)
 }
 
 /* Cue edges of one playing frame; emit is 0 on the first playing frame (it only records). */
+#define SE_UNSEEN_PUMP 0xFF   /* state nibble 15: never a real pump state */
 static void cue_events(SoundEvents *e, const Game *g, uint8_t emit)
 {
     uint32_t c = 0;
@@ -83,17 +84,21 @@ static void cue_events(SoundEvents *e, const Game *g, uint8_t emit)
     e->prev_round_start = g->round_start;
     if (g->bounces > e->prev_bounces) c |= 1ul << SC_BUMP;
     e->prev_bounces = g->bounces;
-    if (g->mode == GAME_MODE_ARCADE) {
-        uint8_t touch = 0;
-        for (i = 0; i < STAGE_SPAWN_COUNT; i++) {
-            const ArcPump *p = &g->pump[i];
+    if (g->mode != GAME_MODE_TRIP) {   /* pumps run in arena, party and arcade; the Trip has none */
+        for (i = 0; i < STAGE_SPAWN_COUNT + HUMANS; i++) {   /* slots 0.. computer fliers, then the human pumps (strokes only: no rival launch or defeat for a human) */
+            int human = i >= STAGE_SPAWN_COUNT;
+            const ArcPump *p = human ? &g->hpump[i - STAGE_SPAWN_COUNT] : &g->pump[i];
             uint8_t was = e->prev_pump[i], now = (uint8_t)(p->state << 4 | (p->state == ARC_PUMP_PUMPING ? arc_pump_progress(p) : 0));
-            e->prev_pump[i] = now;
-            if (now == was || i >= g->cpu_count) continue;
-            if (p->state == ARC_PUMP_PUMPING) { if (was >> 4 == ARC_PUMP_PUMPING && now > was) c |= 1ul << ((now & 1) ? SC_PUMP_A : SC_PUMP_B); }
+            e->prev_pump[i] = (emit || p->state != ARC_PUMP_PUMPING) ? now : SE_UNSEEN_PUMP;   /* a pump already pumping on the first playing frame still owes its first stroke */
+            if (now == was || !emit || (human ? i - STAGE_SPAWN_COUNT >= g->players : i >= g->cpu_count)) continue;
+            if (p->state == ARC_PUMP_PUMPING) { if (was >> 4 != ARC_PUMP_PUMPING || now > was) c |= 1ul << ((now & 1) ? SC_PUMP_A : SC_PUMP_B); }   /* entering the pump window is its first stroke */
+            else if (human) continue;
             else if (p->state == ARC_PUMP_FLYING) { if (was >> 4 == ARC_PUMP_PUMPING) c |= 1ul << SC_RIVAL_LAUNCH; }
             else if (p->state == ARC_PUMP_DEFEATED) c |= 1ul << SC_DEFEAT;
         }
+    }
+    if (g->mode == GAME_MODE_ARCADE) {
+        uint8_t touch = 0;
         for (i = 0; i < g->elems.n; i++) {
             const ArcElement *el = &g->elems.el[i];
             uint16_t t = el->timer, was = e->prev_el[i];

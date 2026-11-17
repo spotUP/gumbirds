@@ -26,7 +26,7 @@
    sound.c maps the bit index to a sample. Edges of Game state, same priming rule as the mask: nothing on the first playing frame. */
 enum {
     SC_GO, SC_BANNER,                       /* round_start became RS_GO / RS_ROUND (not the first banner: the start sample owns that frame) */
-    SC_PUMP_A, SC_PUMP_B, SC_RIVAL_LAUNCH, SC_DEFEAT,   /* arcade rival: pump progress rose (odd A, even B), PUMPING to FLYING, to DEFEATED */
+    SC_PUMP_A, SC_PUMP_B, SC_RIVAL_LAUNCH, SC_DEFEAT,   /* pump progress rose (odd A, even B), PUMPING to FLYING, to DEFEATED */
     SC_BUMP,                                /* Game.bounces rose */
     SC_CHUTE,                               /* a flier went ALIVE to PARACHUTE */
     SC_VENT_WARN, SC_VENT_BURST,            /* vent timer reached ARC_VENT_TELEGRAPH / ARC_VENT_LAUNCH */
@@ -64,7 +64,7 @@ typedef struct {
     uint32_t cues;                      /* SC_* bits of the last se_step */
     uint8_t drop[SE_WATCHED];           /* 1 while a balloon-less walker's drop has made its fall sound; cleared on the ground */
     /* last frame's values for the cue edges */
-    uint8_t prev_round_start, prev_pump[STAGE_SPAWN_COUNT] /* state << 4 | progress */, prev_touch /* bit 0 flipper, bit 1 grate */;
+    uint8_t prev_round_start, prev_pump[STAGE_SPAWN_COUNT + HUMANS] /* state << 4 | progress */, prev_touch /* bit 0 flipper, bit 1 grate */;
     uint8_t prev_life_state[HUMANS], prev_seconds[HUMANS], ne_seen, ne_pos, ne_sym, ne_done;
     uint16_t prev_el[ARC_ELEM_MAX];
     uint32_t prev_bounces;

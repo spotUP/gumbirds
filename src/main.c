@@ -1834,7 +1834,7 @@ static void draw(const FlowView *v) {
             /* GAME OVER: big text mid screen while the flow holds the state (GAMEOVER_FRAMES, A or Start skips) */
             u8 on = v->state == FLOW_GAME_OVER;
             if (on != g_over_up) {
-                if (on) gfx_text_tall_backed(15, 12, PAL_HIGH, "GAME OVER"); /* the state change that ends it clears the fix layer */
+                if (on) gfx_text_backed(15, 14, PAL_HIGH, "GAME OVER"); /* the tall font has digits only, so plain backed letters; the state change that ends it clears the fix layer */
                 g_over_up = on;
             }
         }
