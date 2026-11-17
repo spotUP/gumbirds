@@ -944,6 +944,30 @@ static void test_two_entries(void)
     CHECK(r.f.state == FLOW_SAVE_REMINDER && r.f.tables.t[r.f.last_mode].score[1] == 800000);
 }
 
+/* A real tap (2-4 frames) of Down right after a coin must step the mode, whatever the idle gap, from the title, table and demo. */
+static void test_coin_then_tap(void)
+{
+    int from, gap, hold;
+    for (from = 0; from < 3; from++) {
+        for (gap = 0; gap <= 20; gap++) {
+            for (hold = 2; hold <= 4; hold++) {
+                Rig r;
+                memset(&r, 0, sizeof r);
+                flow_init(&r.f, NULL, 0);
+                if (from == 1) rig_until(&r, FLOW_ATTRACT_TABLE, 0, 5000);
+                if (from == 2) rig_until(&r, FLOW_ATTRACT_DEMO, 0, 9000);
+                r.f.credit_hold = 1;
+                flow_coin(&r.f);
+                rig_ticks(&r, 0, gap);
+                rig_ticks(&r, IN_DOWN, hold);
+                rig_ticks(&r, 0, 2);
+                CHECK(r.f.mode == GAME_MODE_TRIP);
+                CHECK(r.f.state == FLOW_ATTRACT_TITLE);
+            }
+        }
+    }
+}
+
 int main(void)
 {
     test_nameentry();
@@ -955,6 +979,7 @@ int main(void)
     test_demo_modes();
     test_operator_reset();
     test_mode_select();
+    test_coin_then_tap();
     test_menu_buttons();
     test_score_modes();
     test_name_entry_start();
