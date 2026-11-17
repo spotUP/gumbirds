@@ -181,7 +181,7 @@ static void game_step_gum(Game *g, uint8_t input)
         GgRace *r = &g->race;
         gg_race_step(r, input, g->input2);
         g->frame++;
-        g->hero[0].spawn_inv = 0;
+        g->hero[0].spawn_inv = g->hero[1].spawn_inv = 0;
         for (int s = 0; s < 2; s++) {
             g->hpump[s].state = ARC_PUMP_PUMPING;
             g->hpump[s].frame = (uint16_t)((r->phase == GG_RACE_INTRO ? 0 : r->size[s] * pf + 63) >> 6);
@@ -406,6 +406,9 @@ void game_gg_start_race(Game *g)
 {
     g->gg_race = 1;
     gg_race_start(&g->race, 1);
+    player_spawn_h(g, 1);   /* the computer or P2 bird stands beside the player, facing it; its pump frame follows race.size[1] (game_step_gum) */
+    g->hero[1].x += FL_PX(GG_RACE_RIVAL_GAP - FLIER_START_GAP);
+    g->hero[1].facing = 0;
 }
 
 void game_gg_start_dash(Game *g)

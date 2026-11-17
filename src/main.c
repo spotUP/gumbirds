@@ -525,8 +525,11 @@ static void pool_sync_cpus(const Game *g) {
 /* Player 2: body and parachute in pool objects P2_OBJ_BODY / P2_OBJ_CHUTE, claimed once P2 has joined and kept until the
  * world is left (pool_free_all). A hidden P2 keeps the objects with POOL_F_BLINK set, so a computer flier never allocates
  * them. A bounced body draws from a dead body slot instead (owner DEAD_OWNER_HERO(1)). */
+static u8 g_p2_cpu;   /* 1 = the P2 body object shows the Burst Race computer bird */
 static void pool_sync_p2(const Game *g) {
-    if (g->players < 2) return;
+    if (g->players < 2 && !g->gg_race) return;
+    u8 cpu = g->gg_race && g->players < 2;   /* Burst Race against the computer: the rival sheet and palette */
+    if (cpu != g_p2_cpu) { g_p2_cpu = cpu; g_pool_drawn[P2_OBJ_BODY] = 0; }
     const Flier *fl = &g->hero[1];
     if (!obj_pool_is_live(&g_pool, P2_OBJ_BODY)) {
         if (!obj_pool_claim(&g_pool, P2_OBJ_BODY) || !obj_pool_claim(&g_pool, P2_OBJ_CHUTE)) return;
@@ -746,7 +749,7 @@ static void pool_show_hero(PoolObj *p, u8 i, u16 *scb3) {
     if (p->type & 0x80) { pool_show_chute(p, i, scb3); return; }
     if (p->flags & POOL_F_BLINK) { g_blink_pool[0]++; if (g_pool_drawn[i]) pool_hide_run(i); return; } /* the animation kept stepping in the sync; the hide costs queue words once */
     g_blink_pool[1]++;
-    int p2 = i == P2_OBJ_BODY;
+    int p2 = i == P2_OBJ_BODY && !g_p2_cpu;
     u8 fi = soot_frame(p2 ? SOOTLING_ANIM_PLAYER : SOOTLING_ANIM_CPU, p->type);
     const SootlingFrame *f = &sootling_frames[fi];
     int flip = (p->flags & POOL_F_FLIP) != 0;
@@ -1333,7 +1336,7 @@ static void hero_and_mode(const FlowView *v) {
         hero_show(v->game, game_flier_cam_px(v->game));
         if (v->game->mode == GAME_MODE_TRIP) pool_sync_trip(v->game, game_trip_ready(v->game));
         pool_sync_cpus(v->game);
-        if (v->game->mode == GAME_MODE_ARCADE || v->game->mode == GAME_MODE_ARENA) pool_sync_p2(v->game);
+        if (v->game->mode == GAME_MODE_ARCADE || v->game->mode == GAME_MODE_ARENA || v->game->gg_race) pool_sync_p2(v->game);
         if (v->game->mode == GAME_MODE_TRIP) pool_sync_rivals(v->game);
         human_leak_sync(v->game);
         if (g_pool_stress) pool_stress();
