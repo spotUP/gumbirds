@@ -77,3 +77,53 @@ uint8_t gg_seq_input(const GgSeq *s, uint8_t in1, uint8_t in2)
 {
     return (s->players == 2 && s->turn == 1) ? in2 : in1;
 }
+
+void gg_blow_start(GgBlow *b, uint8_t players)
+{
+    uint8_t *z = (uint8_t *)b;
+    for (unsigned i = 0; i < sizeof(*b); i++) z[i] = 0;
+    gg_seq_start(&b->seq, GG_BIG_BLOW, players);
+    b->phase = GG_BLOW_INTRO;
+}
+
+static void blow_attempt(GgBlow *b, uint8_t size, int burst)
+{
+    uint8_t stage = burst ? 0 : (uint8_t)(size / GG_BLOW_STAGE);
+    int ok = !burst && stage >= GG_BLOW_QUALIFY_STAGE;
+    b->last_size = burst ? 0 : size;
+    b->last_stage = stage;
+    b->last_qualified = (uint8_t)ok;
+    b->burst = (uint8_t)burst;
+    b->last_points = gg_points(stage, ok);
+    b->more = (uint8_t)gg_seq_attempt(&b->seq, b->last_size, stage, ok);
+    b->timer = 0;
+    b->phase = burst ? GG_BLOW_BURST : GG_BLOW_RESULT;
+}
+
+void gg_blow_step(GgBlow *b, uint8_t in1, uint8_t in2)
+{
+    uint8_t in = gg_seq_input(&b->seq, in1, in2);
+    switch (b->phase) {
+    case GG_BLOW_INTRO:
+        if (++b->timer >= GG_BLOW_INTRO_FRAMES) {
+            b->phase = GG_BLOW_PLAY; b->timer = 0; b->size = 0; b->clock = GG_BLOW_CLOCK;
+            gg_mash_reset(&b->mash);
+        }
+        break;
+    case GG_BLOW_PLAY:
+        if (gg_mash_step(&b->mash, in, b->prev)) b->size = (uint8_t)(b->size + GG_BLOW_PER_PRESS);
+        if (b->size >= GG_BLOW_MAX) { b->size = GG_BLOW_MAX; blow_attempt(b, b->size, 1); break; }
+        if ((b->clock & GG_BLOW_LEAK_MASK) == 0 && b->size) b->size--;
+        if (--b->clock == 0) blow_attempt(b, b->size, 0);
+        break;
+    case GG_BLOW_BURST:
+    case GG_BLOW_RESULT:
+        if (++b->timer >= (b->phase == GG_BLOW_BURST ? GG_BLOW_BURST_FRAMES : GG_BLOW_RESULT_FRAMES)) {
+            b->timer = 0;
+            b->phase = b->more ? GG_BLOW_INTRO : GG_BLOW_END;
+        }
+        break;
+    default: break;
+    }
+    b->prev = in;
+}

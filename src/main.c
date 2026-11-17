@@ -138,8 +138,16 @@ static u8 g_rs_drawn = RS_NONE;
 static u8 g_howto_up; /* PARTY how-to overlay (fix rows HOWTO_ROW..) is on screen */
 #define HOWTO_ROW 22
 #define MODE_LABEL_ROW 29 /* last visible fix row, left safe column: the credits plate sits at columns 28..37 */
+#define BLOW_BAR_CELLS 16
+#define BLOW_BAR_COL 12
+#define BLOW_BAR_ROW 26
+#define BLOW_TEXT_ROW 5
+#define BLOW_TEXT_W 30
 #define MODE_LABEL_COL 2
 #define MODE_LABEL_W 17   /* longest name: RULE OF THE ROUND */
+static u32 g_blow_key = 0xFFFFFFFFu; /* Big Blow text on screen (phase, tickets, last attempt); reset with the fix layer */
+static GgBar g_blow_bar = { BLOW_BAR_CELLS, 0 };
+static u8 g_blow_bar_up;
 static u8 g_mode_key = 0xFF; /* mode label on screen: 0 none, else mode + 1 or 8 + party rule */
 static u8 g_stage_key = 0xFF; /* arcade HUD stage text: 0 none, 254 bonus, else stage number; 0xFF = not drawn since the last clear */
 static u8 g_over_up; /* GAME OVER text drawn since the last clear */
@@ -1189,6 +1197,50 @@ static u8 trip_building(void) {
 static u8 world_state(const FlowView *v) { return (v->state == FLOW_PLAYING || v->state == FLOW_ATTRACT_DEMO) && v->game; }
 static u8 world_shown(const FlowView *v) { return world_state(v) && !g_bg_hold; }
 
+static void put_number(char *out, u32 v, int width);
+static void text(u8 x, u8 y, u8 pal, const char *s);
+/* Big Blow on the fix layer: the power bar (changed cells only) and one status line, written when the attempt state changes. */
+static void draw_big_blow(const GgBlow *b) {
+    uint8_t ops[BLOW_BAR_CELLS];
+    if (!g_blow_bar_up) {
+        char cells[BLOW_BAR_CELLS + 1];
+        for (u8 i = 0; i < BLOW_BAR_CELLS; i++) cells[i] = '-';
+        cells[BLOW_BAR_CELLS] = 0;
+        text(BLOW_BAR_COL, BLOW_BAR_ROW, PAL_TEXT, cells);
+        g_blow_bar.filled = 0;
+        g_blow_bar_up = 1;
+    }
+    int n = gg_bar_set(&g_blow_bar, (u8)(b->phase == GG_BLOW_INTRO ? 0 : b->size / (GG_BLOW_MAX / BLOW_BAR_CELLS)), ops, BLOW_BAR_CELLS);
+    for (int i = 0; i < n; i++) text((u8)(BLOW_BAR_COL + (ops[i] & 0x7F)), BLOW_BAR_ROW, PAL_HIGH, (ops[i] & 0x80) ? ">" : "-");
+    u32 key = (u32)b->phase | (u32)b->seq.tickets[0] << 4 | (u32)b->last_size << 8 | (u32)b->burst << 16 | (u32)b->last_qualified << 17;
+    if (key == g_blow_key) return;
+    g_blow_key = key;
+    char line[BLOW_TEXT_W + 1];
+    char nb[10];
+    const char *msg = b->phase == GG_BLOW_INTRO ? "BIG BLOW   MASH A AND B" : b->phase == GG_BLOW_PLAY ? "BLOW  DO NOT BURST IT" :
+                      b->phase == GG_BLOW_BURST ? "BURST   NO POINTS" : b->last_qualified ? "QUALIFIED" : "NOT QUALIFIED";
+    u8 i = 0;
+    while (i < BLOW_TEXT_W && msg[i]) { line[i] = msg[i]; i++; }
+    if (b->phase == GG_BLOW_RESULT) {
+        put_number(nb, b->last_size, 3);
+        line[i++] = ' '; line[i++] = ' '; line[i++] = 'S'; line[i++] = 'I'; line[i++] = 'Z'; line[i++] = 'E'; line[i++] = ' ';
+        for (u8 k = 0; nb[k] && i < BLOW_TEXT_W; k++) line[i++] = nb[k];
+    }
+    while (i < BLOW_TEXT_W) line[i++] = ' ';
+    line[BLOW_TEXT_W] = 0;
+    text((u8)((40 - BLOW_TEXT_W) / 2), BLOW_TEXT_ROW + 2, PAL_TEXT, line);
+    {
+        const char *tk = "TICKETS ";
+        char tl[BLOW_TEXT_W + 1];
+        u8 j = 0;
+        while (tk[j]) { tl[j] = tk[j]; j++; }
+        tl[j++] = (char)('0' + b->seq.tickets[0]);
+        while (j < BLOW_TEXT_W) tl[j++] = ' ';
+        tl[BLOW_TEXT_W] = 0;
+        text((u8)((40 - BLOW_TEXT_W) / 2), BLOW_TEXT_ROW + 4, PAL_TEXT, tl);
+    }
+}
+
 static void hero_and_mode(const FlowView *v) {
     if (world_shown(v)) {
         bios_user_mode = (v->state == FLOW_PLAYING || g_start_pending) ? 2 : 1; /* the demo is attract: mode 1 (see below) */
@@ -1707,7 +1759,7 @@ static void draw(const FlowView *v) {
         g_draw_state = (int)v->state;
         g_hud[0].kind = g_hud[1].kind = HUD_KIND_NONE;
         g_ov_stage = 0; g_ov_key = AO_NONE; g_ov_part = 0;
-        g_rs_drawn = RS_NONE; g_rs_num = 0; g_banner_up = 0; g_howto_up = 0; g_mode_key = 0xFF; g_cont_key[0] = g_cont_key[1] = 0xFF; g_stage_key = 0xFF; g_over_up = 0;
+        g_rs_drawn = RS_NONE; g_rs_num = 0; g_banner_up = 0; g_howto_up = 0; g_mode_key = 0xFF; g_blow_key = 0xFFFFFFFFu; g_blow_bar_up = 0; g_cont_key[0] = g_cont_key[1] = 0xFF; g_stage_key = 0xFF; g_over_up = 0;
         g_meter_step = METER_NONE;
         set_distress(0);
 #ifdef GUMBIRDS_DEBUG_HEADER /* gmake DEBUG_HEADER=1; the normal build leaves the top rows to the HUD */
@@ -1741,7 +1793,7 @@ static void draw(const FlowView *v) {
             u8 l0 = (u8)g->lives[0].lives;
             /* P1: the old block (score, balloons; no balloons row in Gum Trip), plus lives in the arcade */
             if (g_hud[0].kind != HUD_KIND_STATS || g->score != g_hud[0].score || b0 != g_hud[0].balloons || l0 != g_hud[0].lives) {
-                hud_side_stats(0, g->score, b0, l0, arc, g->mode != GAME_MODE_TRIP);
+                hud_side_stats(0, g->score, b0, l0, arc, g->mode != GAME_MODE_TRIP && g->mode != GAME_MODE_GUM);
                 g_hud[0].kind = HUD_KIND_STATS; g_hud[0].score = g->score; g_hud[0].balloons = b0; g_hud[0].lives = l0;
             }
             if (p2hud) {
@@ -1756,12 +1808,13 @@ static void draw(const FlowView *v) {
         if (v->game && v->game->mode == GAME_MODE_TRIP) draw_gum_meter(v->game->trip.gum);
         else set_distress(0);
         if (v->state == FLOW_ATTRACT_DEMO && v->game) draw_overlay(v);
+        if (v->state == FLOW_PLAYING && v->game && v->game->mode == GAME_MODE_GUM) draw_big_blow(&v->game->blow);
         {
             /* mode name in the bottom-left corner while playing, written when the mode or rule changes only */
             u8 key = (v->state == FLOW_PLAYING && v->game) ? (v->game->party_rule != PARTY_NONE ? (u8)(8 + v->game->party_rule) : (u8)(1 + v->game->mode)) : 0;
             if (key != g_mode_key) {
                 char lb[MODE_LABEL_W + 1];
-                const char *name = !key ? "" : key >= 8 ? game_party_name(v->game->party_rule) : v->game->mode == GAME_MODE_TRIP ? "GUM TRIP" : v->game->mode == GAME_MODE_ARCADE ? "ARCADE" : "ARENA";
+                const char *name = !key ? "" : key >= 8 ? game_party_name(v->game->party_rule) : v->game->mode == GAME_MODE_TRIP ? "GUM TRIP" : v->game->mode == GAME_MODE_GUM ? "GUM GAMES" : v->game->mode == GAME_MODE_ARCADE ? "ARCADE" : "ARENA";
                 u8 i = 0;
                 g_mode_key = key;
                 while (i < MODE_LABEL_W && name[i]) { lb[i] = name[i]; i++; }

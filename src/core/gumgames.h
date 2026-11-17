@@ -41,4 +41,27 @@ uint32_t gg_points(uint8_t stage, int qualified);
 int gg_seq_attempt(GgSeq *s, uint32_t result, uint8_t stage, int qualified);
 /* Input byte of the player whose turn it is (P2 reads input2 only in a 2P game). */
 uint8_t gg_seq_input(const GgSeq *s, uint8_t in1, uint8_t in2);
+
+/* Big Blow (event 1): mash A and B to inflate the bubble, stop before it bursts. Size 0..GG_BLOW_MAX, stage = size / GG_BLOW_STAGE. */
+#define GG_BLOW_MAX 64u
+#define GG_BLOW_STAGE 16u
+#define GG_BLOW_PER_PRESS 3u
+#define GG_BLOW_LEAK_MASK 7u           /* size drops by 1 every 8th frame */
+#define GG_BLOW_QUALIFY_STAGE 3u       /* size 48 or more */
+#define GG_BLOW_CLOCK 480u
+#define GG_BLOW_INTRO_FRAMES 150u
+#define GG_BLOW_BURST_FRAMES 60u
+#define GG_BLOW_RESULT_FRAMES 150u
+enum { GG_BLOW_INTRO, GG_BLOW_PLAY, GG_BLOW_BURST, GG_BLOW_RESULT, GG_BLOW_END };
+typedef struct {
+    GgSeq seq;
+    GgMash mash;
+    uint8_t phase, size, prev, more, burst;
+    uint16_t timer, clock;
+    uint8_t last_size, last_stage, last_qualified;   /* the attempt just played, shown on the result screen */
+    uint32_t last_points;
+} GgBlow;
+void gg_blow_start(GgBlow *b, uint8_t players);
+/* One frame; in1/in2 = the two players' input bytes (the turn picks one). */
+void gg_blow_step(GgBlow *b, uint8_t in1, uint8_t in2);
 #endif

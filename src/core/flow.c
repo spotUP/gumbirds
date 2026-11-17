@@ -30,7 +30,7 @@ static void start_game(Flow *f, uint32_t seed, int demo)
     f->demo_in = 0;
     if (demo) ai_init(&f->demo_ai, &f->game.rng, DEMO_AI_RANK);
     attract_overlay_reset(&f->ov);
-    f->game.rounds = (uint8_t)(!demo && f->mode != GAME_MODE_TRIP); /* real arena games get the round end and round start phases */
+    f->game.rounds = (uint8_t)(!demo && f->mode != GAME_MODE_TRIP && f->mode != GAME_MODE_GUM); /* real arena games get the round end and round start phases */
     f->highlight = -1;
     f->new_row = -1;
     f->reset_flash = 0;
@@ -334,6 +334,10 @@ void flow_step(Flow *f, uint8_t input, uint8_t start_pressed, uint32_t frame_cou
             f->entry_h = 0;
             f->last_mode = f->mode; /* the title pick: PARTY plays as arena, so game.mode would lose the PARTY table */
             f->last_rule = f->game.party_rule;
+            if (f->game.mode == GAME_MODE_GUM) { /* Big Blow: the best size is the event record */
+                uint32_t best = f->game.blow.seq.best[0];
+                if (best > f->tables.gg_record[GG_BIG_BLOW]) { f->tables.gg_record[GG_BIG_BLOW] = best; f->dirty = 1; }
+            }
             enter(f, FLOW_GAME_OVER);
         }
         break;

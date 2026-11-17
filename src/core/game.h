@@ -11,6 +11,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include "camera.h"
+#include "gumgames.h"
 #include "tuning.h"
 #include "rng.h"
 #include "flier.h"
@@ -50,7 +51,7 @@ typedef enum {
     GAME_MODE_TRIP,
     GAME_MODE_ARCADE,
     GAME_MODE_PARTY, /* title row and score table index only: game_set_mode plays it as arena, party_rule carries the rule */
-    GAME_MODE_GUM /* Gum Games: title row and score table index only, like PARTY (the events arrive with gumgames.c) */
+    GAME_MODE_GUM /* Gum Games: Big Blow plays today (game_step_gum); more events follow */
 } GameMode;
 
 /* PARTY rules (Left/Right on the PARTY title row). PARTY_NONE = not a party game. Order = on-screen cycle order. */
@@ -131,6 +132,7 @@ typedef struct {
     uint16_t round_start_timer; /* frames spent in the current round start phase */
     uint8_t hazard_kind; /* hazard.h kind drawn in this play (game_set_hazard); selects every flier's kill line */
     uint32_t bounces;    /* body-contact reflects (test sentinel) */
+    GgBlow blow;         /* Gum Games Big Blow state, live in GAME_MODE_GUM (game_step_gum) */
     Trip trip;           /* Gum Trip state, live in GAME_MODE_TRIP (game_step_trip) */
     TripGen trip_gen;    /* Gum Trip course (chunk ring), seeded by game_set_mode, advanced by game_step_trip */
     TripRivals trip_rivals; /* Gum Trip rivals (trip_rival.h), seeded by game_set_mode, stepped by game_step_trip */

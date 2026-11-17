@@ -146,7 +146,8 @@ void game_set_mode(Game *g, uint8_t mode)
     g->party_rule = PARTY_NONE;
     g->roost.last = 0xFF;
     for (int i = 0; i < ROOST_FIGHTERS; i++) g->roost.total[i] = 0;
-    g->mode = mode == GAME_MODE_TRIP || mode == GAME_MODE_ARCADE ? mode : GAME_MODE_ARENA;
+    g->mode = mode == GAME_MODE_TRIP || mode == GAME_MODE_ARCADE || mode == GAME_MODE_GUM ? mode : GAME_MODE_ARENA;
+    if (g->mode == GAME_MODE_GUM) gg_blow_start(&g->blow, 1);
     if (g->mode == GAME_MODE_ARCADE) {
         arc_start(&g->arc);
         arc_lives_start(&g->lives[0]); /* the arena step builds stage 1 at its first frame (match_start) */
@@ -169,9 +170,25 @@ void game_set_mode(Game *g, uint8_t mode)
     }
 }
 
+/* Gum Games Big Blow: the core step runs the attempts; the shown pump frame follows the bubble size, and the game ends with the event. */
+static void game_step_gum(Game *g, uint8_t input)
+{
+    GgBlow *b = &g->blow;
+    int pf = arc_pump_frames(&g->hpump[0]);
+    gg_blow_step(b, input, g->input2);
+    g->frame++;
+    g->hero[0].spawn_inv = 0;
+    g->hpump[0].state = ARC_PUMP_PUMPING;
+    g->hpump[0].frame = (uint16_t)((b->phase == GG_BLOW_INTRO ? 0 : b->size * pf + 63) >> 6);
+    g->score = b->seq.points[0];
+    if (b->phase == GG_BLOW_END) g->over = 1;
+}
+
 void game_step(Game *g, uint8_t input)
 {
-    if (g->mode == GAME_MODE_TRIP) {
+    if (g->mode == GAME_MODE_GUM) {
+        game_step_gum(g, input);
+    } else if (g->mode == GAME_MODE_TRIP) {
         game_step_trip(g, input);
     } else {
         game_step_arena(g, input); /* ARENA and ARCADE share the arena step; the arcade differences are branches inside it */
@@ -181,7 +198,7 @@ void game_step(Game *g, uint8_t input)
 static void match_start(Game *g);
 int game_begin(Game *g)
 {
-    if (g->mode == GAME_MODE_TRIP || g->over || g->cpu_count) return 0;
+    if (g->mode == GAME_MODE_TRIP || g->mode == GAME_MODE_GUM || g->over || g->cpu_count) return 0;
     match_start(g);
     return 1;
 }
