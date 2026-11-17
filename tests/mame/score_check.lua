@@ -150,7 +150,7 @@ local function image_row(mode, row)
 end
 local function image_checks(tag)
   check(str(hs_addr, 4) == "ROOF", tag .. ": image magic is " .. str(hs_addr, 4))
-  check(mem:read_u16(hs_addr + 4) == 4, tag .. ": image version " .. mem:read_u16(hs_addr + 4))
+  check(mem:read_u16(hs_addr + 4) == 5, tag .. ": image version " .. mem:read_u16(hs_addr + 4))
   check(IMAGE_SIZE == 644, tag .. ": SCORE_IMAGE_SIZE " .. IMAGE_SIZE)
   check(mem:read_u32(hs_addr + IMAGE_SIZE - 4) == fnv(hs_addr, IMAGE_SIZE - 4), tag .. ": image checksum mismatch")
   for m = 0, 1 do
