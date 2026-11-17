@@ -185,9 +185,6 @@
 #ifndef FLIER_WALK_MIN_VX
 #define FLIER_WALK_MIN_VX 8192 /* 16.16 px/frame: a grounded flier slower than this (0.125 px/frame, the first two frames of ground acceleration or the last two of braking) stands and breathes instead of walking */
 #endif
-#ifndef FLIER_FLAP_HOLD
-#define FLIER_FLAP_HOLD 2 /* ticks per flap frame: 8 frames, 16 ticks per play; a press sooner than that cuts the wingbeat and restarts it */
-#endif
 
 /* Arena slice (src/core/stage.c, game_step_arena). The stage layout is picked per round: up to 8 platform rectangles in the 384x180 world
  * (world 384x180, ARENA_W in arena.h; world y = screen y; each flier's kill_y, set per hazard kind, kills; FLIER_WATER_Y is only the default). Platforms are solid on every side (flier_collide_solids), the box STAGE_PLATFORM_H deep.
@@ -382,17 +379,17 @@
 #ifndef GUM_POP_FRAMES
 #define GUM_POP_FRAMES 3
 #endif
-/* Where the bubble hangs on the player (src/core/gum_view.c, Sootling E art): its bottom edge sits GUM_BIRD_ROW pixels below the
- * bird sprite top plus the per frame dy; its string column is the bird's string column, GUM_BIRD_DX / GUM_BIRD_DX_FLIP pixels
- * from the bird centre (the mirrored bird's string is one pixel further left). */
+/* Where the bubble hangs on the player (src/core/gum_view.c, gum-mouth v4 art): its bottom edge sits GUM_BIRD_ROW pixels below the
+ * bird sprite top plus the per frame dy (0 on the hanging poses); its column is the beak grip of the frame, GUM_BIRD_DX /
+ * GUM_BIRD_DX_FLIP pixels plus the frame's grip offset from the bird centre (mirrored for a flipped bird). */
 #ifndef GUM_BIRD_ROW
-#define GUM_BIRD_ROW 8
+#define GUM_BIRD_ROW 14
 #endif
 #ifndef GUM_BIRD_DX
-#define GUM_BIRD_DX 1
+#define GUM_BIRD_DX 0
 #endif
 #ifndef GUM_BIRD_DX_FLIP
-#define GUM_BIRD_DX_FLIP 0
+#define GUM_BIRD_DX_FLIP -1
 #endif
 /* Game frames per sheet frame of the splash a flier makes in water and in lava (src/core/splash_view.c; assets/splash/splash.json). */
 #ifndef SPLASH_TICKS

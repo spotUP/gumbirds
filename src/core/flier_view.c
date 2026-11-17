@@ -2,7 +2,7 @@
 
 void flier_anim_init(FlierAnim *a)
 {
-    a->clip = a->frame = a->tick = a->balloons = a->started = a->prev_ground = a->flapping = 0;
+    a->clip = a->frame = a->tick = a->balloons = a->started = a->prev_ground = a->facing = 0;
 }
 
 static void play(FlierAnim *a, uint8_t clip)
@@ -10,40 +10,26 @@ static void play(FlierAnim *a, uint8_t clip)
     a->clip = clip;
     a->frame = 0;
     a->tick = 0;
-    a->flapping = 0;
-}
-
-static uint8_t count_idx(const Flier *f)
-{
-    return f->balloons > 2 ? 2 : f->balloons;
-}
-
-static int in_set(const uint8_t *set, uint8_t clip)
-{
-    return clip == set[0] || clip == set[1] || clip == set[2];
 }
 
 static uint8_t steady_clip(const Flier *f, const FlierClips *c)
 {
-    uint8_t b = count_idx(f);
     if (f->state >= FLIER_FALLING) return c->fall;
     if (f->on_ground) {
         int32_t vx = f->vx < 0 ? -f->vx : f->vx;
-        return vx >= FLIER_WALK_MIN_VX ? c->walk[b] : c->breathe[b];
+        return vx >= FLIER_WALK_MIN_VX ? c->walk : c->breathe;
     }
-    if (b == 0) return c->idle;
-    return b == 1 ? c->flap1 : c->flap2;
+    return f->balloons == 0 ? c->idle : c->fly;
 }
 
-/* Ticks the frame of a clip is shown. The ground clips and the flap clips read their knobs; every other clip keeps the
- * per frame ticks of the sheet. */
+/* Ticks the frame of a clip is shown. The ground clips read their knobs; every other clip keeps the per frame ticks of
+ * the sheet. */
 static uint8_t hold_of(const FlierClips *c, uint8_t clip, uint8_t frame, uint8_t shown)
 {
     static const uint8_t breathe[4] = { FLIER_BREATHE_HOLD_0, FLIER_BREATHE_HOLD_1, FLIER_BREATHE_HOLD_2, FLIER_BREATHE_HOLD_3 };
-    if (in_set(c->walk, clip)) return FLIER_WALK_HOLD;
-    if (in_set(c->land, clip)) return frame == 0 ? FLIER_LAND_HOLD_0 : FLIER_LAND_HOLD_1;
-    if (in_set(c->breathe, clip)) return breathe[frame > 3 ? 3 : frame];
-    if (clip == c->flap1 || clip == c->flap2) return FLIER_FLAP_HOLD;
+    if (clip == c->walk) return FLIER_WALK_HOLD;
+    if (clip == c->land) return frame == 0 ? FLIER_LAND_HOLD_0 : FLIER_LAND_HOLD_1;
+    if (clip == c->breathe) return breathe[frame > 3 ? 3 : frame];
     return c->ticks[shown];
 }
 
@@ -51,43 +37,37 @@ uint8_t flier_anim_step(FlierAnim *a, const Flier *f, const FlierClips *c, int *
 {
     uint8_t steady = steady_clip(f, c);
     uint8_t grounded = (uint8_t)(f->on_ground && f->state == FLIER_ALIVE);
+    uint8_t facing = (uint8_t)(f->facing != 0);
     *flip = !f->facing;
     if (!a->started) {
         a->started = 1;
+        a->facing = facing;
         play(a, f->balloons ? c->inflate : steady);
     } else if (f->balloons > a->balloons) {
         play(a, c->inflate);
     } else if (f->balloons < a->balloons) {
         play(a, (a->balloons == 2 && f->balloons == 1) ? c->pop2 : c->pop1);
     } else if (grounded && !a->prev_ground) {
-        play(a, c->land[count_idx(f)]);
+        play(a, c->land);
+    } else if (f->flapped && steady == c->fly && (a->clip == c->fly || a->clip == c->flap || a->clip == c->settle)) {
+        play(a, c->flap); /* a press restarts the wingbeat */
+    } else if (facing != a->facing && steady == c->fly && (a->clip == c->fly || a->clip == c->settle)) {
+        play(a, c->settle); /* a turn in the air: the damped sway, mirrored by the flip */
     }
+    a->facing = facing;
     a->balloons = f->balloons;
     a->prev_ground = grounded;
     if (a->clip == c->inflate && f->state >= FLIER_FALLING) play(a, steady);
-    if (in_set(c->land, a->clip) && !grounded) play(a, steady); /* leaving the ground cuts a landing */
+    if (a->clip == c->land && !grounded) play(a, steady); /* leaving the ground cuts a landing */
+    if ((a->clip == c->flap || a->clip == c->settle) && steady != c->fly) play(a, steady);
     if (c->loop[a->clip] && a->clip != steady) play(a, steady);
-    if (a->clip == c->flap1 || a->clip == c->flap2) {
-        if (f->flapped) {
-            play(a, a->clip); /* a press restarts the wingbeat */
-            a->flapping = 1;
-        } else if (!a->flapping) {
-            return c->first[a->clip]; /* rest frame between presses */
-        }
-    }
     {
         uint8_t shown = (uint8_t)(c->first[a->clip] + a->frame);
         if (++a->tick >= hold_of(c, a->clip, a->frame, shown)) {
             a->tick = 0;
             if (++a->frame >= c->count[a->clip]) {
-                if (a->clip == c->flap1 || a->clip == c->flap2) {
-                    a->frame = 0;
-                    a->flapping = 0; /* one play per press: back to the rest frame */
-                } else if (c->loop[a->clip]) {
-                    a->frame = 0;
-                } else {
-                    play(a, steady);
-                }
+                if (c->loop[a->clip]) a->frame = 0;
+                else play(a, steady);
             }
         }
         return shown;
@@ -110,8 +90,8 @@ int flier_view_visible(const Flier *f, uint32_t frame) {
 
 uint8_t flier_pump_frame(const FlierClips *c, int progress)
 {
-    int n = c->count[c->inflate], p = progress < 0 ? 0 : (progress > ARC_PUMP_STAGES - 1 ? ARC_PUMP_STAGES - 1 : progress);
+    int n = c->count[c->pump], p = progress < 0 ? 0 : (progress > ARC_PUMP_STAGES - 1 ? ARC_PUMP_STAGES - 1 : progress);
     int x = p * (n - 1), q = 0;
     while (x >= ARC_PUMP_STAGES - 1) { x -= ARC_PUMP_STAGES - 1; q++; } /* x / (STAGES - 1) without a libgcc divide: per pumping rival per frame */
-    return (uint8_t)(c->first[c->inflate] + q);
+    return (uint8_t)(c->first[c->pump] + q);
 }

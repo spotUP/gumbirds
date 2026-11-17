@@ -7,6 +7,9 @@
 --   over->live    run end to a title that draws and runs
 local function addr(k) return tonumber(os.getenv(k), 16) end
 local flow_addr, frame_addr = addr("BRAWL_FLOW_ADDR"), addr("BRAWL_FRAME_ADDR")
+local lay = {}   -- score_probe.c layout (BRAWL_SCORE_LAYOUT); lay[2] is the offset of Flow.last_score
+for v in (os.getenv("BRAWL_SCORE_LAYOUT") or ""):gmatch("%d+") do lay[#lay + 1] = tonumber(v) end
+local O_LAST = lay[2]
 local out, mode = os.getenv("BRAWL_RESULT"), os.getenv("BRAWL_MODE") or "trip"
 local max_pause = tonumber(os.getenv("BRAWL_MAX_PAUSE") or "30")
 local mem = manager.machine.devices[":maincpu"].spaces["program"]
@@ -16,6 +19,7 @@ local function field(tag, name) for f, v in pairs(ports[tag].fields) do if f == 
 local coin, start = field(":AUDIO_COIN", "Coin 1"), field(":edge:joy:START", "1 Player Start")
 local down, abtn = field(":edge:joy:JOY1", "P1 Down"), field(":edge:joy:JOY1", "P1 A")
 local log = io.open(out, "w")
+if not O_LAST then log:write("FAIL missing BRAWL_SCORE_LAYOUT\n"); log:close(); manager.machine:exit() end
 local function W(s) log:write(s .. "\n"); log:flush() end
 local function colours()
   local px, seen, k = screen:pixels(), {}, 0
@@ -50,7 +54,7 @@ emu.register_frame_done(function()
     if st == 4 then phase = "over"; t0 = n; t_over = n end
     if k > 9000 then finish(false, "run never ended") end
   elseif phase == "over" then
-    if st == 4 then mem:write_u32(flow_addr + 22, 0) end
+    if st == 4 then mem:write_u32(flow_addr + O_LAST, 0) end
     if st == 5 then finish(false, "ranked: score poke missed") end
     if st == 0 and not t_title then t_title = n; fc_title = fc end
     if t_title then

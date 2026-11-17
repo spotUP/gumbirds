@@ -1,7 +1,9 @@
 /* gum_view: gum amount -> bubble level (sheet numbering), size class and pop set per level. Prints one FAIL line per miss
  * and a final PASS/FAIL line. */
 #include <stdio.h>
+#include <stdint.h>
 #include "../../src/core/gum_view.h"
+#include "gen/sootling_tables.h"
 
 #define STEP (GUM_MAX / GUM_VIEW_LEVELS)
 
@@ -61,25 +63,22 @@ int main(void)
         check(gum_view_frame(GUM_STATE_POP, (uint32_t)g) == want, "pop frame", gum_view_frame(GUM_STATE_POP, (uint32_t)g), want);
         check(gum_view_pop_done((uint32_t)g) == (g >= GUM_VIEW_POP_SHEET * GUM_POP_FRAMES), "pop done", gum_view_pop_done((uint32_t)g), g >= GUM_VIEW_POP_SHEET * GUM_POP_FRAMES);
     }
-    /* Offset table, real values from bubble_motion.json (subtle.dy.player, shows_bubble.player): FLAP2 0..7 dy [4,4,2,0,0,1,2,3],
-     * WALK2 77..84 dy [2,1,1,1,2,1,1,1], bit 1 on 0..28, 0 on 29..42, 1 on 43..51, 0 on 52..76, 1 on 77..104. Index 55 is the only -1 (FALL). */
+    /* Offset table from the generated per frame tables (gum-mouth v4: grip column, row shift, bubble hidden in the pop poses). */
     {
-        static const int flap[8] = { 4, 4, 2, 0, 0, 1, 2, 3 }, walk[8] = { 2, 1, 1, 1, 2, 1, 1, 1 };
-        int shown = 0, hidden = 0;
-        for (k = 0; k < 8; k++) {
-            check(gum_view_offset((uint8_t)k, 0).dy == GUM_BIRD_ROW + flap[k], "flap dy", gum_view_offset((uint8_t)k, 0).dy, GUM_BIRD_ROW + flap[k]);
-            check(gum_view_offset((uint8_t)(77 + k), 0).dy == GUM_BIRD_ROW + walk[k], "walk dy", gum_view_offset((uint8_t)(77 + k), 0).dy, GUM_BIRD_ROW + walk[k]);
-        }
-        check(gum_view_offset(55, 0).dy == GUM_BIRD_ROW - 1, "fall dy -1", gum_view_offset(55, 0).dy, GUM_BIRD_ROW - 1);
+        static const int8_t gdx[] = SOOTLING_TABLE_GUM_DX, gdy[] = SOOTLING_TABLE_GUM_DY;
+        static const uint8_t gsh[] = SOOTLING_TABLE_GUM_SHOW;
+        int hidden = 0;
+        check((int)(sizeof gdx) == GUM_VIEW_BIRD_FRAMES && (int)sizeof gdy == GUM_VIEW_BIRD_FRAMES && (int)sizeof gsh == GUM_VIEW_BIRD_FRAMES,
+              "tables cover every bird frame", (int)sizeof gdx, GUM_VIEW_BIRD_FRAMES);
         for (k = 0; k < GUM_VIEW_BIRD_FRAMES; k++) {
             GumOffset o = gum_view_offset((uint8_t)k, 0), m = gum_view_offset((uint8_t)k, 1);
-            int want = k <= 28 || (k >= 43 && k <= 51) || k >= 77;
-            check(o.show == want, "show bit", o.show, want);
-            check(o.dx == GUM_BIRD_DX && m.dx == GUM_BIRD_DX_FLIP && m.dy == o.dy && m.show == o.show, "flip changes dx only", m.dx, GUM_BIRD_DX_FLIP);
-            check(o.dy >= GUM_BIRD_ROW - 1 && o.dy <= GUM_BIRD_ROW + 5, "dy in table range", o.dy, GUM_BIRD_ROW);
-            if (o.show) shown++; else hidden++;
+            check(o.dx == GUM_BIRD_DX + gdx[k], "dx from table", o.dx, GUM_BIRD_DX + gdx[k]);
+            check(m.dx == GUM_BIRD_DX_FLIP - gdx[k], "flipped dx mirrors the grip", m.dx, GUM_BIRD_DX_FLIP - gdx[k]);
+            check(o.dy == GUM_BIRD_ROW + gdy[k] && m.dy == o.dy, "dy from table", o.dy, GUM_BIRD_ROW + gdy[k]);
+            check(o.show == gsh[k] && m.show == o.show, "show from table", o.show, gsh[k]);
+            if (!o.show) hidden++;
         }
-        check(shown == 66 && hidden == 39, "66 frames with a string, 39 without", shown, 66);
+        check(hidden > 0 && hidden < GUM_VIEW_BIRD_FRAMES, "some frames hide the bubble, most show it", hidden, 1);
     }
     /* Out of range is bounds safe: no bubble, no offset. */
     for (k = GUM_VIEW_BIRD_FRAMES; k < 256; k++) {

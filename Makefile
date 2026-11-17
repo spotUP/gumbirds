@@ -416,6 +416,7 @@ test-flier: cart
 	BRAWL_STAGE_ADDR=$$($(NM) $(ELF) | awk '$$3=="stage_platforms"{print $$1}') \
 	BRAWL_FRAME_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_frame_counter"{print $$1}') \
 	BRAWL_FLIER_LAYOUT="$$($(M68KGCC) -std=c99 -S -o - tests/mame/flier_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
+	BRAWL_SOOT_TABLES=$(BUILDDIR)/gen/sootling_tables.h \
 	BRAWL_RESULT=$$T/result.txt \
 	SDL_VIDEODRIVER=dummy nice -n 19 $(MAME) -window -nomaximize -video none -sound none -nothrottle -seconds_to_run $(TEST_SECONDS) -noautosave -skip_gameinfo -hash $(ROM) -rp $(ROM) -nvram_directory $$T -autoboot_script tests/mame/flier_check.lua neogeo -cart1 $(GAMEROM) > $$T/mame.log 2>&1 || true; \
 	if [ ! -f $$T/result.txt ]; then tail -n 15 $$T/mame.log; echo "[FAIL] no result from flier Lua script"; exit 1; fi; \
@@ -929,6 +930,7 @@ test-title-pause: cart bios
 	BRAWL_MODE=$$MODE \
 	BRAWL_FLOW_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flow"{print $$1}') \
 	BRAWL_FRAME_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_frame_counter"{print $$1}') \
+	BRAWL_SCORE_LAYOUT="$$($(M68KGCC) $(NGCFLAGS) -Ibuild -std=c99 -S -o - tests/mame/score_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
 	BRAWL_RESULT=$$T/result-$$MODE.txt \
 	SDL_VIDEODRIVER=dummy nice -n 19 $(MAME) -window -nomaximize -video none -sound none -nothrottle -seconds_to_run 600 -noautosave -skip_gameinfo -hash $(ROM) -rp "$(UNIBIOS_DIR);$(ROM)" -bios unibios40 -nvram_directory $$T -autoboot_script tests/mame/title_pause_check.lua neogeo -cart1 $(GAMEROM) > $$T/mame-$$MODE.log 2>&1 || true; \
 	if [ ! -f $$T/result-$$MODE.txt ]; then tail -n 15 $$T/mame-$$MODE.log; echo "[FAIL] no result from title pause Lua script ($$MODE)"; exit 1; fi; \

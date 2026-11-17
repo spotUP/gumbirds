@@ -63,6 +63,7 @@ def main():
                "BOX_LAST_COL": d["hit_box_columns"][1], "CLIP_COUNT": len(clips), "FRAMES": total, "TICK_HZ": d["tick_hz"]}
     for n, a in enumerate(clips):
         defines["CLIP_" + a["name"].upper()] = n
+    defines.update(d.get("defines_extra", {}))
     meta = {
         "source": "%s, imported by tools/import_flier_sheet.py (do not edit; re-import)" % os.path.relpath(meta_path),
         "animations": rects,
@@ -71,6 +72,14 @@ def main():
         "tables": {"clip_first": [a["first"] for a in clips], "clip_count": [a["count"] for a in clips],
                    "clip_loop": [1 if a["loop"] else 0 for a in clips], "frame_ticks": ticks},
     }
+    # Optional frames.json keys: "extra_palettes" {name: 15 RGB} (palette swaps, emitted as sootling_extra_palettes[]) and
+    # "extra_tables" {name: [one int per frame]} (per frame data such as the gum offsets, emitted as SOOTLING_TABLE_<NAME>).
+    if d.get("extra_palettes"):
+        meta["extra_palettes"] = {k: [list(snapped(c)) for c in p] for k, p in d["extra_palettes"].items()}
+    for k, t in d.get("extra_tables", {}).items():
+        if len(t) != total:
+            sys.exit("[ERROR] extra table %s has %d entries for %d frames" % (k, len(t), total))
+        meta["tables"][k] = t
     for a in clips:
         if len(a["ticks"]) != a["count"]:
             sys.exit("[ERROR] clip %s: %d ticks for %d frames" % (a["name"], len(a["ticks"]), a["count"]))
