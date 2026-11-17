@@ -51,7 +51,7 @@ int main(void)
     CHECK(score_insert(&s, 1, "LOW", a) == -1);
     CHECK(score_insert(&s, 1, "LOW", 0) == -1);
     for (i = 0; i < HISCORE_ENTRIES; i++) CHECK(sc(&s, 1, i) == before[i]);
-    CHECK(!score_qualifies(&s, 4, 99999) && score_insert(&s, 4, "X", 99999) == -1);
+    CHECK(!score_qualifies(&s, 5, 99999) && score_insert(&s, 5, "X", 99999) == -1);
 
     /* modes never mix */
     score_tables_defaults(&s);
@@ -68,7 +68,7 @@ int main(void)
     CHECK(sc(&s, 1, 1) == 999999 && score_qualifies(&s, 1, 4000000000u));
 
     /* entry bounds */
-    CHECK(!score_entry(&s, 0, 10, nm, NULL) && !score_entry(&s, 4, 0, nm, NULL));
+    CHECK(!score_entry(&s, 0, 10, nm, NULL) && !score_entry(&s, 5, 0, nm, NULL));
 
     /* image round trip and size */
     CHECK(score_serialise(&s, img, SCORE_IMAGE_SIZE - 1) == 0);
@@ -129,7 +129,7 @@ int main(void)
     }
     /* v3: arcade score lands in table 3 only, round trips */
     score_tables_defaults(&s);
-    CHECK(SCORE_MODES == 4 && score_insert(&s, 2, "ARC", 123456) == 0);
+    CHECK(SCORE_MODES == 5 && score_insert(&s, 2, "ARC", 123456) == 0);
     CHECK(sc(&s, 2, 0) == 123456 && sc(&s, 0, 0) != 123456 && sc(&s, 1, 0) != 123456);
     CHECK(score_serialise(&s, img, sizeof img) == SCORE_IMAGE_SIZE);
     CHECK(score_load(&s2, img, SCORE_IMAGE_SIZE) == 1 && memcmp(&s, &s2, sizeof s) == 0);
@@ -142,8 +142,39 @@ int main(void)
     CHECK(sc(&s, 0, 0) != 1000000 && score_insert_rule(&s, 0, "ARN", 999999, 3) == 0 && s.party_rule[0] == 0);
     CHECK(score_serialise(&s, img, sizeof img) == SCORE_IMAGE_SIZE);
     CHECK(score_load(&s2, img, SCORE_IMAGE_SIZE) == 1 && memcmp(&s, &s2, sizeof s) == 0);
-    img[SCORE_IMAGE_SIZE - 5] = 9; /* bad tag (and bad checksum) */
+    img[SCORE_IMAGE_SIZE - 5] = 9; /* bad checksum */
     CHECK(score_load(&s2, img, SCORE_IMAGE_SIZE) == 0);
+
+    /* v5: Gum Games table and the six event records round trip */
+    score_tables_defaults(&s);
+    CHECK(SCORE_GG_EVENTS == 6 && s.gg_record[0] == 0 && score_insert(&s, 4, "GGG", 40321) == 0);
+    s.gg_record[0] = 3; s.gg_record[5] = 777;
+    CHECK(sc(&s, 4, 0) == 40321 && sc(&s, 3, 0) != 40321);
+    CHECK(score_serialise(&s, img, sizeof img) == SCORE_IMAGE_SIZE);
+    CHECK(score_load(&s2, img, SCORE_IMAGE_SIZE) == 1 && memcmp(&s, &s2, sizeof s) == 0);
+    CHECK(s2.gg_record[0] == 3 && s2.gg_record[5] == 777 && sc(&s2, 4, 0) == 40321);
+
+    /* v4 image (500 bytes, four tables and tags): loads as 5, Gum Games at defaults */
+    {
+        ScoreTables d;
+        uint8_t v4[500];
+        unsigned k;
+        uint32_t h = 2166136261u;
+        score_tables_defaults(&d);
+        score_insert(&d, 2, "ARC", 77777);
+        score_insert_rule(&d, 3, "PAR", 66666, 4);
+        score_serialise(&d, img, sizeof img);
+        for (k = 0; k < 496; k++) v4[k] = img[k];
+        v4[5] = 4;
+        for (k = 0; k < 496; k++) { h ^= v4[k]; h *= 16777619u; }
+        v4[496] = (uint8_t)(h >> 24); v4[497] = (uint8_t)(h >> 16); v4[498] = (uint8_t)(h >> 8); v4[499] = (uint8_t)h;
+        CHECK(score_load(&s2, v4, sizeof v4) == 5);
+        CHECK(sc(&s2, 2, 0) == 77777 && sc(&s2, 3, 0) == 66666 && s2.party_rule[0] == 4);
+        score_tables_defaults(&d);
+        CHECK(memcmp(&s2.t[4], &d.t[4], sizeof d.t[4]) == 0 && s2.gg_record[0] == 0);
+        v4[100] ^= 1;
+        CHECK(score_load(&s2, v4, sizeof v4) == 0);
+    }
 
     /* v3 image (370 bytes, three tables): loads as 4 with the party table at defaults */
     {

@@ -566,7 +566,7 @@ static void test_mode_select(void)
     memset(&r, 0, sizeof r);
     flow_init(&r.f, NULL, 0);
     CHECK(r.f.state == FLOW_ATTRACT_TITLE && r.f.mode == GAME_MODE_ARENA);   /* default arena */
-    /* four entries Arena, Gum Trip, Arcade, Party: Down steps forward, Up back, both wrap */
+    /* five entries Arena, Gum Trip, Arcade, Party, Gum Games: Down steps forward, Up back, both wrap */
     rig_press(&r, IN_DOWN);
     CHECK(r.f.mode == GAME_MODE_TRIP);
     rig_press(&r, IN_DOWN);
@@ -574,7 +574,11 @@ static void test_mode_select(void)
     rig_press(&r, IN_DOWN);
     CHECK(r.f.mode == GAME_MODE_PARTY);
     rig_press(&r, IN_DOWN);
+    CHECK(r.f.mode == GAME_MODE_GUM);
+    rig_press(&r, IN_DOWN);
     CHECK(r.f.mode == GAME_MODE_ARENA);
+    rig_press(&r, IN_UP);
+    CHECK(r.f.mode == GAME_MODE_GUM);
     rig_press(&r, IN_UP);
     CHECK(r.f.mode == GAME_MODE_PARTY);
     rig_press(&r, IN_UP);
@@ -681,7 +685,7 @@ static void test_mode_select(void)
     /* Start with ARCADE highlighted begins the arcade run through the real path */
     memset(&r, 0, sizeof r);
     flow_init(&r.f, NULL, 0);
-    rig_press(&r, IN_UP); rig_press(&r, IN_UP);   /* Up wraps through PARTY */
+    rig_press(&r, IN_UP); rig_press(&r, IN_UP); rig_press(&r, IN_UP);   /* Up wraps through GUM GAMES and PARTY */
     CHECK(r.f.mode == GAME_MODE_ARCADE);
     rig_begin(&r, 0);
     CHECK(r.f.state == FLOW_PLAYING && r.f.game.mode == GAME_MODE_ARCADE && r.f.game.arc.stage == 1);
@@ -693,7 +697,7 @@ static void test_mode_select(void)
 static void run_mode_to_table(Rig *r, uint8_t m, uint32_t score)
 {
     rig_until(r, FLOW_ATTRACT_TITLE, 0, 10000);
-    for (int k = 0; k < 3 && r->f.mode != m; k++) rig_press(r, IN_DOWN);   /* Down steps forward through the three entries */
+    for (int k = 0; k < 5 && r->f.mode != m; k++) rig_press(r, IN_DOWN);   /* Down steps forward through the five entries */
     CHECK(r->f.mode == m);
     rig_begin(r, 0);
     CHECK(r->f.state == FLOW_PLAYING && r->f.game.mode == m);
@@ -733,7 +737,8 @@ static void test_score_modes(void)
     for (i = 1; i < HISCORE_ENTRIES; i++) CHECK(r.f.tables.t[1].score[i] == def.t[1].score[i - 1]);
     CHECK(r.f.last_mode == GAME_MODE_TRIP);
     /* the saved image round trips */
-    { Flow g; flow_init(&g, r.backup, sizeof r.backup); CHECK(memcmp(&g.tables, &r.f.tables, sizeof g.tables) == 0 && !g.dirty); }
+    { Flow g; uint8_t ia[SCORE_IMAGE_SIZE], ib[SCORE_IMAGE_SIZE]; flow_init(&g, r.backup, sizeof r.backup); /* compare images: struct padding is not defined */
+      CHECK(score_serialise(&g.tables, ia, sizeof ia) == SCORE_IMAGE_SIZE && score_serialise(&r.f.tables, ib, sizeof ib) == SCORE_IMAGE_SIZE && memcmp(ia, ib, sizeof ia) == 0 && !g.dirty); }
     /* table screen: arena for SWAP frames, trip for SWAP frames; the highlight shows only on the run's table */
     r.f.highlight = r.f.new_row;           /* the flow clears it on the title timeout (BG1); set it to test the view alone */
     r.f.state = FLOW_ATTRACT_TABLE;        /* BG1: the flow no longer reaches the table with a highlight; this checks the view function alone */

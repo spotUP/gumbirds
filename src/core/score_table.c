@@ -66,12 +66,23 @@ static void party_defaults(ScoreTables *s)
     }
 }
 
+static void gum_defaults(ScoreTables *s)
+{
+    int i;
+    for (i = 0; i < HISCORE_ENTRIES; i++) {
+        copy(s->t[4].name[i], "GUMGAMES", HISCORE_NAME_LEN);
+        s->t[4].score[i] = SCORE_ARCADE_DEFAULT_TOP - (uint32_t)i * SCORE_ARCADE_DEFAULT_STEP;
+    }
+    for (i = 0; i < (int)SCORE_GG_EVENTS; i++) s->gg_record[i] = 0;
+}
+
 void score_tables_defaults(ScoreTables *s)
 {
     hiscore_defaults(&s->t[0]);
     trip_defaults(&s->t[1]);
     arcade_defaults(&s->t[2]);
     party_defaults(s);
+    gum_defaults(s);
 }
 
 static int table_valid(const HiscoreTable *t)
@@ -161,9 +172,12 @@ size_t score_serialise(const ScoreTables *s, uint8_t *buf, size_t cap)
             put32(p + HISCORE_NAME_LEN, s->t[m].score[i]);
             p += HISCORE_NAME_LEN + 4;
         }
+        if (m == 3) { /* the party rule tags follow the party table (same place as v4) */
+            copy(p, s->party_rule, HISCORE_ENTRIES);
+            p += HISCORE_ENTRIES;
+        }
     }
-    copy(p, s->party_rule, HISCORE_ENTRIES);
-    p += HISCORE_ENTRIES;
+    for (i = 0; i < (int)SCORE_GG_EVENTS; i++, p += 4) put32(p, s->gg_record[i]);
     put32(p, fnv1a(buf, SCORE_IMAGE_SIZE - 4));
     return SCORE_IMAGE_SIZE;
 }
@@ -180,11 +194,13 @@ static int read_tables(ScoreTables *s, const uint8_t *p, unsigned modes)
             s->t[m].score[i] = get32(p + HISCORE_NAME_LEN);
             p += HISCORE_NAME_LEN + 4;
         }
+        if (m == 3) { /* v4 and v5: tags after the party table */
+            copy(s->party_rule, p, HISCORE_ENTRIES);
+            for (i = 0; i < HISCORE_ENTRIES; i++) if (s->party_rule[i] >= PARTY_RULE_COUNT) return 0;
+            p += HISCORE_ENTRIES;
+        }
     }
-    if (modes == SCORE_MODES) {
-        copy(s->party_rule, p, HISCORE_ENTRIES);
-        for (i = 0; i < HISCORE_ENTRIES; i++) if (s->party_rule[i] >= PARTY_RULE_COUNT) return 0;
-    }
+    if (modes == SCORE_MODES) for (i = 0; i < (int)SCORE_GG_EVENTS; i++, p += 4) s->gg_record[i] = get32(p);
     return score_tables_valid(s);
 }
 
@@ -198,6 +214,11 @@ int score_load(ScoreTables *s, const uint8_t *buf, size_t len)
         get32(buf + SCORE_IMAGE_SIZE - 4) == fnv1a(buf, SCORE_IMAGE_SIZE - 4)) {
         if (read_tables(s, buf + 6, SCORE_MODES)) {
             return 1;
+        }
+    } else if (ver == SCORE_VERSION_4 && len >= SCORE_IMAGE_SIZE_4 &&
+               get32(buf + SCORE_IMAGE_SIZE_4 - 4) == fnv1a(buf, SCORE_IMAGE_SIZE_4 - 4)) {
+        if (read_tables(s, buf + 6, 4)) {
+            return 5;
         }
     } else if (ver == SCORE_VERSION_3 && len >= SCORE_IMAGE_SIZE_3 &&
                get32(buf + SCORE_IMAGE_SIZE_3 - 4) == fnv1a(buf, SCORE_IMAGE_SIZE_3 - 4)) {

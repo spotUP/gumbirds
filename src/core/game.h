@@ -49,7 +49,8 @@ typedef enum {
     GAME_MODE_ARENA = 0,
     GAME_MODE_TRIP,
     GAME_MODE_ARCADE,
-    GAME_MODE_PARTY /* title row and score table index only: game_set_mode plays it as arena, party_rule carries the rule */
+    GAME_MODE_PARTY, /* title row and score table index only: game_set_mode plays it as arena, party_rule carries the rule */
+    GAME_MODE_GUM /* Gum Games: title row and score table index only, like PARTY (the events arrive with gumgames.c) */
 } GameMode;
 
 /* PARTY rules (Left/Right on the PARTY title row). PARTY_NONE = not a party game. Order = on-screen cycle order. */

@@ -228,13 +228,13 @@ static void title_reset_combo(Flow *f, uint8_t input)
     }
 }
 
-/* Title mode select: a press edge steps through Arena, Gum Trip, Arcade, Party: Down forward, Up back, both wrap (both on one frame: forward). A held stick does not repeat. */
+/* Title mode select: a press edge steps through Arena, Gum Trip, Arcade, Party, Gum Games: Down forward, Up back, both wrap (both on one frame: forward). A held stick does not repeat. */
 static void title_mode_select(Flow *f, uint8_t input)
 {
     uint8_t edge = (uint8_t)(input & ~f->input_prev & (IN_UP | IN_DOWN | IN_LEFT | IN_RIGHT));
     if (edge & (IN_UP | IN_DOWN)) {
-        if (edge & IN_DOWN) f->mode = f->mode == GAME_MODE_PARTY ? GAME_MODE_ARENA : (uint8_t)(f->mode + 1);
-        else f->mode = f->mode == GAME_MODE_ARENA ? GAME_MODE_PARTY : (uint8_t)(f->mode - 1);
+        if (edge & IN_DOWN) f->mode = f->mode == GAME_MODE_GUM ? GAME_MODE_ARENA : (uint8_t)(f->mode + 1);
+        else f->mode = f->mode == GAME_MODE_ARENA ? GAME_MODE_GUM : (uint8_t)(f->mode - 1);
     } else if (edge && f->mode == GAME_MODE_PARTY) { /* Left/Right on the PARTY row cycle the rule (Right forward) */
         if (edge & IN_RIGHT) f->party_rule = f->party_rule == PARTY_RULE_COUNT - 1 ? PARTY_ROUND : (uint8_t)(f->party_rule + 1);
         else f->party_rule = f->party_rule == PARTY_ROUND ? PARTY_RULE_COUNT - 1 : (uint8_t)(f->party_rule - 1);

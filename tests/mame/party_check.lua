@@ -1,5 +1,5 @@
--- Party Rule of the Round check (make test-party): UniBIOS 4.0, one coin, Up to the PARTY row, Start:
---   P1. the title PARTY row shows the goal line on fix row 27 (lit cells >= 19: "A NEW TWIST EVERY ROUND" is 19 letters, spaces read as empty);
+-- Party Rule of the Round check (make test-party): UniBIOS 4.0, one coin, two Ups to the PARTY row, Start:
+--   P1. the title PARTY row shows the goal line on fix row 28 (lit cells >= 19: "A NEW TWIST EVERY ROUND" is 19 letters, spaces read as empty);
 --   P2. the round starts as Arena with party_rule ROUND and a twist 1..6; the round-start banner (RS_ROUND) lights fix row 12 (twist
 --       name) and row 13 (goal line, >= 19 lit cells) and ROUND nn on row 11; at RS_GO rows 11..13 hold only the GO! cells
 --       (row 12 and 11 blank, row 13 at most 3 lit);
@@ -54,8 +54,8 @@ emu.register_frame_done(function()
     if n == 600 then phase = "start"; t0 = n; ss.begin(n) end
   elseif phase == "start" then
     local k = n - t0
-    if k == 95 then title_goal = lit(27) end -- before Start (frame 100): Up has moved the cursor to PARTY
-    if ss.step(n, playing, true) then phase = "howto"; t0 = n end
+    if k == 95 then title_goal = lit(28) end -- before Start (frame 100): two Ups moved the cursor to PARTY
+    if ss.step(n, playing, 2) then phase = "howto"; t0 = n end
   elseif phase == "howto" then -- the how-to demo: overlay rows 22..27 up, A skips it, the overlay clears and round 1 banner follows
     local k = n - t0
     if k > 45 and b(O.rs) == K.rs_round then rs_frames = rs_frames + 1 end -- the round banner starts right after the skip, before the banner phase
@@ -72,7 +72,7 @@ emu.register_frame_done(function()
     end
   elseif phase == "banner" then
     local rs = b(O.rs)
-    if title_goal == nil or title_goal < 19 then finish(false, "title goal row 27 lit cells " .. tostring(title_goal) .. ", want >= 19") return end
+    if title_goal == nil or title_goal < 19 then finish(false, "title goal row 28 lit cells " .. tostring(title_goal) .. ", want >= 19") return end
     if b(O.frule) ~= K.round or b(O.rule) ~= K.round then finish(false, "party rule flow " .. b(O.frule) .. " game " .. b(O.rule) .. ", want ROUND " .. K.round) return end
     if b(O.mode) ~= K.arena then finish(false, "mode " .. b(O.mode) .. ", want ARENA") return end
     if rs == K.rs_round then

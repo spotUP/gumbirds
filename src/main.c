@@ -1265,7 +1265,7 @@ static void draw_number(u8 x, u8 y, u8 pal, u32 v, int width) {
 /* Caption rows are padded to the same width so the longer one is fully overwritten when the mode changes. */
 static void draw_table(const HiscoreTable *t, u8 mode, int highlight, u8 y0) {
     char line[HISCORE_NAME_LEN + 1];
-    text(12, (u8)(y0 - 2), PAL_TEXT, mode == GAME_MODE_TRIP ? "GUM TRIP SCORES" : mode == GAME_MODE_ARCADE ? "ARCADE SCORES  " : mode == GAME_MODE_PARTY ? "PARTY SCORES   " : "ARENA SCORES   ");
+    text(12, (u8)(y0 - 2), PAL_TEXT, mode == GAME_MODE_TRIP ? "GUM TRIP SCORES" : mode == GAME_MODE_ARCADE ? "ARCADE SCORES  " : mode == GAME_MODE_PARTY ? "PARTY SCORES   " : mode == GAME_MODE_GUM ? "GUM GAMES SCORES" : "ARENA SCORES   ");
     g_table_mode_draws[mode == GAME_MODE_TRIP ? 1 : 0]++;
     for (int i = 0; i < HISCORE_ENTRIES; i++) {
         u8 pal = (i == highlight) ? PAL_HIGH : PAL_TEXT;
@@ -1354,9 +1354,9 @@ static void hud_side(u8 side, u8 kind, u32 score, u8 balloons, u8 lives, u8 show
 #define BANNER_BLANK "                                    "
 #define TITLE_HI_ROW 3
 #define TITLE_PLATE_ROW 22
-#define TITLE_SELECT_ROW 23   /* rows 23 to 26: the mode select, drawn only while it is open */
-#define TITLE_PLAYERS_ROW 28   /* below the PARTY goal line, so the goal sits right under the PARTY row */
-#define TITLE_GOAL_ROW 27     /* PARTY rule goal line, cols 2..37, right under the PARTY row (26); players plate row 28, credits row 29 */
+#define TITLE_SELECT_ROW 23   /* rows 23 to 27: the mode select, drawn only while it is open */
+#define TITLE_PLAYERS_ROW 28   /* the players line; the PARTY and Gum Games goal line takes its row while the list is open on those rows */
+#define TITLE_GOAL_ROW 28     /* goal line, cols 2..37, under the last list row (27); credits row 29 */
 #define TITLE_CREDIT_ROW 29
 #define TITLE_BLINK_ON 3      /* the plate line shows for 3 of every 5 logo animation steps */
 #define BIOS_COMPULSION_S ((volatile u8 *)0x10fdda) /* BIOS_COMPULSION_TIMER, BCD seconds; 0x10fddb counts its frames */
@@ -1432,7 +1432,8 @@ static void draw_mode_select(u8 open, u8 mode, u8 rule) {
     u8 key = open ? (u8)(1 + mode + (mode == GAME_MODE_PARTY ? rule * 8 : 0)) : 0;
     if (key == g_title.select) return;
     g_title.select = key;
-    if (!open) { text(15, TITLE_SELECT_ROW, PAL_TEXT, "          "); text(15, TITLE_SELECT_ROW + 1, PAL_TEXT, "          "); text(15, TITLE_SELECT_ROW + 2, PAL_TEXT, "          "); text(15, TITLE_SELECT_ROW + 3, PAL_TEXT, "                          "); text(2, TITLE_GOAL_ROW, PAL_TEXT, "                                    "); return; }
+    g_title.players_cr = 0xFF; /* the goal line shares the players row: redraw it after any change */
+    if (!open) { text(15, TITLE_SELECT_ROW, PAL_TEXT, "          "); text(15, TITLE_SELECT_ROW + 1, PAL_TEXT, "          "); text(15, TITLE_SELECT_ROW + 2, PAL_TEXT, "          "); text(15, TITLE_SELECT_ROW + 3, PAL_TEXT, "                          "); text(15, TITLE_SELECT_ROW + 4, PAL_TEXT, "          "); text(2, TITLE_GOAL_ROW, PAL_TEXT, "                                    "); return; }
     gfx_text_backed(15, TITLE_SELECT_ROW, PAL_HIGH, mode == GAME_MODE_ARENA ? ">" : " ");
     gfx_text_backed(17, TITLE_SELECT_ROW, mode == GAME_MODE_ARENA ? PAL_HIGH : PAL_TEXT, "ARENA   ");
     gfx_text_backed(15, TITLE_SELECT_ROW + 1, PAL_HIGH, mode == GAME_MODE_TRIP ? ">" : " ");
@@ -1456,13 +1457,15 @@ static void draw_mode_select(u8 open, u8 mode, u8 rule) {
         gfx_text_backed(15, TITLE_SELECT_ROW + 3, PAL_HIGH, " ");
         gfx_text_backed(17, TITLE_SELECT_ROW + 3, PAL_TEXT, "PARTY");
     }
+    gfx_text_backed(15, TITLE_SELECT_ROW + 4, PAL_HIGH, mode == GAME_MODE_GUM ? ">" : " ");
+    gfx_text_backed(17, TITLE_SELECT_ROW + 4, mode == GAME_MODE_GUM ? PAL_HIGH : PAL_TEXT, "GUM GAMES");
+    if (mode == GAME_MODE_GUM) gfx_center_text(TITLE_GOAL_ROW, PAL_TEXT, "BLOW AND BURST GUM TO BEAT THE MARKS");
 }
 
 static void draw_title(const FlowView *v) {
     if (!g_title.init) {
         g_title.init = 1;
         gfx_text_backed(11, TITLE_HI_ROW, PAL_HIGH, "HIGH SCORE");
-        plate(13, 26, TITLE_PLAYERS_ROW);
     }
     u32 hi = v->table->score[0];
     if (hi > 999999) hi = 999999;
@@ -1473,8 +1476,9 @@ static void draw_title(const FlowView *v) {
         gfx_text_backed(22, TITLE_HI_ROW, PAL_TEXT, buf);
     }
     u8 cr = draw_credits();
-    if (cr != g_title.players_cr) {
+    if (cr != g_title.players_cr && !(v->select_open && (v->mode == GAME_MODE_PARTY || v->mode == GAME_MODE_GUM))) {
         g_title.players_cr = cr;
+        plate(13, 26, TITLE_PLAYERS_ROW); /* the goal line may have erased it */
         /* Two players need two credits: offer 2 only when they are banked. */
         gfx_text_backed(13, TITLE_PLAYERS_ROW, PAL_TEXT, cr >= 2 ? "1 OR 2 PLAYERS" : "1 PLAYER      ");
     }
