@@ -18,6 +18,7 @@ local flow_addr = tonumber(os.getenv("BRAWL_FLOW_ADDR"), 16)
 local cam_addr  = tonumber(os.getenv("BRAWL_CAM_ADDR"), 16)
 local cam_size  = tonumber(os.getenv("BRAWL_CAM_SIZE") or "", 16)
 local result    = os.getenv("BRAWL_RESULT")
+local held_addr  = tonumber(os.getenv("BRAWL_BGHELD_ADDR") or "", 16)   -- g_bg_held (u8): the round-start hold kept the world hidden this frame
 local function nums(name) local t = {} for v in (os.getenv(name) or ""):gmatch("%d+") do t[#t + 1] = tonumber(v) end return t end
 local flay, rlay = nums("BRAWL_FLIER_LAYOUT"), nums("BRAWL_RING_LAYOUT")
 local O_STATE, O_X, O_Y, O_FSTATE = flay[1], flay[6], flay[7], flay[10]
@@ -60,7 +61,7 @@ local function read_cam() if cam_size == 2 then return mem:read_u16(cam_addr) el
 local function ring_dist(a, b) local d = (a - b) % ARENA_W; if d > ARENA_W // 2 then d = d - ARENA_W end return d end
 
 local n, phase, phase_at, tick = 0, "boot", 0, 0
-local last_wx, cam_prev
+local last_wx, cam_prev, held_prev
 local checked, off_screen, hidden, max_step, step_bad = 0, 0, 0, 0, 0
 local seam_left, seam_right, end_at = 0, 0, nil
 local first_off, first_hidden, first_step, first_blink
@@ -101,6 +102,12 @@ emu.register_frame_done(function() local ok_, err_ = pcall(function()
   last_wx = fx
   if phase == "left" and seam_left >= 1 then phase = "right"; phase_at = n end
   if phase == "right" and seam_right >= 1 and not end_at then end_at = n + 30 end
+  -- the entry hold keeps the world hidden (hero not drawn, g_cam_px 0) until the reveal frame, where the camera is first set: not play yet
+  -- the VRAM tap lags one frame, so the reveal frame still shows the held (hero-less) sprites: skip it too
+  local was_held = held_prev
+  held_prev = held_addr and mem:read_u8(held_addr) ~= 0
+  if held_prev then cam_prev = nil; return end
+  if was_held then return end
   if n < 5 + phase_at and checked == 0 then cam_prev = cam; return end
   -- A3 camera step, ring distance
   if cam_prev then
