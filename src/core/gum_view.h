@@ -40,4 +40,17 @@ int gum_view_pop_done(uint32_t t);
  * dy = GUM_BIRD_ROW + the frame's bob, dx = GUM_BIRD_DX (GUM_BIRD_DX_FLIP mirrored). Out of range: 0, 0, show 0. */
 GumOffset gum_view_offset(uint8_t bird_frame, int flip);
 
+/* Leak (look only): a damaged bubble shows a hole and an air jet (assets/gum_leak, 12 frames, GUM_LEAK_TICK game frames each). */
+#define GUM_LEAK_FRAMES 12
+#define GUM_LEAK_TICK    3
+/* Arena / arcade bird: the leak shows with exactly one balloon left. Computer fliers and humans alike. */
+int gum_view_leaks_balloons(uint8_t balloons);
+/* Gum Trip: the leak shows while the meter is below half and a bubble still exists (gum 0 pops it). */
+int gum_view_leaks_gum(uint16_t gum);
+/* Leak sheet frame 0..GUM_LEAK_FRAMES - 1 after t game frames. */
+uint8_t gum_view_leak_frame(uint32_t t);
+/* Clock the bubble wobble runs on: a leaking bubble wobbles at double speed (one sheet frame per GUM_LEAK_TICK), so the wobble
+ * frame equals the leak frame modulo GUM_VIEW_WOBBLE_SHEET and the hole stays on the rim. */
+uint32_t gum_view_wobble_clock(uint32_t t, int leaking);
+
 #endif
