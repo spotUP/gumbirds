@@ -114,6 +114,8 @@ _Static_assert(ATTRACT_PAL_SLOT < 16, "fix layer palettes are 4 bits: the overla
 #define SOOT_P2_PAL_SLOT (CHUTE_PAL_SLOT + CHUTE_PALETTE_COUNT) /* player 2: sootling_extra_palettes[0], the sun yellow swap of the player palette (hero shading kept) */
 #define CHUTE_P2_PAL_SLOT (SOOT_P2_PAL_SLOT + 1) /* player 2 parachute: chute_extra_palettes[0] */
 #define GUMBUBBLE_PAL_SLOT (CHUTE_P2_PAL_SLOT + 1) /* one palette: gum bubble B */
-_Static_assert(GUMBUBBLE_PAL_SLOT + GUMBUBBLE_PALETTE_COUNT <= 256, "palette slots exceed the 256 the hardware has");
+#define COUNTDOWN_PAL_SLOT (GUMBUBBLE_PAL_SLOT + GUMBUBBLE_PALETTE_COUNT) /* countdown GET SET: Pink Gum */
+#define COUNTDOWN_HOT_PAL_SLOT (COUNTDOWN_PAL_SLOT + COUNTDOWN_PALETTE_COUNT) /* countdown GO!: the Hot Gum swap, same tiles */
+_Static_assert(COUNTDOWN_HOT_PAL_SLOT + COUNTDOWN_EXTRA_PALETTE_COUNT <= 256, "palette slots exceed the 256 the hardware has");
 
 #endif
