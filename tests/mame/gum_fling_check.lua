@@ -66,12 +66,11 @@ emu.register_frame_done(function()
     lastphase = ph
     local k = n - t0
     if mode == K.gum and ph == K.windup then
-      -- alternate A and B every other frame for 40 frames
-      abtn:set_value((k < 40 and k % 4 < 2) and 1 or 0)
-      bbtn:set_value((k < 40 and k % 4 >= 2) and 1 or 0)
-      cbtn:set_value((k >= 45 and k < 95) and 1 or 0)
+      -- A only: tap A (2 frames down, 2 up) for 40 frames, then hold A 12 frames to start the needle and 50 more, release
+      abtn:set_value(((k < 40 and k % 4 < 2) or (k >= 45 and k < 107)) and 1 or 0)
+      bbtn:set_value(0); cbtn:set_value(0)
     else
-      abtn:set_value(0); bbtn:set_value(0); cbtn:set_value((mode == K.gum and ph == 1 and k < 95) and 1 or 0)
+      abtn:set_value((mode == K.gum and ph == 1 and k < 107) and 1 or 0); bbtn:set_value(0); cbtn:set_value(0)
     end
     if n > 20000 then finish(false, string.format("never ended: mode %d phase %d attempts %d trips %d", mode, ph, attempts, trips)) end
   elseif phase == "check" then

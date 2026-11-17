@@ -78,6 +78,8 @@ int game_can_join_p2(const Game *g)
     if (g->mode == GAME_MODE_ARENA) { /* a join restarts the whole match (flow_join_p2) */
         return g->rounds && !g->over && g->cpu_count > 0 && (g->players == 1 || g->lives[1].state == ARC_LIFE_ENDED);
     }
+    if (g->mode == GAME_MODE_GUM && g->gg_fling)   /* Gum Fling: P2 joins before the first throw (rules card, GET SET, GO!) */
+        return g->players == 1 && g->fling.phase == GF_WINDUP && g->fling.seq.tickets[0] == GF_ATTEMPTS && g->cd_t < GGCD_END;
     if (g->mode == GAME_MODE_GUM) return g->gg_race && g->race.phase == GG_RACE_INTRO && g->players == 1;   /* Burst Race: P2 joins in the intro */
     return g->mode == GAME_MODE_ARCADE && !g->over && g->round_end == RE_NONE && !g->res.active && g->arc.state == ARC_PLAY &&
            g->cpu_count > 0 && (g->players == 1 || g->lives[1].state == ARC_LIFE_ENDED);
@@ -106,6 +108,7 @@ static int32_t camera_centre_x(const Game *g)
 int game_join_p2(Game *g)
 {
     if (!game_can_join_p2(g)) return 0;
+    if (g->mode == GAME_MODE_GUM && g->gg_fling) { g->players = 2; gumfling_add_p2(&g->fling); return 1; }
     if (g->mode == GAME_MODE_GUM) { g->players = g->race.players = 2; return 1; }
     if (g->mode == GAME_MODE_ARENA) return 0; /* Arena joins through flow_join_p2: a fresh match */
     g->players = 2;
@@ -495,6 +498,7 @@ static void game_step_fling(Game *g, uint8_t input)
 {
     GgFling *f = &g->fling;
     int ev;
+    input = gg_seq_input(&f->seq, input, g->input2);   /* 2P: whoever's turn it is throws */
     if (g->mode == GAME_MODE_TRIP) {
         Flier *h = &g->hero[0];
         if (!tripgen_covers(&g->trip_gen, g->trip.px)) {

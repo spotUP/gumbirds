@@ -6,13 +6,14 @@
 static int fails;
 #define CHECK(c) do { if (!(c)) { printf("FAIL line %d: %s\n", __LINE__, #c); fails++; } } while (0)
 
-/* mash A/B for n frames, then hold C for hold frames, release; returns the event of the release frame */
+/* tap A every other frame for 2 * mash frames (mash counted presses), then hold A (GF_HOLD_FRAMES to start the needle,
+ * then hold frames of needle), release; returns the event of the release frame */
 static int shoot(GgFling *f, int mash, int hold)
 {
     int i, ev = GF_EV_NONE;
-    for (i = 0; i < mash; i++) gumfling_step(f, (uint8_t)((i & 1) ? IN_A : IN_B));
+    for (i = 0; i < 2 * mash; i++) gumfling_step(f, (uint8_t)((i & 1) ? 0 : IN_A));
     gumfling_step(f, 0);
-    for (i = 0; i < hold; i++) gumfling_step(f, IN_C);
+    for (i = 0; i < (int)GF_HOLD_FRAMES + hold; i++) gumfling_step(f, IN_A);
     ev = gumfling_step(f, 0);
     return ev;
 }
@@ -61,6 +62,43 @@ int main(void)
       CHECK(f.foul);
       next(&f);
       CHECK(f.phase == GF_END && f.seq.best[0] == best); }
+
+    /* A only: taps count as power and never start the needle; B and C do nothing */
+    gumfling_init(&f);
+    for (i = 0; i < 20; i++) gumfling_step(&f, (uint8_t)((i & 1) ? 0 : IN_A));
+    CHECK(f.phase == GF_WINDUP && f.power == 10);
+    for (i = 0; i < 40; i++) gumfling_step(&f, (uint8_t)(IN_B | IN_C));
+    CHECK(f.phase == GF_WINDUP && f.power == 10);
+    for (i = 0; i < (int)GF_HOLD_FRAMES; i++) gumfling_step(&f, IN_A);
+    CHECK(f.phase == GF_AIM);
+
+    /* sounds: a throw, a landing, a foul */
+    gumfling_init(&f);
+    f.sfx = 0; shoot(&f, 20, 48);
+    CHECK(f.sfx & GF_SFX_THROW);
+    f.sfx = 0; fly(&f);
+    CHECK((f.sfx & GF_SFX_LAND) && !(f.sfx & GF_SFX_FOUL));
+    gumfling_init(&f);
+    f.sfx = 0; shoot(&f, 20, 4);
+    CHECK(f.sfx & GF_SFX_FOUL);
+
+    /* solo: the result phase shows pass / fail, then the end; a pass plays the win sound */
+    gumfling_init(&f);
+    for (i = 0; i < 3; i++) { shoot(&f, 40, 48); fly(&f); f.sfx = 0; next(&f); }
+    CHECK(f.phase == GF_END && f.seq.qualified[0] == (f.seq.best[0] >= GF_MARK_PX));
+
+    /* 2P: turns alternate P1, P2, P1..., three throws each, the longer best wins */
+    gumfling_init(&f);
+    gumfling_add_p2(&f);
+    { int turns[6], k;
+      for (k = 0; k < 6; k++) { turns[k] = f.seq.turn; shoot(&f, k & 1 ? 40 : 4, 48); fly(&f); if (k < 5) next(&f); }
+      CHECK(turns[0] == 0 && turns[1] == 1 && turns[2] == 0 && turns[3] == 1 && turns[4] == 0 && turns[5] == 1);
+      CHECK(f.phase == GF_LANDED && !f.more);
+      for (k = 0; k < 400 && f.phase == GF_LANDED; k++) gumfling_step(&f, 0);
+      CHECK(f.phase == GF_RESULT && (f.sfx & GF_SFX_WIN));
+      CHECK(gumfling_winner(&f) == 1 && f.seq.best[1] > f.seq.best[0]);
+      next(&f);
+      CHECK(f.phase == GF_END); }
 
     /* flow: Left from Big Blow wraps to Gum Fling, Right from Gum Fling wraps to Big Blow; Start runs it */
     {

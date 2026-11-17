@@ -1321,41 +1321,115 @@ static void draw_burst_race(const GgRace *r) {
     text((u8)((40 - BLOW_TEXT_W) / 2), BLOW_TEXT_ROW + 2, PAL_TEXT, msg);
 }
 
-/* Gum Fling on the fix layer: power bar on BLOW_BAR_ROW, angle needle bar two rows above (0..90 degrees over BLOW_BAR_CELLS),
- * and a status line (attempt, best, then power and angle, or the distance after touch-down). Same bar cells as Burst Race. */
-static void draw_fling(const GgFling *f) {
+/* Gum Fling sound ids: aliases to existing samples, all here. Placeholders: the feature/fling-sfx branch replaces them with
+ * dedicated samples (change only these lines). */
+#define SND_SFX_FLING_TICK SND_SFX_TALLY_TICK
+#define SND_SFX_FLING_THROW SND_SFX_RIVAL_LAUNCH
+#define SND_SFX_FLING_LAND SND_SFX_SPLOSH
+#define SND_SFX_FLING_FOUL SND_SFX_BUMP
+#define SND_SFX_FLING_WIN SND_SFX_PERFECT
+#define SND_SFX_FLING_LOSE SND_SFX_DEFEAT
+
+/* Gum Fling on the fix layer: power bar on BLOW_BAR_ROW, angle needle bar two rows above (0..90 degrees over BLOW_BAR_CELLS,
+ * safe 15..75 cells lime, foul ends pink), a status line, and in the flight view a mark flag that scrolls in with the course.
+ * Distances show in metres (GF_PX_PER_M). Same bar cells as Burst Race. */
+static int8_t g_fling_flag = -1;   /* fix column of the mark flag on screen, -1 = none; reset with the fix layer */
+#define FLING_FLAG_ROW 8
+static u8 fling_put(char *line, u8 i, const char *p) { while (*p && i < BLOW_TEXT_W) line[i++] = *p++; return i; }
+static u8 fling_put_m(char *line, u8 i, u32 px) {
+    char nb[10];
+    put_number(nb, px / GF_PX_PER_M, 4);
+    for (u8 k = 0; nb[k] && i < BLOW_TEXT_W; k++) if (nb[k] != ' ') line[i++] = nb[k];
+    return fling_put(line, i, " M");
+}
+static u8 fling_angle_pal(u8 cell) {
+    u8 mid = (u8)((cell * 2 + 1) * 45 / BLOW_BAR_CELLS);   /* degrees at the cell centre */
+    return (mid >= GF_DEG_MIN && mid <= GF_DEG_MAX) ? FIXFONT_PAL_LIME : FIXFONT_PAL_PINK;
+}
+static void draw_fling(const Game *g) {
+    const GgFling *f = &g->fling;
     uint8_t ops[BLOW_BAR_CELLS];
     if (!g_blow_bar_up) {
         char cells[BLOW_BAR_CELLS + 1];
         for (u8 i = 0; i < BLOW_BAR_CELLS; i++) cells[i] = '-';
         cells[BLOW_BAR_CELLS] = 0;
-        for (u8 s = 0; s < 2; s++) { text(BLOW_BAR_COL, (u8)(BLOW_BAR_ROW - 2 * s), PAL_TEXT, cells); g_race_bar[s].width = BLOW_BAR_CELLS; g_race_bar[s].filled = 0; }
+        text(BLOW_BAR_COL, BLOW_BAR_ROW, PAL_TEXT, cells);
+        for (u8 i = 0; i < BLOW_BAR_CELLS; i++) text((u8)(BLOW_BAR_COL + i), BLOW_BAR_ROW - 2, fling_angle_pal(i), "-");
+        text(BLOW_BAR_COL - 6, BLOW_BAR_ROW, PAL_TEXT, "POWER");
+        text(BLOW_BAR_COL - 6, BLOW_BAR_ROW - 2, PAL_TEXT, "ANGLE");
+        for (u8 s = 0; s < 2; s++) { g_race_bar[s].width = BLOW_BAR_CELLS; g_race_bar[s].filled = 0; }
         g_blow_bar_up = 1;
     }
     u8 want[2] = { (u8)(f->power * BLOW_BAR_CELLS / GF_POWER_MAX), (u8)(f->deg * BLOW_BAR_CELLS / 90) };
     for (u8 s = 0; s < 2; s++) {
         int n = gg_bar_set(&g_race_bar[s], want[s], ops, BLOW_BAR_CELLS);
-        for (int i = 0; i < n; i++) text((u8)(BLOW_BAR_COL + (ops[i] & 0x7F)), (u8)(BLOW_BAR_ROW - 2 * s), PAL_HIGH, (ops[i] & 0x80) ? ">" : "-");
+        for (int i = 0; i < n; i++) {
+            u8 c = ops[i] & 0x7F;
+            text((u8)(BLOW_BAR_COL + c), (u8)(BLOW_BAR_ROW - 2 * s), s ? fling_angle_pal(c) : PAL_HIGH, (ops[i] & 0x80) ? ">" : "-");
+        }
     }
-    u32 key = (u32)f->phase | (u32)f->power << 4 | (u32)f->deg << 10 | (u32)f->seq.tickets[0] << 18 | (u32)f->foul << 22 | (f->phase == GF_LANDED ? f->dist << 23 : f->seq.best[0] << 23);
+    /* mark flag: the hero sits at its screen x at launch, so the mark is GF_MARK_PX - flown pixels ahead of it */
+    int8_t col = -1;
+    if (g->mode == GAME_MODE_TRIP && f->phase >= GF_FLIGHT) {
+        int32_t hx = (g->hero[0].x - g->camera.cam) >> 16;
+        int32_t x = hx + (int32_t)GF_MARK_PX - (int32_t)(f->phase == GF_FLIGHT ? f->x >> 16 : f->dist ? f->dist : f->x >> 16);
+        if (x >= 0 && x < 8 * 35) col = (int8_t)(x >> 3);
+    }
+    if (col != g_fling_flag) {
+        if (g_fling_flag >= 0) { text((u8)g_fling_flag, FLING_FLAG_ROW - 1, PAL_TEXT, "     "); text((u8)g_fling_flag, FLING_FLAG_ROW, PAL_TEXT, " "); }
+        if (col >= 0) {
+            char m[8]; u8 i = fling_put_m(m, 0, GF_MARK_PX); m[i] = 0;
+            text((u8)col, FLING_FLAG_ROW - 1, FIXFONT_PAL_LIME, m);
+            text((u8)col, FLING_FLAG_ROW, FIXFONT_PAL_LIME, "V");
+        }
+        g_fling_flag = col;
+    }
+    u8 sec = (u8)((f->clock + 59) / 60);
+    u32 shown = f->phase == GF_LANDED ? f->dist : f->phase == GF_FLIGHT ? f->x >> 16 : f->seq.best[f->seq.turn];
+    u32 key = (u32)f->phase | (u32)sec << 3 | (u32)f->seq.tickets[0] << 7 | (u32)f->seq.tickets[1] << 9 | (u32)f->foul << 11 |
+              (u32)f->seq.turn << 12 | (u32)f->seq.players << 13 | (shown / GF_PX_PER_M) << 15;
     if (key == g_blow_key) return;
     g_blow_key = key;
-    char line[BLOW_TEXT_W + 1], nb[10];
-    u8 i = 0;
-    const char *p = f->phase == GF_LANDED ? (f->foul ? "FOUL  ANGLE OUT OF RANGE  " : "DISTANCE ") : "ATTEMPT ";
-    while (p[i]) { line[i] = p[i]; i++; }
-    if (f->phase == GF_LANDED) {
-        if (!f->foul) { put_number(nb, f->dist, 4); for (u8 k = 0; nb[k] && i < BLOW_TEXT_W; k++) if (nb[k] != ' ') line[i++] = nb[k]; }
+    char line[BLOW_TEXT_W + 1];
+    u8 i = 0, two = f->seq.players == 2;
+    if (f->phase == GF_RESULT || f->phase == GF_END) {
+        if (two) {
+            u8 w = gumfling_winner(f);
+            i = fling_put(line, i, w == 2 ? "A TIE  " : w ? "PLAYER 2 WINS  " : "PLAYER 1 WINS  ");
+            i = fling_put_m(line, i, f->seq.best[w == 1]);
+            i = fling_put(line, i, " TO ");
+            i = fling_put_m(line, i, f->seq.best[w != 1]);
+        } else {
+            i = fling_put(line, i, f->seq.qualified[0] ? "PASSED  BEST " : "FAILED  BEST ");
+            i = fling_put_m(line, i, f->seq.best[0]);
+            i = fling_put(line, i, "  MARK ");
+            i = fling_put_m(line, i, GF_MARK_PX);
+        }
+    } else if (f->phase == GF_LANDED && f->foul) {
+        i = fling_put(line, i, f->deg ? "FOUL  ANGLE OUT OF RANGE" : "FOUL  NO THROW IN TIME");
+    } else if (f->phase == GF_LANDED || f->phase == GF_FLIGHT) {
+        if (two) i = fling_put(line, i, f->thrower ? "PLAYER 2  " : "PLAYER 1  ");
+        i = fling_put(line, i, "DISTANCE ");
+        i = fling_put_m(line, i, shown);
     } else {
-        line[i++] = (char)('0' + (GF_ATTEMPTS - f->seq.tickets[0] + 1)); line[i++] = ' '; line[i++] = 'O'; line[i++] = 'F'; line[i++] = ' '; line[i++] = (char)('0' + GF_ATTEMPTS);
-        p = "  BEST ";
-        for (u8 k = 0; p[k]; k++) line[i++] = p[k];
-        put_number(nb, f->seq.best[0], 4);
-        for (u8 k = 0; nb[k] && i < BLOW_TEXT_W; k++) if (nb[k] != ' ') line[i++] = nb[k];
+        u8 t = f->seq.turn;
+        if (two) i = fling_put(line, i, t ? "PLAYER 2  " : "PLAYER 1  ");
+        i = fling_put(line, i, "THROW ");
+        line[i++] = (char)('0' + (GF_ATTEMPTS - f->seq.tickets[t] + 1));
+        i = fling_put(line, i, " OF 3  TIME ");
+        line[i++] = (char)('0' + sec % 10);
+        if (!two) { i = fling_put(line, i, "  BEST "); i = fling_put_m(line, i, f->seq.best[0]); }
     }
     while (i < BLOW_TEXT_W) line[i++] = ' ';
     line[BLOW_TEXT_W] = 0;
     text((u8)((40 - BLOW_TEXT_W) / 2), BLOW_TEXT_ROW + 2, PAL_TEXT, line);
+    if (!two) { /* the mark under the status line, solo only */
+        i = fling_put(line, 0, "MARK ");
+        i = fling_put_m(line, i, GF_MARK_PX);
+        while (i < 12) line[i++] = ' ';
+        line[i] = 0;
+        text((u8)((40 - 12) / 2), BLOW_TEXT_ROW + 3, PAL_HIGH, line);
+    }
 }
 
 /* Flap Dash on the fix layer: one status line (lap, seconds, qualifying mark), rewritten when the lap or the second changes. */
@@ -1947,7 +2021,7 @@ static void draw(const FlowView *v) {
         g_draw_state = (int)v->state;
         g_hud[0].kind = g_hud[1].kind = HUD_KIND_NONE;
         g_ov_stage = 0; g_ov_key = AO_NONE; g_ov_part = 0;
-        g_rs_drawn = RS_NONE; g_rs_num = 0; g_banner_up = 0; g_howto_up = 0; g_mode_key = 0xFF; g_blow_key = 0xFFFFFFFFu; g_blow_bar_up = 0; g_cont_key[0] = g_cont_key[1] = 0xFF; g_stage_key = 0xFF; g_over_up = 0;
+        g_rs_drawn = RS_NONE; g_rs_num = 0; g_banner_up = 0; g_howto_up = 0; g_mode_key = 0xFF; g_blow_key = 0xFFFFFFFFu; g_blow_bar_up = 0; g_fling_flag = -1; g_cont_key[0] = g_cont_key[1] = 0xFF; g_stage_key = 0xFF; g_over_up = 0;
         g_meter_step = METER_NONE;
         set_distress(0);
 #ifdef GUMBIRDS_DEBUG_HEADER /* gmake DEBUG_HEADER=1; the normal build leaves the top rows to the HUD */
@@ -1996,7 +2070,7 @@ static void draw(const FlowView *v) {
         if (v->game && v->game->mode == GAME_MODE_TRIP && !v->game->gg_fling) draw_gum_meter(v->game->trip.gum);
         else set_distress(0);
         if (v->state == FLOW_ATTRACT_DEMO && v->game) draw_overlay(v);
-        if (v->state == FLOW_PLAYING && v->game && (v->game->mode == GAME_MODE_GUM || v->game->gg_fling)) { if (v->game->gg_fling) draw_fling(&v->game->fling); else if (v->game->gg_gather) draw_gather(v->game); else if (v->game->gg_pop) draw_pop_drop(&v->game->pop); else if (v->game->gg_dash) draw_flap_dash(&v->game->dash); else if (v->game->gg_race) draw_burst_race(&v->game->race); else draw_big_blow(&v->game->blow); }
+        if (v->state == FLOW_PLAYING && v->game && (v->game->mode == GAME_MODE_GUM || v->game->gg_fling)) { if (v->game->gg_fling) draw_fling(v->game); else if (v->game->gg_gather) draw_gather(v->game); else if (v->game->gg_pop) draw_pop_drop(&v->game->pop); else if (v->game->gg_dash) draw_flap_dash(&v->game->dash); else if (v->game->gg_race) draw_burst_race(&v->game->race); else draw_big_blow(&v->game->blow); }
         {
             /* mode name in the bottom-left corner while playing, written when the mode or rule changes only */
             u8 key = (v->state == FLOW_PLAYING && v->game) ? (v->game->party_rule != PARTY_NONE ? (u8)(8 + v->game->party_rule) : (u8)(1 + v->game->mode)) : 0;
@@ -2405,6 +2479,16 @@ static void game_loop(void) {
         if (view.game && view.state == FLOW_PLAYING && g_flow.game.cd_ev) { /* GET SET tick, higher beep on GO! (existing samples: continue_tick, round_go) */
             sound_play_sfx((g_flow.game.cd_ev & GGCD_EV_GO) ? SND_SFX_ROUND_GO : SND_SFX_CONTINUE_TICK);
             g_flow.game.cd_ev = 0;
+        }
+        if (view.game && view.state == FLOW_PLAYING && g_flow.game.gg_fling && g_flow.game.fling.sfx) { /* Gum Fling sounds */
+            u8 fe = g_flow.game.fling.sfx;
+            g_flow.game.fling.sfx = 0;
+            if (fe & GF_SFX_TICK) sound_play_sfx(SND_SFX_FLING_TICK);
+            if (fe & GF_SFX_THROW) sound_play_sfx(SND_SFX_FLING_THROW);
+            if (fe & GF_SFX_LAND) sound_play_sfx(SND_SFX_FLING_LAND);
+            if (fe & GF_SFX_FOUL) sound_play_sfx(SND_SFX_FLING_FOUL);
+            if (fe & GF_SFX_WIN) sound_play_sfx(SND_SFX_FLING_WIN);
+            if (fe & GF_SFX_LOSE) sound_play_sfx(SND_SFX_FLING_LOSE);
         }
         if (view.game && view.state == FLOW_PLAYING && g_flow.game.res.events) { /* result screen sounds */
             u8 re = g_flow.game.res.events;

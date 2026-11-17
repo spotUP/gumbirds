@@ -4,13 +4,14 @@
 #include "flier.h"
 #include "gumgames.h"
 
-/* Gum Games event Gum Fling (pure logic): mash A/B for run-up power, hold C to sweep the angle needle (0..90 degrees),
- * release to launch. Ballistic flight, no flapping. Distance in pixels is read at touch-down; three attempts, best counts.
+/* Gum Games event Gum Fling (pure logic), A only: mash A for run-up power, hold A (GF_HOLD_FRAMES) to start the angle
+ * needle, keep holding to sweep it (0..90 degrees), release A to launch. Ballistic flight, no flapping. Distance in pixels is read at touch-down; three attempts, best counts.
  * A launch below GF_DEG_MIN or above GF_DEG_MAX degrees, or no launch before the run-up clock ends, is a foul (zero). */
 #define GF_ATTEMPTS 3u
 #define GF_WINDUP_FRAMES 360u           /* run-up clock per attempt */
-#define GF_POWER_MAX 32u                /* counted A/B presses that fill the power bar */
-#define GF_AIM_CAP 128u                 /* frames of C held for the needle to reach 90 degrees */
+#define GF_POWER_MAX 32u                /* counted A presses that fill the power bar */
+#define GF_HOLD_FRAMES 12u              /* A held this long in the run-up ends it and starts the angle needle */
+#define GF_AIM_CAP 128u                 /* frames of A held for the needle to reach 90 degrees */
 #define GF_DEG_MIN 15u
 #define GF_DEG_MAX 75u
 #define GF_V0_BASE FL_PX(1)             /* launch speed with no run-up, 16.16 px per frame */
@@ -20,14 +21,26 @@
 #define GF_MARK_PX 150u                 /* qualifying distance */
 #define GF_SHOW_FRAMES 90u              /* touch-down held on screen before the next attempt */
 #define GF_FOUL_FRAMES 60u
+#define GF_RESULT_FRAMES 180u           /* winner / pass-fail line held before the event ends */
+#define GF_PX_PER_M 3u                  /* on-screen distance unit: pixels per metre (mark 150 px = 50 M) */
 
-enum { GF_WINDUP, GF_AIM, GF_FLIGHT, GF_LANDED, GF_END };
+/* Sound requests raised by the step (main.c plays them and clears the byte). */
+#define GF_SFX_TICK 0x01u               /* run-up clock: one per second */
+#define GF_SFX_THROW 0x02u
+#define GF_SFX_LAND 0x04u
+#define GF_SFX_FOUL 0x08u
+#define GF_SFX_WIN 0x10u
+#define GF_SFX_LOSE 0x20u
+
+enum { GF_WINDUP, GF_AIM, GF_FLIGHT, GF_LANDED, GF_RESULT, GF_END };
 enum { GF_EV_NONE, GF_EV_LAUNCH, GF_EV_LANDED, GF_EV_NEXT };
 
 typedef struct {
     uint8_t phase, prev_in, power, deg, foul;
+    uint8_t thrower;                   /* player of the current / last attempt (0 = P1) */
+    uint8_t more;                      /* gg_seq_attempt result of the last attempt: someone has a throw left */
+    uint8_t sfx;                       /* GF_SFX_* bits */
     uint16_t clock, t;
-    GgMash mash;
     GgHold hold;
     GgSeq seq;
     int32_t vx, vy;                    /* 16.16 px per frame, vy up is positive */
@@ -38,9 +51,13 @@ typedef struct {
 } GgFling;
 
 void gumfling_init(GgFling *f);
-/* Needle angle in degrees for an aim charge (frames of C held). */
+/* P2 joins before the first throw: three throws, turns alternate. */
+void gumfling_add_p2(GgFling *f);
+/* Winner of a finished 2P event: 0 or 1, 2 = tie. */
+uint8_t gumfling_winner(const GgFling *f);
+/* Needle angle in degrees for an aim charge (frames of A held). */
 uint8_t gumfling_deg(uint16_t charge);
-/* One frame in the arena (WINDUP, AIM) or on the landing screen. Returns a GF_EV_* (LAUNCH: switch to the course). */
+/* One frame in the arena (WINDUP, AIM) or on the landing / result screen. Returns a GF_EV_* (LAUNCH: switch to the course). */
 int gumfling_step(GgFling *f, uint8_t in);
 /* One flight frame. Returns GF_EV_LANDED on the touch-down frame. */
 int gumfling_fly(GgFling *f);
