@@ -272,7 +272,7 @@ static void hero_show(const Game *g, int cam_px) {
  */
 _Static_assert(POOL_SPRITE_COUNT == POOL_SPRITES, "pool sprite range size");
 _Static_assert(GUM_SPRITE + GUM_COUNT <= SPLASH_SPRITE && SPLASH_SPRITE + SPLASH_COUNT <= GUM_P2_SPRITE && GUM_P2_SPRITE + GUM_COUNT <= ISLAND_SPRITE, "player 2 gum sprites overlap the splash or the islands");
-_Static_assert(GUM_P2_SPRITE + GUM_COUNT <= ROOST_SPRITE && ROOST_SPRITE + ROOST_COUNT <= ISLAND_SPRITE, "roost marker sprites overlap the gum bubbles or the islands");
+_Static_assert(ROOST_SPRITE >= HERO_SPRITE + HERO_SPRITE_COUNT && ROOST_SPRITE + ROOST_COUNT <= DEAD_BODY_SPRITE, "roost marker sprites must sit above the pool and the hero, below the dead bodies");
 _Static_assert(BG_SPRITE_END <= GUM_SPRITE && GUM_SPRITE + GUM_COUNT <= ISLAND_SPRITE, "gum sprites overlap the background or the islands");
 _Static_assert(ISLAND_SPRITE + ISLAND_COUNT <= POOL_SPRITE_BASE, "island sprites overlap the object pool");
 /* Player 2 draws from the last two pool objects (body, parachute), claimed in pool_sync_p2; the computer fliers allocate
