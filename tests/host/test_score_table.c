@@ -162,14 +162,14 @@ int main(void)
         uint32_t h = 2166136261u;
         score_tables_defaults(&d);
         score_insert(&d, 2, "ARC", 77777);
-        score_insert_rule(&d, 3, "PAR", 66666, 4);
+        score_insert_rule(&d, 3, "PAR", 66666, 3);
         score_serialise(&d, img, sizeof img);
         for (k = 0; k < 496; k++) v4[k] = img[k];
         v4[5] = 4;
         for (k = 0; k < 496; k++) { h ^= v4[k]; h *= 16777619u; }
         v4[496] = (uint8_t)(h >> 24); v4[497] = (uint8_t)(h >> 16); v4[498] = (uint8_t)(h >> 8); v4[499] = (uint8_t)h;
         CHECK(score_load(&s2, v4, sizeof v4) == 5);
-        CHECK(sc(&s2, 2, 0) == 77777 && sc(&s2, 3, 0) == 66666 && s2.party_rule[0] == 4);
+        CHECK(sc(&s2, 2, 0) == 77777 && sc(&s2, 3, 0) == 66666 && s2.party_rule[0] == 3);
         score_tables_defaults(&d);
         CHECK(memcmp(&s2.t[4], &d.t[4], sizeof d.t[4]) == 0 && s2.gg_record[0] == 0);
         v4[100] ^= 1;

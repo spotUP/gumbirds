@@ -187,3 +187,5 @@ void gg_race_step(GgRace *r, uint8_t in1, uint8_t in2)
     default: break;
     }
 }
+
+int gg_race_bursts(const GgRace *r, int side) { return r->phase >= GG_RACE_RESULT && r->winner == side; }

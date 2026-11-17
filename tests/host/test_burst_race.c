@@ -33,6 +33,7 @@ int main(void)
     to_play(&g);
     play(&g, 0, 0, 3000);
     CHECK(g.race.phase == GG_RACE_RESULT && g.race.winner == 1 && g.race.size[1] == GG_BLOW_MAX);
+    CHECK(gg_race_bursts(&g.race, 1) && !gg_race_bursts(&g.race, 0));
     CHECK(g.race.frames >= 100 && g.race.frames <= 200 && g.race.last_points == 0 && g.score == 0 && g.race.seq.best[0] == 0);
     while (g.race.phase != GG_RACE_END) game_step(&g, 0);
     game_step(&g, 0);

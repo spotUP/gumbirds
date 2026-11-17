@@ -612,8 +612,8 @@ static int human_leaks(const Game *g, int pl) {
 }
 /* Arena / arcade bubble level of a human: full, or growing while that human pumps after a parachute landing; 0 once it burst (last balloon, dead). */
 static u8 human_bubble_level(const Game *g, int pl) { return flier_gum_burst(&g->hero[pl]) ? 0 : pump_level(&g->hpump[pl], g->hero[pl].state == FLIER_ALIVE); }   /* 0: gum_step plays the pop */
-/* Burst Race bubble of side s: the pump size on the same 1..16 levels (at least 1, so the bubble shows from the first frame); gum_step takes it as a gum value. */
-static uint16_t race_gum(const Game *g, int s) { uint16_t v = (uint16_t)(g->race.size[s] * (GUM_MAX / GG_BLOW_MAX)); return v ? v : 1; }
+/* Burst Race bubble of side s: the pump size on the same 1..16 levels (at least 1, so the bubble shows from the first frame); gum_step takes it as a gum value; 0 once this side won the heat: gum_step plays the pop. */
+static uint16_t race_gum(const Game *g, int s) { if (gg_race_bursts(&g->race, s)) return 0; uint16_t v = (uint16_t)(g->race.size[s] * (GUM_MAX / GG_BLOW_MAX)); return v ? v : 1; }
 static void human_leak_sync(const Game *g) {
     for (int pl = 0; pl < HUMANS; pl++) {
         int want = (g->mode == GAME_MODE_TRIP ? pl == 0 : (pl == 0 || g->players == 2)) && human_leaks(g, pl);

@@ -87,4 +87,5 @@ typedef struct {
 } GgRace;
 void gg_race_start(GgRace *r, uint8_t players);
 void gg_race_step(GgRace *r, uint8_t in1, uint8_t in2);
+int gg_race_bursts(const GgRace *r, int side);   /* 1 once the heat is decided and side won: its bubble bursts (the pop main plays on a last pop) */
 #endif
