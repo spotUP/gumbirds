@@ -1201,7 +1201,12 @@ void game_step_trip(Game *g, uint8_t input)
             if (g->hero[0].state != FLIER_FALLING) g->trip_roof_fall = 0;
             else if (trip_hit_window(&g->trip, &g->trip_gen, &g->hero[0], &lo, &hi) && g->hero[0].y > hi) g->trip_splat = 1, g->trip_roof_fall = 0;
         }
-        g->trip_splat_y = (int16_t)((g->hero[0].y + flier_half_h(&g->hero[0])) >> 16);
+        /* The splat lies on the cave floor edge, not on the dead body's feet: the dead body is shorter than the alive one and stopped
+         * short of the rock, which left the solid base of the splat showing above the rock as a rectangle (owner 2026-11-17). */
+        {
+            int line = trip_hit_floor_line(&g->trip, &g->trip_gen, &g->hero[0]);
+            g->trip_splat_y = (int16_t)(line >= 0 ? line : (g->hero[0].y + flier_half_h(&g->hero[0])) >> 16);
+        }
     }
     g->trip_rival_events = (uint8_t)trip_rivals_step(&g->trip_rivals, &g->trip, &g->trip_gen, &g->hero[0]);
     camera_scroll(&g->camera, step);

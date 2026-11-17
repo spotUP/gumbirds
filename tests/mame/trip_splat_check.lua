@@ -42,6 +42,20 @@ function SPLAT.step()
     if not S.y then return string.format("splat sprite live (top %d) at k %d before any trip_splat frame", top, S.k) end
     if not S.top then print(string.format("BRAWL_SPLAT case %s splat sprite top %d (+%d = %d), trip_splat_y at start %d", S.case, top, tlay[93], top + tlay[93], S.y)) end
     S.top = top
+    if not S.rock then
+      -- no rectangle: the splat's solid base (rows SURFACE_ROW..) must start on the rock, not above it. The floor strip column under the
+      -- splat middle (sprites TRIP_STRIP_SPRITE 323..344, 16 px each) has its top at the rock edge (SCB3 y, SCB4 x).
+      local sx = ((vram[0x8400 + tlay[94] + 1] or 0) >> 7) & 0x1ff   -- middle splat column
+      for c = 0, 21 do
+        local w3, w4 = vram[0x8200 + 323 + c] or 0, vram[0x8400 + 323 + c] or 0
+        local x = (w4 >> 7) & 0x1ff
+        if (w3 & 0x3f) ~= 0 and (sx + 8 - x) % 512 < 16 then S.rock = (496 - ((w3 >> 7) & 0x1ff)) & 0x1ff end
+      end
+      if S.rock then
+        print(string.format("BRAWL_SPLAT splat base row %d, rock edge %d", top + tlay[93], S.rock))
+        if top + tlay[93] < S.rock - 1 then return string.format("splat base at row %d lies above the rock edge %d: the gum rectangle shows above the floor", top + tlay[93], S.rock) end
+      end
+    end
     if math.abs(top + tlay[93] - S.y) > 2 then return string.format("splat sprite top %d + %d is not the splat feet line %d", top, tlay[93], S.y) end
   end
   if S.k == 30 and not S.dead then return "trip splat check: the flier did not die within 30 frames of the " .. S.case .. " poke" end

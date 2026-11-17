@@ -5,6 +5,7 @@
 #include "../../src/core/trip.h"
 #include "../../src/core/game.h"
 #include "trip_steer.h"
+#include "../../src/core/trip_hit.h"
 
 static int checks, failures;
 #define CHECK(c) do { checks++; if (!(c)) { failures++; if (failures <= 20) printf("FAIL %s:%d: %s\n", __FILE__, __LINE__, #c); } } while (0)
@@ -20,6 +21,11 @@ static uint32_t want_speed(uint32_t px) {
     return TRIP_SCROLL_START + (uint32_t)((uint64_t)px * (TRIP_SCROLL_MAX - TRIP_SCROLL_START) / TRIP_RAMP_PX);
 }
 
+/* The splat lies on the cave floor edge (the rock top), not on the feet of the shorter dead body. */
+static int splat_line(const Game *g) {
+    int line = trip_hit_floor_line(&g->trip, &g->trip_gen, &g->hero[0]);
+    return line >= 0 ? line : (g->hero[0].y + flier_half_h(&g->hero[0])) >> 16;
+}
 static uint32_t digest;
 static void mix(uint32_t v) { digest = (digest ^ v) * 16777619u; }
 
@@ -404,11 +410,11 @@ int main(void) {
                 kill_f = f;
                 CHECK(g.trip_events & TRIP_EV_HIT);   /* a wall kill on both runs */
                 if (flap) CHECK(g.hero[0].y < ((int32_t)TRIP_START_Y << 16) && !g.trip_splat);
-                else CHECK(g.trip_splat && g.trip_splat_y > TRIP_START_Y && g.trip_splat_y == (g.hero[0].y + flier_half_h(&g.hero[0])) >> 16);
+                else CHECK(g.trip_splat && g.trip_splat_y > TRIP_START_Y && g.trip_splat_y == splat_line(&g));
             } else if (flap && died && land_f < 0 && trip_hit_window(&g.trip, &g.trip_gen, &g.hero[0], &lo, &hi) && g.hero[0].y > hi) {
                 land_f = f;   /* the landing frame: the body is below the floor line for the first time */
                 CHECK(y0 <= hi && g.hero[0].state == FLIER_FALLING);
-                CHECK(g.trip_splat && g.trip_splat_y > TRIP_START_Y && g.trip_splat_y == (g.hero[0].y + flier_half_h(&g.hero[0])) >> 16);
+                CHECK(g.trip_splat && g.trip_splat_y > TRIP_START_Y && g.trip_splat_y == splat_line(&g));
             } else if (g.trip_splat) {
                 CHECK(0);     /* a splat on any other frame */
             }
@@ -431,7 +437,7 @@ int main(void) {
         g.hero[0].kill_y = g.hero[0].y + flier_half_h(&g.hero[0]) - FL_PX(4);   /* above the feet: reached this step whatever vy is */
         game_step(&g, 0);
         CHECK(g.hero[0].state == FLIER_DROWNED && !(g.trip_events & TRIP_EV_HIT));
-        CHECK(g.trip_splat && g.trip_splat_y == (g.hero[0].y + flier_half_h(&g.hero[0])) >> 16);
+        CHECK(g.trip_splat && g.trip_splat_y == splat_line(&g));
         game_step(&g, 0);
         CHECK(!g.trip_splat);
     }
