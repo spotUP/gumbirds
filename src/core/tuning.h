@@ -162,7 +162,7 @@
 /* Sootling ground clips and flap clip (src/core/flier_view.c), user decisions 2026-11-11. Holds are 60 Hz ticks per art frame,
  * the same for every balloon count. */
 #ifndef FLIER_WALK_HOLD
-#define FLIER_WALK_HOLD 3 /* ticks per walk frame (8 frames, 24 ticks per cycle) */
+#define FLIER_WALK_HOLD 6 /* ticks per walk frame (8 frames, 48 ticks per cycle); 3 read as frantic to the owner */
 #endif
 #ifndef FLIER_LAND_HOLD_0
 #define FLIER_LAND_HOLD_0 9 /* ticks on landing frame 0 (the squash) */

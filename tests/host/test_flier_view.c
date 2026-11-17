@@ -376,7 +376,7 @@ int main(void)
     }
     /* The brief fixed these durations. The tests below follow the macros, so pin the defaults here: a changed default
      * fails this block (knob overrides are exercised by knob_digest, not here). */
-    check(FLIER_WALK_HOLD == 3, "walk hold is 3", FLIER_WALK_HOLD, 3);
+    check(FLIER_WALK_HOLD == 6, "walk hold is 6", FLIER_WALK_HOLD, 6);
     check(FLIER_LAND_HOLD_0 == 9 && FLIER_LAND_HOLD_1 == 12, "landing holds are 9 and 12", FLIER_LAND_HOLD_0, 9);
     check(FLIER_BREATHE_HOLD_0 == 36 && FLIER_BREATHE_HOLD_1 == 15 && FLIER_BREATHE_HOLD_2 == 21 && FLIER_BREATHE_HOLD_3 == 15,
           "breathing holds are 36/15/21/15", FLIER_BREATHE_HOLD_0, 36);
