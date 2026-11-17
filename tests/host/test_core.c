@@ -218,8 +218,8 @@ static void test_arena_rematch(void)
     static Game g;
     arena_one_cpu(&g);
     g.cpu[0].balloons = 0;
-    g.cpu[0].x = FL_PX(120); g.cpu[0].y = FL_PX(100);   /* over the gap: falls into the water */
-    g.hero[0].x = FL_PX(FLIER_START_X + 40);              /* away from the spawn point, moving, facing left, hurt */
+    g.cpu[0].x = FL_PX(104); g.cpu[0].y = FL_PX(100);   /* over the gap: falls into the water */
+    g.hero[0].x = FL_PX(FLIER_START_X + 24);              /* away from the spawn point, moving, facing left, hurt */
     g.hero[0].vx = -FL_PX(1);
     g.hero[0].facing = -1;
     flier_lose_balloon(&g.hero[0]);
@@ -275,7 +275,7 @@ static void test_round_end(void)
     CHECK(g.score >= score0 + SCORE_MATCH_WIN + SCORE_MATCH_CLEAN);                       /* win bonus counted at win time */
     score1 = g.score;
     CHECK(game_flier_visible(&g) && game_hazards_frozen(&g));                              /* HOLD: flier shown */
-    g.hero[0].x = FL_PX(FLIER_START_X + 40);                                                /* away from the spawn */
+    g.hero[0].x = FL_PX(FLIER_START_X + 24);                                                /* away from the spawn */
     steps0 = g.flier_steps; frame0 = g.frame;
     for (i = 0; i < MATCH_END_FRAMES - 1; i++) game_step_arena(&g, 0);
     CHECK(g.round_end == RE_HOLD && g.round_timer == 1);

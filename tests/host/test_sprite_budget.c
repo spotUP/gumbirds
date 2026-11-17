@@ -32,7 +32,7 @@ static void test_slots(void) {
     CHECK(GUM_SPRITE + GUM_COUNT <= SPLASH_SPRITE && SPLASH_SPRITE + SPLASH_COUNT <= ISLAND_SPRITE && SPLASH_COUNT == 3);   /* the splash draws behind the islands, pool and hazard strip */
     CHECK(SPLASH_SPRITE + SPLASH_COUNT <= HAZARD_SPRITE);
     CHECK(ISLAND_SPRITE + ISLAND_COUNT <= POOL_SPRITE_BASE);
-    CHECK(island_total_columns() == 22 && 22 <= ISLAND_COUNT);   /* stage 1 uses 22 of the range; the Gum Trip islands need the rest (user-approved, was ==) */
+    CHECK(island_total_columns() == 18 && 18 <= ISLAND_COUNT);   /* stage 1 uses 22 of the range; the Gum Trip islands need the rest (user-approved, was ==) */
     CHECK(POOL_SPRITE_BASE + POOL_SPRITE_COUNT <= HERO_SPRITE);
     CHECK(HERO_SPRITE + HERO_SPRITE_COUNT <= HAZARD_SPRITE);
     CHECK(HAZARD_SPRITE + HAZARD_COUNT <= FG_RAIN_SPRITE);
@@ -59,8 +59,8 @@ static void test_islands(void) {
     int sum = 0;
     for (int i = 0; i < STAGE_PLATFORM_COUNT; i++) sum += stage_platforms[i].w / 16;
     CHECK(row->count == ISLAND_COUNT);
-    CHECK(sum == 22);
-    CHECK(22 <= ISLAND_COUNT);
+    CHECK(sum == 18);
+    CHECK(18 <= ISLAND_COUNT);
     int worst = 0, wline = 0, lines_with_two = 0;
     for (int y = 0; y < SB_LINES; y++) {
         int cols = 0, islands = 0;
@@ -74,7 +74,7 @@ static void test_islands(void) {
         if (cols) CHECK(y >= row->y0 && y < row->y1);
     }
     CHECK(lines_with_two == 0);
-    CHECK(worst == row->per_line);
+    CHECK(worst <= row->per_line); /* arena gap change: the shorter islands peak at 6 columns, the 7 stays reserved */
     printf("islands: worst %d columns on one line (line %d), row per_line %d, lines %d..%d\n", worst, wline, row->per_line, row->y0, row->y1 - 1);
 }
 
@@ -100,9 +100,9 @@ static void test_lines(void) {
              * flat 7 islands and no gum row), 79 on 120..127, 81 on 128..143. Moving a platform moves these pins on purpose.
              * 4 lower than before on every line: SB_GAMEPLAY_PER_LINE 18 -> 14 (budget-e, room for arcade stage elements). */
             if (!trip && !mood->rain) {
-                CHECK(worst == 88);
+                CHECK(worst == 87);
                 CHECK(line0 == 112);
-                CHECK(sprite_budget_line(m, 119, 0) == 88);
+                CHECK(sprite_budget_line(m, 119, 0) == 87);
                 CHECK(sprite_budget_line(m, 120, 0) == 81);
                 CHECK(sprite_budget_line(m, 128, 0) == 83);
                 CHECK(sprite_budget_line(m, 143, 0) == 83);
