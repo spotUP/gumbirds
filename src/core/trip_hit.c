@@ -57,16 +57,28 @@ volatile uint16_t g_trip_window_clamps;
 /* Half height in whole rows of the body box, the one rule trip_collide and the window clamp share. */
 static int body_half_h(const Flier *f) { return (int)(flier_half_h(f) >> 16) + 1; }
 
-int trip_hit_window(const Trip *t, const TripGen *g, const Flier *f, int32_t *lo, int32_t *hi) {
-    int fx = (int)(f->x >> 16), fh = body_half_h(f);
-    int s = g->head, i, top = -32768, bot = 32767, any = 0;
+/* Cave span under the flier's x range: top = lowest roof edge, bot = highest floor edge (screen rows). 0 when no chunk covers it. */
+static int window_span(const Trip *t, const TripGen *g, const Flier *f, int *top, int *bot) {
+    int fx = (int)(f->x >> 16);
+    int s = g->head, i, any = 0;
+    *top = -32768; *bot = 32767;
     for (i = 0; i < g->count; i++, s = next_slot(s)) {
         const TripChunk *c = &g->ring[s];
         int rel = (int)(int32_t)(t->px - c->wx) + fx;
         if (rel + FLIER_HALF_W < 0 || rel - FLIER_HALF_W > TRIP_CHUNK_PX - 1) continue;
-        trip_cave_span(c, rel - FLIER_HALF_W, rel + FLIER_HALF_W, &top, &bot);   /* per 16 px column, curves included */
+        trip_cave_span(c, rel - FLIER_HALF_W, rel + FLIER_HALF_W, top, bot);   /* per 16 px column, curves included */
         any = 1;
     }
+    return any;
+}
+
+int trip_hit_floor_line(const Trip *t, const TripGen *g, const Flier *f) {
+    int top, bot;
+    return window_span(t, g, f, &top, &bot) ? bot : -1;
+}
+
+int trip_hit_window(const Trip *t, const TripGen *g, const Flier *f, int32_t *lo, int32_t *hi) {
+    int fh = body_half_h(f), top, bot, any = window_span(t, g, f, &top, &bot);
     /* the box rows y-fh..y+fh must avoid rows 0..top-1 and bot..179 (the trip_collide rule) */
     if (!any || top + fh > bot - 1 - fh) return 0;
     *lo = (int32_t)(top + fh) << 16;

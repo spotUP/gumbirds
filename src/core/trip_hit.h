@@ -52,6 +52,8 @@ unsigned trip_collide(Trip *t, TripGen *g, Flier *f);
 /* The y interval (16.16) the flier centre may take so its box stays out of the tunnel rock of every chunk it overlaps
  * (rows y-h..y+h clear of rows 0..win_top-1 and win_bottom..179; with two chunks, the intersection). Returns 0 and leaves
  * lo/hi alone when no chunk overlaps or the interval is empty. */
+/* Screen row of the cave floor under the flier (the first rock row), -1 when no chunk covers it. The gum splat lies on it. */
+int trip_hit_floor_line(const Trip *t, const TripGen *g, const Flier *f);
 int trip_hit_window(const Trip *t, const TripGen *g, const Flier *f, int32_t *lo, int32_t *hi);
 
 /* Solid rock: an ALIVE or PARACHUTE flier whose box reaches a rock row is set to the window edge and its vy, when it
