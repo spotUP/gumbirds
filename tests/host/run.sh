@@ -171,6 +171,9 @@ tail -n 1 "$OUT/test_burst_race.log"; grep FAIL "$OUT/test_burst_race.log" | hea
 $CC -I "$ROOT/src/core" -o "$OUT/test_gg_flapdash" "$HERE/test_gg_flapdash.c" $SRC -lm >"$OUT/build.log" 2>&1 || { echo "[ERROR] test_gg_flapdash build failed"; tail -n 20 "$OUT/build.log"; exit 1; }
 nice -n 19 "$OUT/test_gg_flapdash" >"$OUT/test_gg_flapdash.log" 2>&1 || fail=1
 tail -n 1 "$OUT/test_gg_flapdash.log"; grep FAIL "$OUT/test_gg_flapdash.log" | head -n 10
+$CC -I "$ROOT/src/core" -o "$OUT/test_gg_gather" "$HERE/test_gg_gather.c" $SRC -lm >"$OUT/build.log" 2>&1 || { echo "[ERROR] test_gg_gather build failed"; tail -n 20 "$OUT/build.log"; exit 1; }
+nice -n 19 "$OUT/test_gg_gather" >"$OUT/test_gg_gather.log" 2>&1 || fail=1
+tail -n 1 "$OUT/test_gg_gather.log"; grep FAIL "$OUT/test_gg_gather.log" | head -n 10
 
 # Island sprite set: importer + pipeline per look, tile/palette/alignment/overlap checks (needs build/gen/*_sprites.h from gmake)
 PYTHON=${PYTHON:-/opt/homebrew/bin/python3.14}

@@ -11,6 +11,9 @@
 
 enum { GG_BIG_BLOW, GG_BURST_RACE, GG_BUBBLE_GATHER, GG_FLAP_DASH };   /* Flap Dash uses record slot 3 (a spare) */
 
+#define GG_GATHER_CLOCK 2700u         /* Bubble Gather: 45 seconds at 60 frames */
+#define GG_GATHER_QUALIFY 12u         /* of ARC_BONUS_BUBBLES (20) */
+
 /* Alternate A/B mash counter: a press counts only when it is the other button than the last counted one. */
 typedef struct { uint8_t last; uint16_t count; } GgMash;
 void gg_mash_reset(GgMash *m);

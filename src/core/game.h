@@ -161,6 +161,8 @@ typedef struct {
     Hot hot;             /* Hot Gum state (party_rule == PARTY_HOT), reset by match_start */
     GgDash dash;         /* Gum Games Flap Dash run, live while gg_dash is set (gg_flapdash.h) */
     uint8_t gg_dash;     /* 1 = game_step runs the Flap Dash on hero[0] instead of the arena step */
+    uint8_t gg_gather;   /* 1 = game_step runs Bubble Gather: the Arcade bonus stage as a Gum Games event (game_gg_start_gather) */
+    uint16_t gather_clock; /* Bubble Gather frames played; the event ends at GG_GATHER_CLOCK */
     Camera camera;       /* follows the living human fliers, stepped every game_step_arena; view reads game_camera_px */
 } Game;
 
@@ -193,6 +195,8 @@ void game_set_mode(Game *g, uint8_t mode);
 void game_step(Game *g, uint8_t input);
 /* Start the Gum Games Flap Dash: one hero on the arena ring, no computer fliers (call after game_set_mode). */
 void game_gg_start_dash(Game *g);
+/* Start the Gum Games Bubble Gather: the Arcade bonus stage (layout 24, ArcBonus, result screen) with one hero (call after game_set_mode). */
+void game_gg_start_gather(Game *g);
 /* Start the Gum Games Burst Race in GAME_MODE_GUM (call after game_set_mode, which starts Big Blow). P2 may join during its intro. */
 void game_gg_start_race(Game *g);
 /* Attract demo: builds a pending arena or arcade match (match_start: stage, elements, rivals) without stepping it and returns 1;

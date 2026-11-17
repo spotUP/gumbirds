@@ -200,9 +200,12 @@ static void game_step_gum(Game *g, uint8_t input)
 }
 
 static void game_step_dash(Game *g, uint8_t input);
+static void game_step_gather(Game *g, uint8_t input);
 void game_step(Game *g, uint8_t input)
 {
-    if (g->gg_dash) {
+    if (g->gg_gather) {
+        game_step_gather(g, input);
+    } else if (g->gg_dash) {
         game_step_dash(g, input);
     } else if (g->mode == GAME_MODE_GUM) {
         game_step_gum(g, input);
@@ -725,6 +728,48 @@ static int arc_interlude(Game *g, uint8_t input, uint8_t a_edge)
     }
     camera_follow(g);
     return 1;
+}
+
+void game_gg_start_gather(Game *g)
+{
+    g->gg_gather = 1;
+    g->players = 1;
+    g->cpu_count = 0;
+    g->gather_clock = 0;
+    stage_select(ARC_LAYOUT_BONUS);
+    player_spawn(g);
+    arc_bonus_init(&g->bonus, 1, rng_next(&g->rng));
+    g->bonus_caught[0] = g->bonus_caught[1] = 0;
+    camera_init(&g->camera);
+}
+
+/* Same catch rules as the Arcade bonus stage in arc_interlude (one human); the clock ends it early, then the result screen tallies and the event is over. */
+static void game_step_gather(Game *g, uint8_t input)
+{
+    Flier *f = &g->hero[0];
+    g->frame++;
+    if (g->res.active) {
+        uint32_t add;
+        g->res.events = res_step(&g->res, &add, (uint8_t)(input & IN_A));
+        if (add) {
+            score_add(g, add);
+            g->res.score_shown = g->score;
+        }
+        if (!g->res.active) g->over = 1;
+    } else {
+        FlierInput in;
+        int cx = (int)(f->x >> 16), cy = (int)(f->y >> 16), armed;
+        in.flap = (input & IN_A) ? 1 : 0;
+        in.dir = (int8_t)(((input & IN_RIGHT) ? 1 : 0) - ((input & IN_LEFT) ? 1 : 0));
+        arena_flier_step(g, f, &in);
+        armed = f->state == FLIER_ALIVE && f->balloons > 0;
+        g->bonus_caught[0] = (uint8_t)(g->bonus_caught[0] + arc_bonus_step(&g->bonus, armed, cx - ARC_BONUS_CATCH_HALF_W, cy - ARC_BONUS_CATCH_HALF_H, 2 * ARC_BONUS_CATCH_HALF_W, 2 * ARC_BONUS_CATCH_HALF_H));
+        if (f->state == FLIER_GONE) player_spawn_h(g, 0);
+        if (++g->gather_clock >= GG_GATHER_CLOCK) g->bonus.over = 1;
+        if (g->bonus.over) res_start(&g->res, g->bonus.caught, g->bonus.number, g->bonus.perfect, g->score);
+    }
+    f->spawn_inv = 0;
+    camera_follow(g);
 }
 
 /* ---- Roost Rule (PARTY_ROOST) ---- */
