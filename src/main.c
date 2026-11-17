@@ -1660,9 +1660,7 @@ static void draw(const FlowView *v) {
                 const char *l0 = rs == RS_ROUND ? game_round_start_text(v->game, 0) : 0;
                 if (rs == RS_ROUND && l0) {
                     const char *l1 = game_round_start_text(v->game, 1);
-                    gfx_center_text(11, PAL_TEXT, BANNER_BLANK);
-                    gfx_center_text(12, PAL_TEXT, BANNER_BLANK);
-                    gfx_center_text(13, PAL_TEXT, BANNER_BLANK);
+                    gfx_center_blank(11, 3, sizeof BANNER_BLANK - 1, PAL_TEXT);
                     if (v->game->party_rule != PARTY_NONE) { /* party: ROUND nn above the rule or twist name and its goal line */
                         char rb[10] = "ROUND ";
                         rb[6] = (char)('0' + (rn / 10) % 10); rb[7] = (char)('0' + rn % 10); rb[8] = 0;
@@ -1679,14 +1677,10 @@ static void draw(const FlowView *v) {
                     gfx_center_text(13, PAL_TEXT, "           ");
                     gfx_center_text(13, PAL_TEXT, rb);
                 } else if (rs == RS_GO) {
-                    gfx_center_text(11, PAL_TEXT, BANNER_BLANK);
-                    gfx_center_text(12, PAL_TEXT, BANNER_BLANK);
-                    gfx_center_text(13, PAL_TEXT, BANNER_BLANK);
+                    gfx_center_blank(11, 3, sizeof BANNER_BLANK - 1, PAL_TEXT);
                     gfx_center_text(13, PAL_TEXT, "GO!");
                 } else {
-                    gfx_center_text(11, PAL_TEXT, BANNER_BLANK);
-                    gfx_center_text(12, PAL_TEXT, BANNER_BLANK);
-                    gfx_center_text(13, PAL_TEXT, BANNER_BLANK);
+                    gfx_center_blank(11, 3, sizeof BANNER_BLANK - 1, PAL_TEXT);
                 }
                 g_rs_drawn = rs; g_rs_num = rn;
             }

@@ -135,6 +135,10 @@ void gfx_center_text(u8 y, u8 pal, const char *s) {
     gfx_text((u8)((VQ_FIX_COLS - n) / 2), y, pal, s);
 }
 
+void gfx_center_blank(u8 y, u8 h, u8 w, u8 pal) {
+    vq_fix_clear(&g_gfx_q, (u8)((VQ_FIX_COLS - w) / 2), y, w, h, (u16)((pal << 12) | fixfont_map[' ']));
+}
+
 void gfx_cls(void) { vq_fix_fill(&g_gfx_q, SROM_EMPTY_TILE); }
 
 void gfx_commit(void) {

@@ -171,6 +171,14 @@ int main(void)
     (void)total_cost();
     vq_fix_put(&q, 40, 0, 1); /* out of range is ignored */
     CHECK(commit_all() == 0);
+    /* rectangle clear: only the changed cell is pushed, and its address is the column-major one; off-screen is ignored */
+    vq_fix_put(&q, 5, 12, 0x1043);
+    CHECK(commit_all() == 1);
+    vq_fix_clear(&q, 4, 11, 3, 3, 0x20);
+    CHECK(vq_fix_commit(&q) && vq_pending(&q) == 1 && vq_peek(&q)->a == VQ_FIX_BASE + 5 * VQ_FIX_ROWS + 12 && vq_peek(&q)->b == 0x20);
+    (void)total_cost();
+    vq_fix_clear(&q, 38, 0, 3, 1, 0x1044);
+    CHECK(commit_all() == 0);
     /* clear by shadow: only the cells the shadow says differ change (a 2 x 2 box at (3, 4), one cell already blank) */
     {
         u16 sh[4] = { 0x1041, 0x20, 0x1042, 0x1043 }; /* row-major: (3,4) (4,4) / (3,5) (4,5) */
