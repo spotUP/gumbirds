@@ -115,6 +115,8 @@ int flier_view_visible(const Flier *f, uint32_t frame) {
     return ((frame / FLIER_BLINK_HALF_PERIOD) & 1u) == 0;
 }
 
+int flier_gum_burst(const Flier *f) { return f->balloons == 0 && f->state >= FLIER_FALLING; }
+
 uint8_t flier_pump_frame(const FlierClips *c, int progress)
 {
     int n = c->count[c->pump], p = progress < 0 ? 0 : (progress > ARC_PUMP_STAGES - 1 ? ARC_PUMP_STAGES - 1 : progress);

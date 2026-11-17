@@ -88,6 +88,14 @@ int main(void)
                 if (gdy[k] < lo) lo = gdy[k];
             }
             check(hi >= 3 && lo < 0, "pop2 bob: pushed in, then a rebound", hi, lo);
+            /* last balloon (pop1): the bird poses hide a whole bubble, the running burst draws through them, then nothing */
+            for (k = cf[SOOTLING_CLIP_POP1]; k < cf[SOOTLING_CLIP_POP1] + cc[SOOTLING_CLIP_POP1]; k++) {
+                check(gsh[k] == 0 && !gum_view_draws(0, GUM_VIEW_LEVELS, gsh[k]), "pop1 frame hides a whole bubble", k, 0);
+                check(gum_view_draws(1, 0, gsh[k]) == 1, "pop1 frame draws the burst", k, 1);
+                check(gum_view_draws(0, 0, gsh[k]) == 0, "burst over: no bubble", k, 0);
+            }
+            check(gum_view_draws(0, GUM_VIEW_LEVELS, 1) == 1 && gum_view_draws(0, 0, 1) == 0, "whole bubble draws, level 0 does not", 0, 1);
+            check(!gum_view_pop_done(0) && gum_view_pop_done(GUM_VIEW_POP_SHEET * GUM_POP_FRAMES), "the burst runs its whole sheet, then ends", 0, 1);
         }
     }
     /* Out of range is bounds safe: no bubble, no offset. */

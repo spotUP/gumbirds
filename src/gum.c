@@ -41,7 +41,7 @@ void gum_step(int pl, int active, uint16_t gum, uint32_t frame, int drawn, uint8
     else if (level > 0) { anim = gum_view_anim(level, GUM_STATE_WOBBLE); sheet = gum_view_frame(GUM_STATE_WOBBLE, gum_view_wobble_clock(frame, leaking)); }
     else { hide(pl); return; }
     GumOffset o = gum_view_offset(bird_frame, flip);
-    if (!drawn || !o.show) { hide(pl); return; }
+    if (!drawn || !gum_view_draws(g_pop_t[pl] >= 0, level, o.show)) { hide(pl); return; }
     const GumFrame *f = &gum_frames[gum_anims[anim].first_frame + sheet];
     int key = (anim << 8) | sheet;
     if (key != g_key[pl]) {

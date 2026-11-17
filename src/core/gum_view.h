@@ -40,6 +40,10 @@ int gum_view_pop_done(uint32_t t);
  * dy = GUM_BIRD_ROW + the frame's bob, dx = GUM_BIRD_DX (GUM_BIRD_DX_FLIP mirrored). Out of range: 0, 0, show 0. */
 GumOffset gum_view_offset(uint8_t bird_frame, int flip);
 
+/* 1 when the bubble sprite is drawn: a running pop always (the bird's pop poses have show 0, they hide a whole bubble only,
+ * never the burst), a whole bubble (level > 0) when the bird frame shows it. */
+int gum_view_draws(int popping, uint8_t level, uint8_t show);
+
 /* Leak (look only): a damaged bubble shows a hole and an air jet (assets/gum_leak, 12 frames, GUM_LEAK_TICK game frames each). */
 #define GUM_LEAK_FRAMES 12
 #define GUM_LEAK_TICK    3

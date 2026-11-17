@@ -56,6 +56,8 @@ GumOffset gum_view_offset(uint8_t bird_frame, int flip)
     return o;
 }
 
+int gum_view_draws(int popping, uint8_t level, uint8_t show) { return popping || (level > 0 && show); }
+
 int gum_view_leaks_balloons(uint8_t balloons) { return balloons == 1; }
 int gum_view_leaks_gum(uint16_t gum) { return gum > 0 && gum < GUM_MAX / 2; }
 uint8_t gum_view_leak_frame(uint32_t t) { return (uint8_t)((t / GUM_LEAK_TICK) % GUM_LEAK_FRAMES); }

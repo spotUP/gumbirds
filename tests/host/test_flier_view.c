@@ -383,6 +383,27 @@ int main(void)
     for (i = 0; i < 3; i++) ground_tests(i);
     air_tests();
     pump_frame_tests();
+    {   /* bubble vs balloons: the first pop (2 to 1) blinks the body only, no burst; the last one bursts once the flier falls */
+        Flier f;
+        uint32_t t;
+        int dark = 0;
+        flier_init(&f, 0, 0, 2, 1);
+        f.spawn_inv = 0;
+        check(flier_gum_burst(&f) == 0, "2 balloons: no burst", flier_gum_burst(&f), 0);
+        flier_lose_balloon(&f);
+        check(f.balloons == 1 && f.invincible > 0, "first pop protects", f.invincible, 1);
+        for (t = 0; t < 2 * FLIER_BLINK_HALF_PERIOD; t++) {
+            if (!flier_view_visible(&f, t)) dark++;
+            check(flier_gum_burst(&f) == 0, "first pop: bubble kept through the blink", (int)t, 0);
+        }
+        check(dark == FLIER_BLINK_HALF_PERIOD, "first pop: the body blinks", dark, FLIER_BLINK_HALF_PERIOD);
+        f.balloons = 0; f.state = FLIER_PARACHUTE;
+        check(flier_gum_burst(&f) == 0, "parachute keeps its bubble art", flier_gum_burst(&f), 0);
+        f.state = FLIER_FALLING;
+        check(flier_gum_burst(&f) == 1, "last balloon lost, falling: burst", flier_gum_burst(&f), 1);
+        f.state = FLIER_GONE;
+        check(flier_gum_burst(&f) == 1, "burst stays set after the fall", flier_gum_burst(&f), 1);
+    }
     printf(bad ? "FAIL flier_view (%d)\n" : "PASS flier_view\n", bad);
     return bad != 0;
 }

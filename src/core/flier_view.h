@@ -52,6 +52,10 @@ uint8_t flier_pump_frame(const FlierClips *c, int progress);
  * is shown FLIER_BLINK_HALF_PERIOD frames, then hidden as many; FALLING and later, and an unprotected flier, are always shown.
  * Pure; the glue passes Game.frame (advanced by game_step_arena and game_step_trip) and keeps stepping the animation while hidden. */
 int flier_view_visible(const Flier *f, uint32_t frame);
+/* The blink hides the body and its parachute only: the gum bubble and its leak jet stay drawn through it.
+ * flier_gum_burst: the bubble is gone and bursts, the last balloon is lost and the flier is dead (FALLING or later; a
+ * parachute or a sitting flier keeps the art it had). The glue plays the gum pop once from the frame this turns 1. */
+int flier_gum_burst(const Flier *f);
 
 /* Body drawing rules for a dead flier (state >= FLIER_FALLING). flier_body_visible: any part of the sprite is still on
  * the screen, so the glue keeps drawing it (it falls behind the hazard art until the sprite is fully off screen).
