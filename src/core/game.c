@@ -889,6 +889,7 @@ void game_step_arena(Game *g, uint8_t input)
             if (hpumping && !arc_pump_in_window(hp)) {
                 while (hf->balloons < FLIER_START_BALLOONS && flier_add_balloon(hf)) {}
                 hf->vy = FLIER_GROUND_JUMP_VY; hf->vx = 0; hf->on_ground = 0;
+                hf->has_parachute = 0; /* the parachute is the respawn's only: the next last pop is a fall-through death (Balloon Fight disasm, owner 2026-11-17) */
             }
             if (hf->has_parachute && hf->state == FLIER_ALIVE && hf->on_ground && hf->balloons == 0 && arc_pump_restand(hp)) hf->vx = 0;
         }
