@@ -69,11 +69,11 @@ int camera_parked_column_x(int world_px, int cam_px);
  * CAMERA_COL_HIDDEN when no pixel shows (identical to camera_column_x(world_px + 16 * c, cam_px)). The parked variant returns
  * SCREEN_W instead of the sentinel (identical to camera_parked_column_x). */
 static inline int camera_strip_x(int sx) {
-    if (sx >= ARENA_W - 16) sx -= ARENA_W;
+    if (sx >= arena_ring - 16) sx -= arena_ring;
     return (sx > -16 && sx < SCREEN_W) ? sx : CAMERA_COL_HIDDEN;
 }
 static inline int camera_strip_parked_x(int sx) {
-    if (sx >= ARENA_W - 16) sx -= ARENA_W;
+    if (sx >= arena_ring - 16) sx -= arena_ring;
     return (sx > -16 && sx < SCREEN_W) ? sx : SCREEN_W;
 }
 /* Off screen marker: -1 when the sprite is wholly off the left edge, +1 right, 0 when any part shows. */

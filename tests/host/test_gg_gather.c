@@ -25,6 +25,29 @@ int main(void)
     for (guard = 0; guard < 2000 && !g.over; guard++) game_step(&g, guard % 4 == 0 ? IN_A : 0);
     CHECK(g.over == 1 && !g.res.active);
 
+    /* one screen wide: the ring is 320 + margin, the camera stays at 0, a hero flying right comes out at the left, and game_reset restores the arena ring */
+    game_reset(&g, 1);
+    game_set_mode(&g, GAME_MODE_GUM);
+    game_gg_start_gather(&g);
+    {
+        int wrapped = 0, prev = (int)(g.hero[0].x >> 16);
+        CHECK(arena_ring == FIELD_RING_W && FIELD_RING_W < ARENA_W);
+        for (i = 0; i < 900 && !wrapped; i++) {
+            int x;
+            game_step(&g, (uint8_t)(IN_RIGHT | (i % 8 == 0 ? IN_A : 0)));
+            x = (int)(g.hero[0].x >> 16);
+            CHECK(x >= 0 && x < FIELD_RING_W && game_camera_px(&g) == 0);
+            if (prev > FIELD_RING_W - 40 && x < 40) wrapped = 1;
+            prev = x;
+        }
+        CHECK(wrapped);
+        g.hero[0].x = FL_PX(FIELD_RING_W - 1) + 40000; /* past the seam by the next step: reappears at the left */
+        CHECK(arena_wrap_x(g.hero[0].x + FL_PX(2)) < FL_PX(2));
+        CHECK(arena_wrap_x(-FL_PX(2)) == FL_PX(FIELD_RING_W - 2));
+    }
+    game_reset(&g, 1);
+    CHECK(arena_ring == ARENA_W);
+
     /* a hero parked in a bubble's path catches it, and the score is the result screen's tally */
     game_reset(&g, 1);
     game_set_mode(&g, GAME_MODE_GUM);

@@ -69,8 +69,8 @@ int32_t arc_bonus_speed16(int number) { return speed16[BONUS_IDX(number)]; }
 int arc_bonus_value(int number) { return value[BONUS_IDX(number)]; }
 int arc_bonus_perfect(int number) { return perfect[BONUS_IDX(number)]; }
 
-/* Nozzle columns: the reference's 4 columns (x 32, 80, 160, 208 of its 256 px screen) scaled x1.5 to our 384 px world, nozzle left edge; heights 24, 40, 32, 36 (the art in assets/arcade). */
-static const int16_t noz_x[ARC_NOZZLE_COUNT] = { 48, 120, 240, 312 };
+/* Nozzle columns: the reference's 4 columns (x 32, 80, 160, 208 of its 256 px screen) scaled x1.25 to the 320 px one-screen field, nozzle left edge; heights 24, 40, 32, 36 (the art in assets/arcade). */
+static const int16_t noz_x[ARC_NOZZLE_COUNT] = { 40, 100, 200, 260 };
 static const uint8_t noz_h[ARC_NOZZLE_COUNT] = { 24, 40, 32, 36 };
 int arc_nozzle_x(int i) { return noz_x[i & 3]; }
 int arc_nozzle_top(int i) { return ARC_FLOOR_Y - noz_h[i & 3]; }

@@ -126,8 +126,24 @@ void game_set_hazard(Game *g, uint8_t kind)
     }
 }
 
+/* One-screen field (arcade bonus stage, Bubble Gather): a 320 px ring that wraps left to right, camera pinned at 0.
+ * Every other mode runs the ARENA_W ring with the follow camera; game_reset and field_end restore it. */
+static void field_begin(Game *g)
+{
+    arena_ring = FIELD_RING_W;
+    camera_init(&g->camera);
+    g->camera.cam = 0;
+}
+
+static void field_end(Game *g)
+{
+    arena_ring = ARENA_W;
+    camera_init(&g->camera);
+}
+
 void game_reset(Game *g, uint32_t seed)
 {
+    arena_ring = ARENA_W;
     uint8_t mood = g->mood < GAME_MOOD_COUNT ? g->mood : GAME_MOOD_MOON; /* boot: the Game holds no valid mood yet */
     zero(g, sizeof(*g));
     g->mood = mood;
@@ -389,6 +405,7 @@ static void camera_follow(Game *g)
 {
     int32_t humans[HUMANS];
     int n = human_xs(g, humans);
+    if (arena_ring != ARENA_W) return; /* one-screen field: the camera stays at 0 */
     camera_step(&g->camera, humans, n);
     coop_wall(g);
 }
@@ -750,6 +767,8 @@ static int arc_interlude(Game *g, uint8_t input, uint8_t a_edge)
         if (g->arc.state == ARC_BONUS) {
             arc_bonus_init(&g->bonus, g->arc.bonus_no, rng_next(&g->rng));
             g->bonus_caught[0] = g->bonus_caught[1] = 0;
+            field_begin(g);
+            player_spawn(g); /* the 320 field starts from the spawn: the stage's x may lie past it */
             stage_select(ARC_LAYOUT_BONUS); /* floor strip and nozzle tops; arc_enter_stage / match_start selects the next stage's layout */
             g->round_end = RE_NONE; /* ALL POPPED showed once; the bonus is announced by the round-start phase (BONUS STAGE, then GO) */
             if (g->rounds) {
@@ -770,6 +789,7 @@ static int arc_interlude(Game *g, uint8_t input, uint8_t a_edge)
         }
         if (!g->res.active) {
             arc_bonus_done(&g->arc);
+            field_end(g);
             arc_enter_stage(g);
         }
     } else {
@@ -817,10 +837,10 @@ void game_gg_start_gather(Game *g)
     g->cpu_count = 0;
     g->gather_clock = 0;
     stage_select(ARC_LAYOUT_BONUS);
+    field_begin(g);
     player_spawn(g);
     arc_bonus_init(&g->bonus, 1, rng_next(&g->rng));
     g->bonus_caught[0] = g->bonus_caught[1] = 0;
-    camera_init(&g->camera);
 }
 
 /* Same catch rules as the Arcade bonus stage in arc_interlude (one human); the clock ends it early, then the result screen tallies and the event is over. */
