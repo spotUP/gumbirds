@@ -173,3 +173,42 @@
     channel: 6
     name: pickup_streak
     uri: file://build/sound/sfx/pickup_streak.wav
+# Gum Fling event. Made in DEViLBOX (source assets/sound/sfx/fling_sfx.fur), rendered with Furnace and
+# sliced to committed WAVs: no offline .fur renderer is in the build. Recipe: thoughts/spot/2026-11-17-fling-sfx.md.
+# fling_runup_1..4 rise in pitch: ADPCM-A plays at a fixed rate, so code picks the variant by power.
+- adpcm_a:
+    channel: 5
+    name: fling_runup_1
+    uri: file://assets/sound/sfx/fling_runup_1.wav
+- adpcm_a:
+    channel: 5
+    name: fling_runup_2
+    uri: file://assets/sound/sfx/fling_runup_2.wav
+- adpcm_a:
+    channel: 5
+    name: fling_runup_3
+    uri: file://assets/sound/sfx/fling_runup_3.wav
+- adpcm_a:
+    channel: 5
+    name: fling_runup_4
+    uri: file://assets/sound/sfx/fling_runup_4.wav
+- adpcm_a:
+    channel: 4
+    name: fling_throw
+    uri: file://assets/sound/sfx/fling_throw.wav
+- adpcm_a:
+    channel: 2
+    name: fling_land
+    uri: file://assets/sound/sfx/fling_land.wav
+- adpcm_a:
+    channel: 6
+    name: fling_foul
+    uri: file://assets/sound/sfx/fling_foul.wav
+- adpcm_a:
+    channel: 3
+    name: fling_win
+    uri: file://assets/sound/sfx/fling_win.wav
+- adpcm_a:
+    channel: 3
+    name: fling_lose
+    uri: file://assets/sound/sfx/fling_lose.wav
