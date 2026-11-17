@@ -83,6 +83,8 @@ _Static_assert((RESFX_TILE_BASE & 7) == 0, "result sprite tile base is not 8-ali
 _Static_assert((CHUTE_TILE_BASE & 7) == 0, "parachute tile base is not 8-aligned");
 #define GUMBUBBLE_TILE_BASE (CHUTE_TILE_BASE + CHUTE_TILE_COUNT) /* Hot Gum bubble B (assets/gum_bubble), last in CROM_SETS */
 _Static_assert((GUMBUBBLE_TILE_BASE & 7) == 0, "gum bubble tile base is not 8-aligned");
+#define GUMLEAK_TILE_BASE (GUMBUBBLE_TILE_BASE + GUMBUBBLE_TILE_COUNT) /* gum leak (assets/gum_leak), last in CROM_SETS */
+_Static_assert((GUMLEAK_TILE_BASE & 7) == 0, "gum leak tile base is not 8-aligned");
 
 #define FIX_PAL_COUNT FIXFONT_PAL_COUNT /* fix palettes 0..4: white, pink, lime, gold, dim (build/gen/fix_font.h) */
 #define ATTRACT_PAL_SLOT FIX_PAL_COUNT /* one palette: the attract overlay icons (build/gen/attract_icons.h). Fix tiles hold a 4-bit palette, so it must sit in slots 0..15, never after the sprite palettes */
