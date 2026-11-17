@@ -64,4 +64,23 @@ typedef struct {
 void gg_blow_start(GgBlow *b, uint8_t players);
 /* One frame; in1/in2 = the two players' input bytes (the turn picks one). */
 void gg_blow_step(GgBlow *b, uint8_t in1, uint8_t in2);
+
+/* Burst Race (event 2): head-to-head, both sides mash A/B (the Big Blow pump); the first bubble to reach GG_BLOW_MAX bursts and wins.
+ * P1 against a computer bird, or P1 against P2 in a 2P game. One heat, no tickets. Record = winning time in frames (lower is better). */
+#define GG_RACE_CPU_PERIOD 5u          /* the computer bird presses every 5th frame (about 0.6 size per frame net of the leak) */
+#define GG_RACE_CLOCK 1800u            /* two idle humans: after 30 s the bigger bubble wins, a tie goes to P1 */
+#define GG_RACE_INTRO_FRAMES 150u
+#define GG_RACE_RESULT_FRAMES 150u
+enum { GG_RACE_INTRO, GG_RACE_PLAY, GG_RACE_RESULT, GG_RACE_END };
+typedef struct {
+    GgSeq seq;                         /* players 1: P1 owns the points and the record; seq.best[0] = winning frames, 0 after a loss */
+    GgMash mash[2];
+    uint8_t phase, players, winner;    /* winner: 0 = P1, 1 = P2 or the computer bird */
+    uint8_t size[2], prev[2];
+    uint16_t timer;
+    uint32_t frames;                   /* frames played in the heat */
+    uint32_t last_points;
+} GgRace;
+void gg_race_start(GgRace *r, uint8_t players);
+void gg_race_step(GgRace *r, uint8_t in1, uint8_t in2);
 #endif

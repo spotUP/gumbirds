@@ -1241,6 +1241,29 @@ static void draw_big_blow(const GgBlow *b) {
     }
 }
 
+/* Burst Race on the fix layer: one power bar per side (P1 on BLOW_BAR_ROW, the rival two rows above) and a status line. */
+static GgBar g_race_bar[2];
+static void draw_burst_race(const GgRace *r) {
+    uint8_t ops[BLOW_BAR_CELLS];
+    if (!g_blow_bar_up) {
+        char cells[BLOW_BAR_CELLS + 1];
+        for (u8 i = 0; i < BLOW_BAR_CELLS; i++) cells[i] = '-';
+        cells[BLOW_BAR_CELLS] = 0;
+        for (u8 s = 0; s < 2; s++) { text(BLOW_BAR_COL, (u8)(BLOW_BAR_ROW - 2 * s), PAL_TEXT, cells); g_race_bar[s].width = BLOW_BAR_CELLS; g_race_bar[s].filled = 0; }
+        g_blow_bar_up = 1;
+    }
+    for (u8 s = 0; s < 2; s++) {
+        int n = gg_bar_set(&g_race_bar[s], (u8)(r->phase == GG_RACE_INTRO ? 0 : r->size[s] / (GG_BLOW_MAX / BLOW_BAR_CELLS)), ops, BLOW_BAR_CELLS);
+        for (int i = 0; i < n; i++) text((u8)(BLOW_BAR_COL + (ops[i] & 0x7F)), (u8)(BLOW_BAR_ROW - 2 * s), PAL_HIGH, (ops[i] & 0x80) ? ">" : "-");
+    }
+    u32 key = (u32)r->phase | (u32)r->winner << 4 | (u32)r->players << 5;
+    if (key == g_blow_key) return;
+    g_blow_key = key;
+    const char *msg = r->phase == GG_RACE_INTRO ? "BURST RACE   MASH A AND B     " : r->phase == GG_RACE_PLAY ? "BURST YOUR BUBBLE FIRST       " :
+                      r->winner == 0 ? "YOU BURST FIRST  YOU WIN    " : r->players == 2 ? "PLAYER 2 BURST FIRST         " : "THE COMPUTER BURST FIRST     ";
+    text((u8)((40 - BLOW_TEXT_W) / 2), BLOW_TEXT_ROW + 2, PAL_TEXT, msg);
+}
+
 static void hero_and_mode(const FlowView *v) {
     if (world_shown(v)) {
         bios_user_mode = (v->state == FLOW_PLAYING || g_start_pending) ? 2 : 1; /* the demo is attract: mode 1 (see below) */
@@ -1480,7 +1503,7 @@ static void title_soot_step(int active) {
     }
 }
 
-static void draw_mode_select(u8 open, u8 mode, u8 rule) {
+static void draw_mode_select(u8 open, u8 mode, u8 rule, u8 event) {
     u8 key = open ? (u8)(1 + mode + (mode == GAME_MODE_PARTY ? rule * 8 : 0)) : 0;
     if (key == g_title.select) return;
     g_title.select = key;
@@ -1511,7 +1534,7 @@ static void draw_mode_select(u8 open, u8 mode, u8 rule) {
     }
     gfx_text_backed(15, TITLE_SELECT_ROW + 4, PAL_HIGH, mode == GAME_MODE_GUM ? ">" : " ");
     gfx_text_backed(17, TITLE_SELECT_ROW + 4, mode == GAME_MODE_GUM ? PAL_HIGH : PAL_TEXT, "GUM GAMES");
-    if (mode == GAME_MODE_GUM) gfx_center_text(TITLE_GOAL_ROW, PAL_TEXT, "BLOW AND BURST GUM TO BEAT THE MARKS");
+    if (mode == GAME_MODE_GUM) gfx_center_text(TITLE_GOAL_ROW, PAL_TEXT, event == GG_BURST_RACE ? "BURST RACE  LEFT OR RIGHT TO CHANGE" : "BIG BLOW  LEFT OR RIGHT TO CHANGE   ");
 }
 
 static void draw_title(const FlowView *v) {
@@ -1545,7 +1568,7 @@ static void draw_title(const FlowView *v) {
             if (line == TL_PRESS) g_title_press_draws++;
         }
     }
-    draw_mode_select(v->select_open, v->mode, v->party_rule);
+    draw_mode_select(v->select_open, v->mode, v->party_rule, v->gg_event);
 }
 
 /* Attract how-to-play overlay (fix layer, bottom left: cols 1..13, rows 21..26; the title's reserved cells are rows 3, 22-25 from col 11 on, row 29, so only
@@ -1808,7 +1831,7 @@ static void draw(const FlowView *v) {
         if (v->game && v->game->mode == GAME_MODE_TRIP) draw_gum_meter(v->game->trip.gum);
         else set_distress(0);
         if (v->state == FLOW_ATTRACT_DEMO && v->game) draw_overlay(v);
-        if (v->state == FLOW_PLAYING && v->game && v->game->mode == GAME_MODE_GUM) draw_big_blow(&v->game->blow);
+        if (v->state == FLOW_PLAYING && v->game && v->game->mode == GAME_MODE_GUM) { if (v->game->gg_race) draw_burst_race(&v->game->race); else draw_big_blow(&v->game->blow); }
         {
             /* mode name in the bottom-left corner while playing, written when the mode or rule changes only */
             u8 key = (v->state == FLOW_PLAYING && v->game) ? (v->game->party_rule != PARTY_NONE ? (u8)(8 + v->game->party_rule) : (u8)(1 + v->game->mode)) : 0;

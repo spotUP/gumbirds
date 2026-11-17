@@ -78,6 +78,7 @@ int game_can_join_p2(const Game *g)
     if (g->mode == GAME_MODE_ARENA) { /* a join restarts the whole match (flow_join_p2) */
         return g->rounds && !g->over && g->cpu_count > 0 && (g->players == 1 || g->lives[1].state == ARC_LIFE_ENDED);
     }
+    if (g->mode == GAME_MODE_GUM) return g->gg_race && g->race.phase == GG_RACE_INTRO && g->players == 1;   /* Burst Race: P2 joins in the intro */
     return g->mode == GAME_MODE_ARCADE && !g->over && g->round_end == RE_NONE && !g->res.active && g->arc.state == ARC_PLAY &&
            g->cpu_count > 0 && (g->players == 1 || g->lives[1].state == ARC_LIFE_ENDED);
 }
@@ -105,6 +106,7 @@ static int32_t camera_centre_x(const Game *g)
 int game_join_p2(Game *g)
 {
     if (!game_can_join_p2(g)) return 0;
+    if (g->mode == GAME_MODE_GUM) { g->players = g->race.players = 2; return 1; }
     if (g->mode == GAME_MODE_ARENA) return 0; /* Arena joins through flow_join_p2: a fresh match */
     g->players = 2;
     arc_lives_start(&g->lives[1]);
@@ -175,6 +177,19 @@ static void game_step_gum(Game *g, uint8_t input)
 {
     GgBlow *b = &g->blow;
     int pf = arc_pump_frames(&g->hpump[0]);
+    if (g->gg_race) {
+        GgRace *r = &g->race;
+        gg_race_step(r, input, g->input2);
+        g->frame++;
+        g->hero[0].spawn_inv = 0;
+        for (int s = 0; s < 2; s++) {
+            g->hpump[s].state = ARC_PUMP_PUMPING;
+            g->hpump[s].frame = (uint16_t)((r->phase == GG_RACE_INTRO ? 0 : r->size[s] * pf + 63) >> 6);
+        }
+        g->score = r->seq.points[0];
+        if (r->phase == GG_RACE_END) g->over = 1;
+        return;
+    }
     gg_blow_step(b, input, g->input2);
     g->frame++;
     g->hero[0].spawn_inv = 0;
@@ -379,6 +394,12 @@ static void camera_follow(Game *g)
     int n = human_xs(g, humans);
     camera_step(&g->camera, humans, n);
     coop_wall(g);
+}
+
+void game_gg_start_race(Game *g)
+{
+    g->gg_race = 1;
+    gg_race_start(&g->race, 1);
 }
 
 void game_gg_start_dash(Game *g)

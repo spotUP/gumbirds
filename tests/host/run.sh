@@ -165,6 +165,9 @@ tail -n 1 "$OUT/test_gumgames.log"; grep FAIL "$OUT/test_gumgames.log" | head -n
 $CC -I "$ROOT/src/core" -o "$OUT/test_big_blow" "$HERE/test_big_blow.c" $SRC -lm >"$OUT/build.log" 2>&1 || { echo "[ERROR] test_big_blow build failed"; tail -n 20 "$OUT/build.log"; exit 1; }
 nice -n 19 "$OUT/test_big_blow" >"$OUT/test_big_blow.log" 2>&1 || fail=1
 tail -n 1 "$OUT/test_big_blow.log"; grep FAIL "$OUT/test_big_blow.log" | head -n 10
+$CC -I "$ROOT/src/core" -o "$OUT/test_burst_race" "$HERE/test_burst_race.c" $SRC -lm >"$OUT/build.log" 2>&1 || { echo "[ERROR] test_burst_race build failed"; tail -n 20 "$OUT/build.log"; exit 1; }
+nice -n 19 "$OUT/test_burst_race" >"$OUT/test_burst_race.log" 2>&1 || fail=1
+tail -n 1 "$OUT/test_burst_race.log"; grep FAIL "$OUT/test_burst_race.log" | head -n 10
 $CC -I "$ROOT/src/core" -o "$OUT/test_gg_flapdash" "$HERE/test_gg_flapdash.c" $SRC -lm >"$OUT/build.log" 2>&1 || { echo "[ERROR] test_gg_flapdash build failed"; tail -n 20 "$OUT/build.log"; exit 1; }
 nice -n 19 "$OUT/test_gg_flapdash" >"$OUT/test_gg_flapdash.log" 2>&1 || fail=1
 tail -n 1 "$OUT/test_gg_flapdash.log"; grep FAIL "$OUT/test_gg_flapdash.log" | head -n 10

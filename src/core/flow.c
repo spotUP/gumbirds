@@ -24,6 +24,7 @@ static void start_game(Flow *f, uint32_t seed, int demo)
     } else {
         game_set_mode(&f->game, f->mode);
         if (f->mode == GAME_MODE_PARTY) f->game.party_rule = f->party_rule;
+        if (f->mode == GAME_MODE_GUM && f->gg_event == GG_BURST_RACE) game_gg_start_race(&f->game);
     }
     f->demo = (uint8_t)demo;
     f->howto = 0;
@@ -235,6 +236,8 @@ static void title_mode_select(Flow *f, uint8_t input)
     if (edge & (IN_UP | IN_DOWN)) {
         if (edge & IN_DOWN) f->mode = f->mode == GAME_MODE_GUM ? GAME_MODE_ARENA : (uint8_t)(f->mode + 1);
         else f->mode = f->mode == GAME_MODE_ARENA ? GAME_MODE_GUM : (uint8_t)(f->mode - 1);
+    } else if (edge && f->mode == GAME_MODE_GUM) { /* Left/Right on the GUM GAMES row pick the event (Big Blow, Burst Race) */
+        f->gg_event = (uint8_t)(f->gg_event == GG_BIG_BLOW ? GG_BURST_RACE : GG_BIG_BLOW);
     } else if (edge && f->mode == GAME_MODE_PARTY) { /* Left/Right on the PARTY row cycle the rule (Right forward) */
         if (edge & IN_RIGHT) f->party_rule = f->party_rule == PARTY_RULE_COUNT - 1 ? PARTY_ROUND : (uint8_t)(f->party_rule + 1);
         else f->party_rule = f->party_rule == PARTY_ROUND ? PARTY_RULE_COUNT - 1 : (uint8_t)(f->party_rule - 1);
@@ -334,7 +337,10 @@ void flow_step(Flow *f, uint8_t input, uint8_t start_pressed, uint32_t frame_cou
             f->entry_h = 0;
             f->last_mode = f->mode; /* the title pick: PARTY plays as arena, so game.mode would lose the PARTY table */
             f->last_rule = f->game.party_rule;
-            if (f->game.mode == GAME_MODE_GUM) { /* Big Blow: the best size is the event record */
+            if (f->game.mode == GAME_MODE_GUM && f->game.gg_race) { /* Burst Race: the fastest win is the record (lower is better, 0 = none) */
+                uint32_t t = f->game.race.seq.best[0];
+                if (t && (!f->tables.gg_record[GG_BURST_RACE] || t < f->tables.gg_record[GG_BURST_RACE])) { f->tables.gg_record[GG_BURST_RACE] = t; f->dirty = 1; }
+            } else if (f->game.mode == GAME_MODE_GUM) { /* Big Blow: the best size is the event record */
                 uint32_t best = f->game.blow.seq.best[0];
                 if (best > f->tables.gg_record[GG_BIG_BLOW]) { f->tables.gg_record[GG_BIG_BLOW] = best; f->dirty = 1; }
             }
@@ -382,6 +388,7 @@ void flow_view(const Flow *f, FlowView *v)
                             : (int)(((uint32_t)f->reset_hold * 100u) / RESET_HOLD_FRAMES);
     v->reset_flash = f->reset_flash;
     v->mode = f->mode;
+    v->gg_event = f->gg_event;
     v->party_rule = f->party_rule;
     v->select_open = f->select_open;
     v->howto = f->howto;

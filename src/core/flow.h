@@ -67,6 +67,7 @@ typedef struct {
     uint32_t last_score[2];  /* score of each human in the last real run ([1] is 0 unless last_players == 2); [0] first: the probes read its offset */
     uint8_t last_players;    /* humans in the last real run */
     uint8_t entry_h;         /* human whose ranking score the name entry is taking (P1 then P2) */
+    uint8_t gg_event;        /* GG_* event picked on the GUM GAMES title row (Left/Right); kept across runs */
     uint8_t party_rule;      /* PARTY_* picked on the PARTY title row (Left/Right); kept across runs */
     uint8_t last_rule;       /* PARTY_* of the last real run: tag of its PARTY table entry */
     uint8_t howto;           /* 1 while the PARTY how-to demo runs inside FLOW_PLAYING (computer bird, no rounds); A or Start ends it */
@@ -92,6 +93,7 @@ typedef struct {
     int reset_flash;
     uint8_t mode;            /* GameMode highlighted on the title */
     uint8_t party_rule;      /* PARTY_* highlighted on the PARTY row */
+    uint8_t gg_event;        /* GG_* picked on the GUM GAMES row */
     uint8_t select_open;     /* title: mode select opened by a start press */
     uint8_t howto;           /* PLAYING: the PARTY how-to demo is running (draw the overlay for party_rule of game) */
     uint8_t ov_key;          /* ATTRACT_DEMO: AttractOverlay key (AO_*), AO_NONE before the first demo frame */

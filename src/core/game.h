@@ -133,6 +133,8 @@ typedef struct {
     uint16_t round_start_timer; /* frames spent in the current round start phase */
     uint8_t hazard_kind; /* hazard.h kind drawn in this play (game_set_hazard); selects every flier's kill line */
     uint32_t bounces;    /* body-contact reflects (test sentinel) */
+    GgRace race;         /* Gum Games Burst Race state, live while gg_race is set in GAME_MODE_GUM */
+    uint8_t gg_race;     /* 1 = game_step_gum runs Burst Race instead of Big Blow (game_gg_start_race) */
     GgBlow blow;         /* Gum Games Big Blow state, live in GAME_MODE_GUM (game_step_gum) */
     Trip trip;           /* Gum Trip state, live in GAME_MODE_TRIP (game_step_trip) */
     TripGen trip_gen;    /* Gum Trip course (chunk ring), seeded by game_set_mode, advanced by game_step_trip */
@@ -191,6 +193,8 @@ void game_set_mode(Game *g, uint8_t mode);
 void game_step(Game *g, uint8_t input);
 /* Start the Gum Games Flap Dash: one hero on the arena ring, no computer fliers (call after game_set_mode). */
 void game_gg_start_dash(Game *g);
+/* Start the Gum Games Burst Race in GAME_MODE_GUM (call after game_set_mode, which starts Big Blow). P2 may join during its intro. */
+void game_gg_start_race(Game *g);
 /* Attract demo: builds a pending arena or arcade match (match_start: stage, elements, rivals) without stepping it and returns 1;
  * else 0. The demo has no ROUND banner freeze to carry that frame, so the flow steps the game from the next frame. */
 int game_begin(Game *g);
