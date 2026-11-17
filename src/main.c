@@ -138,6 +138,8 @@ volatile u16 g_round_end_s[4];
 volatile u16 g_banner_calls, g_banner_cells; /* round clear banner draws, for the MAME tests */
 /* Round start text on the fix layer: phase drawn (RS_*) and the round number shown, so the cells are written and cleared once. */
 static u8 g_rs_drawn = RS_NONE;
+#define GG_CARD_ROW 8
+static const GgCard *g_card_up;
 static u8 g_howto_up; /* PARTY how-to overlay (fix rows HOWTO_ROW..) is on screen */
 #define HOWTO_ROW 22
 #define MODE_LABEL_ROW 29 /* last visible fix row, left safe column: the credits plate sits at columns 28..37 */
@@ -2021,7 +2023,7 @@ static void draw(const FlowView *v) {
         g_draw_state = (int)v->state;
         g_hud[0].kind = g_hud[1].kind = HUD_KIND_NONE;
         g_ov_stage = 0; g_ov_key = AO_NONE; g_ov_part = 0;
-        g_rs_drawn = RS_NONE; g_rs_num = 0; g_banner_up = 0; g_howto_up = 0; g_mode_key = 0xFF; g_blow_key = 0xFFFFFFFFu; g_blow_bar_up = 0; g_fling_flag = -1; g_cont_key[0] = g_cont_key[1] = 0xFF; g_stage_key = 0xFF; g_over_up = 0;
+        g_rs_drawn = RS_NONE; g_rs_num = 0; g_banner_up = 0; g_howto_up = 0; g_card_up = 0; g_mode_key = 0xFF; g_blow_key = 0xFFFFFFFFu; g_blow_bar_up = 0; g_fling_flag = -1; g_cont_key[0] = g_cont_key[1] = 0xFF; g_stage_key = 0xFF; g_over_up = 0;
         g_meter_step = METER_NONE;
         set_distress(0);
 #ifdef GUMBIRDS_DEBUG_HEADER /* gmake DEBUG_HEADER=1; the normal build leaves the top rows to the HUD */
@@ -2095,6 +2097,28 @@ static void draw(const FlowView *v) {
                 gfx_center_text(HOWTO_ROW, PAL_TEXT, up ? game_party_name(rule) : BANNER_BLANK);
                 for (i = 0; i < 3; i++) gfx_center_text((u8)(HOWTO_ROW + 1 + i), PAL_TEXT, up ? game_party_howto(rule, i) : BANNER_BLANK);
                 gfx_center_text(HOWTO_ROW + 5, PAL_TEXT, up ? "PRESS A OR START TO SKIP" : BANNER_BLANK);
+            }
+        }
+        {
+            /* Gum Games rules card (flow.c gg_cards): goal, MASH / HOLD / LET GO steps, rules, skip prompt; text only for now
+             * (shortcut: layout A tiles from thoughts/shared/drafts/2026-11-17-rules-card not imported yet, owner art import next) */
+            const GgCard *c = (v->state == FLOW_PLAYING) ? v->card : 0;
+            if (c != g_card_up) {
+                u8 i;
+                g_card_up = c;
+                gfx_center_text(GG_CARD_ROW, PAL_HIGH, c ? c->goal : BANNER_BLANK);
+                for (i = 0; i < 3; i++) {
+                    char ln[24];
+                    u8 n = 0;
+                    const char *a = c ? c->step[i][0] : "", *b = c ? c->step[i][1] : "";
+                    while (*a && n < 11) ln[n++] = *a++;
+                    if (c) ln[n++] = ' ';
+                    while (*b && n < 23) ln[n++] = *b++;
+                    ln[n] = 0;
+                    gfx_center_text((u8)(GG_CARD_ROW + 2 + i), PAL_TEXT, c ? ln : BANNER_BLANK);
+                }
+                for (i = 0; i < 2; i++) gfx_center_text((u8)(GG_CARD_ROW + 6 + i), PAL_TEXT, c ? c->rule[i] : BANNER_BLANK);
+                gfx_center_text(GG_CARD_ROW + 9, PAL_HIGH, c ? "PRESS A TO START" : BANNER_BLANK);
             }
         }
         {

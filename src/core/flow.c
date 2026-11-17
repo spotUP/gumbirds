@@ -33,6 +33,7 @@ static void start_game(Flow *f, uint32_t seed, int demo)
     }
     f->demo = (uint8_t)demo;
     f->howto = 0;
+    f->gg_card = 0;
     f->demo_in = 0;
     if (demo) ai_init(&f->demo_ai, &f->game.rng, DEMO_AI_RANK);
     attract_overlay_reset(&f->ov);
@@ -50,6 +51,8 @@ static void start_title_game(Flow *f, uint32_t seed)
 {
     if (f->mode != GAME_MODE_PARTY) {
         start_game(f, seed, 0);
+        f->gg_card = f->mode == GAME_MODE_GUM && flow_gg_card(f->gg_event);
+        f->card_t = 0;
         return;
     }
     start_game(f, PARTY_HOWTO_SEED, 0);
@@ -241,6 +244,19 @@ static const char *const gg_names[GG_PICK_COUNT] = { "BIG BLOW", "BURST RACE", "
 uint8_t flow_gg_event(uint8_t i) { return gg_order[i]; }
 const char *flow_gg_name(uint8_t i) { return gg_names[i]; }
 
+/* Rules cards in gg_order order (owner 2026-11-17: Gum Fling first, the other events get theirs later). */
+static const GgCard gg_cards[GG_PICK_COUNT] = {
+    [5] = { "FLING THE GUM AS FAR AS YOU CAN",
+            { { "MASH A", "FOR POWER" }, { "HOLD A", "TO AIM" }, { "LET GO", "TO FLING" } },
+            { "SAFE ANGLE: 15 TO 75 DEGREES", "TAKE TURNS: 3 THROWS EACH" } },
+};
+const GgCard *flow_gg_card(uint8_t event)
+{
+    uint8_t i;
+    for (i = 0; i < GG_PICK_COUNT; i++) if (gg_order[i] == event) return gg_cards[i].goal ? &gg_cards[i] : 0;
+    return 0;
+}
+
 /* 1 when A on the title would open a submenu (GUM GAMES or PARTY row, list open, submenu closed): the caller must not take a credit for that A. */
 int flow_a_opens_submenu(const Flow *f)
 {
@@ -343,6 +359,10 @@ void flow_step(Flow *f, uint8_t input, uint8_t start_pressed, uint32_t frame_cou
         }
         break;
     case FLOW_PLAYING:
+        if (f->gg_card) {   /* rules card: the game waits (GET SET starts when the card goes); P2 may still join */
+            if (++f->card_t >= GG_CARD_FRAMES || (f->card_t > GG_CARD_IGNORE && a_edge)) f->gg_card = 0;
+            break;
+        }
         if (f->howto) {
             uint8_t a2 = (uint8_t)(f->game.input2 & IN_A);
             if (start_pressed || a_edge || (a2 && !f->howto_a2) || f->game.start_in[1] || f->timer >= PARTY_HOWTO_FRAMES || f->game.over) {
@@ -430,5 +450,7 @@ void flow_view(const Flow *f, FlowView *v)
     v->party_rule = f->party_rule;
     v->select_open = f->select_open;
     v->howto = f->howto;
+    v->card = f->gg_card ? flow_gg_card(f->gg_event) : 0;
+    v->card_t = f->card_t;
     v->ov_key = f->ov.key;
 }

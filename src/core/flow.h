@@ -45,6 +45,8 @@ typedef enum {
 
 #define FLOW_RESET_COMBO (IN_A | IN_B | IN_C | IN_D)
 
+/* Gum Games rules card (see flow_gg_card). */
+typedef struct { const char *goal; const char *step[3][2]; const char *rule[2]; } GgCard;
 typedef struct {
     uint8_t state;           /* FlowState */
     uint16_t timer;          /* frames spent in this state (saturates at 65535) */
@@ -73,6 +75,8 @@ typedef struct {
     uint8_t last_rule;       /* PARTY_* of the last real run: tag of its PARTY table entry */
     uint8_t howto;           /* 1 while the PARTY how-to demo runs inside FLOW_PLAYING (computer bird, no rounds); A or Start ends it */
     uint8_t howto_a2;        /* P2 A held last frame (press edge for the how-to skip) */
+    uint8_t gg_card;         /* 1 while the Gum Games rules card is up (game not stepped, GET SET waits); A skips it */
+    uint16_t card_t;         /* frames the rules card has been up */
     uint8_t last_mode;       /* GameMode of the last real run: its table is scored and shown after the run */
     ScoreTables tables;      /* one table per GameMode (score_table.h) */
     Game game;
@@ -98,6 +102,8 @@ typedef struct {
     uint8_t select_open;     /* title: mode select opened by a start press */
     uint8_t sub_open;        /* title: the submenu of the GUM GAMES (gg_event) or PARTY (party_rule) row is open */
     uint8_t howto;           /* PLAYING: the PARTY how-to demo is running (draw the overlay for party_rule of game) */
+    const GgCard *card;      /* PLAYING: the Gum Games rules card to draw, NULL = none */
+    uint16_t card_t;
     uint8_t ov_key;          /* ATTRACT_DEMO: AttractOverlay key (AO_*), AO_NONE before the first demo frame */
 } FlowView;
 
@@ -113,6 +119,11 @@ void flow_coin(Flow *f);
 #define GG_PICK_COUNT 6
 uint8_t flow_gg_event(uint8_t i);      /* GG_* of GUM GAMES submenu line i (0..5) */
 const char *flow_gg_name(uint8_t i);   /* its on-screen name */
+/* Rules card shown before GET SET (layout A "banner and strip"): goal line, three control steps of two lines, two rule lines.
+ * One row per GUM GAMES event next to gg_names; NULL for an event without a card yet. */
+#define GG_CARD_FRAMES 600u      /* the card ends by itself after 10 seconds */
+#define GG_CARD_IGNORE 30u       /* A held or mashed from the menu does not skip it in the first half second */
+const GgCard *flow_gg_card(uint8_t event);
 int flow_a_opens_submenu(const Flow *f);
 void flow_view(const Flow *f, FlowView *v);
 
