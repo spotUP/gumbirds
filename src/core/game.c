@@ -251,6 +251,17 @@ static void twist_draw(Game *g)
     g->twist = t;
 }
 
+uint8_t game_roulette_kind(const Game *g)
+{
+    Rng r = {0};
+    uint32_t i;
+    uint8_t k;
+    rng_seed(&r, g->roulette_seed);
+    k = (uint8_t)rng_range(&r, HAZARD_KINDS);
+    for (i = 0; i < g->matches_won; i++) k = (uint8_t)((k + 1 + rng_range(&r, HAZARD_KINDS - 1)) % HAZARD_KINDS);
+    return k;
+}
+
 static void roost_pick(Game *g);
 static void hot_start(Game *g);
 static void match_start(Game *g)
@@ -277,6 +288,7 @@ static void match_start(Game *g)
         }
         game_next_mood(g); /* arena: each part varies on its own (world.h) */
     }
+    if (g->party_rule == PARTY_ROULETTE && g->matches_won == 0) g->roulette_seed = rng_next(&g->rng);
     if (g->party_rule == PARTY_ROUND) {
         twist_draw(g);
         if (g->twist == TWIST_CROWDED) n = CPU_MAX;
@@ -388,7 +400,7 @@ int game_banner_flags(const Game *g)
 /* The party rule table: name, goal line (owner-approved 2026-11-16). Index = PARTY_*; twist names index = TWIST_*. */
 static const char *const party_names[PARTY_RULE_COUNT] = { "", "RULE OF THE ROUND", "ROOST RULE", "HOT GUM", "HAZARD ROULETTE" };
 static const char *const party_goals[PARTY_RULE_COUNT] = {
-    "", "A NEW TWIST EVERY ROUND", "STAND ON THE GLOWING ISLAND TO SCORE", "PASS THE HOT GUM BEFORE IT POPS", "COMING SOON - PLAYS AS ARENA"
+    "", "A NEW TWIST EVERY ROUND", "STAND ON THE GLOWING ISLAND TO SCORE", "PASS THE HOT GUM BEFORE IT POPS", "A NEW HAZARD EVERY ROUND"
 };
 static const char *const twist_names[TWIST_COUNT] = { "", "ONE GUM EACH", "CROWDED SKY", "SLOW THINKERS", "QUICK THINKERS", "MIRROR STICK", "WINDY" };
 const char *game_party_name(uint8_t rule) { return rule < PARTY_RULE_COUNT ? party_names[rule] : ""; }
@@ -400,19 +412,23 @@ static const char *const twist_lines[TWIST_COUNT] = {
     "", "EVERY BIRD STARTS WITH ONE GUM", "MORE COMPUTER BIRDS IN THE SKY", "COMPUTER BIRDS REACT SLOWLY",
     "COMPUTER BIRDS REACT FAST", "LEFT AND RIGHT ARE SWAPPED", "A WIND PUSHES EVERY BIRD SIDEWAYS"
 };
+/* Hazard Roulette banner: name (row 12) and one line (row 13) per hazard kind, index = HZ_*. Max PARTY_GOAL_W. */
+static const char *const roulette_names[HAZARD_KINDS] = { "SPIKE FLOOR", "FIRE FLOOR", "WATER FLOOR", "LAVA FLOOR" };
+static const char *const roulette_lines[HAZARD_KINDS] = { "THE FLOOR IS SPIKES THIS ROUND", "THE FLOOR IS FIRE THIS ROUND", "THE FLOOR IS WATER THIS ROUND", "THE FLOOR IS LAVA THIS ROUND" };
 /* How-to overlay before round 1 of a PARTY match: three lines per rule, index = PARTY_*. */
 static const char *const party_howto[PARTY_RULE_COUNT][3] = {
     { "", "", "" },
     { "POP THE OTHER BIRDS' GUM BUBBLES", "THE LAST BIRD FLYING WINS THE ROUND", "EVERY ROUND HAS A NEW TWIST" },
     { "STAND ALONE ON THE GLOWING ISLAND", "TO EARN POINTS WHILE YOU HOLD IT", "POP RIVALS OFF THE ISLAND" },
     { "TOUCH A BIRD TO PASS THE HOT GUM", "WHEN THE FUSE ENDS IT POPS A BALLOON", "THE LAST BIRD FLYING WINS THE ROUND" },
-    { "THIS RULE IS COMING SOON", "FOR NOW IT PLAYS AS ARENA", "POP THE OTHER BIRDS' GUM BUBBLES" }
+    { "EVERY ROUND HAS A DIFFERENT HAZARD", "KEEP OFF IT OR YOUR BIRD IS LOST", "THE LAST BIRD FLYING WINS THE ROUND" }
 };
 const char *game_party_howto(uint8_t rule, int line) { return rule < PARTY_RULE_COUNT && line >= 0 && line < 3 ? party_howto[rule][line] : ""; }
 
 const char *game_round_start_text(const Game *g, int line)
 {
     if (g->party_rule != PARTY_NONE && g->mode == GAME_MODE_ARENA) {
+        if (g->party_rule == PARTY_ROULETTE && line < 2) return (line ? roulette_lines : roulette_names)[game_roulette_kind(g)];
         if (line == 0) return g->party_rule == PARTY_ROUND ? game_twist_name(g->twist) : game_party_name(g->party_rule);
         if (line == 1 && g->party_rule == PARTY_ROUND && g->twist < TWIST_COUNT) return twist_lines[g->twist];
         return line == 1 ? game_party_goal(g->party_rule) : 0;
