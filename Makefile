@@ -387,6 +387,7 @@ test: cart
 	@$(MAKE) --no-print-directory test-party
 	@$(MAKE) --no-print-directory test-party-roost
 	@$(MAKE) --no-print-directory test-party-hot
+	@$(MAKE) --no-print-directory test-party-roulette
 	@$(MAKE) --no-print-directory test-party-name
 	@$(MAKE) --no-print-directory test-coop
 	@$(MAKE) --no-print-directory test-sound
@@ -880,6 +881,11 @@ test-party-hot: cart bios
 	cat $$T/result.txt; \
 	if grep -q '^PASS' $$T/result.txt; then rm -rf $$T; echo "[OK] make test-party-hot passed"; else echo "[FAIL] make test-party-hot, log kept in $$T"; exit 1; fi
 
+# PARTY Hazard Roulette (tests/host/test_party_roulette.c): one hazard per round, no repeat, every kind seen, banner and strip agree. `make test-party-roulette` alone.
+test-party-roulette: cart
+	@nice -n 19 clang -I $(BUILDDIR) -std=c99 -Wall -Wextra -Werror -pedantic -o $(BUILDDIR)/test_party_roulette tests/host/test_party_roulette.c $(filter-out src/core/main.c,$(wildcard src/core/*.c)) -lm >$(BUILDDIR)/test_party_roulette.log 2>&1 || { tail -n 20 $(BUILDDIR)/test_party_roulette.log; echo "[FAIL] test-party-roulette build"; exit 1; }
+	@$(BUILDDIR)/test_party_roulette | tail -n 1 | grep -q ' 0 failures' && echo "[OK] make test-party-roulette passed" || { echo "[FAIL] make test-party-roulette"; exit 1; }
+
 # PARTY two-player name entry (tests/mame/party_name_check.lua): UniBIOS, 2P PARTY game over with both scores ranking, both players type a name;
 # both names reach the saved table, the game loop keeps running and the screen is not blank afterwards. `make test-party-name` alone.
 test-party-name: cart bios
@@ -1064,7 +1070,7 @@ test-logo: cart bios
 	cat $$T/result.txt; \
 	if grep -q '^PASS' $$T/result.txt; then rm -rf $$T; echo "[OK] make test-logo passed"; else echo "[FAIL] make test-logo, log kept in $$T"; exit 1; fi
 
-.PHONY: run test test-mood test-arcade test-arcade-walk test-arcade-bonus test-crom test-srom test-debug-header test-camera test-sprite-peak test-left-column test-flier test-small-sootling test-reach test-vblank test-scroll test-slots test-hazard test-hazard-kill test-soft-reset test-ring test-solid test-trip test-score test-sound test-unibios test-coop test-arena-join test-party test-party-roost test-party-hot test-party-name test-logo
+.PHONY: run test test-mood test-arcade test-arcade-walk test-arcade-bonus test-crom test-srom test-debug-header test-camera test-sprite-peak test-left-column test-flier test-small-sootling test-reach test-vblank test-scroll test-slots test-hazard test-hazard-kill test-soft-reset test-ring test-solid test-trip test-score test-sound test-unibios test-coop test-arena-join test-party test-party-roost test-party-hot test-party-roulette test-party-name test-logo
 
 # Header dependencies from -MMD (build/**/*.d): a changed header rebuilds every object that includes it.
 -include $(shell find $(BUILDDIR) -name '*.d' 2>/dev/null)
