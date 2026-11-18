@@ -65,10 +65,10 @@ emu.register_frame_done(function()
         finish(false, string.format("how-to overlay rows 22/23/24/25/27 lit %d/%d/%d/%d/%d", lit(22), lit(23), lit(24), lit(25), lit(27))) return end
     elseif k == 45 then abtn:set_value(1)
     elseif k == 52 then abtn:set_value(0)
-    elseif k == 60 then
-      if b(O.howto) ~= 0 then finish(false, "A did not skip the how-to") return end
-      if lit(22) ~= 0 or lit(23) ~= 0 or lit(25) ~= 0 or lit(27) ~= 0 then finish(false, "how-to overlay not cleared after the skip") return end
-      phase = "banner"; t0 = n
+    elseif k == 60 and b(O.howto) ~= 0 then finish(false, "A did not skip the how-to") return
+    elseif k >= 60 then -- the blank drains through the per-frame fix commit budget (about 25 frames after the skip while the round starts), so poll
+      if lit(22) == 0 and lit(23) == 0 and lit(25) == 0 and lit(27) == 0 then phase = "banner"; t0 = n
+      elseif k > 150 then finish(false, string.format("how-to overlay not cleared after the skip: rows 22/23/25/27 lit %d/%d/%d/%d", lit(22), lit(23), lit(25), lit(27))) return end
     end
   elseif phase == "banner" then
     local rs = b(O.rs)
