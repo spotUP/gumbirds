@@ -1248,8 +1248,8 @@ static void hot_bubble_step(const Game *g) {
  * along the real throw path for the current power and angle (gumfling_path: the flight physics itself). Gum bubble art, 16 x 16 unchained sprites in the
  * shared strip range; g = the playing Game with Gum Fling in the arena aim, or 0 to park them. */
 #define FLING_ARC_RADIUS 36
-#define FLING_ARC_POINTER_CELL 0
-#define FLING_ARC_DOT_CELL 2
+#define FLING_ARC_POINTER_ANIM GUM_ANIM_LEVEL4   /* round Pink Gum bubbles; the gumbubble sheet is the angry Hot Gum face and read as a head */
+#define FLING_ARC_DOT_ANIM GUM_ANIM_LEVEL1
 _Static_assert(FLING_ARC_COUNT <= TRIP_STRIP_COUNT, "fling aim sprites exceed the shared strip range");
 static u8 g_fling_arc_on;
 static void fling_arc_step(const Game *g) {
@@ -1261,7 +1261,8 @@ static void fling_arc_step(const Game *g) {
         uint8_t a = (uint8_t)(f->hold.charge >> 1 > 64 ? 64 : f->hold.charge >> 1);   /* the angle launch_vel uses */
         if (!g_fling_arc_on) {
             for (u16 i = 0; i < FLING_ARC_COUNT; i++) {
-                gfx_sprite_strips((u16)(FLING_ARC_SPRITE + i), 1, 1, &gumbubble_tile_index[i ? FLING_ARC_DOT_CELL : FLING_ARC_POINTER_CELL], GUMBUBBLE_TILE_BASE, (u16)(GUMBUBBLE_PAL_SLOT << 8));
+                const GumFrame *f = &gum_frames[gum_anims[i ? FLING_ARC_DOT_ANIM : FLING_ARC_POINTER_ANIM].first_frame];
+                gfx_sprite_strips((u16)(FLING_ARC_SPRITE + i), 1, 1, &gum_tile_index[f->tile_offset], GUM_TILE_BASE, (u16)((GUM_PAL_SLOT + f->palette) << 8));
                 gfx_sprite_unchained((u16)(FLING_ARC_SPRITE + i), 1);
             }
             g_fling_arc_on = 1;

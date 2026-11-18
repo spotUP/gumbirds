@@ -71,6 +71,11 @@ emu.register_frame_done(function()
     for r = 0, 27 do if lit(r) > maxlit then maxlit = lit(r); maxrow = r end end
     if ph == K.windup and lastphase ~= K.windup then t0 = n + (attempts == 0 and 61 or 0); attempts = attempts + 1 end   -- GET SET freezes the first windup for 60 frames
     lastphase = ph
+    if ph == 1 and mode == K.gum and (n % 40 == 0) and os.getenv("FLING_DUMP") then
+      local o = {}
+      for i = 0, 9 do local a = (323 + i) * 64; o[#o + 1] = string.format("%x/%x s3=%x", fix[a] or -1, fix[a + 1] or -1, fix[0x8200 + 323 + i] or -1) end
+      local df = io.open(os.getenv("FLING_DUMP"), "a"); df:write("SCB1 n=" .. n .. " " .. table.concat(o, " | ") .. "\n"); df:close()
+    end
     local k = n - t0
     if mode == K.gum and ph == K.windup then
       -- A only: tap A (2 frames down, 2 up) for 40 frames, then hold A 12 frames to start the needle and 50 more, release
