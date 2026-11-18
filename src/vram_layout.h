@@ -28,6 +28,7 @@
 #include "gen/gumleak_sprites.h"
 #include "gen/countdown_sprites.h"
 #include "gen/rulecard_sprites.h"
+#include "gen/popdrop_sprites.h"
 
 /* The ngdevkit logo tile block that opens the C-ROM (assets/base-crom-logo); the title logo (gen/logo_sprites.h, LOGO_TILE_COUNT) sits last. */
 #define BASE_LOGO_TILE_COUNT 256
@@ -92,6 +93,8 @@ _Static_assert((GUMLEAK_TILE_BASE & 7) == 0, "gum leak tile base is not 8-aligne
 _Static_assert((COUNTDOWN_TILE_BASE & 7) == 0, "countdown tile base is not 8-aligned");
 #define RULECARD_TILE_BASE (COUNTDOWN_TILE_BASE + COUNTDOWN_TILE_COUNT) /* Gum Games rules card example props (assets/rulecard), last in CROM_SETS */
 _Static_assert((RULECARD_TILE_BASE & 7) == 0, "rules card tile base is not 8-aligned");
+#define POPDROP_TILE_BASE (RULECARD_TILE_BASE + RULECARD_TILE_COUNT) /* Gum Games Pop Drop free-fall bird, platforms, shield (assets/popdrop), last in CROM_SETS */
+_Static_assert((POPDROP_TILE_BASE & 7) == 0, "pop drop tile base is not 8-aligned");
 
 #define FIX_PAL_COUNT FIXFONT_PAL_COUNT /* fix palettes 0..4: white, pink, lime, gold, dim (build/gen/fix_font.h) */
 #define ATTRACT_PAL_SLOT FIX_PAL_COUNT /* one palette: the attract overlay icons (build/gen/attract_icons.h). Fix tiles hold a 4-bit palette, so it must sit in slots 0..15, never after the sprite palettes */
@@ -120,6 +123,7 @@ _Static_assert(ATTRACT_PAL_SLOT < 16, "fix layer palettes are 4 bits: the overla
 #define COUNTDOWN_PAL_SLOT (GUMBUBBLE_PAL_SLOT + GUMBUBBLE_PALETTE_COUNT) /* countdown GET SET: Pink Gum */
 #define COUNTDOWN_HOT_PAL_SLOT (COUNTDOWN_PAL_SLOT + COUNTDOWN_PALETTE_COUNT) /* countdown GO!: the Hot Gum swap, same tiles */
 #define RULECARD_PAL_SLOT (COUNTDOWN_HOT_PAL_SLOT + COUNTDOWN_EXTRA_PALETTE_COUNT) /* rules card example props: slab, needle, gum */
-_Static_assert(RULECARD_PAL_SLOT + RULECARD_PALETTE_COUNT <= 256, "palette slots exceed the 256 the hardware has");
+#define POPDROP_PAL_SLOT (RULECARD_PAL_SLOT + RULECARD_PALETTE_COUNT) /* Pop Drop: bird (player), platforms, shield (gum) */
+_Static_assert(POPDROP_PAL_SLOT + POPDROP_PALETTE_COUNT <= 256, "palette slots exceed the 256 the hardware has");
 
 #endif
