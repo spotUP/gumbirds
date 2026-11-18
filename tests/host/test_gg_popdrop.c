@@ -1,4 +1,5 @@
-/* test_gg_popdrop.c - Gum Games Pop Drop: hang and cut, nudge, centre pop vs edge pop, miss, five drops, game and flow wiring. */
+/* test_gg_popdrop.c - Gum Games Pop Drop (free fall): speed ramp, steering and facing, platform hit (stun, gum lost, shield soak), crash on the third hit,
+ * score = depth + gums, 2P turns, game and flow wiring. */
 #include <stdio.h>
 #include "gg_popdrop.h"
 #include "game.h"
@@ -7,73 +8,84 @@
 static int fails;
 #define CHECK(c) do { if (!(c)) { printf("FAIL line %d: %s\n", __LINE__, #c); fails++; } } while (0)
 
-/* Hold `hold` (stick bits) from the cut until the drop ends; returns the last_score of the first drop. */
-static void first_drop(GgPop *p, Flier *h, Flier *t, uint8_t hold)
+/* Put one platform right on the bird (x centred on it) so the next step is a hit. */
+static void plat_on_bird(GgPop *p, const Flier *h)
 {
     int i;
-    for (i = 0; i < 20; i++) gp_step(p, h, t, 0);
-    gp_step(p, h, t, IN_C);
-    for (i = 0; i < 600 && p->phase != GP_PAUSE; i++) gp_step(p, h, t, hold);
+    for (i = 0; i < PD_PLATS; i++) p->plat[i].live = 0;
+    p->plat[0].kind = PD_ROCK; p->plat[0].mids = 1; p->plat[0].live = 1; p->plat[0].hit = 0;
+    p->plat[0].x = (int16_t)((h->x >> 16) - 24); p->plat[0].y = PD_BIRD_Y;
 }
 
 int main(void)
 {
-    GgPop p; Flier h, t; int i;
+    GgPop p; Flier h; int i; uint16_t s0;
 
-    /* hang: the chute carries the bird, nothing happens until C; C cuts it and the bird falls */
-    gp_init(&p, &h, &t);
-    for (i = 0; i < 30; i++) gp_step(&p, &h, &t, 0);
-    CHECK(p.phase == GP_HANG && h.state == FLIER_PARACHUTE);
-    gp_step(&p, &h, &t, IN_C);
-    CHECK(p.phase == GP_FALL && h.state == FLIER_ALIVE && !h.has_parachute);
+    /* start: falling, speeds up, depth and score grow, no platform hit while the field is empty of platforms in reach */
+    gp_init(&p, &h, 7);
+    CHECK(p.phase == PD_FALL && p.hits == 0 && p.seq.players == 1 && p.seq.tickets[0] == 1);
+    s0 = p.spd;
+    for (i = 0; i < 100; i++) gp_step(&p, &h, 0);
+    CHECK(p.spd > s0 && p.spd <= PD_SPEED_MAX && p.depth > 0 && p.score >= p.depth);
 
-    /* an idle bird cuts itself loose */
-    gp_init(&p, &h, &t);
-    for (i = 0; i < (int)GP_HANG_MAX + 2; i++) gp_step(&p, &h, &t, 0);
-    CHECK(p.phase != GP_HANG);
+    /* steering and facing */
+    gp_init(&p, &h, 7);
+    { int32_t x0 = h.x; for (i = 0; i < 20; i++) gp_step(&p, &h, IN_LEFT); CHECK(h.x < x0 && p.flip == 1);
+      for (i = 0; i < 40; i++) gp_step(&p, &h, IN_RIGHT); CHECK(h.x > x0 && p.flip == 0); }
 
-    /* the stick nudges the fall sideways, a small amount */
-    gp_init(&p, &h, &t);
-    gp_step(&p, &h, &t, IN_C);
-    { int32_t x0 = h.x; for (i = 0; i < 10; i++) gp_step(&p, &h, &t, IN_RIGHT);
-      CHECK(h.x > x0 && h.x - x0 < FL_PX(10)); }
+    /* a hit: stun, one gum lost, bounce, speed loss; steering locked while stunned */
+    gp_init(&p, &h, 7);
+    p.gums = 3; p.spd = 100; plat_on_bird(&p, &h);
+    gp_step(&p, &h, 0);
+    CHECK(p.hits == 1 && p.stun > 0 && p.gums == 2 && p.spd < 100 && p.bounce < 0);
+    { int32_t x0 = h.x; gp_step(&p, &h, IN_LEFT); CHECK(h.x >= x0 - FL_PX(1) && p.flip == 0); }
 
-    /* an untouched fall misses the balloon (it starts beside the hero) and scores 0 */
-    gp_init(&p, &h, &t);
-    first_drop(&p, &h, &t, 0);
-    CHECK(p.phase == GP_PAUSE && !p.last_pop && p.last_score == 0 && p.pops == 0);
+    /* a shield soaks the hit: no hit counted, no stun, shield gone */
+    gp_init(&p, &h, 7);
+    p.shield = 1; plat_on_bird(&p, &h);
+    gp_step(&p, &h, 0);
+    CHECK(p.hits == 0 && p.stun == 0 && p.shield == 0 && p.pop_t > 0);
 
-    /* a centred pop beats an edge pop: place the target under the hero by hand */
-    gp_init(&p, &h, &t);
-    gp_step(&p, &h, &t, IN_C);
-    t.vx = 0; t.x = h.x;
-    for (i = 0; i < 600 && p.phase == GP_FALL; i++) gp_step(&p, &h, &t, 0);
-    CHECK(p.last_pop && p.last_off <= 1 && p.last_score >= GP_RING - 1 && p.pops == 1);
-    { uint16_t centre = p.last_score;
-      gp_init(&p, &h, &t);
-      gp_step(&p, &h, &t, IN_C);
-      t.vx = 0; t.x = h.x + FL_PX(8);
-      for (i = 0; i < 600 && p.phase == GP_FALL; i++) gp_step(&p, &h, &t, 0);
-      CHECK(p.last_pop && p.last_off >= 6 && p.last_score < centre); }
+    /* every 10 gums raise a shield */
+    gp_init(&p, &h, 7);
+    for (i = 0; i < (int)PD_SHIELD_EVERY; i++) {
+        p.gum[0].x = (int16_t)(h.x >> 16); p.gum[0].y = PD_BIRD_Y; p.gum[0].live = 1;
+        { int k; for (k = 0; k < PD_PLATS; k++) p.plat[k].live = 0; }
+        gp_step(&p, &h, 0);
+    }
+    CHECK(p.gums == (uint16_t)PD_SHIELD_EVERY && p.shield == 1 && p.shield_count == 0);
 
-    /* five misses end the event with no pops */
-    gp_init(&p, &h, &t);
-    { int ended = 0;
-      for (i = 0; i < 5000 && !ended; i++) ended = gp_step(&p, &h, &t, (uint8_t)(i % 100 == 20 ? IN_C : 0));
-      CHECK(ended && p.drop == GP_DROPS && p.pops == 0 && p.total == 0); }
+    /* three hits crash; the attempt ends with the score, then the result, then done */
+    gp_init(&p, &h, 7);
+    for (i = 0; i < 3; i++) { p.stun = 0; plat_on_bird(&p, &h); gp_step(&p, &h, 0); }
+    CHECK(p.hits == 3 && p.phase == PD_CRASH);
+    { int ret = 0, n; for (n = 0; n < 400 && !ret; n++) ret = gp_step(&p, &h, 0);
+      CHECK(ret == 1 && p.done && p.phase == PD_RESULT && p.seq.best[0] == p.last_score); }
 
-    /* game wiring: game_step runs it, the target is cpu[0], a finished event scores gg_points */
-    { Game g; game_reset(&g, 1); game_set_mode(&g, GAME_MODE_GUM); game_gg_start_pop(&g);
-      CHECK(g.gg_pop && g.cpu_count == 1 && g.players == 1);
-      /* GET SET: frozen for GGCD_SET_FRAMES with the tick at the first frame, the GO! event on the step that releases it */
-      { int ticks = 0, gos = 0; CHECK(g.cd_t == 0);
-        for (i = 0; i < (int)GGCD_SET_FRAMES; i++) { game_step(&g, IN_C); ticks += (g.cd_ev & GGCD_EV_TICK) != 0; gos += (g.cd_ev & GGCD_EV_GO) != 0; }
-        CHECK(g.pop.timer == 0 && ticks == 1 && gos == 0 && ggcd_word(g.cd_t) == GGCD_WORD_SET);
-        game_step(&g, 0); CHECK(g.cd_ev == GGCD_EV_GO && ggcd_word(g.cd_t) == GGCD_WORD_GO && g.pop.timer == 1); }
-      for (i = 0; i < 99; i++) game_step(&g, 0);
-      CHECK(g.pop.timer == 100 && !g.over && g.cd_t == GGCD_END); }
+    /* 2P: P2 joins, the turns alternate, the run is done after both crashed */
+    gp_init(&p, &h, 7); gp_add_p2(&p);
+    CHECK(p.seq.players == 2 && p.seq.tickets[1] == 1 && p.seq.turn == 0);
+    for (i = 0; i < 3; i++) { p.stun = 0; plat_on_bird(&p, &h); gp_step(&p, &h, 0); }
+    for (i = 0; i < 200 && p.phase != PD_FALL; i++) gp_step(&p, &h, 0);
+    CHECK(p.phase == PD_FALL && p.seq.turn == 1 && p.hits == 0 && p.score == 0 && !p.done);
+    for (i = 0; i < 3; i++) { p.stun = 0; plat_on_bird(&p, &h); gp_step(&p, &h, 0); }
+    for (i = 0; i < 400 && !p.done; i++) gp_step(&p, &h, 0);
+    CHECK(p.done && p.phase == PD_RESULT);
 
-    /* flow: A, then Down three times from Big Blow picks Pop Drop, Start runs it, the best total is the record (higher is better) */
+    /* game wiring: start sets 1P and no computer fliers, P2 may join before the first fall moves, the score follows seq.points */
+    {
+        Game g;
+        game_reset(&g, 3); game_set_mode(&g, GAME_MODE_GUM);
+        g.mode = GAME_MODE_GUM;
+        game_gg_start_pop(&g);
+        CHECK(g.gg_pop && g.players == 1 && g.cpu_count == 0);
+        CHECK(game_can_join_p2(&g) && game_join_p2(&g) && g.players == 2 && g.pop.seq.players == 2);
+        g.cd_t = GGCD_END;
+        for (i = 0; i < 5; i++) game_step(&g, 0);
+        CHECK(!game_can_join_p2(&g));
+    }
+
+    /* flow: A, then Down three times from Big Blow picks Pop Drop, Start runs it, the best total is the record (either player's best fall, higher is better) */
     {
         Flow f;
         flow_init(&f, 0, 0);
@@ -85,7 +97,7 @@ int main(void)
         f.tables.gg_record[GG_POP_DROP] = 20;
         flow_step(&f, 0, 1, 1);
         CHECK(f.state == FLOW_PLAYING && f.game.gg_pop);
-        f.game.pop.total = 33; f.game.pop.pops = 4; f.game.pop.phase = GP_RESULT; f.game.pop.done = 1;
+        f.game.pop.seq.best[0] = 33; f.game.pop.phase = PD_RESULT; f.game.pop.done = 1;
         for (i = 0; i < (int)GGCD_SET_FRAMES + 4; i++) flow_step(&f, 0, 0, 0); /* frozen through GET SET first */
         CHECK(f.tables.gg_record[GG_POP_DROP] == 33);
     }

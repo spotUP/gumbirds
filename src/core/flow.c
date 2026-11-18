@@ -384,8 +384,8 @@ void flow_step(Flow *f, uint8_t input, uint8_t start_pressed, uint32_t frame_cou
             f->entry_h = 0;
             f->last_mode = f->mode; /* the title pick: PARTY plays as arena, so game.mode would lose the PARTY table */
             f->last_rule = f->game.party_rule;
-            if (f->game.mode == GAME_MODE_GUM && f->game.gg_pop) { /* Pop Drop: the best total of the five drop scores is the record */
-                uint32_t n = f->game.pop.total;
+            if (f->game.mode == GAME_MODE_GUM && f->game.gg_pop) { /* Pop Drop: the best fall score of either player is the record */
+                uint32_t n = f->game.pop.seq.best[0] > f->game.pop.seq.best[1] ? f->game.pop.seq.best[0] : f->game.pop.seq.best[1];
                 if (n > f->tables.gg_record[GG_POP_DROP]) { f->tables.gg_record[GG_POP_DROP] = n; f->dirty = 1; }
             } else if (f->game.gg_fling) { /* Gum Fling: the longest fling is the record */
                 uint32_t n = f->game.fling.seq.best[0];

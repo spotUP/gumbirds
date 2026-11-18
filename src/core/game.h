@@ -163,7 +163,7 @@ typedef struct {
     Roost roost;         /* Roost Rule state (party_rule == PARTY_ROOST), reset by match_start */
     Hot hot;             /* Hot Gum state (party_rule == PARTY_HOT), reset by match_start */
     GgDash dash;         /* Gum Games Flap Dash run, live while gg_dash is set (gg_flapdash.h) */
-    GgPop pop;           /* Gum Games Pop Drop, live while gg_pop is set (gg_popdrop.h); the target balloon is cpu[0] */
+    GgPop pop;           /* Gum Games Pop Drop, live while gg_pop is set (gg_popdrop.h); free fall, no computer fliers */
     uint8_t gg_pop;      /* 1 = game_step runs Pop Drop on hero[0] */
     uint8_t gg_dash;     /* 1 = game_step runs the Flap Dash on hero[0] instead of the arena step */
     GgFling fling;       /* Gum Games Gum Fling run, live while gg_fling is set (gg_fling.h); mode flips GUM (wind-up) and TRIP (flight) */
@@ -202,7 +202,7 @@ void game_set_mode(Game *g, uint8_t mode);
 void game_step(Game *g, uint8_t input);
 /* Start the Gum Games Flap Dash: one hero on the arena ring, no computer fliers (call after game_set_mode). */
 void game_gg_start_dash(Game *g);
-void game_gg_start_pop(Game *g);   /* Gum Games Pop Drop: the target balloon is cpu[0] (gg_popdrop.h) */
+void game_gg_start_pop(Game *g);   /* Gum Games Pop Drop: free fall (gg_popdrop.h) */
 /* Start the Gum Games Bubble Gather: the Arcade bonus stage (layout 24, ArcBonus, result screen) with one hero (call after game_set_mode). */
 void game_gg_start_gather(Game *g);
 void game_gg_start_fling(Game *g);
