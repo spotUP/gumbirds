@@ -129,6 +129,10 @@ static void soot_load_palettes(void) {
         for (int i = 0; i < 16; i++)
             gfx_pal((SOOT_PAL_SLOT + p) * 16 + i, sootling_palettes[p][i]);
     for (int i = 0; i < 16; i++) gfx_pal(SOOT_P2_PAL_SLOT * 16 + i, sootling_extra_palettes[0][i]);
+    for (int i = 0; i < 16; i++) {   /* Toss Gum: pose palette per seat, then the violet standing body */
+        gfx_pal(TOSSPOSE_PAL_SLOT * 16 + i, tosspose_palettes[0][i]);
+        for (int p = 0; p < TOSSPOSE_EXTRA_PALETTE_COUNT; p++) gfx_pal((TOSSPOSE_PAL_SLOT + 1 + p) * 16 + i, tosspose_extra_palettes[p][i]);
+    }
 }
 
 /* Camera x of the frame the view is drawing (game_camera_px): the one value every world object is placed with. Test
