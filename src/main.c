@@ -2488,6 +2488,34 @@ static u8 g_coin_blipped;
  * resume, or the screen stays black after a coin while the game runs on.
  * Guarded by tests/mame/unibios_check.lua (make test-unibios).
  */
+/* Whole-screen palette fade (sprites, fix, backdrop): the same bg_fade_color scaling the mood fade uses, applied to all of palette RAM.
+ * It runs in the main thread outside the vblank queue (palette RAM takes CPU writes any time), so it costs no VBlank budget. The full-colour
+ * copy is taken from palette RAM itself; a fade in must start with the queue drained so RAM holds the final colours. */
+#define SCREEN_FADE_WORDS 4096u
+static u16 s_pal_full[SCREEN_FADE_WORDS];
+/* A pass touches up to 4096 palette words with no hardware 32 bit multiply: bg_fade_color per word (three software multiplies) took ~15 frames a
+ * pass. The transient steps scale the 4 bit channels with two 16 bit multiplies (red and blue share one: fields 8 bits apart cannot overflow);
+ * the dark-bit LSBs are dropped while fading. The last step (level BG_FADE_MAX) writes the saved words back, exact, and level 0 is black. */
+static void screen_fade(u8 from, u8 to) {
+    volatile u16 *pal = (volatile u16 *)MMAP_PALBANK1;
+    gfx_drain();
+    if (to < from) for (u16 i = 0; i < SCREEN_FADE_WORDS; i++) s_pal_full[i] = pal[i];
+    for (;;) {
+        for (u16 i = 0; i < SCREEN_FADE_WORDS; i++) {
+            u16 c = s_pal_full[i];
+            if (!c) continue; /* an unused slot stays 0 */
+            if (from >= BG_FADE_MAX) pal[i] = c;
+            else {
+                u16 rb = (u16)(((u16)(c & 0x0F0F) * from >> 4) & 0x0F0F), g = (u16)(((u16)(c & 0x00F0) * from >> 4) & 0x00F0);
+                pal[i] = (u16)((c & 0x8000) | rb | g);
+            }
+        }
+        if (from == to) return;
+        from = from < to ? (u8)(from + 2) : (u8)(from - 2); /* BG_FADE_MAX is even: two levels a pass */
+        gfx_wait_vblank();
+    }
+}
+
 static void video_init(void) {
     gfx_init();
     /* Commit the fix clear FIRST, while palette 0 is still the BIOS zero: the budgeted queue flushes in order, so a clear
@@ -2532,6 +2560,8 @@ static void video_init(void) {
     g_draw_state = -1;
     gfx_commit_all();
     gfx_drain(); /* init is outside the per-frame budget: it blocks, one flush per vblank, until everything is written */
+    for (u16 i = 0; i < SCREEN_FADE_WORDS; i++) s_pal_full[i] = ((volatile u16 *)MMAP_PALBANK1)[i];
+    screen_fade(0, BG_FADE_MAX); /* the BIOS return leaves the palette black: fade up, no cut */
 }
 
 static void resume_game_loop(void) {
@@ -2652,6 +2682,7 @@ static void game_loop(void) {
         if (g_flow.state == FLOW_GAME_OVER) g_game_ended = 1;
         else if (g_game_ended && g_flow.state <= FLOW_ATTRACT_DEMO) {
             g_game_ended = 0;
+            screen_fade(BG_FADE_MAX, 0); /* fade down, not a hard cut to the BIOS black */
             return; /* still user mode 2: SYSTEM_RETURN before any vblank sees mode 1 with a stale compulsion timer (see above) */
         }
         flow_view(&g_flow, &view);
@@ -2758,6 +2789,7 @@ static void game_loop(void) {
         gfx_wait_vblank(); /* the vblank callback flushes the queue: the only VRAM and palette writes of the frame */
         if (g_bram_unsaved && (bios_user_mode == 1 || g_flow.state == FLOW_SAVE_REMINDER)) {
             g_bram_unsaved = 0;
+            screen_fade(BG_FADE_MAX, 0);
             return; /* to the BIOS: SYSTEM_RETURN, backup RAM save, USER again (see above) */
         }
     }
