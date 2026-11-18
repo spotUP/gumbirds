@@ -17,6 +17,10 @@ def compose(out):
         im = Image.open("assets/splash/splash_%s_1x.png" % name).convert("RGBA")
         # The strips carry 8-bit colours; the pipeline wants 5-bit expanded ones (the hazard sheet's palette): snap each channel.
         im.putdata([tuple(sprite_pipeline.expand5(sprite_pipeline.to5(v)) for v in p[:3]) + (p[3],) if p[3] else p for p in im.getdata()])
+        if name == "gum":
+            # rows surface_row.. are a solid body slab meant to hide behind a liquid; the gum splat has no liquid over it, so it showed as a pink box
+            im.paste((0, 0, 0, 0), (0, meta["surface_row"], im.width, fh))
+            assert not any(p[3] for p in im.crop((0, meta["surface_row"], im.width, fh)).getdata()), "gum splat keeps opaque rows under the floor line"
         sheet.paste(im, (0, row * fh))
         anims[name] = [{"x": i * fw, "y": row * fh, "w": fw, "h": fh} for i in range(n)]
     os.makedirs(out, exist_ok=True)
