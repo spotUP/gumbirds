@@ -1165,7 +1165,7 @@ void game_step_arena(Game *g, uint8_t input)
         arena_flier_step(g, c, &ci);
         if (g->mode == GAME_MODE_ARCADE) arc_element_apply(&g->elems, c);
         if (pumping && !arc_pump_in_window(&g->pump[i])) {
-            while (c->balloons < FLIER_START_BALLOONS && flier_add_balloon(c)) {} /* full gum at window end */
+            if (c->balloons == 0) flier_add_balloon(c); /* a self-pumped rival keeps the damaged (one) gum; a stage-start window already holds full gum (owner 2026-11-18) */
             c->vy = FLIER_GROUND_JUMP_VY; /* lift-off: one upward impulse, no sideways speed */
             c->vx = 0;
             c->on_ground = 0;
