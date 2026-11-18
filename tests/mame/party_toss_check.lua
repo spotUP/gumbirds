@@ -1,6 +1,7 @@
 -- PARTY Toss Gum check (make test-party-toss): UniBIOS 4.0, Arena 1P Start, the script sets the flow to Party mode with rule TOSS and joins P2
 -- (the join restarts the match into Toss Gum), then:
 --   T1. Toss Gum is running (mode GUM, gg_toss set) with four birds alive;
+--   T1b. the P2 Start press seated a second human (Toss.humans 2);
 --   T2. a toss happens (phase FLIGHT), a burst happens (phase BURST), and a winner is declared (RESULT, one bird left, winner seat alive).
 -- Humans never press anything, so the computers toss and a stalled human carrier bursts. BRAWL_SNAP=<dir> writes toss_mid.png (flight) and toss_burst.png.
 -- Env: BRAWL_FLOW_ADDR (hex), BRAWL_TOSS_LAYOUT (party_toss_probe.c output), BRAWL_RESULT, BRAWL_SNAP.
@@ -52,6 +53,7 @@ emu.register_frame_done(function()
     if k >= 110 then press(start2, k, 110) end
     if k > 130 and b(O.flow) == K.playing and b(O.mode) == K.gum and b(O.on) == 1 then
       if pop(b(O.alive)) ~= 4 then finish(false, "alive mask " .. b(O.alive) .. " at Toss Gum start, want four birds") return end
+      if b(O.humans) ~= 2 then finish(false, "P2 start did not add a second human: humans " .. b(O.humans)) return end
       phase = "watch"; t0 = n
     end
     if k > 3000 then finish(false, "Toss Gum never started: flow " .. b(O.flow) .. " mode " .. b(O.mode) .. " gg_toss " .. b(O.on)) return end

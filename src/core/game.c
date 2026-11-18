@@ -68,6 +68,7 @@ static void player_spawn(Game *g)
 void game_start_p2(Game *g)
 {
     g->players = 2;
+    g->toss.humans = g->gg_toss ? 2 : g->toss.humans;   /* a restart into Toss Gum (flow_join_p2 from Arena) seats the second human too */
     arc_lives_start(&g->lives[1]);
     player_spawn_h(g, 1);
 }
