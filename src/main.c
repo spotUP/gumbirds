@@ -1575,24 +1575,88 @@ static void draw_flap_dash(const GgDash *d) {
     text((u8)((40 - BLOW_TEXT_W) / 2), BLOW_TEXT_ROW + 2, PAL_TEXT, line);
 }
 
-/* Pop Drop on the fix layer: drop number, pops and total, with the last drop result; rewritten when any of them changes. */
+/* Pop Drop on the fix layer: depth and gums; rewritten when either changes. */
 static void draw_pop_drop(const GgPop *p) {
-    u32 key = (u32)p->drop | (u32)p->pops << 4 | (u32)p->total << 8 | (u32)p->phase << 20 | (u32)p->last_pop << 23 | 1u << 24 | 1u << 25;
+    u32 key = (u32)p->depth | (u32)p->gums << 14 | (u32)p->phase << 24 | (u32)p->seq.turn << 27 | 1u << 28 | 1u << 29;
     if (key == g_blow_key) return;
     g_blow_key = key;
     char line[BLOW_TEXT_W + 1], nb[10];
     u8 i = 0;
-    const char *s = p->phase == GP_RESULT ? (p->pops >= GP_QUALIFY ? "QUALIFIED  POPS " : "NOT QUALIFIED  POPS ") : "DROP ";
+    const char *s = "DEPTH ";
     while (s[i]) { line[i] = s[i]; i++; }
-    if (p->phase != GP_RESULT) { line[i++] = (char)('1' + (p->drop < GP_DROPS ? p->drop : GP_DROPS - 1u)); s = " OF 5  POPS "; for (u8 k = 0; s[k]; k++) line[i++] = s[k]; }
-    line[i++] = (char)('0' + p->pops); s = "  SCORE ";
-    for (u8 k = 0; s[k]; k++) line[i++] = s[k];
-    put_number(nb, p->total, 2);
+    put_number(nb, p->depth, 5);
     for (u8 k = 0; nb[k] && i < BLOW_TEXT_W; k++) if (nb[k] != ' ') line[i++] = nb[k];
-    if (p->phase == GP_PAUSE) { s = p->last_pop ? "  POP" : "  MISS"; for (u8 k = 0; s[k] && i < BLOW_TEXT_W; k++) line[i++] = s[k]; }
+    s = "  GUMS ";
+    for (u8 k = 0; s[k] && i < BLOW_TEXT_W; k++) line[i++] = s[k];
+    put_number(nb, p->gums, 3);
+    for (u8 k = 0; nb[k] && i < BLOW_TEXT_W; k++) if (nb[k] != ' ') line[i++] = nb[k];
     while (i < BLOW_TEXT_W) line[i++] = ' ';
     line[BLOW_TEXT_W] = 0;
     text((u8)((40 - BLOW_TEXT_W) / 2), BLOW_TEXT_ROW + 2, PAL_TEXT, line);
+}
+
+/* Pop Drop sprites: bird, platforms, gum candy and shield in the free shared slots; all parked then redrawn each frame. */
+#define PD_SPRITE 323
+#define PD_BIRD_SLOT PD_SPRITE
+#define PD_PLAT_SLOT (PD_SPRITE + 2)                 /* 4 platforms x 5 pieces */
+#define PD_GUM_SLOT (PD_PLAT_SLOT + PD_PLATS * 5)    /* 3 gums x 2 columns */
+#define PD_SHIELD_SLOT (PD_GUM_SLOT + PD_GUMS * 2)   /* 2 columns */
+#define PD_SPRITE_END (PD_SHIELD_SLOT + 2)
+_Static_assert(PD_SPRITE_END <= 367, "Pop Drop slots overlap the Trip pickup slots");
+static u8 g_pd_on;
+
+static const PopdropFrame *pd_frame(u8 anim, u16 n) {
+    const PopdropAnim *a = &popdrop_anims[anim];
+    return &popdrop_frames[a->first_frame + (a->frame_count ? n % a->frame_count : 0)];
+}
+
+/* One popdrop frame at world x (left) and screen top; flip mirrors it. */
+static void pd_piece(u16 slot, const PopdropFrame *f, int wx, int top, int flip, u8 pal) {
+    int sx = camera_screen_x(wx, g_cam_px, f->tiles_w * 16);
+    if (!camera_visible(sx, f->tiles_w * 16)) return;
+    const u16 *t = &popdrop_tile_index[f->tile_offset];
+    for (u8 c = 0; c < f->tiles_w; c++)
+        gfx_sprite_strips((u16)(slot + c), 1, f->tiles_h, t + (flip ? f->tiles_w - 1 - c : c) * f->tiles_h, POPDROP_TILE_BASE,
+                          (u16)(((POPDROP_PAL_SLOT + pal) << 8) | (flip ? 1 : 0)));
+    gfx_sprite_place(slot, f->tiles_w, f->tiles_h, sx, top);
+}
+
+static void pop_hide(void) {
+    for (u16 s = PD_SPRITE; s < PD_SPRITE_END; s++) obs_hide_slot(s);
+}
+
+static void pop_show(const Game *g) {
+    const GgPop *p = &g->pop;
+    pop_hide();
+    g_pd_on = 1;
+    for (u8 k = 0; k < PD_PLATS; k++) {
+        const PdPlat *pl = &p->plat[k];
+        if (!pl->live) continue;
+        u16 slot = (u16)(PD_PLAT_SLOT + k * 5);
+        u8 n = (u8)(pl->mids + 2);
+        for (u8 j = 0; j < n; j++) {
+            const PopdropFrame *f = pd_frame(POPDROP_ANIM_PLAT, (u16)(pl->kind * 2 + (j && j < n - 1 ? 1 : 0)));
+            pd_piece((u16)(slot + j), f, pl->x + j * 16, pl->y, j == n - 1, 1);
+        }
+    }
+    for (u8 k = 0; k < PD_GUMS; k++) {
+        const PdGum *gm = &p->gum[k];
+        if (!gm->live) continue;
+        int fr = (int)((g->frame >> 2) & (TRIPPICKUP_PICKUP_IDLE_FRAMES - 1));
+        const TrippickupFrame *f = &trippickup_frames[trippickup_anims[TRIPPICKUP_ANIM_PICKUP_IDLE].first_frame + fr];
+        int sx = camera_screen_x(gm->x - 16, g_cam_px, 32);
+        if (!camera_visible(sx, 32)) continue;
+        u16 sl = (u16)(PD_GUM_SLOT + k * 2);
+        gfx_sprite_strips(sl, 2, 2, &trippickup_tile_index[f->tile_offset], TRIPPICKUP_TILE_BASE, (u16)(TRIPPICKUP_PAL_SLOT << 8));
+        gfx_sprite_place(sl, 2, 2, sx, gm->y - 16);
+    }
+    if (p->phase != PD_FALL && p->phase != PD_CRASH) return;
+    u8 lvl = p->hits > 2 ? 2 : p->hits;
+    u8 anim = p->phase == PD_CRASH ? POPDROP_ANIM_CRASH : p->stun ? POPDROP_ANIM_BONK : (p->prev_in & (IN_LEFT | IN_RIGHT)) ? (u8)(POPDROP_ANIM_LEAN0 + lvl) : (u8)(POPDROP_ANIM_FALL0 + lvl);
+    int bx = (int)(g->hero[0].x >> 16) - 16;
+    pd_piece(PD_BIRD_SLOT, pd_frame(anim, (u16)(g->frame >> 3)), bx, PD_BIRD_Y - 16, p->flip, 0);
+    if (p->shield) pd_piece(PD_SHIELD_SLOT, pd_frame(POPDROP_ANIM_SHIELD, (u16)(g->frame >> 4)), bx, PD_BIRD_Y - 16, 0, 2);
+    else if (p->pop_t) pd_piece(PD_SHIELD_SLOT, pd_frame(POPDROP_ANIM_POP, (u16)(p->pop_t >> 3)), bx, PD_BIRD_Y - 16, 0, 2);
 }
 
 /* Bubble Gather on the fix layer: caught of 20 and seconds left; hidden while the result screen covers the fix layer. */
@@ -1623,6 +1687,8 @@ static void hero_and_mode(const FlowView *v) {
         g_cam_unwrapped = camera_unwrapped_px(&v->game->camera);
         edge_marker(v->game, game_flier_cam_px(v->game));
         hero_show(v->game, game_flier_cam_px(v->game));
+        if (v->game->gg_pop) { hero_hide(); pop_show(v->game); }
+        else if (g_pd_on) { pop_hide(); g_pd_on = 0; }
         if (v->game->mode == GAME_MODE_TRIP) pool_sync_trip(v->game, game_trip_ready(v->game));
         pool_sync_cpus(v->game);
         if (v->game->mode == GAME_MODE_ARCADE || v->game->mode == GAME_MODE_ARENA || v->game->gg_race) pool_sync_p2(v->game);
@@ -2471,6 +2537,8 @@ static void video_init(void) {
     island_load_palettes();
     trip_strip_load_palettes();
     trip_pickup_load_palettes();
+    for (u8 p = 0; p < POPDROP_PALETTE_COUNT; p++)
+        for (u8 i = 0; i < 16; i++) gfx_pal((u16)((POPDROP_PAL_SLOT + p) * 16 + i), popdrop_palettes[p][i]);
     gum_load_palettes();
     splash_load_palettes();
     resfx_load_palettes();

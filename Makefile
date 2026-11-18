@@ -1024,8 +1024,8 @@ test-gum-bubble-gather-fail: cart bios
 	cat $$T/result.txt; \
 	if grep -q '^PASS' $$T/result.txt; then rm -rf $$T; echo "[OK] make test-gum-bubble-gather-fail passed"; else echo "[FAIL] make test-gum-bubble-gather-fail, log kept in $$T"; exit 1; fi
 
-# Gum Games Pop Drop (tests/mame/gum_pop_drop_check.lua): UniBIOS, one coin, Up to the GUM GAMES row, Right three times picks the event, Start: the balloon is parked under the hero;
-# the HUD, the pops, the score and the saved record are checked. `make test-gum-pop-drop` alone.
+# Gum Games Pop Drop (tests/mame/gum_pop_drop_check.lua): UniBIOS, one coin, Up to the GUM GAMES row, Right three times picks the event, Start: a platform is parked on the bird (three hits crash it);
+# the HUD, the crash, the depth score and the saved record are checked. `make test-gum-pop-drop` alone.
 test-gum-pop-drop: cart bios
 	@if [ ! -f "$(UNIBIOS)" ]; then echo "[FAIL] UNIBIOS file not found: $(UNIBIOS)"; exit 1; fi
 	@$(MAKE) --no-print-directory $(UNIBIOS_DIR)/neogeo.zip
