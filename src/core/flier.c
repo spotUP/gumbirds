@@ -198,20 +198,21 @@ void flier_solid_box(const Flier *f, int32_t *hw, int32_t *top) {
 
 int flier_collide_solids(Flier *f, int32_t prev_x, int32_t prev_y, const FlierSolid *solids, int n) {
     int hits = 0;
-    int32_t hw = solid_hw(f), top = solid_top(f);
+    int32_t hw = solid_hw(f), top = solid_top(f), hh = flier_half_h(f), pfeet = prev_y + hh;
     if (f->state >= FLIER_FALLING) return 0;
     for (int i = 0; i < n; i++) {
         const FlierSolid *s = &solids[i];
-        int32_t hh = flier_half_h(f);
-        int32_t feet = f->y + hh, pfeet = prev_y + hh;
+        int32_t feet = f->y + hh;
         int32_t L = s->x16, R = s->x16 + s->w16, T = s->y16, Bt = s->y16 + s->h16;
-        int32_t cx = L + s->w16 / 2;
+        int32_t cx;
+        if (!(feet > T && feet - top < Bt)) continue;   /* the y part of the overlap first: most platforms are far above or below */
+        cx = L + s->w16 / 2;
         int32_t x = f->x, px = prev_x;
         if (!f->no_wrap) {
             x = arena_near_x(cx, f->x);
             px = arena_near_x(cx, prev_x);
         }
-        if (!(x + hw > L && x - hw < R && feet > T && feet - top < Bt)) continue;
+        if (!(x + hw > L && x - hw < R)) continue;
         /* Landing from above belongs to the floor line: the box was over the top and over the solid before. */
         if (pfeet <= T && px + hw > L && px - hw < R) continue;
         {
