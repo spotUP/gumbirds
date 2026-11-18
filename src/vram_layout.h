@@ -29,6 +29,7 @@
 #include "gen/countdown_sprites.h"
 #include "gen/rulecard_sprites.h"
 #include "gen/flfield_sprites.h"
+#include "gen/stadium_sprites.h"
 
 /* The ngdevkit logo tile block that opens the C-ROM (assets/base-crom-logo); the title logo (gen/logo_sprites.h, LOGO_TILE_COUNT) sits last. */
 #define BASE_LOGO_TILE_COUNT 256
@@ -95,6 +96,8 @@ _Static_assert((COUNTDOWN_TILE_BASE & 7) == 0, "countdown tile base is not 8-ali
 _Static_assert((RULECARD_TILE_BASE & 7) == 0, "rules card tile base is not 8-aligned");
 #define FLFIELD_TILE_BASE (RULECARD_TILE_BASE + RULECARD_TILE_COUNT) /* Gum Fling field: turf, chalk line, boards, puff (tools/draw_fling_field.py), last in CROM_SETS */
 _Static_assert((FLFIELD_TILE_BASE & 7) == 0, "fling field tile base is not 8-aligned");
+#define STADIUM_TILE_BASE (FLFIELD_TILE_BASE + FLFIELD_TILE_COUNT) /* ground-event stands (tools/build_stadium_sprites.py), last in CROM_SETS */
+_Static_assert((STADIUM_TILE_BASE & 7) == 0, "stadium tile base is not 8-aligned");
 
 #define FIX_PAL_COUNT FIXFONT_PAL_COUNT /* fix palettes 0..4: white, pink, lime, gold, dim (build/gen/fix_font.h) */
 #define ATTRACT_PAL_SLOT FIX_PAL_COUNT /* one palette: the attract overlay icons (build/gen/attract_icons.h). Fix tiles hold a 4-bit palette, so it must sit in slots 0..15, never after the sprite palettes */
