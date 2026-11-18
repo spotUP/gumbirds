@@ -15,6 +15,7 @@ local K = { playing = L[9], gum = L[10], intro = L[11], play = L[12], res = L[13
 local RIVAL, HERO, GUM0, GUM1, CARD = L[14], L[15], L[16], L[17], L[18]
 local cardn = 0
 local mem = manager.machine.devices[":maincpu"].spaces["program"]
+local st = dofile("tests/mame/stadium_snap.lua")(mem, flow_addr)
 local ports = manager.machine.ioport.ports
 local function field(tag, match)
   local p = ports[tag]
@@ -55,6 +56,7 @@ emu.register_frame_done(function()
   n = n + 1
   if n > 30000 then finish(false, "watchdog in phase " .. phase) return end
   local playing = b(O.state) == K.playing
+  if playing then st.poke() end
   if phase == "boot" then
     if n == 600 then phase = "start"; t0 = n; ss.begin(n) end
   elseif phase == "start" then
@@ -92,6 +94,7 @@ emu.register_frame_done(function()
       end
     end
     if n - t0 == 60 and (os.getenv("BRAWL_SNAP") or "") ~= "" then manager.machine.screens[":screen"]:snapshot("burst_race.png") end   -- make test-gum-burst-race RACE_SNAP=<dir>
+    if n - t0 == 70 then st.shot() end
     local k = (n - t0) % 4
     abtn:set_value((k == 0 and press % 2 == 0) and 1 or 0)
     bbtn:set_value((k == 0 and press % 2 == 1) and 1 or 0)

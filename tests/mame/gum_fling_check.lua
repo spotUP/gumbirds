@@ -10,6 +10,7 @@ for v in (os.getenv("BRAWL_BLOW_LAYOUT") or ""):gmatch("%d+") do L[#L + 1] = ton
 local O = { state = L[1], mode = L[2], fling = L[3], phase = L[4], dist = L[5], score = L[6], record = L[7], foul = L[8], best = L[9] }
 local K = { playing = L[10], gum = L[11], trip = L[12], over = L[13], gfend = L[14], windup = L[15], card = L[16] }
 local mem = manager.machine.devices[":maincpu"].spaces["program"]
+local st = dofile("tests/mame/stadium_snap.lua")(mem, flow_addr)
 local ports = manager.machine.ioport.ports
 local function field(tag, match)
   local p = ports[tag]
@@ -50,6 +51,7 @@ emu.register_frame_done(function()
   n = n + 1
   if n > 30000 then finish(false, "watchdog in phase " .. phase) return end
   local playing = b(O.state) == K.playing
+  if playing then st.poke() end
   if phase == "boot" then
     if n == 600 then phase = "start"; t0 = n; ss.begin(n) end
   elseif phase == "start" then
@@ -71,6 +73,7 @@ emu.register_frame_done(function()
     for r = 0, 27 do if lit(r) > maxlit then maxlit = lit(r); maxrow = r end end
     if ph == K.windup and lastphase ~= K.windup then t0 = n + (attempts == 0 and 61 or 0); attempts = attempts + 1 end   -- GET SET freezes the first windup for 60 frames
     lastphase = ph
+    if attempts == 1 and ph == K.windup and n == t0 + 40 then st.shot() end
     if ph == 1 and mode == K.gum and (n % 40 == 0) and os.getenv("FLING_DUMP") then
       local o = {}
       for i = 0, 9 do local a = (323 + i) * 64; o[#o + 1] = string.format("%x/%x s3=%x", fix[a] or -1, fix[a + 1] or -1, fix[0x8200 + 323 + i] or -1) end

@@ -39,6 +39,7 @@
 #include "island.h"
 #include "trip_strip.h"
 #include "fling_field.h"
+#include "stadium_hw.h"
 #include "gum.h"
 #include "core/gum_view.h"
 #include "splash.h"
@@ -1369,12 +1370,18 @@ static u8 g_bg_paused; /* this frame the entry hold skipped flow_step: the frame
 /* Also waits for the hazard strip tiles (hazard_preload, about 66 lines a bank): the reveal frame then only places the strip. */
 /* Gum Trip the same way: once the course is built (game steps run the build while held), the game waits for the strip columns and
  * island tiles (trip_strip_step ready 0, island_trip_preload), so the reveal frame only places and shows them. */
+/* Stadium stands: Big Blow, Burst Race and Gum Fling (stadium_hw.c); never the intro cards or the other events. */
+static u8 stadium_on(const Game *g) {
+    return g->mode == GAME_MODE_GUM && !g->gg_gather && !g->gg_pop && !g->gg_dash;
+}
+static u8 cap99(uint32_t v) { return v > 99u ? 99u : (u8)v; }
 static u8 g_trip_islands_loaded;
 static u8 bg_pending(void) {
     u8 world = g_flow.state == FLOW_PLAYING || g_flow.state == FLOW_ATTRACT_DEMO;
     u8 trip = world && g_flow.game.mode == GAME_MODE_TRIP;
     return g_bg_mood_busy || g_bg_mood != g_flow.game.mood || (world && !trip && !g_flow.game.gg_fling && !hazard_preloaded())
         || (world && g_flow.game.gg_fling && !fling_field_loaded())
+        || (world && stadium_on(&g_flow.game) && !stadium_hw_loaded())
         || (trip && game_trip_ready(&g_flow.game) && !(trip_strip_loaded() && g_trip_islands_loaded));
 }
 /* Gum Trip entry: the course build steps run held (world hidden); the reveal waits for the course. */
@@ -2756,8 +2763,34 @@ static void game_loop(void) {
             /* Bonus first: on the frame it ends it parks slot 323, which the stage elements share and draw right after. */
             arcade_bonus_step(world && ((view.game->mode == GAME_MODE_ARCADE && view.game->arc.state == ARC_BONUS) || (view.game->mode == GAME_MODE_GUM && view.game->gg_gather)) && !view.game->res.active ? view.game : 0);
             arcade_elems_step(world && view.game->mode == GAME_MODE_ARCADE && view.game->arc.state != ARC_BONUS ? view.game : 0); /* the bonus shows no stage elements: hidden once on entry */
-            island_step(world && !trip && !view.game->gg_fling, g_cam_px); /* arena islands are not drawn in Gum Trip or on the Gum Fling field */
+            u8 stadium = world_state(&view) && stadium_on(view.game);
+            island_step(world && !trip && !stadium, g_cam_px); /* arena islands are not drawn in Gum Trip or on the stadium events */
             fling_field_step(view.game && view.game->gg_fling ? &view.game->fling : 0, view.game ? view.game->mood : 0, world_state(&view), world); /* after island_step: it takes the island slots */
+            {   /* stadium stands: scores, result and wave edges from the event state */
+                static u8 s_fin;
+                const Game *sg = view.game;
+                if (stadium) {
+                    u8 p1 = 0, p2 = 0, res = 0;
+                    int win = -1;
+                    if (sg->gg_fling) {
+                        p1 = cap99(sg->fling.seq.points[0]); p2 = cap99(sg->fling.seq.points[1]);
+                        res = sg->fling.phase >= GF_RESULT;
+                        win = gumfling_winner(&sg->fling); if (win > 1) win = -1;
+                    } else if (sg->gg_race) {
+                        p1 = cap99(sg->race.size[0] / 4u); p2 = cap99(sg->race.size[1] / 4u);
+                        res = sg->race.phase >= GG_RACE_RESULT; win = sg->race.winner;
+                    } else {
+                        p1 = cap99(sg->blow.seq.best[0]); p2 = cap99(sg->blow.seq.best[1]);
+                        if (sg->blow.size > (sg->blow.seq.turn ? p2 : p1)) { if (sg->blow.seq.turn) p2 = cap99(sg->blow.size); else p1 = cap99(sg->blow.size); }
+                        res = sg->blow.phase >= GG_BLOW_RESULT; win = sg->blow.seq.players < 2 ? -1 : (p1 > p2 ? 0 : p2 > p1 ? 1 : -1);
+                    }
+                    stadium_hw_scores(p1, p2);
+                    if (res && !s_fin) { stadium_hw_finish(win); if (sg->gg_race || sg->gg_fling || sg->blow.seq.players < 2) stadium_hw_wave(); }
+                    s_fin = res;
+                } else s_fin = 0;
+                stadium_hw_step(stadium, world, sg ? sg->mood : 0, stadium && sg->gg_fling, stadium && sg->gg_fling && sg->fling.phase >= GF_FLIGHT ? (int)(sg->fling.x >> 16) : 0);
+                bg_stadium_planes((u8)stadium);
+            }
             /* the course (islands, kill strips, pickups) stays through Game Over like the planes and the hazard anim: all leave at the title */
             island_trip_step(trip_game ? &view.game->trip_gen : 0, trip_game ? view.game->trip.px : 0, trip_game && game_trip_ready(view.game));
             {   /* entry hold: the strip queues its columns hidden (ready 0) and the islands load their tiles hidden. Not on the entry

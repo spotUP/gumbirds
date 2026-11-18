@@ -13,6 +13,7 @@ for v in (os.getenv("BRAWL_BLOW_LAYOUT") or ""):gmatch("%d+") do L[#L + 1] = ton
 local O = { state = L[1], mode = L[2], phase = L[3], size = L[4], last = L[5], tickets = L[6], qual = L[7], score = L[8] }
 local K = { playing = L[9], gum = L[10], intro = L[11], play = L[12], res = L[13] }
 local mem = manager.machine.devices[":maincpu"].spaces["program"]
+local st = dofile("tests/mame/stadium_snap.lua")(mem, flow_addr)
 local ports = manager.machine.ioport.ports
 local function field(tag, match)
   local p = ports[tag]
@@ -51,6 +52,7 @@ emu.register_frame_done(function()
   n = n + 1
   if n > 30000 then finish(false, "watchdog in phase " .. phase) return end
   local playing = b(O.state) == K.playing
+  if playing then st.poke() end
   if phase == "boot" then
     if n == 600 then phase = "start"; t0 = n; ss.begin(n) end
   elseif phase == "start" then
@@ -60,6 +62,7 @@ emu.register_frame_done(function()
     if b(O.phase) == K.play then phase = "blow"; t0 = n
     elseif n - t0 > 400 then finish(false, "intro never reached the blow phase (phase " .. b(O.phase) .. ")") end
   elseif phase == "blow" then
+    if n - t0 == 70 then st.shot() end
     local sz = b(O.size)
     if sz > grew then grew = sz end
     if sz >= 8 and cell(12, 26) ~= cell(27, 26) then bar_ok = true end
