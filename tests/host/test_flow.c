@@ -608,17 +608,17 @@ static void test_mode_select(void)
     rig_press(&r, IN_A);
     CHECK(r.f.sub_open && r.f.mode == GAME_MODE_PARTY && r.f.state == FLOW_ATTRACT_TITLE);
     rig_press(&r, IN_DOWN); CHECK(r.f.party_rule == PARTY_ROOST && r.f.mode == GAME_MODE_PARTY);
-    rig_press(&r, IN_DOWN); CHECK(r.f.party_rule == PARTY_HOT);
+    rig_press(&r, IN_DOWN); CHECK(r.f.party_rule == PARTY_TOSS);
     rig_press(&r, IN_DOWN); CHECK(r.f.party_rule == PARTY_ROUND);
-    rig_press(&r, IN_UP); CHECK(r.f.party_rule == PARTY_HOT);
-    rig_press(&r, IN_RIGHT); CHECK(r.f.party_rule == PARTY_HOT && r.f.sub_open);
+    rig_press(&r, IN_UP); CHECK(r.f.party_rule == PARTY_TOSS);
+    rig_press(&r, IN_RIGHT); CHECK(r.f.party_rule == PARTY_TOSS && r.f.sub_open);
     {
         FlowView v;
         flow_view(&r.f, &v);
-        CHECK(v.party_rule == PARTY_HOT && v.sub_open);
+        CHECK(v.party_rule == PARTY_TOSS && v.sub_open);
     }
     rig_press(&r, IN_B);
-    CHECK(!r.f.sub_open && r.f.mode == GAME_MODE_PARTY && r.f.party_rule == PARTY_HOT && r.f.state == FLOW_ATTRACT_TITLE);
+    CHECK(!r.f.sub_open && r.f.mode == GAME_MODE_PARTY && r.f.party_rule == PARTY_TOSS && r.f.state == FLOW_ATTRACT_TITLE);
     rig_press(&r, IN_A); CHECK(r.f.sub_open);
     /* GUM GAMES row: the same pattern over the six events in on-screen order; Down at the list end wraps */
     rig_press(&r, IN_B);
@@ -636,37 +636,22 @@ static void test_mode_select(void)
     }
     rig_press(&r, IN_B);
     CHECK(!r.f.sub_open && r.f.mode == GAME_MODE_GUM && r.f.gg_event == GG_FLING);
-    rig_press(&r, IN_UP); CHECK(r.f.mode == GAME_MODE_PARTY && r.f.party_rule == PARTY_HOT); /* Start below plays PARTY as before */
+    rig_press(&r, IN_UP); CHECK(r.f.mode == GAME_MODE_PARTY && r.f.party_rule == PARTY_TOSS); /* Start below plays PARTY as before */
     /* Start plays PARTY as arena (P2 can join), tagged with the rule; game over scores into table 3 with the tag */
     rig_begin(&r, 0);
-    /* the how-to demo comes first: no rounds, the pilot plays; A skips it into the real match; a timeout also ends it */
-    CHECK(r.f.howto && r.f.game.party_rule == PARTY_HOT && !r.f.game.rounds && r.f.state == FLOW_PLAYING);
-    rig_ticks(&r, 0, 100);
-    CHECK(r.f.howto && r.f.game.flier_steps > 90 && r.f.timer == 100);
-    rig_tick(&r, IN_A, 0);
-    CHECK(!r.f.howto && r.f.game.rounds && r.f.game.frame == 0 && r.f.game.cont_a[0] == 1);
-    rig_ticks(&r, IN_A, 5); /* the held skip press does not skip the round banner */
-    CHECK(r.f.game.round_start == RS_ROUND && r.f.game.round_start_timer > 3);
-    r.f.howto = 1; r.f.game.rounds = 0; r.f.timer = PARTY_HOWTO_FRAMES - 2; /* the timeout ends the how-to too */
-    rig_tick(&r, 0, 0);
-    CHECK(r.f.howto);
-    rig_tick(&r, 0, 0);
-    CHECK(!r.f.howto && r.f.game.rounds && r.f.game.frame == 0);
-    CHECK(r.f.state == FLOW_PLAYING && r.f.game.mode == GAME_MODE_ARENA && r.f.game.party_rule == PARTY_HOT && r.f.game.rounds);
-    r.f.game.cpu_count = 1;
+    /* Toss Gum has no how-to demo: it starts at once as a GUM-mode toss tagged with the rule; P2 joins before the first burst */
+    CHECK(!r.f.howto && r.f.state == FLOW_PLAYING && r.f.game.mode == GAME_MODE_GUM && r.f.game.gg_toss && r.f.game.party_rule == PARTY_TOSS);
     CHECK(game_can_join_p2(&r.f.game));
-    /* P2 Start mid-match restarts the whole match: both humans, scores and rounds zero, rule kept, a refused join changes nothing */
     r.f.game.score = 500; r.f.game.matches_won = 3;
     CHECK(flow_join_p2(&r.f, 99));
-    CHECK(r.f.state == FLOW_PLAYING && r.f.game.players == 2 && r.f.game.score == 0 && r.f.game.matches_won == 0);
-    CHECK(r.f.game.party_rule == PARTY_HOT && r.f.game.rounds && r.f.game.hero[1].state == FLIER_ALIVE && r.f.game.lives[0].score == 0 && r.f.game.lives[1].score == 0);
+    CHECK(r.f.state == FLOW_PLAYING && r.f.game.players == 2 && r.f.game.gg_toss);
     r.f.game.cpu_count = 1;
     r.f.game.score = 500;
     CHECK(!flow_join_p2(&r.f, 99) && r.f.game.score == 500);
     r.f.game.over = 1; r.f.game.score = 20000;
     rig_tick(&r, 0, 0);
-    CHECK(r.f.last_mode == GAME_MODE_PARTY && r.f.last_rule == PARTY_HOT);
-    CHECK(score_insert_rule(&r.f.tables, r.f.last_mode, "PTY", 20000, r.f.last_rule) == 0 && r.f.tables.party_rule[0] == PARTY_HOT);
+    CHECK(r.f.last_mode == GAME_MODE_PARTY && r.f.last_rule == PARTY_TOSS);
+    CHECK(score_insert_rule(&r.f.tables, r.f.last_mode, "PTY", 20000, r.f.last_rule) == 0 && r.f.tables.party_rule[0] == PARTY_TOSS);
     memset(&r, 0, sizeof r);
     flow_init(&r.f, NULL, 0);
     /* the view carries the selection */

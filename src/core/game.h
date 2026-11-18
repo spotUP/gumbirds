@@ -27,6 +27,7 @@
 #include "gg_flapdash.h"
 #include "gg_popdrop.h"
 #include "gg_fling.h"
+#include "gg_toss.h"
 #include "gg_countdown.h"
 
 #define HUMANS 2 /* human fighter slots: fighter index 0..HUMANS-1 are humans, computer fliers follow from HUMANS */
@@ -59,7 +60,7 @@ typedef enum {
 } GameMode;
 
 /* PARTY rules (Left/Right on the PARTY title row). PARTY_NONE = not a party game. Order = on-screen cycle order. */
-enum { PARTY_NONE = 0, PARTY_ROUND, PARTY_ROOST, PARTY_HOT, PARTY_RULE_COUNT };
+enum { PARTY_NONE = 0, PARTY_ROUND, PARTY_ROOST, PARTY_TOSS, PARTY_RULE_COUNT };
 /* Rule of the Round twists, one per round (Game.twist). TWIST_NONE outside that rule. */
 enum { TWIST_NONE = 0, TWIST_ONE_GUM, TWIST_CROWDED, TWIST_SLOW, TWIST_QUICK, TWIST_MIRROR, TWIST_WINDY, TWIST_COUNT };
 /* Widest rule goal line in fix-layer columns (PARTY_GOAL_W); the title pads shorter lines to it. */
@@ -91,13 +92,6 @@ typedef struct {
     uint16_t total[ROOST_FIGHTERS]; /* ticks per fighter over the whole match: ROOST_TARGET_SCORE ends it */
     Flier mark;        /* AI target: rests where a standing flier's centre rests; not a fighter */
 } Roost;
-
-/* Hot Gum state: the carrier fighter index (humans first, 0xFF none), frames of fuse left, frames before the gum can pass again. */
-typedef struct {
-    uint8_t carrier;
-    uint8_t cool;
-    uint16_t fuse;
-} Hot;
 
 typedef struct {
     Rng rng;
@@ -161,7 +155,8 @@ typedef struct {
     ArcBonus bonus;      /* Arcade bonus stage, live while arc.state == ARC_BONUS after the banner hold */
     Result res;          /* Result screen after the bonus stage (result.h): active while it shows; arc.state stays ARC_BONUS */
     Roost roost;         /* Roost Rule state (party_rule == PARTY_ROOST), reset by match_start */
-    Hot hot;             /* Hot Gum state (party_rule == PARTY_HOT), reset by match_start */
+    GgToss toss;         /* Toss Gum state (gg_toss.h), live while gg_toss is set */
+    uint8_t gg_toss;     /* 1 = game_step runs Toss Gum (party_rule == PARTY_TOSS, mode GUM) */
     GgDash dash;         /* Gum Games Flap Dash run, live while gg_dash is set (gg_flapdash.h) */
     GgPop pop;           /* Gum Games Pop Drop, live while gg_pop is set (gg_popdrop.h); the target balloon is cpu[0] */
     uint8_t gg_pop;      /* 1 = game_step runs Pop Drop on hero[0] */
@@ -235,8 +230,9 @@ const char *game_round_start_text(const Game *g, int line);
 const char *game_party_howto(uint8_t rule, int line);
 /* Roost Rule: the roost platform's world rectangle (left x, top y, width) for the marker; returns 0 when the rule is not running. */
 int game_roost_rect(const Game *g, int *x, int *top, int *w);
-/* Hot Gum: the flier carrying the hot gum, or 0 when the rule is not running or the carrier is out of the air. */
-const Flier *game_hot_carrier(const Game *g);
+const Flier *game_toss_flier(const Game *g, int seat);   /* the flier standing on a seat (gg_toss.h seat order) */
+const Flier *game_toss_carrier(const Game *g);   /* the bird holding the gum while it is held, else 0 */
+void game_gg_start_toss(Game *g);   /* PARTY Toss Gum: four standing birds, 1 human (P2 may join before the first burst) */
 /* BANNER_* flags for the round banner: 0 in the arena, BANNER_STAGE in arcade, BANNER_BONUS while the arcade bonus stage runs. */
 int game_banner_flags(const Game *g);
 /* 1 while the hazard strip animation must hold: a round start phase or a round end hold/pan. Arena only. */
