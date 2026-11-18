@@ -1486,7 +1486,7 @@ static void draw_fling(const Game *g) {
     }
     /* aim caret under the angle bar, at the needle's cell, from the aim on */
     int8_t cc = -1;
-    if (f->phase >= GF_AIM) { u8 c = (u8)(f->deg * BLOW_BAR_CELLS / 90); cc = (int8_t)(c < BLOW_BAR_CELLS ? c : BLOW_BAR_CELLS - 1); }
+    if (f->phase >= GF_AIM) { u8 n = (u8)(f->deg * BLOW_BAR_CELLS / 90); u8 c = n ? (u8)(n - 1) : 0; /* under the last lit chevron */ cc = (int8_t)(c < BLOW_BAR_CELLS ? c : BLOW_BAR_CELLS - 1); }
     if (cc != g_fling_caret) {
         if (g_fling_caret >= 0) text((u8)(BLOW_BAR_COL + g_fling_caret), BLOW_BAR_ROW - 1, PAL_TEXT, " ");
         if (cc >= 0) gfx_fix_tile((u8)(BLOW_BAR_COL + cc), BLOW_BAR_ROW - 1, PAL_TEXT, FIXFONT_AIM_CARET); /* full-tile red arrow: red is in no bar */
