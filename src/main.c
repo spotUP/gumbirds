@@ -377,7 +377,7 @@ static void card_panel(u8 y0, u8 y1, u8 pal) {
 static void card_line(u8 row, u8 pal, const char *s) {
     u8 n = 0;
     while (s[n]) n++;
-    gfx_text_backed((u8)((VQ_FIX_COLS - n) / 2), row, pal, s);
+    gfx_text_plated((u8)((VQ_FIX_COLS - n) / 2), row, pal, s);
 }
 
 /* The parts that stay: panels, name, goal, bar labels, angle bar, rules, skip prompt. */
@@ -387,8 +387,8 @@ static void card_draw(const GgCard *c) {
     for (u8 i = 0; i < GG_PICK_COUNT; i++)
         if (flow_gg_card(flow_gg_event(i)) == c) card_line(CARD_BANNER_ROW + 1, FIXFONT_PAL_PINK, flow_gg_name(i));
     card_line(CARD_BANNER_ROW + 3, PAL_TEXT, c->goal);
-    gfx_text_backed(CARD_BAR_COL - 6, CARD_BAR_ROW, PAL_TEXT, "POWER");
-    gfx_text_backed(CARD_BAR_COL - 6, CARD_BAR_ROW + 2, PAL_TEXT, "ANGLE");
+    gfx_text_plated(CARD_BAR_COL - 6, CARD_BAR_ROW, PAL_TEXT, "POWER");
+    gfx_text_plated(CARD_BAR_COL - 6, CARD_BAR_ROW + 2, PAL_TEXT, "ANGLE");
     for (u8 i = 0; i < CARD_BAR_CELLS; i++) gfx_fix_tile((u8)(CARD_BAR_COL + i), CARD_BAR_ROW + 2, ATTRACT_PAL_SLOT, (u16)(RULECARD_FIX_BASE + angle[i]));
     card_panel(CARD_STRIP_ROW, CARD_STRIP_ROW + 8, PAL_TEXT);
     card_line(CARD_STRIP_ROW + 4, PAL_HIGH, c->rule[0]);
@@ -411,8 +411,8 @@ static void card_animate(const GgCard *c, u8 k) {
         u8 on = card_frames[k].step == i, down = (i == 0 && card_frames[k].press) || (i == 1 && card_frames[k].hold);
         u16 b = (u16)(RULECARD_FIX_BASE + (down ? RULECARD_FIX_BUTTON_DOWN : RULECARD_FIX_BUTTON_UP));
         for (u8 q = 0; q < 4; q++) gfx_fix_tile((u8)(cell[i] + (q & 1)), (u8)(CARD_STRIP_ROW + 1 + (q >> 1)), ATTRACT_PAL_SLOT, (u16)(b + q));
-        gfx_text_backed((u8)(cell[i] + 3), CARD_STRIP_ROW + 1, on ? PAL_TEXT : FIXFONT_PAL_DIM, c->step[i][0]);
-        gfx_text_backed((u8)(cell[i] + 3), CARD_STRIP_ROW + 2, on ? PAL_HIGH : FIXFONT_PAL_DIM, c->step[i][1]);
+        gfx_text_plated((u8)(cell[i] + 3), CARD_STRIP_ROW + 1, on ? PAL_TEXT : FIXFONT_PAL_DIM, c->step[i][0]);
+        gfx_text_plated((u8)(cell[i] + 3), CARD_STRIP_ROW + 2, on ? PAL_HIGH : FIXFONT_PAL_DIM, c->step[i][1]);
     }
     for (u8 i = 0; i < CARD_BAR_CELLS; i++) {
         gfx_fix_tile((u8)(CARD_BAR_COL + i), CARD_BAR_ROW, ATTRACT_PAL_SLOT, (u16)(RULECARD_FIX_BASE + (i < card_frames[k].power ? RULECARD_FIX_BAR_POWER : RULECARD_FIX_BAR_EMPTY)));
@@ -2224,8 +2224,11 @@ static void draw(const FlowView *v) {
             if (c != g_card_up) {
                 g_card_up = c;
                 g_card_k = CARD_NONE;
-                if (c) card_draw(c);
-                else { card_clear(); g_blow_key = 0xFFFFFFFFu; g_blow_bar_up = 0; g_fling_flag = -1; g_mode_key = 0xFF; g_hud[0].kind = g_hud[1].kind = HUD_KIND_NONE; }
+                if (c) {
+                    gfx_commit_all(); /* the picker clear reaches the screen before the card draws over it */
+                    gfx_drain();
+                    card_draw(c);
+                } else { card_clear(); g_blow_key = 0xFFFFFFFFu; g_blow_bar_up = 0; g_fling_flag = -1; g_mode_key = 0xFF; g_hud[0].kind = g_hud[1].kind = HUD_KIND_NONE; }
             }
             if (c) card_animate(c, card_frame(v->card_t));
         }
