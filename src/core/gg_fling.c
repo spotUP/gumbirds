@@ -34,7 +34,7 @@ uint8_t gumfling_deg(uint16_t charge)
     return (uint8_t)(a + (a >> 2) + (a >> 3) + (a >> 5));   /* a * 1.41 = degrees */
 }
 
-/* Launch velocity of a throw: run-up power and the frames of A held in the aim (charge). Shared by the launch and the aim preview. */
+/* Launch velocity of a throw: run-up power and the frames of B held in the aim (charge). Shared by the launch and the aim preview. */
 static void launch_vel(uint8_t power, uint16_t charge, int32_t *vx, int32_t *vy)
 {
     uint8_t a = (uint8_t)(charge >> 1 > 64 ? 64 : charge >> 1);
@@ -92,14 +92,13 @@ int gumfling_step(GgFling *f, uint8_t in)
     switch (f->phase) {
     case GF_WINDUP:
         if ((in & IN_A) && !(prev & IN_A) && f->power < GF_POWER_MAX) f->power++;
-        f->t = (in & IN_A) ? (uint16_t)(f->t + 1) : 0;          /* frames A held */
-        if (f->t >= GF_HOLD_FRAMES) { f->phase = GF_AIM; f->hold.charge = 0; f->t = 0; }
+        if (in & IN_B) { f->phase = GF_AIM; f->hold.charge = 0; f->t = 0; }   /* B ends the run-up and starts the needle */
         else if (--f->clock == 0) { f->foul = 1; finish(f, 0); }
         else if (f->clock % 60 == 0) f->sfx |= GF_SFX_TICK;
         break;
     case GF_AIM: {
         uint16_t c = 0;
-        if (in & IN_A) { if (f->hold.charge < GF_AIM_CAP) f->hold.charge++; }
+        if (in & IN_B) { if (f->hold.charge < GF_AIM_CAP) f->hold.charge++; }
         else { c = f->hold.charge ? f->hold.charge : 1; f->hold.charge = 0; }
         f->deg = gumfling_deg(f->hold.charge);
         if (c) {

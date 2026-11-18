@@ -43,7 +43,7 @@ local function finish(ok, msg)
 end
 if not (coin and start1 and up and abtn and bbtn and cbtn and pick) then finish(false, "missing ports") end
 
--- per attempt: mash 40 frames, pause, hold C 50 frames (about 35 degrees), release, then wait for the flight and the landing
+-- per attempt: mash 40 frames, pause, hold B 51 frames (about 35 degrees), release, then wait for the flight and the landing
 local cardn, maxlit, maxrow = 0, 0, -1
 local n, phase, t0, hud, trips, attempts, lastphase = 0, "boot", 0, false, 0, 0, -1
 emu.register_frame_done(function()
@@ -78,11 +78,11 @@ emu.register_frame_done(function()
     end
     local k = n - t0
     if mode == K.gum and ph == K.windup then
-      -- A only: tap A (2 frames down, 2 up) for 40 frames, then hold A 12 frames to start the needle and 50 more, release
-      abtn:set_value(((k < 40 and k % 4 < 2) or (k >= 45 and k < 107)) and 1 or 0)
-      bbtn:set_value(0); cbtn:set_value(0)
+      -- tap A (2 frames down, 2 up) for 40 frames, then hold B to start the needle and 50 more frames, release
+      abtn:set_value((k < 40 and k % 4 < 2) and 1 or 0)
+      bbtn:set_value((k >= 45 and k < 96) and 1 or 0); cbtn:set_value(0)
     else
-      abtn:set_value((mode == K.gum and ph == 1 and k < 107) and 1 or 0); bbtn:set_value(0); cbtn:set_value(0)
+      abtn:set_value(0); bbtn:set_value((mode == K.gum and ph == 1 and k < 96) and 1 or 0); cbtn:set_value(0)
     end
     if n > 20000 then finish(false, string.format("never ended: mode %d phase %d attempts %d trips %d", mode, ph, attempts, trips)) end
   elseif phase == "check" then

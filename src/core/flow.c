@@ -247,7 +247,7 @@ const char *flow_gg_name(uint8_t i) { return gg_names[i]; }
 /* Rules cards in gg_order order (owner 2026-11-17: Gum Fling first, the other events get theirs later). */
 static const GgCard gg_cards[GG_PICK_COUNT] = {
     [5] = { "FLING THE GUM AS FAR AS YOU CAN",
-            { { "MASH A", "FOR POWER" }, { "HOLD A", "TO AIM" }, { "LET GO", "TO FLING" } },
+            { { "MASH A", "FOR POWER" }, { "HOLD B", "TO AIM" }, { "LET GO", "TO FLING" } },
             { "SAFE ANGLE: 15 TO 75 DEGREES", "TAKE TURNS: 3 THROWS EACH" } },
 };
 const GgCard *flow_gg_card(uint8_t event)
