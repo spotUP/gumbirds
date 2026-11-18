@@ -1,0 +1,46 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><title>Pop Drop free-fall drafts</title>
+<style>body{background:#1b1d2a;color:#e6e8f2;font-family:system-ui,sans-serif;margin:24px;max-width:1100px}h1{font-size:22px}h2{font-size:17px;margin-top:32px;border-bottom:1px solid #3a3f5c;padding-bottom:4px}p,figcaption{color:#aab0c8;font-size:14px}img{image-rendering:pixelated;max-width:100%;vertical-align:top}figure{display:inline-block;margin:6px 12px 12px 0}</style>
+<h1>Pop Drop: free-fall rework (draft, second pass, 2026-11-18)</h1>
+<p>Draft only. All sprites are hand-typed pixel grids in draw_popdrop.py. Game screen 320 x 224. Bird is 24 x 32, built on the in-game fall frame 52, player palette unchanged. Tile counts are in numbers.txt.</p>
+<p>Owner picks applied: speed look A (streak tiles under platforms, echo copies removed); gum pickup is the Gum Trip wrapped candy, unchanged; the bird faces its steering direction (left is the hardware mirror of right); all three platforms kept.</p>
+<h2>Whole screen mid-fall</h2>
+<figure><img src="anim_mock_streaks.gif"><figcaption>Fall, steer right, fall, steer left; one hit taken</figcaption></figure>
+<figure><img src="anim_mock_shield.gif"><figcaption>Two hits taken, shield up (the fresh bubble hides the torn skin)</figcaption></figure>
+<figure><img src="mock_streaks_3x.png"><figcaption>Still, 3x, falling</figcaption></figure>
+<figure><img src="mock_lean_3x.png"><figcaption>Still, 3x, steering right</figcaption></figure>
+<figure><img src="mock_shield_3x.png"><figcaption>Still, 3x, shield</figcaption></figure>
+<h2>The four fixes: old on the left, new on the right</h2>
+<figure><img src="cmp_rag_4x.png"><figcaption>1. Burst gum. Old: three frames, read as a heart on a string. New: torn skin with split tatters, a notch and a torn hole, four flutter frames, stuck to the upper beak by a stretched strand</figcaption></figure>
+<figure><img src="cmp_rag_1x.png"><figcaption>Same at 1x</figcaption></figure>
+<br><figure><img src="cmp_beak_4x.png"><figcaption>2. Screaming beak. Old 4 x 3 pixels. New 7 x 10: mandibles flung apart, dark throat, tongue; three wing frames</figcaption></figure>
+<figure><img src="cmp_beak_1x.png"><figcaption>Same at 1x</figcaption></figure>
+<br><figure><img src="cmp_lean_4x.png"><figcaption>3. Lean. Old: 1 to 2 pixel shear. New: own pose, body tilted, crest swept back, wing flung up (two frames), tail fan; last frame is the mirror for steering left</figcaption></figure>
+<figure><img src="cmp_lean_1x.png"><figcaption>Same at 1x</figcaption></figure>
+<br><figure><img src="cmp_crash_4x.png"><figcaption>4. Crash. Old: 32 x 10 pancake. New: splat frame, then a dazed loop with one crossed eye, one ring eye, tongue out, legs twitching in the air</figcaption></figure>
+<figure><img src="cmp_crash_1x.png"><figcaption>Same at 1x</figcaption></figure>
+<h2>Falling bird animations</h2>
+<figure><img src="anim_fall_state0.gif"><figcaption>Fall loop, no hits</figcaption></figure>
+<figure><img src="anim_fall_state1.gif"><figcaption>After hit one: bent crest, lump, one loose feather drifting up</figcaption></figure>
+<figure><img src="anim_fall_state2.gif"><figcaption>After hit two: snapped crest, black eye, plaster, two loose feathers</figcaption></figure>
+<figure><img src="anim_lean_right.gif"><figcaption>Steer right</figcaption></figure>
+<figure><img src="anim_lean_left.gif"><figcaption>Steer left (mirrored)</figcaption></figure>
+<figure><img src="anim_bonk.gif"><figcaption>Hit: bounce and stun with stars circling the head, then back to falling</figcaption></figure>
+<figure><img src="anim_crash.gif"><figcaption>Third hit: splat, dazed loop, stars, feathers settling, torn skin limp on the platform</figcaption></figure>
+<br><figure><img src="battered_4x.png"><figcaption>Three battered states and the dazed crash pose, 4x</figcaption></figure>
+<figure><img src="bird_sheet_3x.png"><figcaption>All bird frames, torn skin frames, stars, feathers</figcaption></figure>
+<h2>Platforms</h2>
+<figure><img src="anim_platforms_streaks.gif"><figcaption>Streak tiles under each platform</figcaption></figure>
+<br><figure><img src="platforms_speed_3x.png"><figcaption>Rock island, steel girder, wooden plank: plain, then with streaks</figcaption></figure>
+<figure><img src="platform_tiles_3x.png"><figcaption>Tiles: left cap and middle per type (right cap is the left cap mirrored), two streak tiles</figcaption></figure>
+<h2>Gum pickup and catch sparkle</h2>
+<p>Reused unchanged from the Gum Trip pickup sheet: no new tiles.</p>
+<figure><img src="anim_pickup_spin.gif"><figcaption>Spin</figcaption></figure>
+<figure><img src="anim_pickup_catch.gif"><figcaption>Catch</figcaption></figure>
+<figure><img src="pickup_reused_3x.png"><figcaption>All frames</figcaption></figure>
+<h2>Shield bubble</h2>
+<p>Review fixes: the dotted inner ring now sits only on the lit and reflected arcs; the pop flash keeps the rim shading instead of a flat white ring; gum globs and droplets spray out between the rim shards.</p>
+<figure><img src="anim_shield.gif"><figcaption>Shield up</figcaption></figure>
+<figure><img src="anim_shield_pop.gif"><figcaption>Shield soaks a hit and pops</figcaption></figure>
+<figure><img src="shield_on_bird_4x.png"><figcaption>Shield and pop frames on the bird, 4x</figcaption></figure>
+<figure><img src="shield_sheet_3x.png"><figcaption>Shield frames, gum palette</figcaption></figure>
+</html>

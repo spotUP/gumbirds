@@ -1,0 +1,14 @@
+bird (existing player palette): 15 colours
+platforms + streaks: 15 colours
+shield (existing gum palette): 8 colours
+pickup (existing, reused): 13 colours
+
+tiles (unique non-empty 16 x 16, flips not folded):
+  bird: 9 fall (3 wing x 3 battered), 6 lean (2 x 3), 1 hit, 24 x 32 each: 35
+  crash: splat + 2 dazed, 32 x 16 each: 5
+  torn gum skin: 4 flutter frames 16 x 32, 1 limp: 9
+  stun stars 2, feather 2 (flip), impact dashes: 5
+  platforms: 3 types x (cap + middle), 2 streak tiles, 1 wisp: 10
+  shield: 2 bubble frames 48 x 48, 4 pop frames (mirror symmetric, flips not folded): 62
+  gum pickup + catch: reused Gum Trip tiles: 0
+  TOTAL new tiles: 126
