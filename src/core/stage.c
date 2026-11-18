@@ -88,16 +88,41 @@ int stage_look_for_level(int level) {
 }
 void stage_set_level(int level) { cur_look = stage_look_for_level(level); }
 
+
+/* The active platforms of the current layout, packed once per stage_select and shared by every flier's floor and solid scans:
+ * the 16.16 numbers the scans need are computed here, not per flier per frame. Ring-independent (the seam is read live). */
+typedef struct { int32_t cx16, left16, top16, w16, h16; int16_t cx, half; } PlatNear;
+static PlatNear plat_tab[STAGE_PLATFORM_COUNT];
+static int plat_n = -1; /* -1: not built yet (the initial layout 0 is static data) */
+
+static void plat_build(void) {
+    plat_n = 0;
+    for (int i = 0; i < STAGE_PLATFORM_COUNT; i++) {
+        const StagePlatform *p = &stage_platforms[i];
+        PlatNear *t = &plat_tab[plat_n];
+        if (!p->w) continue;
+        t->left16 = FL_PX(p->x);
+        t->top16 = FL_PX(p->y);
+        t->w16 = FL_PX(p->w);
+        t->h16 = FL_PX(p->h);
+        t->cx16 = t->left16 + (t->w16 >> 1);
+        t->cx = (int16_t)(p->x + (p->w >> 1));
+        t->half = (int16_t)(p->w >> 1);
+        plat_n++;
+    }
+}
+
 void stage_select(int i) {
     cur_layout = i % LAYOUT_TOTAL;
     for (int k = 0; k < STAGE_PLATFORM_COUNT; k++) stage_platforms[k] = layouts[cur_layout].plat[k];
     for (int k = 0; k < STAGE_SPAWN_COUNT; k++) stage_spawns[k] = layouts[cur_layout].spawn[k];
+    plat_build();
 }
 
 /* Whole-pixel distance from x16 to the platform centre across the seam, for a cheap first reject before the exact 16.16 test:
  * it is off from the exact distance by under 2 px, so callers reject only with 2 px to spare. Per flier per platform per frame. */
-static int plat_px_dist(int xpx, const StagePlatform *p) {
-    int d = (int)arena_fold((int32_t)xpx - (p->x + (p->w >> 1)), arena_ring);
+static inline int plat_px_dist(int xpx, const PlatNear *p) {
+    int d = (int)arena_fold((int32_t)xpx - p->cx, arena_ring);
     return d < 0 ? -d : d;
 }
 
@@ -105,15 +130,15 @@ int32_t stage_floor_y(int32_t x16, int32_t feet16) {
     int32_t best = FLIER_NO_FLOOR;
     int32_t hw = FL_PX(FLIER_HALF_W);
     int xpx = (int)(x16 >> 16);
-    for (int i = 0; i < STAGE_PLATFORM_COUNT; i++) {
-        const StagePlatform *p = &stage_platforms[i];
-        int32_t top = FL_PX(p->y);
-        if (!p->w || top < feet16) continue;
-        if (plat_px_dist(xpx, p) >= (p->w >> 1) + FLIER_HALF_W + 2) continue;
+    if (plat_n < 0) plat_build();
+    for (int i = 0; i < plat_n; i++) {
+        const PlatNear *p = &plat_tab[i];
+        if (p->top16 < feet16) continue;
+        if (plat_px_dist(xpx, p) >= p->half + FLIER_HALF_W + 2) continue;
         /* The platform's copy nearest the flier: an island that meets the seam is found from both sides. */
-        int32_t cx = FL_PX(p->x) + (FL_PX(p->w) >> 1), nx = arena_near_x(cx, x16);
-        if (nx + hw <= FL_PX(p->x) || nx - hw >= FL_PX(p->x + p->w)) continue;
-        if (top < best) best = top;
+        int32_t nx = arena_near_x(p->cx16, x16);
+        if (nx + hw <= p->left16 || nx - hw >= p->left16 + p->w16) continue;
+        if (p->top16 < best) best = p->top16;
     }
     return best;
 }
@@ -128,18 +153,18 @@ int32_t stage_floor_y(int32_t x16, int32_t feet16) {
 int stage_solids_near(int32_t x16, FlierSolid *out, int max) {
     int n = 0;
     int xpx = (int)(x16 >> 16);
-    for (int i = 0; i < STAGE_PLATFORM_COUNT && n < max; i++) {
-        const StagePlatform *p = &stage_platforms[i];
-        if (!p->w) continue;
-        if (plat_px_dist(xpx, p) >= (p->w >> 1) + FLIER_SOLID_MAX_HALF_W + SOLID_REACH_PX + 2) continue;
-        int32_t cx = arena_near_x(x16, FL_PX(p->x) + (FL_PX(p->w) >> 1));
+    if (plat_n < 0) plat_build();
+    for (int i = 0; i < plat_n && n < max; i++) {
+        const PlatNear *p = &plat_tab[i];
+        if (plat_px_dist(xpx, p) >= p->half + FLIER_SOLID_MAX_HALF_W + SOLID_REACH_PX + 2) continue;
+        int32_t cx = arena_near_x(x16, p->cx16);
         int32_t d = x16 > cx ? x16 - cx : cx - x16;
-        if (d >= (FL_PX(p->w) >> 1) + FL_PX(FLIER_SOLID_MAX_HALF_W + SOLID_REACH_PX)) continue;
+        if (d >= (p->w16 >> 1) + FL_PX(FLIER_SOLID_MAX_HALF_W + SOLID_REACH_PX)) continue;
         /* The copy nearest the flier, so a platform at the seam is found from both sides. */
-        out[n].x16 = cx - (FL_PX(p->w) >> 1);
-        out[n].y16 = FL_PX(p->y);
-        out[n].w16 = FL_PX(p->w);
-        out[n].h16 = FL_PX(p->h);
+        out[n].x16 = cx - (p->w16 >> 1);
+        out[n].y16 = p->top16;
+        out[n].w16 = p->w16;
+        out[n].h16 = p->h16;
         n++;
     }
     return n;

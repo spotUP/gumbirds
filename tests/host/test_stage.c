@@ -12,6 +12,30 @@
 static int checks, failures;
 #define CHECK(c) do { checks++; if (!(c)) { failures++; printf("FAIL %s:%d: %s\n", __FILE__, __LINE__, #c); } } while (0)
 
+/* Reference: the per-flier scans as they were before the shared platform table (straight from stage_platforms, no packing). */
+static int32_t ref_floor(int32_t x16, int32_t feet16) {
+    int32_t best = FLIER_NO_FLOOR, hw = FL_PX(FLIER_HALF_W);
+    for (int i = 0; i < STAGE_PLATFORM_COUNT; i++) {
+        const StagePlatform *p = &stage_platforms[i];
+        int32_t top = FL_PX(p->y), cx = FL_PX(p->x) + (FL_PX(p->w) >> 1), nx = arena_near_x(cx, x16);
+        if (!p->w || top < feet16) continue;
+        if (nx + hw <= FL_PX(p->x) || nx - hw >= FL_PX(p->x + p->w)) continue;
+        if (top < best) best = top;
+    }
+    return best;
+}
+static int ref_solids(int32_t x16, FlierSolid *out, int max) {
+    int n = 0;
+    for (int i = 0; i < STAGE_PLATFORM_COUNT && n < max; i++) {
+        const StagePlatform *p = &stage_platforms[i];
+        int32_t cx = arena_near_x(x16, FL_PX(p->x) + (FL_PX(p->w) >> 1)), d = x16 > cx ? x16 - cx : cx - x16;
+        if (!p->w || d >= (FL_PX(p->w) >> 1) + FL_PX(FLIER_SOLID_MAX_HALF_W + 8)) continue;
+        out[n].x16 = cx - (FL_PX(p->w) >> 1); out[n].y16 = FL_PX(p->y); out[n].w16 = FL_PX(p->w); out[n].h16 = FL_PX(p->h);
+        n++;
+    }
+    return n;
+}
+
 int main(void) {
     int i;
     /* Layout stays inside the world and above the water. */
@@ -218,6 +242,26 @@ int main(void) {
         }
         stage_select(5);
         { int n64 = 0; for (i = 0; i < STAGE_PLATFORM_COUNT; i++) n64 += stage_platforms[i].x == 280 && stage_platforms[i].w == 48; CHECK(n64 == 1); }
+    }
+    /* The shared platform table gives the same floor and solids as the plain scan, on every layout, ring and x (quarter pixel steps, seam included). */
+    {
+        int32_t rings[2] = { ARENA_W, FIELD_RING_W };
+        for (int r = 0; r < 2; r++) {
+            arena_ring = rings[r];
+            for (int l = 0; l < stage_layout_count(); l++) {
+                stage_select(l);
+                for (int32_t x = -FL_PX(8); x < FL_PX(arena_ring + 8); x += 16384)
+                    for (int fy = 0; fy < 200; fy += 23) {
+                        FlierSolid a[8], b[8];
+                        int na = stage_solids_near(x, a, 8), nb = ref_solids(x, b, 8);
+                        CHECK(stage_floor_y(x, FL_PX(fy)) == ref_floor(x, FL_PX(fy)));
+                        CHECK(na == nb);
+                        for (int k = 0; k < na && k < nb; k++) CHECK(a[k].x16 == b[k].x16 && a[k].y16 == b[k].y16 && a[k].w16 == b[k].w16 && a[k].h16 == b[k].h16);
+                    }
+            }
+        }
+        arena_ring = ARENA_W;
+        stage_select(0);
     }
     printf("stage: %d checks, %d failures\n", checks, failures);
     return failures != 0;
