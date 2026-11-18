@@ -629,6 +629,7 @@ static void gum_obj_sync(u8 *slot, int want, const Game *g, const PoolObj *body,
 }
 
 _Static_assert(GUM_WOBBLE_FRAMES == 2 * GUM_LEAK_TICK, "double-speed wobble steps once per leak frame");
+_Static_assert(GUM_LEAK_FRAMES <= 2 * GUM_WOBBLE_FRAMES, "pool_show_leak folds a leak frame to a wobble frame with one subtract");
 
 /* Air jet of a leaking computer bubble: pool object type 0xE0 | leak frame, anim = body frame, placed from the bubble object it follows. */
 static void leak_obj_sync(u8 *slot, u8 *gslot, int want, const Game *g, const PoolObj *body, u8 level) {
@@ -891,7 +892,7 @@ static void pool_show_leak(PoolObj *p, u8 i, u16 *scb3) {
         flip = (p->flags & POOL_F_FLIP) != 0;
         GumOffset o = gum_view_offset(p->anim, flip);
         if (!o.show) goto hide;
-        int wob = lf % GUM_WOBBLE_FRAMES;
+        int wob = lf >= GUM_WOBBLE_FRAMES ? lf - GUM_WOBBLE_FRAMES : lf;   /* lf < 2 * GUM_WOBBLE_FRAMES (leak frames); a 32 bit % is a libgcc call */
         const SootlingFrame *bf = &sootling_frames[soot_frame(SOOTLING_ANIM_CPU, p->anim)];
         int lvl = p->anim_tick, row = (GUM_VIEW_LEVELS - lvl) * GUM_VIEW_WOBBLE_SHEET + wob;   /* anchor row as gum_leak_pose */
         const GumFrame *f = &gum_frames[gum_anims[gum_view_anim((uint8_t)lvl, GUM_STATE_WOBBLE)].first_frame + wob];

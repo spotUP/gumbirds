@@ -205,10 +205,14 @@ emu.register_frame_done(function()
       if bad then finish(false, "A8 stage " .. g(O_STAGE) .. " world: " .. bad) return end
       print(string.format("ARC_WORLD stage %d ok", g(O_STAGE)))
     end
-    if (g(O_STAGE) >= 12 and walk_wait >= 300) or not playing then
+    -- WALK_LONG_STAGE=n: stage n plays WALK_LONG_FRAMES (default 1800) frames with no forced clear (rivals drown, respawn and
+    -- fill up as in owner play), then the walk ends there; a natural clear before that ends it too
+    local long_st = tonumber(os.getenv("WALK_LONG_STAGE") or "")
+    local limit = (long_st and g(O_STAGE) == long_st) and tonumber(os.getenv("WALK_LONG_FRAMES") or "1800") or 300
+    if (g(O_STAGE) >= 12 and walk_wait >= 300) or not playing or (long_st and (g(O_STAGE) > long_st or (g(O_STAGE) == long_st and walk_wait >= limit))) then
       local ok, why = report()
-      finish(ok, ok and "walk stages 1..12 done" or why)
-    elseif walk_wait >= 300 then phase = "walk_clear" end
+      finish(ok, ok and ("walk done at stage " .. g(O_STAGE)) or why)
+    elseif walk_wait >= limit then phase = "walk_clear" end
   elseif phase == "walk_clear" then
     local st = g(O_STAGE)
     for i = 0, b(O_NCPU) - 1 do mem:write_u8(flow_addr + O_C0STATE + i * SZ_FLIER, K.gone) end

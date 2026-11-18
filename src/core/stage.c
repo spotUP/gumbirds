@@ -94,13 +94,22 @@ void stage_select(int i) {
     for (int k = 0; k < STAGE_SPAWN_COUNT; k++) stage_spawns[k] = layouts[cur_layout].spawn[k];
 }
 
+/* Whole-pixel distance from x16 to the platform centre across the seam, for a cheap first reject before the exact 16.16 test:
+ * it is off from the exact distance by under 2 px, so callers reject only with 2 px to spare. Per flier per platform per frame. */
+static int plat_px_dist(int xpx, const StagePlatform *p) {
+    int d = (int)arena_fold((int32_t)xpx - (p->x + (p->w >> 1)), arena_ring);
+    return d < 0 ? -d : d;
+}
+
 int32_t stage_floor_y(int32_t x16, int32_t feet16) {
     int32_t best = FLIER_NO_FLOOR;
     int32_t hw = FL_PX(FLIER_HALF_W);
+    int xpx = (int)(x16 >> 16);
     for (int i = 0; i < STAGE_PLATFORM_COUNT; i++) {
         const StagePlatform *p = &stage_platforms[i];
         int32_t top = FL_PX(p->y);
         if (!p->w || top < feet16) continue;
+        if (plat_px_dist(xpx, p) >= (p->w >> 1) + FLIER_HALF_W + 2) continue;
         /* The platform's copy nearest the flier: an island that meets the seam is found from both sides. */
         int32_t cx = FL_PX(p->x) + (FL_PX(p->w) >> 1), nx = arena_near_x(cx, x16);
         if (nx + hw <= FL_PX(p->x) || nx - hw >= FL_PX(p->x + p->w)) continue;
@@ -118,9 +127,11 @@ int32_t stage_floor_y(int32_t x16, int32_t feet16) {
 
 int stage_solids_near(int32_t x16, FlierSolid *out, int max) {
     int n = 0;
+    int xpx = (int)(x16 >> 16);
     for (int i = 0; i < STAGE_PLATFORM_COUNT && n < max; i++) {
         const StagePlatform *p = &stage_platforms[i];
         if (!p->w) continue;
+        if (plat_px_dist(xpx, p) >= (p->w >> 1) + FLIER_SOLID_MAX_HALF_W + SOLID_REACH_PX + 2) continue;
         int32_t cx = arena_near_x(x16, FL_PX(p->x) + (FL_PX(p->w) >> 1));
         int32_t d = x16 > cx ? x16 - cx : cx - x16;
         if (d >= (FL_PX(p->w) >> 1) + FL_PX(FLIER_SOLID_MAX_HALF_W + SOLID_REACH_PX)) continue;
