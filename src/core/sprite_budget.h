@@ -15,7 +15,7 @@
 #define SB_GAMEPLAY_PER_LINE 14 /* fliers only (platforms left the pool for the island row). CPU_MAX 3: arena 4 fliers x 2 strips, measured peak 8 (gmake test-sprite-peak, 2026-11-13); arcade at most 4 rivals + hero = 10; Gum Trip pool + hero measured 4 (trip_check.lua). Lowered 18 -> 14 so arcade stage elements fit SB_LIMIT (thoughts/spot/2026-11-13-budget-e.md); was 24 with platforms in the pool */
 /* SB_COLUMNS: a parallax plane. Every column is its own sprite with its own top and height (generated table
  * CITY_TABLE_COL_ROW0 / COL_ROWS, indexed by sprite slot - BG_SKY_SPRITE), so a column counts only on the lines it spans. */
-enum { SB_ALWAYS = 0, SB_NOT_RAIN = 1, SB_RAIN_ONLY = 2, SB_COLUMNS = 3, SB_TRIP_ONLY = 4, SB_ISLANDS = 5, SB_PARTY_ONLY = 6 };
+enum { SB_ALWAYS = 0, SB_NOT_RAIN = 1, SB_RAIN_ONLY = 2, SB_COLUMNS = 3, SB_TRIP_ONLY = 4, SB_ISLANDS = 5, SB_PARTY_ONLY = 6, SB_FLING_AIM = 7 };
 /* SB_ISLANDS: the islands. Gum Trip counts the flat per_line (its generated islands are not on a fixed table); the arena counts per line the columns of the stage platforms whose band (platform top - ISLAND_LINE_ROW, one tile row high) meets the line (stage_platforms, src/core/stage.c). SB_TRIP_ONLY: counts only in Gum Trip. SB_COLUMNS planes in BG_TRIP_HIDDEN_MASK (src/core/bg_scroll.h) count only outside it. */
 
 typedef struct {

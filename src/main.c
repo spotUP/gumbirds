@@ -1244,6 +1244,43 @@ static void hot_bubble_step(const Game *g) {
     if (g_hotb_on) { obs_hide_slot(ROOST_SPRITE); g_hotb_on = 0; g_hotb_cell_shown = 0xFF; }
 }
 
+/* Gum Fling aim aids (GUM arena, aim phase only): a pointer swinging along a quarter circle around the hero with the aim angle, and FLING_ARC_DOTS dots
+ * along the real throw path for the current power and angle (gumfling_path: the flight physics itself). Gum bubble art, 16 x 16 unchained sprites in the
+ * shared strip range; g = the playing Game with Gum Fling in the arena aim, or 0 to park them. */
+#define FLING_ARC_RADIUS 36
+#define FLING_ARC_POINTER_CELL 0
+#define FLING_ARC_DOT_CELL 2
+_Static_assert(FLING_ARC_COUNT <= TRIP_STRIP_COUNT, "fling aim sprites exceed the shared strip range");
+static u8 g_fling_arc_on;
+static void fling_arc_step(const Game *g) {
+    if (g && g->gg_fling && g->mode == GAME_MODE_GUM && g->fling.phase == GF_AIM) {
+        const GgFling *f = &g->fling;
+        int16_t dx[FLING_ARC_DOTS], dy[FLING_ARC_DOTS];
+        u16 s3[FLING_ARC_COUNT], s4[FLING_ARC_COUNT];
+        int cx = (int)(g->hero[0].x >> 16), cy = (int)(g->hero[0].y >> 16);
+        uint8_t a = (uint8_t)(f->hold.charge >> 1 > 64 ? 64 : f->hold.charge >> 1);   /* the angle launch_vel uses */
+        if (!g_fling_arc_on) {
+            for (u16 i = 0; i < FLING_ARC_COUNT; i++) {
+                gfx_sprite_strips((u16)(FLING_ARC_SPRITE + i), 1, 1, &gumbubble_tile_index[i ? FLING_ARC_DOT_CELL : FLING_ARC_POINTER_CELL], GUMBUBBLE_TILE_BASE, (u16)(GUMBUBBLE_PAL_SLOT << 8));
+                gfx_sprite_unchained((u16)(FLING_ARC_SPRITE + i), 1);
+            }
+            g_fling_arc_on = 1;
+        }
+        gumfling_path(f->power, f->hold.charge, dx, dy, FLING_ARC_DOTS);
+        for (int i = 0; i < FLING_ARC_COUNT; i++) {
+            int wx = i ? cx + dx[i - 1] : cx + (FLING_ARC_RADIUS * flier_cos(a) >> 15);
+            int wy = i ? cy - dy[i - 1] : cy - (FLING_ARC_RADIUS * flier_sin(a) >> 15);
+            int sx = camera_screen_x(wx - 8, g_cam_px, 16);
+            s3[i] = camera_visible(sx, 16) && wy > -8 && wy < 232 ? gfx_scb3_word(1, wy - 8) : 0;
+            s4[i] = gfx_scb4_word(sx);
+        }
+        gfx_scb_run((u16)(ADDR_SCB3 + FLING_ARC_SPRITE), 1, s3, FLING_ARC_COUNT);
+        gfx_scb_run((u16)(ADDR_SCB4 + FLING_ARC_SPRITE), 1, s4, FLING_ARC_COUNT);
+        return;
+    }
+    if (g_fling_arc_on) { for (u16 i = 0; i < FLING_ARC_COUNT; i++) obs_hide_slot((u16)(FLING_ARC_SPRITE + i)); g_fling_arc_on = 0; }
+}
+
 /* BIOS_USER_MODE: 1 attract, 2 game in progress (coins then only add credits). */
 static volatile u8 g_start_pending;
 static volatile u8 g_join_p2; /* P2 Start accepted in play (player_start); game_loop joins P2 */
@@ -2686,6 +2723,7 @@ static void game_loop(void) {
             card_scene_step(view.state == FLOW_PLAYING && view.card, view.card_t);
             countdown_step(view.state == FLOW_PLAYING && view.game ? ggcd_word(view.game->cd_t) : GGCD_WORD_NONE);
             hot_bubble_step(arena && view.state == FLOW_PLAYING ? view.game : 0);
+            fling_arc_step(world && view.state == FLOW_PLAYING && !view.card ? view.game : 0);
             gum_step(1, race || (arena && view.game->players == 2), race ? race_gum(view.game, 1) : (uint16_t)(human_bubble_level(view.game, 1) * (GUM_MAX / GUM_VIEW_LEVELS)), view.game->frame, g_gum_pose[1].drawn, g_gum_pose[1].frame, g_gum_pose[1].flip, g_gum_pose[1].cx, g_gum_pose[1].top, world && human_leaks(view.game, 1));
             {   /* the splash starts from the same crossing that plays the splosh sound; it keeps running through Game Over */
                 const SoundEvents *se = sound_events();
