@@ -97,7 +97,7 @@ emu.register_frame_done(function()
     if st == 4 then phase = "over"; t0 = n end
     if k > 9000 then fail = true; finish(false, string.format("run %d never ended (state %d)", run, st)) return end
   elseif phase == "over" then          -- Game Over: no rank; path 2 coins here
-    if st == 4 then mem:write_u32(flow_addr + 22, 0) end
+    if st == 4 then mem:write_u32(flow_addr + 38, 0); mem:write_u32(flow_addr + 42, 0) end -- Flow.last_score[2] (offset 38 on the m68k build)
     if run == 2 then press(coin, k >= 20 and k < 30) end
     press(start, run == 1 and (k % 18) < 4)                           -- run 1: Start mashed through Game Over into the title
     press(abtn, run == 2 and (k % 18) < 4)                            -- run 2: A mashed the same way

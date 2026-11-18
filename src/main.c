@@ -2456,14 +2456,25 @@ static u8 g_coin_blipped;
  * copy is taken from palette RAM itself; a fade in must start with the queue drained so RAM holds the final colours. */
 #define SCREEN_FADE_WORDS 4096u
 static u16 s_pal_full[SCREEN_FADE_WORDS];
+/* A pass touches up to 4096 palette words with no hardware 32 bit multiply: bg_fade_color per word (three software multiplies) took ~15 frames a
+ * pass. The transient steps scale the 4 bit channels with two 16 bit multiplies (red and blue share one: fields 8 bits apart cannot overflow);
+ * the dark-bit LSBs are dropped while fading. The last step (level BG_FADE_MAX) writes the saved words back, exact, and level 0 is black. */
 static void screen_fade(u8 from, u8 to) {
     volatile u16 *pal = (volatile u16 *)MMAP_PALBANK1;
     gfx_drain();
     if (to < from) for (u16 i = 0; i < SCREEN_FADE_WORDS; i++) s_pal_full[i] = pal[i];
     for (;;) {
-        for (u16 i = 0; i < SCREEN_FADE_WORDS; i++) if (s_pal_full[i]) pal[i] = bg_fade_color(s_pal_full[i], from); /* an unused slot stays 0: skip the work (a full pass is about 2 frames otherwise) */
+        for (u16 i = 0; i < SCREEN_FADE_WORDS; i++) {
+            u16 c = s_pal_full[i];
+            if (!c) continue; /* an unused slot stays 0 */
+            if (from >= BG_FADE_MAX) pal[i] = c;
+            else {
+                u16 rb = (u16)(((u16)(c & 0x0F0F) * from >> 4) & 0x0F0F), g = (u16)(((u16)(c & 0x00F0) * from >> 4) & 0x00F0);
+                pal[i] = (u16)((c & 0x8000) | rb | g);
+            }
+        }
         if (from == to) return;
-        from = from < to ? (u8)(from + 1) : (u8)(from - 1);
+        from = from < to ? (u8)(from + 2) : (u8)(from - 2); /* BG_FADE_MAX is even: two levels a pass */
         gfx_wait_vblank();
     }
 }
