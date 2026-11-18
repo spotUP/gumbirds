@@ -214,6 +214,7 @@ $(BUILDDIR)/gen/gumleak_sprites.o: $(BUILDDIR)/gen/gumleak_sprites.c
 $(BUILDDIR)/gen/countdown.c1 $(BUILDDIR)/gen/countdown.c2 $(BUILDDIR)/gen/countdown_sprites.c $(BUILDDIR)/gen/countdown_sprites.h $(BUILDDIR)/gen/countdown_tables.h: assets/countdown/countdown_sheet.png assets/countdown/countdown_sheet.json tools/build_countdown_sprites.py tools/sprite_pipeline.py
 	$(PYTHON) -I tools/build_countdown_sprites.py --out $(BUILDDIR)/gen
 $(BUILDDIR)/gen/countdown_sprites.o: $(BUILDDIR)/gen/countdown_sprites.c
+	$(M68KGCC) $(NGCFLAGS) $(CFLAGS) -c $< -o $@
 # Gum Games rules card (layout A): 12 fix tiles (button A up / down, bar segments) after the result scene in the S-ROM, and 5 example props (slab, needles, gum, dot) last in the C-ROM, so no earlier tile base moves. Art: tools/draw_rulecard_art.py.
 $(BUILDDIR)/gen/rulecard_tiles.h $(BUILDDIR)/gen/rulecard_tiles.fix: assets/rulecard/rulecard_fix.png tools/build_rulecard_tiles.py tools/build_attract_icons.py tools/sprite_pipeline.py
 	$(PYTHON) -I tools/build_rulecard_tiles.py --out $(BUILDDIR)/gen/rulecard_tiles.h
