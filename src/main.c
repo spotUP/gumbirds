@@ -38,6 +38,7 @@
 #include "hazard.h"
 #include "island.h"
 #include "trip_strip.h"
+#include "fling_field.h"
 #include "gum.h"
 #include "core/gum_view.h"
 #include "splash.h"
@@ -1271,7 +1272,7 @@ static void fling_arc_step(const Game *g) {
         for (int i = 0; i < FLING_ARC_COUNT; i++) {
             int wx = i ? cx + dx[i - 1] : cx + (FLING_ARC_RADIUS * flier_cos(a) >> 15);
             int wy = i ? cy - dy[i - 1] : cy - (FLING_ARC_RADIUS * flier_sin(a) >> 15);
-            int sx = camera_screen_x(wx - 8, g_cam_px, 16);
+            int sx = wx - 8;   /* the hero and the field live in screen space (cam 0) */
             s3[i] = camera_visible(sx, 16) && wy > -8 && wy < 232 ? gfx_scb3_word(1, wy - 8) : 0;
             s4[i] = gfx_scb4_word(sx);
         }
@@ -1362,7 +1363,6 @@ static void edge_marker(const Game *g, int cam_px) {
  * frame the player sees has the whole background. g_bg_late counts frames that show the world over an incomplete background. */
 #define BG_HOLD_FRAMES 2 /* entry frame plus the first game step, which picks the match mood (game.c match_start) */
 static u8 g_bg_hold = BG_HOLD_FRAMES;
-static u8 g_fling_mode; /* game.mode seen last frame while Gum Fling runs */
 volatile u16 g_bg_late; /* test sentinel (tests/mame/vblank_check.lua) */
 volatile u8 g_bg_held;
 static u8 g_bg_paused; /* this frame the entry hold skipped flow_step: the frame has room for the start work below */
@@ -1373,7 +1373,8 @@ static u8 g_trip_islands_loaded;
 static u8 bg_pending(void) {
     u8 world = g_flow.state == FLOW_PLAYING || g_flow.state == FLOW_ATTRACT_DEMO;
     u8 trip = world && g_flow.game.mode == GAME_MODE_TRIP;
-    return g_bg_mood_busy || g_bg_mood != g_flow.game.mood || (world && !trip && !hazard_preloaded())
+    return g_bg_mood_busy || g_bg_mood != g_flow.game.mood || (world && !trip && !g_flow.game.gg_fling && !hazard_preloaded())
+        || (world && g_flow.game.gg_fling && !fling_field_loaded())
         || (trip && game_trip_ready(&g_flow.game) && !(trip_strip_loaded() && g_trip_islands_loaded));
 }
 /* Gum Trip entry: the course build steps run held (world hidden); the reveal waits for the course. */
@@ -1532,11 +1533,6 @@ static void draw_fling(const Game *g) {
     }
     /* mark flag: the hero sits at its screen x at launch, so the mark is GF_MARK_PX - flown pixels ahead of it */
     int8_t col = -1;
-    if (g->mode == GAME_MODE_TRIP && f->phase >= GF_FLIGHT) {
-        int32_t hx = (g->hero[0].x - g->camera.cam) >> 16;
-        int32_t x = hx + (int32_t)GF_MARK_PX - (int32_t)(f->phase == GF_FLIGHT ? f->x >> 16 : f->dist ? f->dist : f->x >> 16);
-        if (x >= 0 && x < 8 * 35) col = (int8_t)(x >> 3);
-    }
     if (col != g_fling_flag) {
         if (g_fling_flag >= 0) { text((u8)g_fling_flag, FLING_FLAG_ROW - 1, PAL_TEXT, "     "); text((u8)g_fling_flag, FLING_FLAG_ROW, PAL_TEXT, " "); }
         if (col >= 0) {
@@ -2752,13 +2748,14 @@ static void game_loop(void) {
             u8 world = world_shown(&view);
             u8 trip = world && view.game->mode == GAME_MODE_TRIP;
             u8 trip_game = (world || view.state == FLOW_GAME_OVER) && view.game && view.game->mode == GAME_MODE_TRIP;
-            hazard_step((world || view.state == FLOW_GAME_OVER) && !trip_game, g_cam_px); /* the hazard strip is the arena's floor; Gum Trip has its own */
-            if (g_bg_paused && world_state(&view) && view.game->mode != GAME_MODE_TRIP) hazard_preload(); /* the reveal frame then only places it */
+            hazard_step((world || view.state == FLOW_GAME_OVER) && !trip_game && !(view.game && view.game->gg_fling), g_cam_px); /* the hazard strip is the arena's floor; Gum Trip has its own */
+            if (g_bg_paused && world_state(&view) && view.game->mode != GAME_MODE_TRIP && !view.game->gg_fling) hazard_preload(); /* the reveal frame then only places it */
             /* arcade only: elements kill, so they must be seen (worst scanline with them is checked in tests/host/test_sprite_budget.c) */
             /* Bonus first: on the frame it ends it parks slot 323, which the stage elements share and draw right after. */
             arcade_bonus_step(world && ((view.game->mode == GAME_MODE_ARCADE && view.game->arc.state == ARC_BONUS) || (view.game->mode == GAME_MODE_GUM && view.game->gg_gather)) && !view.game->res.active ? view.game : 0);
             arcade_elems_step(world && view.game->mode == GAME_MODE_ARCADE && view.game->arc.state != ARC_BONUS ? view.game : 0); /* the bonus shows no stage elements: hidden once on entry */
-            island_step(world && !trip, g_cam_px); /* arena islands are not drawn in Gum Trip */
+            island_step(world && !trip && !view.game->gg_fling, g_cam_px); /* arena islands are not drawn in Gum Trip or on the Gum Fling field */
+            fling_field_step(view.game && view.game->gg_fling ? &view.game->fling : 0, view.game ? view.game->mood : 0, world_state(&view), world); /* after island_step: it takes the island slots */
             /* the course (islands, kill strips, pickups) stays through Game Over like the planes and the hazard anim: all leave at the title */
             island_trip_step(trip_game ? &view.game->trip_gen : 0, trip_game ? view.game->trip.px : 0, trip_game && game_trip_ready(view.game));
             {   /* entry hold: the strip queues its columns hidden (ready 0) and the islands load their tiles hidden. Not on the entry
@@ -2801,9 +2798,7 @@ static void game_loop(void) {
         g_bg_held = (u8)(world_state(&view) && g_bg_hold); /* test sentinel: this frame kept the world hidden */
         if (world_shown(&view) && bg_bare()) g_bg_late++; /* the world over the flat lit backdrop: a cut swap in play */
         if (!world_state(&view)) g_bg_hold = BG_HOLD_FRAMES;
-        else if (g_flow.game.gg_fling && g_flow.game.mode != g_fling_mode) g_bg_hold = BG_HOLD_FRAMES; /* Gum Fling flips GUM and TRIP mid-play: reload the world */
         else if (g_bg_hold && !bg_pending() && !trip_building()) g_bg_hold = g_flow.game.mode == GAME_MODE_TRIP ? 0 : g_bg_hold - 1; /* a built course: its steps picked the mood */
-        g_fling_mode = g_flow.game.mode;
     world_done:
         gfx_commit();
         g_frame_counter++;

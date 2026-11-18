@@ -492,60 +492,32 @@ void game_gg_start_fling(Game *g)
     camera_init(&g->camera);
 }
 
-/* Gum Fling: the wind-up runs in the GUM arena; the launch flips to a plain Trip course for the flight and the landing
- * screen, and the next attempt flips back. Distance is the scroll at touch-down. */
+/* Gum Fling: one grass field in GUM mode for the whole event (no scene cut). The hero stands at a fixed screen spot, the
+ * flight scrolls the camera and the field, and distance is the scroll at touch-down. */
+#define FLING_HERO_X   36   /* hero centre, left of the foul line at x 56 */
+#define FLING_GROUND_Y 160  /* screen y of the turf top (FLOOR_Y in tools/draw_fling_field.py) */
 static void game_step_fling(Game *g, uint8_t input)
 {
     GgFling *f = &g->fling;
+    Flier *h = &g->hero[0];
     int ev;
     input = gg_seq_input(&f->seq, input, g->input2);   /* 2P: whoever's turn it is throws */
-    if (g->mode == GAME_MODE_TRIP) {
-        Flier *h = &g->hero[0];
-        if (!tripgen_covers(&g->trip_gen, g->trip.px)) {
-            tripgen_advance(&g->trip_gen, g->trip.px);
-            g->trip_hold++;
-            return;
-        }
-        g->trip_splat = 0;
-        if (!f->ground_y) {
-            int32_t lo, hi;
-            f->ground_y = trip_hit_window(&g->trip, &g->trip_gen, h, &lo, &hi) ? hi : FL_PX(190);
-        }
-        if (f->phase == GF_FLIGHT) {
-            uint32_t step = (uint32_t)gumfling_scroll(f);
-            ev = gumfling_fly(f);
-            g->trip.frac += step;
-            g->trip.px += g->trip.frac >> 16;
-            g->trip.frac &= 0xFFFFu;
-            tripgen_advance(&g->trip_gen, g->trip.px);
-            camera_scroll(&g->camera, step);
-            g->distance = g->trip.px;
-            h->vy = -f->vy;
-            if (ev == GF_EV_LANDED) {
-                g->trip_splat = 1;
-                g->trip_splat_y = (int16_t)(f->ground_y >> 16);
-            }
-        } else {
-            ev = gumfling_step(f, input);
-            if (ev == GF_EV_NEXT) {   /* back to the arena for the next wind-up */
-                game_set_mode(g, GAME_MODE_GUM);
-                player_spawn(g);
-                h->no_wrap = 0;
-                camera_init(&g->camera);
-            }
-        }
-        h->y = f->ground_y - f->h;
-        h->spawn_inv = 0;
+    if (f->phase == GF_FLIGHT) {
+        uint32_t step = (uint32_t)gumfling_scroll(f);
+        ev = gumfling_fly(f);
+        camera_scroll(&g->camera, step);
+        g->distance = f->x >> 16;
+        h->vy = -f->vy;
     } else {
         ev = gumfling_step(f, input);
-        if (ev == GF_EV_LAUNCH) {     /* to the course: the first frames build it while the view loads */
-            game_set_mode(g, GAME_MODE_TRIP);
-            g->trip_gen.plain = 1;
-            f->ground_y = 0;
+        if (ev == GF_EV_NEXT) {   /* next wind-up: field back to the foul line */
+            player_spawn(g);
+            camera_init(&g->camera);
         }
-        g->hero[0].spawn_inv = 0;
-        camera_follow(g);
     }
+    h->x = FL_PX(FLING_HERO_X);
+    h->y = FL_PX(FLING_GROUND_Y) - flier_half_h(h) - f->h;
+    h->spawn_inv = 0;
     g->frame++;
     g->score = f->seq.points[0];
     if (f->phase == GF_END) g->over = 1;
@@ -636,8 +608,8 @@ int game_camera_px(const Game *g)
 
 int game_flier_cam_px(const Game *g)
 {
-    /* The trip flier lives in screen space (x 0..319): the view places it with camera 0. */
-    return g->mode == GAME_MODE_TRIP ? 0 : camera_px(&g->camera);
+    /* The trip flier and the Gum Fling hero live in screen space (x 0..319): the view places them with camera 0. */
+    return g->mode == GAME_MODE_TRIP || g->gg_fling ? 0 : camera_px(&g->camera);
 }
 
 /* One arena step for any flier: the floor line, then the solid island bodies (pre-step position kept for the push-out). */
