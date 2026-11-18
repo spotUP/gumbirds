@@ -86,6 +86,7 @@ local function in_vblank()
 end
 local counting = false
 local logic_end = 0
+local phase_fc = 0   -- g_frame_counter when the coin was inserted
 local frame_l = 0   -- logic end of the frame being finished (reset every frame)
 local cat_max, cat_at, since_ready = { hold = 0, early = 0, steady = 0 }, {}, 0
 local EARLY_FRAMES = 30   -- frames after the hold counted as the first frames after ready
@@ -696,11 +697,13 @@ emu.register_frame_done(function() local ok_, err_ = pcall(function()
   if not (coin and start and down and abtn and tlay[78] and PK.tiles and PK.frames and METERDRAWS_ADDR and METERTAB_ADDR and HZ.draws_addr and PICKUPDRAWS_ADDR and STRIPDRAWS_ADDR and TRIPDRAWS_ADDR and ARENADRAWS_ADDR and flay[6] and cam_addr and (cam_size == 1 or cam_size == 2)) then finish(false, "missing input, layout or sentinel size") return end
   local state = mem:read_u8(flow_addr + O_STATE)
   if phase == "boot" then
-    if n >= 300 then phase = "coin"; phase_at = n; coin:set_value(1) end
+    -- booted = the game loop has run 200 frames (g_frame_counter), not a MAME frame count: the BIOS return fade lengthens the boot
+    if mem:read_u32(frame_addr) >= 200 then phase = "coin"; phase_at = n; phase_fc = mem:read_u32(frame_addr); coin:set_value(1) end
     return
   elseif phase == "coin" then
     if n == phase_at + 15 then coin:set_value(0) end
-    if n >= phase_at + 40 and state == 0 then phase = "down"; phase_at = n; down:set_value(1) end
+    -- 40 game frames after the coin, not MAME frames: the coin can re-enter the game through the BIOS (video_init and the fade-up block the loop, the tap is dropped)
+    if mem:read_u32(frame_addr) >= phase_fc + 40 and state == 0 then phase = "down"; phase_at = n; down:set_value(1) end
     return
   elseif phase == "down" then
     if n == phase_at + 9 then down:set_value(0) end -- a 4 frame tap was dropped while the title loop was busy after the coin; 9 frames as in start_seq.lua
