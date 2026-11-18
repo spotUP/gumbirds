@@ -685,8 +685,8 @@ static void pool_sync_cpus(const Game *g) {
         if (flier_view_visible(c, g->frame)) p->flags &= (u8)~POOL_F_BLINK; else p->flags |= POOL_F_BLINK;
         chute_obj_sync(g, i, c->state == FLIER_PARACHUTE, flip, c, feet);
         u8 lvl = pump_level(&g->pump[i], c->state == FLIER_ALIVE);
-        gum_obj_sync(&g_gum_obj[i], 1, g, p, gum_view_leaks_balloons(c->balloons), lvl, flier_gum_burst(c));
-        leak_obj_sync(&g_leak_obj[i], &g_gum_obj[i], gum_view_leaks_balloons(c->balloons), g, p, lvl);
+        gum_obj_sync(&g_gum_obj[i], !g->gg_toss, g, p, gum_view_leaks_balloons(c->balloons), lvl, flier_gum_burst(c));   /* Toss Gum has its own bubble: no arena gum on the birds */
+        leak_obj_sync(&g_leak_obj[i], &g_gum_obj[i], !g->gg_toss && gum_view_leaks_balloons(c->balloons), g, p, lvl);
     }
 }
 
@@ -1588,7 +1588,7 @@ static void draw_toss(const Game *g) {
     const char *msg = t->phase == GT_HOLD ? "TOSS THE GUM ON   A  B  C      " : t->phase == GT_FLIGHT ? "                              " :
                       t->phase == GT_BURST ? "BURST!                        " : t->winner == 0 ? "PLAYER 1 WINS                 " :
                       t->winner == 2 && t->humans == 2 ? "PLAYER 2 WINS                 " : "THE COMPUTER WINS              ";
-    text((u8)((40 - BLOW_TEXT_W) / 2), BLOW_TEXT_ROW + 2, PAL_TEXT, msg);
+    text((u8)((40 - BLOW_TEXT_W) / 2), BLOW_TEXT_ROW + 4, PAL_TEXT, msg);   /* rows 5..7 are the HUD */
 }
 
 /* Gum Fling on the fix layer: power bar on BLOW_BAR_ROW, angle needle bar two rows above (0..90 degrees over BLOW_BAR_CELLS,
@@ -2285,6 +2285,9 @@ static void draw(const FlowView *v) {
         g_hl_up = 0;
         g_draw_state = -1; /* the title's highlighted table is gone (the mode list opened): clear its rows */
     }
+    static u8 g_toss_up;   /* a restart into or out of Toss Gum inside FLOW_PLAYING (the P2 join) needs the fix layer cleared like a state change */
+    u8 toss_now = v->game && v->game->gg_toss;
+    if (toss_now != g_toss_up) { g_toss_up = toss_now; g_draw_state = -1; }
     if ((int)v->state != g_draw_state) {
         gfx_cls();
         title_reset();
@@ -2320,11 +2323,11 @@ static void draw(const FlowView *v) {
         if (v->game) {
             const Game *g = v->game;
             u8 arc = game_lives_mode(g) && g->party_rule != PARTY_ROOST && v->state != FLOW_ATTRACT_DEMO; /* Roost Rule: no lives, so no counter */
-            u8 p2hud = (g->mode == GAME_MODE_ARCADE || g->mode == GAME_MODE_ARENA) && v->state != FLOW_ATTRACT_DEMO; /* the P2 side: PRESS / INSERT / stats */
+            u8 p2hud = (g->mode == GAME_MODE_ARCADE || g->mode == GAME_MODE_ARENA || g->gg_toss) && v->state != FLOW_ATTRACT_DEMO; /* the P2 side: PRESS / INSERT / stats */
             u8 b0 = (u8)g->hero[0].balloons;
             u8 l0 = (u8)g->lives[0].lives;
             /* P1: the old block (score, balloons; no balloons row in Gum Trip), plus lives in the arcade */
-            if (g_hud[0].kind != HUD_KIND_STATS || g->score != g_hud[0].score || b0 != g_hud[0].balloons || l0 != g_hud[0].lives) {
+            if (!g->gg_toss && (g_hud[0].kind != HUD_KIND_STATS || g->score != g_hud[0].score || b0 != g_hud[0].balloons || l0 != g_hud[0].lives)) {
                 hud_side_stats(0, g->score, b0, l0, arc, g->mode != GAME_MODE_TRIP && g->mode != GAME_MODE_GUM);
                 g_hud[0].kind = HUD_KIND_STATS; g_hud[0].score = g->score; g_hud[0].balloons = b0; g_hud[0].lives = l0;
             }
@@ -2332,7 +2335,8 @@ static void draw(const FlowView *v) {
                 u8 in = g->players == 2;
                 u8 cr = g->credits;
                 u8 out = (!in || g->lives[1].state == ARC_LIFE_ENDED); /* never joined, or out of lives and continues */
-                if (out && v->state == FLOW_PLAYING) hud_side(1, cr > 0 ? HUD_KIND_PRESS : HUD_KIND_INSERT, 0, 0, 0, 0, 0);
+                if (g->gg_toss) hud_side(1, game_can_join_p2(g) && v->state == FLOW_PLAYING ? (cr > 0 ? HUD_KIND_PRESS : HUD_KIND_INSERT) : HUD_KIND_BLANK, 0, 0, 0, 0, 0);   /* Toss Gum: no score block, only the join prompt before the first burst */
+                else if (out && v->state == FLOW_PLAYING) hud_side(1, cr > 0 ? HUD_KIND_PRESS : HUD_KIND_INSERT, 0, 0, 0, 0, 0);
                 else if (in) hud_side(1, HUD_KIND_STATS, g->lives[1].score, (u8)g->hero[1].balloons, (u8)g->lives[1].lives, g->party_rule != PARTY_ROOST, 1);
                 else hud_side(1, HUD_KIND_BLANK, 0, 0, 0, 0, 0);
             }
@@ -2871,7 +2875,7 @@ static void game_loop(void) {
             arcade_bonus_step(world && ((view.game->mode == GAME_MODE_ARCADE && view.game->arc.state == ARC_BONUS) || (view.game->mode == GAME_MODE_GUM && view.game->gg_gather)) && !view.game->res.active ? view.game : 0);
             arcade_elems_step(world && view.game->mode == GAME_MODE_ARCADE && view.game->arc.state != ARC_BONUS ? view.game : 0); /* the bonus shows no stage elements: hidden once on entry */
             island_step(world && !trip && !ground_field(view.game), g_cam_px); /* arena islands are not drawn in Gum Trip or on the Gum Fling field */
-            fling_field_step(ground_field(view.game) ? view.game->gg_toss ? &g_idle_fling : &view.game->fling : 0, view.game ? view.game->mood : 0, world_state(&view), world); /* after island_step: it takes the island slots */
+            fling_field_step(ground_field(view.game) ? view.game->gg_toss ? &g_idle_fling : &view.game->fling : 0, view.game ? view.game->mood : 0, world_state(&view), world, !(view.game && view.game->gg_toss)); /* after island_step: it takes the island slots */
             /* the course (islands, kill strips, pickups) stays through Game Over like the planes and the hazard anim: all leave at the title */
             island_trip_step(trip_game ? &view.game->trip_gen : 0, trip_game ? view.game->trip.px : 0, trip_game && game_trip_ready(view.game));
             {   /* entry hold: the strip queues its columns hidden (ready 0) and the islands load their tiles hidden. Not on the entry
