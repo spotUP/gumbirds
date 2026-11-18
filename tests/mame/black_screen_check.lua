@@ -17,6 +17,8 @@ local coin = field(":AUDIO_COIN", "Coin 1")
 local start = field(":edge:joy:START", "1 Player Start")
 local down = field(":edge:joy:JOY1", "P1 Down")
 local abtn = field(":edge:joy:JOY1", "P1 A")
+local TRACE = os.getenv("BRAWL_TRACE") -- file path: per-frame colour count after Game Over (GAMEOVER-BLACK-GAP)
+local tlog = TRACE and io.open(TRACE, "w")
 local CREDIT = 0x10fe00
 local RUNS = 5
 local log = io.open(out, "w")
@@ -31,7 +33,7 @@ local function colours()
   local seen, k = {}, 0
   for i = 1, #px - 3, 4 * 37 do
     local c = px:sub(i, i + 2)
-    if not seen[c] then seen[c] = true; k = k + 1; if k > 2 then return k end end
+    if not seen[c] then seen[c] = true; k = k + 1; if k > 2 and not TRACE then return k end end
   end
   return k
 end
@@ -64,6 +66,9 @@ emu.register_frame_done(function()
       finish(false, string.format("entry hold stuck run %d state %d frame %d: busy %d mood %d", run, st, n, mem:read_u8(busy_addr), mem:read_u8(mood_addr)))
       return
     end
+  end
+  if TRACE and phase == "over" or (TRACE and phase == "between" and n - t0 < 400) then
+    tlog:write(string.format("T run %d n %d state %d colours %d busy %d fc %d", run, n, st, colours(), mem:read_u8(busy_addr), fc) .. "\n"); tlog:flush()
   end
   local cr_now = mem:read_u8(CREDIT)
   if phase ~= "boot" and cr_now < cr_prev and st ~= 3 then cr_drop = cr_drop or n end

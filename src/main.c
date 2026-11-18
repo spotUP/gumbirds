@@ -2485,6 +2485,7 @@ static void video_init(void) {
     bg_load_palettes();
     gfx_word(ADDR_SCB3 + SPRITE_RESERVED, 0); /* sprite 0 is never visible (src/sprite_slots.h): nothing else writes this slot */
     bg_init();
+    bg_set_mood(g_flow.game.mood, 1); /* the screen is black here anyway: swap to the wanted mood at once, not a visible fade out and in after the BIOS return */
     hazard_init();
     trip_strip_init();
     hero_hide();
