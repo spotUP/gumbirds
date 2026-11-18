@@ -82,6 +82,11 @@
  * ARC_BONUS_SPRITE + 2 * i. They are hidden (arcade_bonus_step in main.c) once when the bonus ends; Gum Trip entry rewrites every strip slot. */
 #define ARC_BONUS_SPRITE TRIP_STRIP_SPRITE
 #define ARC_BONUS_COUNT 40
+/* The Gum Fling aim aids (draw_fling_arc in main.c): the swinging pointer and the dotted flight path, one 16 x 16 sprite (1 column, unchained) each: pointer first, then
+ * the dots. GUM arena aim phase only; hidden at launch and on leaving. Gum Trip entry rewrites every strip slot, and no strip, logo or bonus bubble draws in the arena. */
+#define FLING_ARC_SPRITE TRIP_STRIP_SPRITE
+#define FLING_ARC_DOTS 9
+#define FLING_ARC_COUNT (1 + FLING_ARC_DOTS)
 #define LOGO_COUNT 28
 #define TITLE_SOOT_SPRITE (LOGO_SPRITE + LOGO_COUNT)
 #define TITLE_SOOT_COUNT 4

@@ -61,6 +61,9 @@ uint8_t gumfling_deg(uint16_t charge);
 int gumfling_step(GgFling *f, uint8_t in);
 /* One flight frame. Returns GF_EV_LANDED on the touch-down frame. */
 int gumfling_fly(GgFling *f);
+/* Preview of a throw with run-up power and aim charge (frames of A held): n points (dx, dy) in pixels from the launch point, dy up
+ * positive, spread evenly in time over the whole flight, using the same launch and flight frame as the real throw. Returns the flight frames. */
+int gumfling_path(uint8_t power, uint16_t charge, int16_t *dx, int16_t *dy, int n);
 /* Scroll step of the last flight frame in 16.16 px. */
 int32_t gumfling_scroll(const GgFling *f);
 #endif
