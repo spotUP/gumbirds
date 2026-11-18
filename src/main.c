@@ -1449,6 +1449,7 @@ static void draw_burst_race(const GgRace *r) {
  * safe 15..75 cells lime, foul ends pink), a status line, and in the flight view a mark flag that scrolls in with the course.
  * Distances show in metres (GF_PX_PER_M). Same bar cells as Burst Race. */
 static int8_t g_fling_flag = -1;   /* fix column of the mark flag on screen, -1 = none; reset with the fix layer */
+static int8_t g_fling_caret = -1;  /* angle bar cell the '^' caret sits under, -1 = none; reset with the fix layer */
 #define FLING_FLAG_ROW 8
 static u8 fling_put(char *line, u8 i, const char *p) { while (*p && i < BLOW_TEXT_W) line[i++] = *p++; return i; }
 static u8 fling_put_m(char *line, u8 i, u32 px) {
@@ -1482,6 +1483,14 @@ static void draw_fling(const Game *g) {
             u8 c = ops[i] & 0x7F;
             text((u8)(BLOW_BAR_COL + c), (u8)(BLOW_BAR_ROW - 2 * s), s ? fling_angle_pal(c) : PAL_HIGH, (ops[i] & 0x80) ? ">" : "-");
         }
+    }
+    /* aim caret under the angle bar, at the needle's cell, from the aim on */
+    int8_t cc = -1;
+    if (f->phase >= GF_AIM) { u8 c = (u8)(f->deg * BLOW_BAR_CELLS / 90); cc = (int8_t)(c < BLOW_BAR_CELLS ? c : BLOW_BAR_CELLS - 1); }
+    if (cc != g_fling_caret) {
+        if (g_fling_caret >= 0) text((u8)(BLOW_BAR_COL + g_fling_caret), BLOW_BAR_ROW - 1, PAL_TEXT, " ");
+        if (cc >= 0) text((u8)(BLOW_BAR_COL + cc), BLOW_BAR_ROW - 1, PAL_HIGH, "^");
+        g_fling_caret = cc;
     }
     /* mark flag: the hero sits at its screen x at launch, so the mark is GF_MARK_PX - flown pixels ahead of it */
     int8_t col = -1;
@@ -2141,7 +2150,7 @@ static void draw(const FlowView *v) {
         g_draw_state = (int)v->state;
         g_hud[0].kind = g_hud[1].kind = HUD_KIND_NONE;
         g_ov_stage = 0; g_ov_key = AO_NONE; g_ov_part = 0;
-        g_rs_drawn = RS_NONE; g_rs_num = 0; g_banner_up = 0; g_howto_up = 0; g_card_up = 0; g_mode_key = 0xFF; g_blow_key = 0xFFFFFFFFu; g_blow_bar_up = 0; g_fling_flag = -1; g_cont_key[0] = g_cont_key[1] = 0xFF; g_stage_key = 0xFF; g_over_up = 0;
+        g_rs_drawn = RS_NONE; g_rs_num = 0; g_banner_up = 0; g_howto_up = 0; g_card_up = 0; g_mode_key = 0xFF; g_blow_key = 0xFFFFFFFFu; g_blow_bar_up = 0; g_fling_flag = -1; g_fling_caret = -1; g_cont_key[0] = g_cont_key[1] = 0xFF; g_stage_key = 0xFF; g_over_up = 0;
         g_meter_step = METER_NONE;
         set_distress(0);
 #ifdef GUMBIRDS_DEBUG_HEADER /* gmake DEBUG_HEADER=1; the normal build leaves the top rows to the HUD */
@@ -2228,7 +2237,7 @@ static void draw(const FlowView *v) {
                     gfx_commit_all(); /* the picker clear reaches the screen before the card draws over it */
                     gfx_drain();
                     card_draw(c);
-                } else { card_clear(); g_blow_key = 0xFFFFFFFFu; g_blow_bar_up = 0; g_fling_flag = -1; g_mode_key = 0xFF; g_hud[0].kind = g_hud[1].kind = HUD_KIND_NONE; }
+                } else { card_clear(); g_blow_key = 0xFFFFFFFFu; g_blow_bar_up = 0; g_fling_flag = -1; g_fling_caret = -1; g_mode_key = 0xFF; g_hud[0].kind = g_hud[1].kind = HUD_KIND_NONE; }
             }
             if (c) card_animate(c, card_frame(v->card_t));
         }
