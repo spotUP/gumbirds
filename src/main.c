@@ -2488,31 +2488,51 @@ static u8 g_coin_blipped;
  * resume, or the screen stays black after a coin while the game runs on.
  * Guarded by tests/mame/unibios_check.lua (make test-unibios).
  */
-/* Whole-screen palette fade (sprites, fix, backdrop): the same bg_fade_color scaling the mood fade uses, applied to all of palette RAM.
+/* Whole-screen palette fade (sprites, fix, backdrop): the same bg_fade_color scaling the mood fade uses, applied to the used palettes of palette RAM.
  * It runs in the main thread outside the vblank queue (palette RAM takes CPU writes any time), so it costs no VBlank budget. The full-colour
- * copy is taken from palette RAM itself; a fade in must start with the queue drained so RAM holds the final colours. */
+ * copy is taken from palette RAM itself; a fade in must start with the queue drained so RAM holds the final colours.
+ * Each step is computed into s_pal_next during the frame and block-copied right after gfx_wait_vblank returns: a pass computed in place
+ * outlasted vblank and the beam showed half-updated palettes (colour tearing). The bank select moves CPU access and display together, so a
+ * hidden-bank double buffer is not possible; the copy loop is the shortest write that exists. Only palettes (16 word blocks) that hold a
+ * non-zero word are faded and copied: the used ones are slots 0..75 plus slot 255, so a "highest non-zero index" range would cover all 4096. */
 #define SCREEN_FADE_WORDS 4096u
+#define SCREEN_FADE_BLOCKS 128u /* most palettes one fade handles (76 used; later ones are left untouched), s_pal_next is 4 KB */
 static u16 s_pal_full[SCREEN_FADE_WORDS];
-/* A pass touches up to 4096 palette words with no hardware 32 bit multiply: bg_fade_color per word (three software multiplies) took ~15 frames a
- * pass. The transient steps scale the 4 bit channels with two 16 bit multiplies (red and blue share one: fields 8 bits apart cannot overflow);
- * the dark-bit LSBs are dropped while fading. The last step (level BG_FADE_MAX) writes the saved words back, exact, and level 0 is black. */
+static u16 s_pal_next[SCREEN_FADE_BLOCKS * 16];
+static u8 s_pal_blk[SCREEN_FADE_BLOCKS];
+/* A pass scales the 4 bit channels through a 16 entry table built per step (no hardware 32 bit multiply: bg_fade_color per word, three software
+ * multiplies, took ~15 frames a pass). The dark-bit LSBs are dropped while fading. The last step (level BG_FADE_MAX) writes the saved words
+ * back, exact, and level 0 is black. Unused slots stay 0. */
 static void screen_fade(u8 from, u8 to) {
-    volatile u16 *pal = (volatile u16 *)MMAP_PALBANK1;
     gfx_drain();
-    if (to < from) for (u16 i = 0; i < SCREEN_FADE_WORDS; i++) s_pal_full[i] = pal[i];
+    if (to < from) for (u16 i = 0; i < SCREEN_FADE_WORDS; i++) s_pal_full[i] = ((volatile u16 *)MMAP_PALBANK1)[i];
+    u16 nb = 0;
+    for (u16 b = 0; b < SCREEN_FADE_WORDS / 16 && nb < SCREEN_FADE_BLOCKS; b++)
+        for (u8 j = 0; j < 16; j++) if (s_pal_full[b * 16 + j]) { s_pal_blk[nb++] = (u8)b; break; }
     for (;;) {
-        for (u16 i = 0; i < SCREEN_FADE_WORDS; i++) {
-            u16 c = s_pal_full[i];
-            if (!c) continue; /* an unused slot stays 0 */
-            if (from >= BG_FADE_MAX) pal[i] = c;
-            else {
-                u16 rb = (u16)(((u16)(c & 0x0F0F) * from >> 4) & 0x0F0F), g = (u16)(((u16)(c & 0x00F0) * from >> 4) & 0x00F0);
-                pal[i] = (u16)((c & 0x8000) | rb | g);
+        u16 lr[16], lg[16], lb[16]; /* channel value scaled by the level, already shifted into place */
+        for (u8 v = 0; v < 16; v++) { u16 x = (u16)(v * from >> 4); lr[v] = (u16)(x << 8); lg[v] = (u16)(x << 4); lb[v] = x; }
+        if (!from) { u32 *z = (u32 *)s_pal_next; for (u16 i = 0; i < nb * 8u; i++) z[i] = 0; } /* level 0 is black: no per-word pass, one frame sooner */
+        else for (u16 k = 0; k < nb; k++) {
+            const u16 *in = &s_pal_full[s_pal_blk[k] * 16];
+            u16 *out = &s_pal_next[k * 16];
+            if (from >= BG_FADE_MAX) { for (u8 j = 0; j < 16; j++) out[j] = in[j]; continue; }
+            for (u8 j = 0; j < 16; j++) {
+                u16 c = in[j];
+                out[j] = c ? (u16)((c & 0x8000) | lr[(c >> 8) & 15] | lg[(c >> 4) & 15] | lb[c & 15]) : 0;
+            }
+        }
+        gfx_wait_vblank();
+        {
+            const u16 *src = s_pal_next;
+            for (u16 k = 0; k < nb; k++) {
+                u32 dst = (u32)MMAP_PALBANK1 + (u32)s_pal_blk[k] * 32;
+                __asm__ volatile ("movem.l (%0)+,%%d0-%%d7\n\tmovem.l %%d0-%%d7,(%1)"
+                                  : "+a"(src) : "a"(dst) : "d0", "d1", "d2", "d3", "d4", "d5", "d6", "d7", "memory");
             }
         }
         if (from == to) return;
         from = from < to ? (u8)(from + 2) : (u8)(from - 2); /* BG_FADE_MAX is even: two levels a pass */
-        gfx_wait_vblank();
     }
 }
 
