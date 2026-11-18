@@ -1,4 +1,4 @@
-/* PARTY_HOT has no twist and must play exactly as plain arena: the match ends (1 and 2 players),
+/* PARTY_NONE has no twist and must play exactly as plain arena: the match ends (1 and 2 players),
  * no roost island, no twist, same lives rule as plain arena. */
 #include <stdio.h>
 #include "../../src/core/game.h"
@@ -20,7 +20,7 @@ static int frames_to_over(uint8_t rule, int players) {
 }
 
 int main(void) {
-    uint8_t rules[1] = { PARTY_HOT };
+    uint8_t rules[1] = { PARTY_NONE };
     int r, p, x, t, w;
     for (r = 0; r < 1; r++) {
         for (p = 1; p <= 2; p++) {

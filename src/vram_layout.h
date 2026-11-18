@@ -25,6 +25,7 @@
 #include "gen/resfx_sprites.h"
 #include "gen/chute_sprites.h"
 #include "gen/gumbubble_sprites.h"
+#include "gen/tosspose_sprites.h"
 #include "gen/gumleak_sprites.h"
 #include "gen/countdown_sprites.h"
 #include "gen/rulecard_sprites.h"
@@ -96,7 +97,9 @@ _Static_assert((COUNTDOWN_TILE_BASE & 7) == 0, "countdown tile base is not 8-ali
 _Static_assert((RULECARD_TILE_BASE & 7) == 0, "rules card tile base is not 8-aligned");
 #define FLFIELD_TILE_BASE (RULECARD_TILE_BASE + RULECARD_TILE_COUNT) /* Gum Fling field: turf, chalk line, boards, puff (tools/draw_fling_field.py), last in CROM_SETS */
 _Static_assert((FLFIELD_TILE_BASE & 7) == 0, "fling field tile base is not 8-aligned");
-#define STADIUM_TILE_BASE (FLFIELD_TILE_BASE + FLFIELD_TILE_COUNT) /* ground-event stands (tools/build_stadium_sprites.py), last in CROM_SETS */
+#define TOSSPOSE_TILE_BASE (FLFIELD_TILE_BASE + FLFIELD_TILE_COUNT) /* Toss Gum poses (tools/make_toss_sheet.py), last in CROM_SETS */
+_Static_assert((TOSSPOSE_TILE_BASE & 7) == 0, "toss pose tile base is not 8-aligned");
+#define STADIUM_TILE_BASE (TOSSPOSE_TILE_BASE + TOSSPOSE_TILE_COUNT) /* ground-event stands (tools/build_stadium_sprites.py), last in CROM_SETS */
 _Static_assert((STADIUM_TILE_BASE & 7) == 0, "stadium tile base is not 8-aligned");
 
 #define FIX_PAL_COUNT FIXFONT_PAL_COUNT /* fix palettes 0..4: white, pink, lime, gold, dim (build/gen/fix_font.h) */
@@ -128,7 +131,9 @@ _Static_assert(ATTRACT_PAL_SLOT < 16, "fix layer palettes are 4 bits: the overla
 #define RULECARD_PAL_SLOT (COUNTDOWN_HOT_PAL_SLOT + COUNTDOWN_EXTRA_PALETTE_COUNT) /* rules card example props: slab, needle, gum */
 #define FLFIELD_TURF_PAL_SLOT (RULECARD_PAL_SLOT + RULECARD_PALETTE_COUNT) /* fling field turf and puff: the mood's turf palette is written here */
 #define FLFIELD_GEAR_PAL_SLOT (FLFIELD_TURF_PAL_SLOT + 1) /* fling field chalk line, boards, mark: the mood's gear palette */
-#define STADIUM_PAL_SLOT (FLFIELD_GEAR_PAL_SLOT + 1) /* ground-event stands: base palette, then the extra ones (mood x team x variant x near/far, structure, dusk light) */
+#define TOSSPOSE_PAL_SLOT (FLFIELD_GEAR_PAL_SLOT + 1) /* Toss Gum poses, palette = seat: 0 player, 1 computer, 2 gold, 3 violet (tosspose_palettes[0], then tosspose_extra_palettes[0..2]) */
+#define SOOT_VIOLET_PAL_SLOT (TOSSPOSE_PAL_SLOT + 4) /* Toss Gum seat 3 standing body: tosspose_extra_palettes[3], the violet swap of the computer palette */
+#define STADIUM_PAL_SLOT (SOOT_VIOLET_PAL_SLOT + 1) /* ground-event stands: base palette, then the extra ones (mood x team x variant x near/far, structure, dusk light) */
 _Static_assert(STADIUM_PAL_SLOT + STADIUM_PALETTE_COUNT + STADIUM_EXTRA_PALETTE_COUNT <= 256, "palette slots exceed the 256 the hardware has");
 
 #endif

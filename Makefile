@@ -65,8 +65,8 @@ include emu.mk
 # 
 # Note: build rules (%.c -> %.o -> %.elf) are defined in Makefile.build
 ELF=$(BUILDDIR)/rom.elf
-CORE_SRCS=rng game hiscore nameentry flow attract_overlay obstacle_view bg_scroll flier_view gum_view vram_queue obj_pool sound_queue sound_events flier stage island_layout ai camera trip trip_gen trip_cave trip_hit trip_rival score_table gumgames gg_flapdash gg_popdrop gg_fling trip_view trip_pickup_fx banner splash_view arcade arc_elements arc_view result result_view stadium
-$(ELF):	$(BUILDDIR)/src/main.o $(BUILDDIR)/gen/sootling_sprites.o $(BUILDDIR)/gen/hazard_sprites.o $(BUILDDIR)/gen/island_sprites.o $(BUILDDIR)/gen/island_garden_sprites.o $(BUILDDIR)/gen/island_deck_sprites.o $(BUILDDIR)/gen/tripstrip_sprites.o $(BUILDDIR)/gen/trippickup_sprites.o $(BUILDDIR)/gen/triphaz_sprites.o $(BUILDDIR)/gen/gum_sprites.o $(BUILDDIR)/gen/splash_sprites.o $(BUILDDIR)/gen/arcade_sprites.o $(BUILDDIR)/gen/resfx_sprites.o $(BUILDDIR)/gen/chute_sprites.o $(BUILDDIR)/gen/gumbubble_sprites.o $(BUILDDIR)/gen/gumleak_sprites.o $(BUILDDIR)/gen/countdown_sprites.o $(BUILDDIR)/gen/rulecard_sprites.o $(BUILDDIR)/gen/flfield_sprites.o $(BUILDDIR)/gen/stadium_sprites.o $(BUILDDIR)/gen/obs_sprites.o $(BUILDDIR)/gen/city_sprites.o $(BUILDDIR)/gen/dusk_sprites.o $(BUILDDIR)/gen/storm_sprites.o $(BUILDDIR)/src/bg.o $(BUILDDIR)/src/gfx.o $(BUILDDIR)/src/hazard.o $(BUILDDIR)/src/island.o $(BUILDDIR)/src/trip_strip.o $(BUILDDIR)/src/fling_field.o $(BUILDDIR)/src/stadium_hw.o $(BUILDDIR)/src/trip_pickup.o $(BUILDDIR)/src/gum.o $(BUILDDIR)/src/logo.o $(BUILDDIR)/src/splash.o $(BUILDDIR)/src/sound.o $(CORE_SRCS:%=$(BUILDDIR)/src/core/%.o)
+CORE_SRCS=rng game hiscore nameentry flow attract_overlay obstacle_view bg_scroll flier_view gum_view vram_queue obj_pool sound_queue sound_events flier stage island_layout ai camera trip trip_gen trip_cave trip_hit trip_rival score_table gumgames gg_flapdash gg_popdrop gg_fling gg_toss trip_view trip_pickup_fx banner splash_view arcade arc_elements arc_view result result_view stadium
+$(ELF):	$(BUILDDIR)/src/main.o $(BUILDDIR)/gen/sootling_sprites.o $(BUILDDIR)/gen/hazard_sprites.o $(BUILDDIR)/gen/island_sprites.o $(BUILDDIR)/gen/island_garden_sprites.o $(BUILDDIR)/gen/island_deck_sprites.o $(BUILDDIR)/gen/tripstrip_sprites.o $(BUILDDIR)/gen/trippickup_sprites.o $(BUILDDIR)/gen/triphaz_sprites.o $(BUILDDIR)/gen/gum_sprites.o $(BUILDDIR)/gen/splash_sprites.o $(BUILDDIR)/gen/arcade_sprites.o $(BUILDDIR)/gen/resfx_sprites.o $(BUILDDIR)/gen/chute_sprites.o $(BUILDDIR)/gen/gumbubble_sprites.o $(BUILDDIR)/gen/tosspose_sprites.o $(BUILDDIR)/gen/gumleak_sprites.o $(BUILDDIR)/gen/countdown_sprites.o $(BUILDDIR)/gen/rulecard_sprites.o $(BUILDDIR)/gen/flfield_sprites.o $(BUILDDIR)/gen/stadium_sprites.o $(BUILDDIR)/gen/obs_sprites.o $(BUILDDIR)/gen/city_sprites.o $(BUILDDIR)/gen/dusk_sprites.o $(BUILDDIR)/gen/storm_sprites.o $(BUILDDIR)/src/bg.o $(BUILDDIR)/src/gfx.o $(BUILDDIR)/src/hazard.o $(BUILDDIR)/src/island.o $(BUILDDIR)/src/trip_strip.o $(BUILDDIR)/src/fling_field.o $(BUILDDIR)/src/stadium_hw.o $(BUILDDIR)/src/trip_pickup.o $(BUILDDIR)/src/gum.o $(BUILDDIR)/src/logo.o $(BUILDDIR)/src/splash.o $(BUILDDIR)/src/sound.o $(CORE_SRCS:%=$(BUILDDIR)/src/core/%.o)
 $(PROM1): $(ELF)
 
 
@@ -100,7 +100,7 @@ $(SROM1): $(BUILDDIR)/gen/fix_font.fix $(BUILDDIR)/gen/attract_icons.fix $(BUILD
 # logo during the attract mode.
 # Note: build rules (%.gif -> %.c<1,2>) are defined in Makefile.build
 # Obstacle tiles come after the logo (256 tiles = OBS_TILE_BASE in src/vram_layout.h), city tiles after the obstacles (bases in src/vram_layout.h, from the generated headers); prerequisite order = cat order.
-CROM_SETS=assets/base-crom-logo gen/obs gen/city gen/dusk gen/storm gen/sootling gen/hazard gen/island gen/island_garden gen/island_deck gen/tripstrip gen/trippickup gen/triphaz gen/gum gen/logo gen/splash gen/arcade gen/resfx gen/chute gen/gumbubble gen/gumleak gen/countdown gen/rulecard gen/flfield gen/stadium
+CROM_SETS=assets/base-crom-logo gen/obs gen/city gen/dusk gen/storm gen/sootling gen/hazard gen/island gen/island_garden gen/island_deck gen/tripstrip gen/trippickup gen/triphaz gen/gum gen/logo gen/splash gen/arcade gen/resfx gen/chute gen/gumbubble gen/gumleak gen/countdown gen/rulecard gen/flfield gen/tosspose gen/stadium
 CROM_LAYOUT=$(BUILDDIR)/gen/crom-layout.stamp
 $(CROM1): $(CROM_SETS:%=$(BUILDDIR)/%.c1) $(CROM_LAYOUT)
 $(CROM2): $(CROM_SETS:%=$(BUILDDIR)/%.c2) $(CROM_LAYOUT)
@@ -204,6 +204,10 @@ $(BUILDDIR)/gen/chute_sprites.o: $(BUILDDIR)/gen/chute_sprites.c
 $(BUILDDIR)/gen/gumbubble.c1 $(BUILDDIR)/gen/gumbubble.c2 $(BUILDDIR)/gen/gumbubble_sprites.c $(BUILDDIR)/gen/gumbubble_sprites.h $(BUILDDIR)/gen/gumbubble_tables.h: assets/gum_bubble/gum_bubble_sheet.png assets/gum_bubble/gum_bubble_sheet.json tools/build_gumbubble_sprites.py tools/sprite_pipeline.py
 	$(PYTHON) -I tools/build_gumbubble_sprites.py --out $(BUILDDIR)/gen
 $(BUILDDIR)/gen/gumbubble_sprites.o: $(BUILDDIR)/gen/gumbubble_sprites.c
+# Toss Gum poses: 8 cells 32x32 (tools/make_toss_sheet.py) + the gum anchor per pose in tosspose_tables.h. C-ROM position: last, so no earlier tile base moves.
+$(BUILDDIR)/gen/tosspose.c1 $(BUILDDIR)/gen/tosspose.c2 $(BUILDDIR)/gen/tosspose_sprites.c $(BUILDDIR)/gen/tosspose_sprites.h $(BUILDDIR)/gen/tosspose_tables.h: assets/toss/toss_sheet.png assets/toss/toss_sheet.json tools/build_tosspose_sprites.py tools/sprite_pipeline.py
+	$(PYTHON) -I tools/build_tosspose_sprites.py --out $(BUILDDIR)/gen
+$(BUILDDIR)/gen/tosspose_sprites.o: $(BUILDDIR)/gen/tosspose_sprites.c
 	$(M68KGCC) $(NGCFLAGS) $(CFLAGS) -c $< -o $@
 # Gum leak (air jet + hole over a damaged bubble, 12 frames of 32x16). C-ROM position: last, after the gum bubble set, so no earlier tile base moves.
 $(BUILDDIR)/gen/gumleak.c1 $(BUILDDIR)/gen/gumleak.c2 $(BUILDDIR)/gen/gumleak_sprites.c $(BUILDDIR)/gen/gumleak_sprites.h $(BUILDDIR)/gen/gumleak_tables.h: assets/gum_leak/gum_leak_sheet.png assets/gum_leak/gum_leak_sheet.json tools/build_gumleak_sprites.py tools/sprite_pipeline.py
@@ -237,7 +241,7 @@ $(BUILDDIR)/gen/stadium_sprites.o: $(BUILDDIR)/gen/stadium_sprites.c
 $(BUILDDIR)/gen/logo.c1 $(BUILDDIR)/gen/logo.c2 $(BUILDDIR)/gen/logo_sprites.h: assets/logo/logo_rim.json assets/logo/logo_rim_frames_1x.png assets/logo/logo_rim_pieces_1x.png assets/logo/logo_pieces.json tools/build_logo_sprites.py
 	$(PYTHON) -I tools/build_logo_sprites.py --out $(BUILDDIR)/gen
 
-$(BUILDDIR)/src/main.o $(BUILDDIR)/src/bg.o $(BUILDDIR)/src/gfx.o $(BUILDDIR)/src/hazard.o $(BUILDDIR)/src/island.o $(BUILDDIR)/src/trip_strip.o $(BUILDDIR)/src/fling_field.o $(BUILDDIR)/src/stadium_hw.o $(BUILDDIR)/src/trip_pickup.o $(BUILDDIR)/src/gum.o $(BUILDDIR)/src/logo.o $(BUILDDIR)/src/splash.o $(BUILDDIR)/src/core/sprite_budget.o $(BUILDDIR)/src/core/island_layout.o $(BUILDDIR)/src/core/banner.o $(BUILDDIR)/src/core/result_view.o $(BUILDDIR)/src/core/result.o: $(BUILDDIR)/gen/result_scene.h $(BUILDDIR)/gen/result_paths.h $(BUILDDIR)/gen/resfx_sprites.h $(BUILDDIR)/gen/chute_sprites.h $(BUILDDIR)/gen/gumbubble_sprites.h $(BUILDDIR)/gen/gumleak_sprites.h $(BUILDDIR)/gen/gumleak_tables.h $(BUILDDIR)/gen/countdown_sprites.h $(BUILDDIR)/gen/countdown_tables.h $(BUILDDIR)/gen/rulecard_sprites.h $(BUILDDIR)/gen/flfield_sprites.h $(BUILDDIR)/gen/stadium_sprites.h $(BUILDDIR)/gen/stadium_layout.h src/stadium_hw.h $(BUILDDIR)/gen/rulecard_tiles.h $(BUILDDIR)/gen/fix_font.h $(BUILDDIR)/gen/attract_icons.h src/core/attract_overlay.h $(BUILDDIR)/gen/tripmeter.h $(BUILDDIR)/gen/island_tables.h $(BUILDDIR)/gen/city_tables.h $(BUILDDIR)/gen/dusk_tables.h $(BUILDDIR)/gen/storm_tables.h $(BUILDDIR)/gen/island_sprites.h $(BUILDDIR)/gen/island_garden_sprites.h $(BUILDDIR)/gen/island_deck_sprites.h $(BUILDDIR)/gen/tripstrip_sprites.h $(BUILDDIR)/gen/tripstrip_tables.h $(BUILDDIR)/gen/trippickup_sprites.h $(BUILDDIR)/gen/trippickup_tables.h $(BUILDDIR)/gen/triphaz_sprites.h $(BUILDDIR)/gen/triphaz_tables.h $(BUILDDIR)/gen/gum_sprites.h $(BUILDDIR)/gen/gum_tables.h $(BUILDDIR)/gen/logo_sprites.h src/logo.h $(BUILDDIR)/gen/splash_sprites.h $(BUILDDIR)/gen/splash_tables.h $(BUILDDIR)/gen/arcade_sprites.h $(BUILDDIR)/gen/arcade_tables.h src/splash.h src/core/splash_view.h $(BUILDDIR)/gen/hazard_sprites.h $(BUILDDIR)/gen/obs_sprites.h $(BUILDDIR)/gen/city_sprites.h $(BUILDDIR)/gen/dusk_sprites.h $(BUILDDIR)/gen/storm_sprites.h $(BUILDDIR)/gen/sootling_sprites.h src/core/flier_view.h src/core/gum_view.h src/vram_layout.h src/sprite_slots.h src/bg.h src/gfx.h src/hazard.h src/island.h src/core/island_layout.h src/core/vram_queue.h
+$(BUILDDIR)/src/main.o $(BUILDDIR)/src/bg.o $(BUILDDIR)/src/gfx.o $(BUILDDIR)/src/hazard.o $(BUILDDIR)/src/island.o $(BUILDDIR)/src/trip_strip.o $(BUILDDIR)/src/fling_field.o $(BUILDDIR)/src/stadium_hw.o $(BUILDDIR)/src/trip_pickup.o $(BUILDDIR)/src/gum.o $(BUILDDIR)/src/logo.o $(BUILDDIR)/src/splash.o $(BUILDDIR)/src/core/sprite_budget.o $(BUILDDIR)/src/core/island_layout.o $(BUILDDIR)/src/core/banner.o $(BUILDDIR)/src/core/result_view.o $(BUILDDIR)/src/core/result.o: $(BUILDDIR)/gen/result_scene.h $(BUILDDIR)/gen/result_paths.h $(BUILDDIR)/gen/resfx_sprites.h $(BUILDDIR)/gen/chute_sprites.h $(BUILDDIR)/gen/gumbubble_sprites.h $(BUILDDIR)/gen/tosspose_sprites.h $(BUILDDIR)/gen/gumleak_sprites.h $(BUILDDIR)/gen/gumleak_tables.h $(BUILDDIR)/gen/countdown_sprites.h $(BUILDDIR)/gen/countdown_tables.h $(BUILDDIR)/gen/rulecard_sprites.h $(BUILDDIR)/gen/flfield_sprites.h $(BUILDDIR)/gen/stadium_sprites.h $(BUILDDIR)/gen/stadium_layout.h src/stadium_hw.h $(BUILDDIR)/gen/rulecard_tiles.h $(BUILDDIR)/gen/fix_font.h $(BUILDDIR)/gen/attract_icons.h src/core/attract_overlay.h $(BUILDDIR)/gen/tripmeter.h $(BUILDDIR)/gen/island_tables.h $(BUILDDIR)/gen/city_tables.h $(BUILDDIR)/gen/dusk_tables.h $(BUILDDIR)/gen/storm_tables.h $(BUILDDIR)/gen/island_sprites.h $(BUILDDIR)/gen/island_garden_sprites.h $(BUILDDIR)/gen/island_deck_sprites.h $(BUILDDIR)/gen/tripstrip_sprites.h $(BUILDDIR)/gen/tripstrip_tables.h $(BUILDDIR)/gen/trippickup_sprites.h $(BUILDDIR)/gen/trippickup_tables.h $(BUILDDIR)/gen/triphaz_sprites.h $(BUILDDIR)/gen/triphaz_tables.h $(BUILDDIR)/gen/gum_sprites.h $(BUILDDIR)/gen/gum_tables.h $(BUILDDIR)/gen/logo_sprites.h src/logo.h $(BUILDDIR)/gen/splash_sprites.h $(BUILDDIR)/gen/splash_tables.h $(BUILDDIR)/gen/arcade_sprites.h $(BUILDDIR)/gen/arcade_tables.h src/splash.h src/core/splash_view.h $(BUILDDIR)/gen/hazard_sprites.h $(BUILDDIR)/gen/obs_sprites.h $(BUILDDIR)/gen/city_sprites.h $(BUILDDIR)/gen/dusk_sprites.h $(BUILDDIR)/gen/storm_sprites.h $(BUILDDIR)/gen/sootling_sprites.h src/core/flier_view.h src/core/gum_view.h src/vram_layout.h src/sprite_slots.h src/bg.h src/gfx.h src/hazard.h src/island.h src/core/island_layout.h src/core/vram_queue.h
 
 
 
@@ -413,6 +417,7 @@ test: cart
 	@$(MAKE) --no-print-directory test-title-pause
 	@$(MAKE) --no-print-directory test-arena-join
 	@$(MAKE) --no-print-directory test-party
+	@$(MAKE) --no-print-directory test-party-toss
 	@$(MAKE) --no-print-directory test-gum-big-blow
 	@$(MAKE) --no-print-directory test-gum-burst-race
 	@$(MAKE) --no-print-directory test-gum-burst-race-2p
@@ -422,7 +427,6 @@ test: cart
 	@$(MAKE) --no-print-directory test-gum-pop-drop
 	@$(MAKE) --no-print-directory test-gum-fling
 	@$(MAKE) --no-print-directory test-party-roost
-	@$(MAKE) --no-print-directory test-party-hot
 	@$(MAKE) --no-print-directory test-party-name
 	@$(MAKE) --no-print-directory test-coop
 	@$(MAKE) --no-print-directory test-sound
@@ -903,6 +907,20 @@ test-party: cart bios
 	cat $$T/result.txt; \
 	if grep -q '^PASS' $$T/result.txt; then rm -rf $$T; echo "[OK] make test-party passed"; else echo "[FAIL] make test-party, log kept in $$T"; exit 1; fi
 
+# PARTY Toss Gum (tests/mame/party_toss_check.lua): UniBIOS, Arena 1P Start, rule set to Toss, P2 join restarts into Toss Gum; four birds, a toss in flight,
+# a burst and a winner. `make test-party-toss TOSS_SNAP=<dir>` also writes toss_mid.png and toss_burst.png there.
+test-party-toss: cart bios
+	@if [ ! -f "$(UNIBIOS)" ]; then echo "[FAIL] UNIBIOS file not found: $(UNIBIOS)"; exit 1; fi
+	@$(MAKE) --no-print-directory $(UNIBIOS_DIR)/neogeo.zip
+	@set -e; T=$$(mktemp -d $(BUILDDIR)/test-run.XXXXXX); \
+	BRAWL_FLOW_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flow"{print $$1}') \
+	BRAWL_SNAP=$(TOSS_SNAP) BRAWL_TOSS_LAYOUT="$$($(M68KGCC) $(NGCFLAGS) -Ibuild -std=c99 -S -o - tests/mame/party_toss_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
+	BRAWL_RESULT=$$T/result.txt \
+	SDL_VIDEODRIVER=dummy nice -n 19 $(MAME) -window -nomaximize -video none -sound none -nothrottle -seconds_to_run 400 -noautosave -skip_gameinfo -hash $(ROM) -rp "$(UNIBIOS_DIR);$(ROM)" -bios unibios40 -nvram_directory $$T $(if $(TOSS_SNAP),-snapshot_directory $(TOSS_SNAP)) -autoboot_script tests/mame/party_toss_check.lua neogeo -cart1 $(GAMEROM) > $$T/mame.log 2>&1 || true; \
+	if [ ! -f $$T/result.txt ]; then tail -n 15 $$T/mame.log; echo "[FAIL] no result from party toss Lua script"; exit 1; fi; \
+	cat $$T/result.txt; \
+	if grep -q '^PASS' $$T/result.txt; then rm -rf $$T; echo "[OK] make test-party-toss passed"; else echo "[FAIL] make test-party-toss, log kept in $$T"; exit 1; fi
+
 # PARTY Roost Rule (tests/mame/party_roost_check.lua): UniBIOS, Arena 1P Start, rule set to Roost, P2 join restarts the match; the island is picked,
 # the round timer runs and a sole standing human is paid ticks. `make test-party-roost` alone.
 test-party-roost: cart bios
@@ -917,20 +935,6 @@ test-party-roost: cart bios
 	if [ ! -f $$T/result.txt ]; then tail -n 15 $$T/mame.log; echo "[FAIL] no result from party roost Lua script"; exit 1; fi; \
 	cat $$T/result.txt; \
 	if grep -q '^PASS' $$T/result.txt; then rm -rf $$T; echo "[OK] make test-party-roost passed"; else echo "[FAIL] make test-party-roost, log kept in $$T"; exit 1; fi
-
-# PARTY Hot Gum (tests/mame/party_hot_check.lua): UniBIOS, Arena 1P Start, rule set to Hot Gum, P2 join restarts the match; a carrier is picked,
-# the fuse burns down and reloads when the gum moves on. `make test-party-hot` alone.
-test-party-hot: cart bios
-	@if [ ! -f "$(UNIBIOS)" ]; then echo "[FAIL] UNIBIOS file not found: $(UNIBIOS)"; exit 1; fi
-	@$(MAKE) --no-print-directory $(UNIBIOS_DIR)/neogeo.zip
-	@set -e; T=$$(mktemp -d $(BUILDDIR)/test-run.XXXXXX); \
-	BRAWL_FLOW_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flow"{print $$1}') \
-	BRAWL_HOT_LAYOUT="$$($(M68KGCC) $(NGCFLAGS) -Ibuild -std=c99 -S -o - tests/mame/party_hot_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
-	BRAWL_RESULT=$$T/result.txt \
-	SDL_VIDEODRIVER=dummy nice -n 19 $(MAME) -window -nomaximize -video none -sound none -nothrottle -seconds_to_run 300 -noautosave -skip_gameinfo -hash $(ROM) -rp "$(UNIBIOS_DIR);$(ROM)" -bios unibios40 -nvram_directory $$T -autoboot_script tests/mame/party_hot_check.lua neogeo -cart1 $(GAMEROM) > $$T/mame.log 2>&1 || true; \
-	if [ ! -f $$T/result.txt ]; then tail -n 15 $$T/mame.log; echo "[FAIL] no result from party hot Lua script"; exit 1; fi; \
-	cat $$T/result.txt; \
-	if grep -q '^PASS' $$T/result.txt; then rm -rf $$T; echo "[OK] make test-party-hot passed"; else echo "[FAIL] make test-party-hot, log kept in $$T"; exit 1; fi
 
 # PARTY two-player name entry (tests/mame/party_name_check.lua): UniBIOS, 2P PARTY game over with both scores ranking, both players type a name;
 # both names reach the saved table, the game loop keeps running and the screen is not blank afterwards. `make test-party-name` alone.
@@ -1226,7 +1230,7 @@ test-logo: cart bios
 	cat $$T/result.txt; \
 	if grep -q '^PASS' $$T/result.txt; then rm -rf $$T; echo "[OK] make test-logo passed"; else echo "[FAIL] make test-logo, log kept in $$T"; exit 1; fi
 
-.PHONY: run test test-mood test-arcade test-arcade-walk test-arcade-bonus test-crom test-srom test-debug-header test-camera test-sprite-peak test-left-column test-flier test-small-sootling test-reach test-vblank test-scroll test-slots test-hazard test-hazard-kill test-soft-reset test-ring test-solid test-trip test-score test-sound test-unibios test-coop test-arena-join test-party test-party-roost test-party-hot test-party-name test-gum-big-blow test-gum-burst-race test-gum-burst-race-2p test-gum-bubble-gather-fail test-gum-flap-dash test-gum-bubble-gather test-gum-pop-drop test-gum-fling test-logo
+.PHONY: run test test-mood test-arcade test-arcade-walk test-arcade-bonus test-crom test-srom test-debug-header test-camera test-sprite-peak test-left-column test-flier test-small-sootling test-reach test-vblank test-scroll test-slots test-hazard test-hazard-kill test-soft-reset test-ring test-solid test-trip test-score test-sound test-unibios test-coop test-arena-join test-party test-party-toss test-party-roost test-party-name test-gum-big-blow test-gum-burst-race test-gum-burst-race-2p test-gum-bubble-gather-fail test-gum-flap-dash test-gum-bubble-gather test-gum-pop-drop test-gum-fling test-logo
 
 # Header dependencies from -MMD (build/**/*.d): a changed header rebuilds every object that includes it.
 -include $(shell find $(BUILDDIR) -name '*.d' 2>/dev/null)
