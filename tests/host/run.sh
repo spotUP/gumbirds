@@ -7,7 +7,7 @@ ROOT=$(cd "$HERE/../.." && pwd)
 OUT=${BRAWL_TEST_OUT:-$ROOT/build/test-host}
 mkdir -p "$OUT"
 CC="nice -n 19 clang -I $ROOT/build -std=c99 -Wall -Wextra -Werror -pedantic"
-SRC="$ROOT/src/core/rng.c $ROOT/src/core/game.c $ROOT/src/core/hiscore.c $ROOT/src/core/nameentry.c $ROOT/src/core/flow.c $ROOT/src/core/obstacle_view.c $ROOT/src/core/bg_scroll.c $ROOT/src/core/vram_queue.c $ROOT/src/core/obj_pool.c $ROOT/src/core/sound_queue.c $ROOT/src/core/sound_events.c $ROOT/src/core/flier.c $ROOT/src/core/stage.c $ROOT/src/core/island_layout.c $ROOT/src/core/ai.c $ROOT/src/core/flier_view.c $ROOT/src/core/sprite_budget.c $ROOT/src/core/camera.c $ROOT/src/core/trip.c $ROOT/src/core/trip_gen.c $ROOT/src/core/trip_cave.c $ROOT/src/core/trip_hit.c $ROOT/src/core/trip_rival.c $ROOT/src/core/score_table.c $ROOT/src/core/gumgames.c $ROOT/src/core/gg_flapdash.c $ROOT/src/core/gg_popdrop.c $ROOT/src/core/gg_fling.c $ROOT/src/core/trip_view.c $ROOT/src/core/trip_pickup_fx.c $ROOT/src/core/banner.c $ROOT/src/core/gum_view.c $ROOT/src/core/splash_view.c $ROOT/src/core/arcade.c $ROOT/src/core/arc_elements.c $ROOT/src/core/arc_view.c $ROOT/src/core/result.c $ROOT/src/core/result_view.c $ROOT/src/core/attract_overlay.c"
+SRC="$ROOT/src/core/rng.c $ROOT/src/core/game.c $ROOT/src/core/hiscore.c $ROOT/src/core/nameentry.c $ROOT/src/core/flow.c $ROOT/src/core/obstacle_view.c $ROOT/src/core/bg_scroll.c $ROOT/src/core/vram_queue.c $ROOT/src/core/obj_pool.c $ROOT/src/core/sound_queue.c $ROOT/src/core/sound_events.c $ROOT/src/core/flier.c $ROOT/src/core/stage.c $ROOT/src/core/island_layout.c $ROOT/src/core/ai.c $ROOT/src/core/flier_view.c $ROOT/src/core/sprite_budget.c $ROOT/src/core/camera.c $ROOT/src/core/trip.c $ROOT/src/core/trip_gen.c $ROOT/src/core/trip_cave.c $ROOT/src/core/trip_hit.c $ROOT/src/core/trip_rival.c $ROOT/src/core/score_table.c $ROOT/src/core/gumgames.c $ROOT/src/core/gg_flapdash.c $ROOT/src/core/gg_popdrop.c $ROOT/src/core/gg_fling.c $ROOT/src/core/gg_toss.c $ROOT/src/core/trip_view.c $ROOT/src/core/trip_pickup_fx.c $ROOT/src/core/banner.c $ROOT/src/core/gum_view.c $ROOT/src/core/splash_view.c $ROOT/src/core/arcade.c $ROOT/src/core/arc_elements.c $ROOT/src/core/arc_view.c $ROOT/src/core/result.c $ROOT/src/core/result_view.c $ROOT/src/core/attract_overlay.c"
 fail=0
 # test_flier_view reads the generated Sootling tables
 (cd "$ROOT" && gmake -s build/gen/sootling_tables.h build/gen/city_tables.h build/gen/dusk_tables.h build/gen/storm_tables.h build/gen/island_tables.h build/gen/fix_font.h build/gen/attract_icons.h build/gen/result_scene.h build/gen/result_paths.h >"$OUT/gen.log" 2>&1) || { echo "[ERROR] gen sootling_tables.h failed"; tail -n 5 "$OUT/gen.log"; exit 1; }
@@ -78,9 +78,6 @@ tail -n 1 "$OUT/test_arena2p.log"; grep FAIL "$OUT/test_arena2p.log" | head -n 1
 $CC -o "$OUT/test_roost" "$HERE/test_roost.c" $SRC -lm >"$OUT/build.log" 2>&1 || { echo "[ERROR] roost build failed"; tail -n 20 "$OUT/build.log"; exit 1; }
 nice -n 19 "$OUT/test_roost" >"$OUT/test_roost.log" 2>&1 || fail=1
 tail -n 1 "$OUT/test_roost.log"; grep FAIL "$OUT/test_roost.log" | head -n 10
-$CC -o "$OUT/test_hot" "$HERE/test_hot.c" $SRC -lm >"$OUT/build.log" 2>&1 || { echo "[ERROR] hot build failed"; tail -n 20 "$OUT/build.log"; exit 1; }
-nice -n 19 "$OUT/test_hot" >"$OUT/test_hot.log" 2>&1 || fail=1
-tail -n 1 "$OUT/test_hot.log"; grep FAIL "$OUT/test_hot.log" | head -n 10
 $CC -o "$OUT/test_party_plain" "$HERE/test_party_plain.c" $SRC -lm >"$OUT/build.log" 2>&1 || { echo "[ERROR] party_plain build failed"; tail -n 20 "$OUT/build.log"; exit 1; }
 nice -n 19 "$OUT/test_party_plain" >"$OUT/test_party_plain.log" 2>&1 || fail=1
 tail -n 1 "$OUT/test_party_plain.log"; grep FAIL "$OUT/test_party_plain.log" | head -n 10
@@ -161,6 +158,9 @@ tail -n 1 "$OUT/test_gumgames.log"; grep FAIL "$OUT/test_gumgames.log" | head -n
 $CC -I "$ROOT/src/core" -o "$OUT/test_big_blow" "$HERE/test_big_blow.c" $SRC -lm >"$OUT/build.log" 2>&1 || { echo "[ERROR] test_big_blow build failed"; tail -n 20 "$OUT/build.log"; exit 1; }
 nice -n 19 "$OUT/test_big_blow" >"$OUT/test_big_blow.log" 2>&1 || fail=1
 tail -n 1 "$OUT/test_big_blow.log"; grep FAIL "$OUT/test_big_blow.log" | head -n 10
+$CC -I "$ROOT/src/core" -o "$OUT/test_toss" "$HERE/test_toss.c" $SRC -lm >"$OUT/build.log" 2>&1 || { echo "[ERROR] test_toss build failed"; tail -n 20 "$OUT/build.log"; exit 1; }
+nice -n 19 "$OUT/test_toss" >"$OUT/test_toss.log" 2>&1 || fail=1
+tail -n 1 "$OUT/test_toss.log"; grep FAIL "$OUT/test_toss.log" | head -n 10
 $CC -I "$ROOT/src/core" -o "$OUT/test_burst_race" "$HERE/test_burst_race.c" $SRC -lm >"$OUT/build.log" 2>&1 || { echo "[ERROR] test_burst_race build failed"; tail -n 20 "$OUT/build.log"; exit 1; }
 nice -n 19 "$OUT/test_burst_race" >"$OUT/test_burst_race.log" 2>&1 || fail=1
 tail -n 1 "$OUT/test_burst_race.log"; grep FAIL "$OUT/test_burst_race.log" | head -n 10

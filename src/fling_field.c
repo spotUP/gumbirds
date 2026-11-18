@@ -60,7 +60,7 @@ static void hide_all(void) {
 
 u8 fling_field_loaded(void) { return g_ready; }
 
-void fling_field_step(const GgFling *f, u8 mood, int on, int show) {
+void fling_field_step(const GgFling *f, u8 mood, int on, int show, int markers) {
     u8 loads = LOADS_PER_FRAME, pending = 0;
     u32 scroll, j0;
     if (!f || !on) {
@@ -89,12 +89,12 @@ void fling_field_step(const GgFling *f, u8 mood, int on, int show) {
         g_t3[s] = gfx_scb3_word(4, TURF_Y);
         g_t4[s] = gfx_scb4_word((int)(j * 16) - (int)scroll);
     }
-    while (loads && g_mload < MARKS) { load_marker(g_mload++); loads--; }
-    if (g_mload < MARKS) pending = 1;
-    if (g_mload >= MARKS && g_flut != (u8)((g_tick >> MARK_FLUTTER) & 1) && loads) { g_flut ^= 1; load_marker(MARK_K); }
+    while (markers && loads && g_mload < MARKS) { load_marker(g_mload++); loads--; }   /* Toss Gum draws the turf only: no foul line, boards, mark flag */
+    if (markers && g_mload < MARKS) pending = 1;
+    if (markers && g_mload >= MARKS && g_flut != (u8)((g_tick >> MARK_FLUTTER) & 1) && loads) { g_flut ^= 1; load_marker(MARK_K); }
     for (u8 k = 0; k < MARKS; k++) {
         int x = LINE_X + 3 * (k ? 10 * k : 0) - (int)scroll;
-        g_m3[k] = x > -16 && x < 320 && k < g_mload ? g_mw[k] : 0;
+        g_m3[k] = markers && x > -16 && x < 320 && k < g_mload ? g_mw[k] : 0;
         g_m4[k] = gfx_scb4_word(x);
     }
     /* landing puff: starts on the touch-down edge (a foul has no flight, so none) */
