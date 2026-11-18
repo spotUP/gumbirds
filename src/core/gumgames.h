@@ -14,8 +14,8 @@ enum { GG_BIG_BLOW, GG_BURST_RACE, GG_BUBBLE_GATHER, GG_FLAP_DASH, GG_POP_DROP, 
 #define GG_GATHER_CLOCK 2700u         /* Bubble Gather: 45 seconds at 60 frames */
 #define GG_GATHER_QUALIFY 12u         /* of ARC_BONUS_BUBBLES (20) */
 
-/* Alternate A/B mash counter: a press counts only when it is the other button than the last counted one. */
-typedef struct { uint8_t last; uint16_t count; } GgMash;
+/* A/B mash counter: every new press (rising edge) of A or B counts once. */
+typedef struct { uint16_t count; } GgMash;
 void gg_mash_reset(GgMash *m);
 /* in = input byte this frame, prev = last frame. Returns 1 when this frame counted a press. */
 int gg_mash_step(GgMash *m, uint8_t in, uint8_t prev);

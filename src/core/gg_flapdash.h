@@ -22,7 +22,7 @@ typedef struct {
 
 /* Place the hero at the start line and clear the run. */
 void gumdash_init(GgDash *d, Flier *hero);
-/* One frame. dir is forced to +1, A/B alternation is the flap. Returns 1 on the frame the last lap completes (and keeps returning 0 after). */
+/* One frame. dir is forced to +1, every new A or B press is the flap. Returns 1 on the frame the last lap completes (and keeps returning 0 after). */
 int gumdash_step(GgDash *d, Flier *hero, uint8_t in);
 /* Qualifying time in frames on medley loop `loop` (0 = first): 5% tighter each loop. */
 uint32_t gumdash_mark(uint32_t loop);
