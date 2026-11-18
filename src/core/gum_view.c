@@ -1,5 +1,6 @@
 #include "gum_view.h"
 #include "gen/sootling_tables.h"
+#include "fastdiv.h"
 
 typedef char gum_view_bird_frames_match_sheet[(GUM_VIEW_BIRD_FRAMES == SOOTLING_FRAMES) ? 1 : -1];
 
@@ -30,27 +31,10 @@ uint8_t gum_view_anim(uint8_t level, GumState state)
     return state == GUM_STATE_POP ? (gum_view_pop(l) == GUM_POP_LARGE ? 16 : 17) : (uint8_t)(GUM_VIEW_LEVELS - l);
 }
 
-/* (t / ticks) % frames for a free-running frame clock, as (t % (ticks * frames)) / ticks. On the 68000 a 32 bit `/` or `%` is a
- * libgcc call (__udivsi3 / __umodsi3, about 1700 cycles); this runs per bubble per frame, so it uses three DIVU.W instead:
- * t % n from the high and low halves (each quotient fits 16 bits), then the small remainder / ticks. Needs ticks * frames < 65536. */
-static uint8_t clock_frame(uint32_t t, uint16_t ticks, uint16_t frames)
-{
-#ifdef __m68k__
-    uint32_t n = (uint32_t)ticks * frames, r = t >> 16;
-    __asm__("divu.w %1,%0\n\tclr.w %0" : "+d"(r) : "d"((uint16_t)n) : "cc");    /* r = (hi % n) << 16 */
-    r |= t & 0xFFFF;
-    __asm__("divu.w %1,%0\n\tclr.w %0\n\tswap %0" : "+d"(r) : "d"((uint16_t)n) : "cc"); /* r = t % n */
-    __asm__("divu.w %1,%0" : "+d"(r) : "d"(ticks) : "cc");                                   /* low word: r / ticks */
-    return (uint8_t)r;
-#else
-    return (uint8_t)((t / ticks) % frames);
-#endif
-}
-
 uint8_t gum_view_frame(GumState state, uint32_t t)
 {
-    if (state == GUM_STATE_WOBBLE) return clock_frame(t, GUM_WOBBLE_FRAMES, GUM_VIEW_WOBBLE_SHEET);
-    return gum_view_pop_done(t) ? GUM_VIEW_POP_SHEET - 1 : (uint8_t)(t / GUM_POP_FRAMES);
+    if (state == GUM_STATE_WOBBLE) return fd_clock(t, GUM_WOBBLE_FRAMES, GUM_VIEW_WOBBLE_SHEET);
+    return gum_view_pop_done(t) ? GUM_VIEW_POP_SHEET - 1 : (uint8_t)fd_div16(t, GUM_POP_FRAMES);
 }
 
 int gum_view_pop_done(uint32_t t) { return t >= (uint32_t)GUM_VIEW_POP_SHEET * GUM_POP_FRAMES; }
@@ -77,7 +61,7 @@ int gum_view_draws(int popping, uint8_t level, uint8_t show) { return popping ||
 
 int gum_view_leaks_balloons(uint8_t balloons) { return balloons == 1; }
 int gum_view_leaks_gum(uint16_t gum) { return gum > 0 && gum < GUM_MAX / 2; }
-uint8_t gum_view_leak_frame(uint32_t t) { return clock_frame(t, GUM_LEAK_TICK, GUM_LEAK_FRAMES); }
+uint8_t gum_view_leak_frame(uint32_t t) { return fd_clock(t, GUM_LEAK_TICK, GUM_LEAK_FRAMES); }
 uint32_t gum_view_wobble_clock(uint32_t t, int leaking) { return leaking ? t * 2 : t; }
 
 uint8_t gum_view_pump_level(int elapsed, int pump_frames, int full_level) {
@@ -85,7 +69,7 @@ uint8_t gum_view_pump_level(int elapsed, int pump_frames, int full_level) {
     int g = 1, acc = pump_frames, t, lvl;
     if (elapsed >= pump_frames || pump_frames <= 0) return (uint8_t)full_level;
     if (elapsed < 0) elapsed = 0;
-    t = elapsed * (full_level - 1);
+    t = fd_mul16(elapsed, full_level - 1);
     while (g < full_level && t >= acc) { g++; acc += pump_frames; }
     t = elapsed * GUM_PUMP_STROKES;
     while (t >= pump_frames) t -= pump_frames;   /* phase inside the stroke, 0..pump_frames - 1 */

@@ -1,4 +1,5 @@
 #include "flier_view.h"
+#include "fastdiv.h"
 
 void flier_anim_init(FlierAnim *a)
 {
@@ -130,7 +131,7 @@ int flier_gum_burst(const Flier *f) { return f->balloons == 0 && (f->state >= FL
 uint8_t flier_pump_frame(const FlierClips *c, int progress)
 {
     int n = c->count[c->pump], p = progress < 0 ? 0 : (progress > ARC_PUMP_STAGES - 1 ? ARC_PUMP_STAGES - 1 : progress);
-    int x = p * (n - 1), q = 0;
+    int x = fd_mul16(p, n - 1), q = 0;
     while (x >= ARC_PUMP_STAGES - 1) { x -= ARC_PUMP_STAGES - 1; q++; } /* x / (STAGES - 1) without a libgcc divide: per pumping rival per frame */
     return (uint8_t)(c->first[c->pump] + q);
 }

@@ -1,5 +1,6 @@
 /* arc_view.c - see arc_view.h. */
 #include "arc_view.h"
+#include "fastdiv.h"
 
 /* Vent warning, variant B (owner pick 2026-11-15; values copied from thoughts/shared/drafts/2026-11-15-vent-warn/draw_vent_warn.py).
    The body shakes (drawing only, the kill box stays), boil bubbles sit on its top (drawn into the body's warning frames, piece ARCV_WARN) and the palette line heats up (arc_view_heat). */
@@ -73,7 +74,7 @@ int arc_view_build(const ArcElements *a, unsigned tick, ArcSprite *out) {
             ArcSprite *s = &out[n++];
             s->piece = ARCV_SPARK; s->frame = (uint8_t)((dt / ARC_VIEW_SPARK_TICKS) & 7);
             s->x = (int16_t)(e->x - ARC_VIEW_W[ARCV_SPARK] / 2);
-            s->y = (int16_t)(e->y - ARC_VIEW_H[ARCV_BODY] - (int)((dt % ARC_VIEW_SPARK_RISE_TICKS) * 13 / 5)); /* loops: the plume kills 40 ticks, one rise stays inside its 48 px box for 16 */
+            s->y = (int16_t)(e->y - ARC_VIEW_H[ARCV_BODY] - (int)fd_div16((dt & (ARC_VIEW_SPARK_RISE_TICKS - 1)) * 13, 5)); /* loops: the plume kills 40 ticks, one rise stays inside its 48 px box for 16 */
         }
     }
     return n;

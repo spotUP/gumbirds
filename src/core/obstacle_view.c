@@ -1,4 +1,5 @@
 #include "obstacle_view.h"
+#include "fastdiv.h"
 #include "game.h"
 
 uint8_t obstacle_view_ticks(uint8_t type) {
@@ -16,5 +17,5 @@ uint8_t obstacle_view_frame(uint8_t type, uint32_t frame, uint8_t frame_count) {
     if (t == 0 || frame_count == 0) {
         return 0;
     }
-    return (uint8_t)((frame / t) % frame_count);
+    return fd_clock(frame, t, frame_count);
 }

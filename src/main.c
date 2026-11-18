@@ -3,6 +3,7 @@
  * All game logic lives in src/core (host tested). Nothing here decides gameplay.
  */
 #include <ngdevkit/neogeo.h>
+#include "core/fastdiv.h"
 #include <ngdevkit/ng-fix.h>
 #include <ngdevkit/ng-video.h>
 #include <ngdevkit/bios-ram.h>
@@ -1307,7 +1308,7 @@ static int toss_slide(int from, int to) { int d = to - from; return from + (d > 
 static void toss_bubble_step(const Game *g) {
     const GgToss *tt = g && g->gg_toss ? &g->toss : 0;
     if (tt && (tt->phase == GT_HOLD || tt->phase == GT_FLIGHT)) {
-        int t = (int)(g->frame * (1u + (tt->fuse < 150u) + (tt->fuse < 60u)) % GUMBUBBLE_LOOP_TICKS), k = 0, sx, x, y;
+        int t = (int)fd_umod(g->frame * (1u + (tt->fuse < 150u) + (tt->fuse < 60u)), GUMBUBBLE_LOOP_TICKS), k = 0, sx, x, y;
         while (k < GUMBUBBLE_SEQ_COUNT - 1 && t >= g_tossb_ticks[k]) { t -= g_tossb_ticks[k]; k++; }
         if (tt->phase == GT_FLIGHT && tt->t >= GT_RELEASE_FRAME) {
             int n = GT_FLIGHT_FRAMES - GT_RELEASE_FRAME, a = tt->t - GT_RELEASE_FRAME + 1;

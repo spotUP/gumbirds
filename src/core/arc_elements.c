@@ -132,7 +132,7 @@ int arc_elements_avoid_dir(const ArcElements *a, int cx, int cy, int hw, int hh,
         /* The projected side may lie across the plume: cross only if the far edge is reached at the current speed before launch,
            else turn back (a fast rival heading at a vent was sent through it and died at launch). No divide: far << 16 vs speed * ticks. */
         if (e->kind == ARC_EL_VENT && side != now) {
-            int32_t sp = vx < 0 ? -vx : vx, far = (int32_t)((cx - e->x) * now + ARC_VENT_HALF_W + hw + 1);
+            int32_t sp = vx < 0 ? -vx : vx, far = (int32_t)((now > 0 ? cx - e->x : e->x - cx) + ARC_VENT_HALF_W + hw + 1);
             int left = e->timer < ARC_VENT_LAUNCH ? ARC_VENT_LAUNCH - e->timer : 0;
             if ((far << 16) > sp * left) return now;
         }
