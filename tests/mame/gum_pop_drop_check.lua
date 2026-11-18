@@ -49,7 +49,7 @@ local n, phase, t0, hud, cd_shown, maxhits = 0, "boot", 0, false, 0, 0
 local CD_SLOT = 309 -- ARC_ELEM_SPRITE (src/sprite_slots.h)
 emu.register_frame_done(function()
   n = n + 1
-  if n > 30000 then finish(false, "watchdog in phase " .. phase) return end
+  if n > 17000 then finish(false, string.format("watchdog in phase %s: phase %d hits %d maxhits %d state %d", phase, b(O.phase), b(O.hits), maxhits, b(O.state))) return end
   local playing = b(O.state) == K.playing
   if phase == "boot" then
     if n == 600 then phase = "start"; t0 = n; ss.begin(n) end
