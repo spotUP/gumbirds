@@ -2695,7 +2695,7 @@ static void game_loop(void) {
                               trip_game ? sg->hero[0].x >> 16 : se->splosh_x, trip_game ? sg->trip_splat_y : 0,
                               trip_game ? game_flier_cam_px(sg) : g_cam_px); /* the trip flier lives in screen space (owner 2026-11-17: splat far from the death) */
             }
-            logo_step(view.state == FLOW_ATTRACT_TITLE);
+            logo_step(view.state == FLOW_ATTRACT_TITLE && !bg_dark()); /* the logo has no palette fade: it leaves while a mood change holds the planes black and returns with the fade-in */
             title_soot_step(view.state == FLOW_ATTRACT_TITLE);
             hazard_trip_anim(trip_game);
             /* Gum Trip drops the far and near background planes; arena and title show them. Dropped already in the entry hold (world

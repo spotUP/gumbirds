@@ -252,6 +252,8 @@ static void mood_step(void) {
     bg_fade_swapped(&g_fade); /* busy until the fade in has written the last palette */
 }
 
+u8 bg_dark(void) { return g_fade.phase == BGF_DARK; }
+
 u8 bg_bare(void) { return g_fade.phase == BGF_DARK && g_fade.level == BG_FADE_MAX; }
 
 /* One frame of a mood change: the fade level, its palette words, and the tile swap while dark. */
