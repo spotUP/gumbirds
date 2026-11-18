@@ -2535,6 +2535,7 @@ static void screen_fade(u8 from, u8 to) {
 
 static void video_init(void) {
     gfx_init();
+    bg_backdrop_dark(1);
     /* Commit the fix clear FIRST, while palette 0 is still the BIOS zero: the budgeted queue flushes in order, so a clear
      * committed last left the BIOS tile 0x20 fill visible about 30 frames after a coin (tests/mame/unibios_check.lua, COIN1). */
     gfx_cls();
@@ -2579,6 +2580,7 @@ static void video_init(void) {
     gfx_drain(); /* init is outside the per-frame budget: it blocks, one flush per vblank, until everything is written */
     for (u16 i = 0; i < SCREEN_FADE_WORDS; i++) s_pal_full[i] = ((volatile u16 *)MMAP_PALBANK1)[i];
     screen_fade(0, BG_FADE_MAX); /* the BIOS return leaves the palette black: fade up, no cut */
+    bg_backdrop_dark(0); /* only now: nothing is drawn during the fade-up, so a lit backdrop alone would show as a blue screen; it comes with the first frame */
 }
 
 static void resume_game_loop(void) {
