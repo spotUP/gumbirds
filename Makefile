@@ -204,6 +204,7 @@ $(BUILDDIR)/gen/chute_sprites.o: $(BUILDDIR)/gen/chute_sprites.c
 $(BUILDDIR)/gen/gumbubble.c1 $(BUILDDIR)/gen/gumbubble.c2 $(BUILDDIR)/gen/gumbubble_sprites.c $(BUILDDIR)/gen/gumbubble_sprites.h $(BUILDDIR)/gen/gumbubble_tables.h: assets/gum_bubble/gum_bubble_sheet.png assets/gum_bubble/gum_bubble_sheet.json tools/build_gumbubble_sprites.py tools/sprite_pipeline.py
 	$(PYTHON) -I tools/build_gumbubble_sprites.py --out $(BUILDDIR)/gen
 $(BUILDDIR)/gen/gumbubble_sprites.o: $(BUILDDIR)/gen/gumbubble_sprites.c
+	$(M68KGCC) $(NGCFLAGS) $(CFLAGS) -c $< -o $@
 # Toss Gum poses: 8 cells 32x32 (tools/make_toss_sheet.py) + the gum anchor per pose in tosspose_tables.h. C-ROM position: last, so no earlier tile base moves.
 $(BUILDDIR)/gen/tosspose.c1 $(BUILDDIR)/gen/tosspose.c2 $(BUILDDIR)/gen/tosspose_sprites.c $(BUILDDIR)/gen/tosspose_sprites.h $(BUILDDIR)/gen/tosspose_tables.h: assets/toss/toss_sheet.png assets/toss/toss_sheet.json tools/build_tosspose_sprites.py tools/sprite_pipeline.py
 	$(PYTHON) -I tools/build_tosspose_sprites.py --out $(BUILDDIR)/gen
