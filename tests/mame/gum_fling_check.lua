@@ -1,6 +1,6 @@
 -- Gum Games Gum Fling check (make test-gum-fling): UniBIOS 4.0, one coin, Down to the GUM GAMES row, A opens the list, Down five times picks Gum Fling (last entry), Start:
 --   F1. the game is PLAYING in GAME_MODE_GUM with the fling running (gg_fling 1) and the HUD (fix row 7) lit;
---   F2. A/B mashed, C held then released: the mode flips to GAME_MODE_TRIP for the flight and back to GUM for the next attempt;
+--   F2. A mashed and held, then released: the mode stays GAME_MODE_GUM for the whole event (the grass field replaces the TRIP flip);
 --   F3. three attempts end the event: GAME_OVER, distance > 0, score equals the best distance based points, record in slot 4 equals the best distance.
 -- Env: BRAWL_FLOW_ADDR (hex), BRAWL_BLOW_LAYOUT (gum_fling_probe.c output), BRAWL_RESULT.
 local flow_addr = tonumber(os.getenv("BRAWL_FLOW_ADDR"), 16)
@@ -88,11 +88,11 @@ emu.register_frame_done(function()
   elseif phase == "check" then
     local dist, score, rec, best = mem:read_u32(flow_addr + O.dist), mem:read_u32(flow_addr + O.score), mem:read_u32(flow_addr + O.record), mem:read_u32(flow_addr + O.best)
     if not hud then finish(false, "HUD row never lit, max lit " .. maxlit .. " row " .. maxrow .. string.format(" cardn %d attempts %d trips %d n %d", cardn, attempts, trips, n)) return end
-    if trips < 1 then finish(false, "mode never flipped to TRIP") return end
+    if trips > 0 then finish(false, "mode entered TRIP " .. trips .. " frames") return end
     if attempts < 3 then finish(false, string.format("only %d attempts seen", attempts)) return end
     if best < 1 then finish(false, "best distance 0") return end
     if rec ~= best then finish(false, string.format("record %d, best distance %d", rec, best)) return end
     if score < 1 then finish(false, "score 0") return end
-    finish(true, string.format("Gum Fling: GUM GAMES row + A, Down starts it; %d attempts, TRIP flight seen, best %d, score %d, record saved", attempts, best, score))
+    finish(true, string.format("Gum Fling: GUM GAMES row + A, Down starts it; %d attempts, never TRIP, best %d, score %d, record saved", attempts, best, score))
   end
 end)
