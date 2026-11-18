@@ -12,7 +12,8 @@ local L = {}
 for v in (os.getenv("BRAWL_BLOW_LAYOUT") or ""):gmatch("%d+") do L[#L + 1] = tonumber(v) end
 local O = { state = L[1], mode = L[2], race = L[3], phase = L[4], size = L[5], rival = L[6], winner = L[7], score = L[8] }
 local K = { playing = L[9], gum = L[10], intro = L[11], play = L[12], res = L[13] }
-local RIVAL, HERO, GUM0, GUM1 = L[14], L[15], L[16], L[17]
+local RIVAL, HERO, GUM0, GUM1, CARD = L[14], L[15], L[16], L[17], L[18]
+local cardn = 0
 local mem = manager.machine.devices[":maincpu"].spaces["program"]
 local ports = manager.machine.ioport.ports
 local function field(tag, match)
@@ -62,6 +63,11 @@ emu.register_frame_done(function()
     pick:set_value((k >= 88 and k < 96) and 1 or 0); abtn:set_value((k >= 80 and k < 84) and 1 or 0) -- A opens the GUM GAMES list, Down picks
     if ss.step(n, playing, 1) then phase = "intro"; t0 = n; pick:set_value(0) end
   elseif phase == "intro" then
+    if b(CARD) == 1 then   -- rules card: A is ignored for its first 30 frames, then one press dismisses it
+      cardn = cardn + 1; t0 = n
+      abtn:set_value((cardn >= 40 and cardn < 44) and 1 or 0)
+      return
+    end
     if b(O.mode) ~= K.gum or b(O.race) ~= 1 then finish(false, string.format("mode %d race %d, want GAME_MODE_GUM %d and race 1", b(O.mode), b(O.race), K.gum)) return end
     if b(O.phase) == K.play then phase = "pump"; t0 = n
     elseif n - t0 > 400 then finish(false, "intro never reached the pump phase (phase " .. b(O.phase) .. ")") end

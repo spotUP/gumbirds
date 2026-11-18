@@ -91,12 +91,15 @@ int main(void)
         flow_step(&f, 0, 0, 0);
         CHECK(f.tables.gg_record[GG_BURST_RACE] == 80 && f.dirty);   /* lower time replaces a record, and fills an empty one */
     }
-    /* the pump counts only alternating A and B (one button repeated pumps nothing), so the rules card must say so */
+    /* every new press of A or B pumps once (the same button repeated too); a held button pumps once */
     {
         GgMash m; uint8_t prev = 0; int n = 0;
         const GgCard *c = flow_gg_card(GG_BURST_RACE);
         gg_mash_reset(&m);
         for (int i = 0; i < 20; i++) { uint8_t in = (i & 1) ? 0 : IN_A; n += gg_mash_step(&m, in, prev); prev = in; }
+        CHECK(n == 10);
+        gg_mash_reset(&m); n = 0; prev = 0;
+        for (int i = 0; i < 20; i++) { n += gg_mash_step(&m, IN_A, prev); prev = IN_A; }
         CHECK(n == 1);
         CHECK(c != 0 && c->step[0][1] && c->step[1][0]);
     }

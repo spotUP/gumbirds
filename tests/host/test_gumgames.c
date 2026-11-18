@@ -13,14 +13,13 @@ int main(void)
     uint8_t out[16];
     int i;
 
-    /* mash: only alternating A/B count; same button again, held button and both-at-once do not */
+    /* mash: every rising edge of A or B counts once; a held button, C and nothing do not; A and B on the same frame count once */
     gg_mash_reset(&m);
     CHECK(gg_mash_step(&m, IN_A, 0) == 1 && m.count == 1);
-    CHECK(gg_mash_step(&m, IN_A, 0) == 0 && m.count == 1);          /* A again */
-    CHECK(gg_mash_step(&m, IN_A | IN_B, IN_A) == 1 && m.count == 2); /* B newly pressed while A held */
-    CHECK(gg_mash_step(&m, IN_B, IN_B) == 0 && m.count == 2);       /* held, no new press */
-    CHECK(gg_mash_step(&m, IN_A | IN_B, 0) == 0 && m.count == 2);   /* both at once */
-    CHECK(gg_mash_step(&m, IN_A, 0) == 1 && m.count == 3);
+    CHECK(gg_mash_step(&m, IN_A, 0) == 1 && m.count == 2);          /* A released between, pressed again */
+    CHECK(gg_mash_step(&m, IN_A | IN_B, IN_A) == 1 && m.count == 3); /* B newly pressed while A held */
+    CHECK(gg_mash_step(&m, IN_B, IN_B) == 0 && m.count == 3);       /* held, no new press */
+    CHECK(gg_mash_step(&m, IN_A | IN_B, 0) == 1 && m.count == 4);   /* both at once = one press */
     CHECK(gg_mash_step(&m, IN_C, 0) == 0);
 
     /* hold C: charge grows to the cap, release returns it once */

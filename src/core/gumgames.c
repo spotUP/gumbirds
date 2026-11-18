@@ -1,19 +1,13 @@
 #include "gumgames.h"
 #include "game.h"
 
-void gg_mash_reset(GgMash *m) { m->last = 0; m->count = 0; }
+void gg_mash_reset(GgMash *m) { m->count = 0; }
 
 int gg_mash_step(GgMash *m, uint8_t in, uint8_t prev)
 {
-    uint8_t press = (uint8_t)(in & ~prev & (IN_A | IN_B));
-    if (press == IN_A || press == IN_B) {          /* both at once = ambiguous, not counted */
-        if (press != m->last) {
-            m->last = press;
-            m->count++;
-            return 1;
-        }
-    }
-    return 0;
+    if (!(in & ~prev & (IN_A | IN_B))) return 0;   /* a new press of A or B counts once, A and B on the same frame too */
+    m->count++;
+    return 1;
 }
 
 uint16_t gg_hold_step(GgHold *h, uint8_t in, uint16_t cap)
@@ -168,7 +162,7 @@ void gg_race_step(GgRace *r, uint8_t in1, uint8_t in2)
     case GG_RACE_PLAY: {
         uint8_t in[2];
         in[0] = in1;
-        /* the computer bird alternates A and B, one press every GG_RACE_CPU_PERIOD frames */
+        /* the computer bird pumps, one press every GG_RACE_CPU_PERIOD frames */
         in[1] = r->players == 2 ? in2 : (uint8_t)(r->frames % GG_RACE_CPU_PERIOD == 0 ? (((r->frames / GG_RACE_CPU_PERIOD) & 1) ? IN_A : IN_B) : 0);
         r->frames++;
         for (int s = 0; s < 2; s++) { pump_press(&r->mash[s], &r->size[s], in[s], r->prev[s]); r->prev[s] = in[s]; }

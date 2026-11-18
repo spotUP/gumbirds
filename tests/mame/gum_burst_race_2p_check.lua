@@ -9,7 +9,7 @@ local result = os.getenv("BRAWL_RESULT")
 local L = {}
 for v in (os.getenv("BRAWL_BLOW_LAYOUT") or ""):gmatch("%d+") do L[#L + 1] = tonumber(v) end
 local O = { state = L[1], mode = L[2], race = L[3], phase = L[4], size0 = L[5], size1 = L[6], winner = L[7], score = L[8], players = L[9], rplayers = L[10] }
-local K = { playing = L[11], gum = L[12], intro = L[13], play = L[14], res = L[15] }
+local K = { playing = L[11], gum = L[12], intro = L[13], play = L[14], res = L[15], card = L[16] }
 local mem = manager.machine.devices[":maincpu"].spaces["program"]
 local ports = manager.machine.ioport.ports
 local function field(tag, match)
@@ -66,6 +66,7 @@ emu.register_frame_done(function()
       if b(O.players) ~= 2 or b(O.rplayers) ~= 2 then finish(false, string.format("after P2 Start: Game.players %d race.players %d, want 2 and 2 (P2 cannot join Burst Race through the entry point)", b(O.players), b(O.rplayers))) return end
       if b(O.phase) ~= K.intro then finish(false, "phase " .. b(O.phase) .. " at join check, want intro") return end
     end
+    if k > 60 then a1:set_value((b(K.card) == 1 and k % 8 < 4) and 1 or 0) end   -- rules card: one A press dismisses it (ignored for its first 30 frames)
     if b(O.phase) == K.play then
       if b(O.players) ~= 2 then finish(false, "players " .. b(O.players) .. " at pump start, want 2") return end
       phase = "idle"; t0 = n
