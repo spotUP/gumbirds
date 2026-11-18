@@ -100,6 +100,30 @@ int main(void)
       next(&f);
       CHECK(f.phase == GF_END); }
 
+    /* aim preview: the path points are the real flight's positions, evenly in time, and the last one is the touch-down */
+    {
+        int16_t px[10], py[10];
+        int mash = 20, hold = 40, frames, k, n = 0, t = 0;
+        GgFling a;
+        gumfling_init(&a);
+        shoot(&a, mash, hold);
+        CHECK(a.phase == GF_FLIGHT);
+        frames = gumfling_path(a.power, (uint16_t)hold + 1, px, py, 10);   /* power is the counted presses, charge the frames of A held */
+        CHECK(frames > 10 && px[9] > 0 && py[9] == 0);
+        for (k = 0; k < frames && a.phase == GF_FLIGHT; k++) {
+            gumfling_fly(&a); t++;
+            if (n < 10 && t == frames * (n + 1) / 10) {
+                CHECK(px[n] == (int16_t)(a.phase == GF_FLIGHT ? a.x >> 16 : a.dist) && py[n] == (int16_t)(a.h >> 16));
+                n++;
+            }
+        }
+        CHECK(n == 10 && a.phase == GF_LANDED && px[9] == (int16_t)a.dist);
+        gumfling_init(&a); shoot(&a, 32, 40); gumfling_path(32, 41, px, py, 10);
+        printf("path full power 56deg: last dx %d, apex dy %d\n", px[9], py[4]);
+        gumfling_init(&a); shoot(&a, 20, 30); gumfling_path(20, 31, px, py, 10);
+        printf("path mid: last dx %d, apex dy %d\n", px[9], py[4]);
+    }
+
     /* flow: Left from Big Blow wraps to Gum Fling, Right from Gum Fling wraps to Big Blow; Start runs it */
     {
         Flow fl;
