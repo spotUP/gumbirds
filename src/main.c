@@ -1489,7 +1489,7 @@ static void draw_fling(const Game *g) {
     if (f->phase >= GF_AIM) { u8 c = (u8)(f->deg * BLOW_BAR_CELLS / 90); cc = (int8_t)(c < BLOW_BAR_CELLS ? c : BLOW_BAR_CELLS - 1); }
     if (cc != g_fling_caret) {
         if (g_fling_caret >= 0) text((u8)(BLOW_BAR_COL + g_fling_caret), BLOW_BAR_ROW - 1, PAL_TEXT, " ");
-        if (cc >= 0) text((u8)(BLOW_BAR_COL + cc), BLOW_BAR_ROW - 1, PAL_HIGH, "^");
+        if (cc >= 0) gfx_fix_tile((u8)(BLOW_BAR_COL + cc), BLOW_BAR_ROW - 1, PAL_TEXT, FIXFONT_AIM_CARET); /* full-tile red arrow: red is in no bar */
         g_fling_caret = cc;
     }
     /* mark flag: the hero sits at its screen x at launch, so the mark is GF_MARK_PX - flown pixels ahead of it */

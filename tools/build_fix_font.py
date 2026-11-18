@@ -162,7 +162,7 @@ def main():
                     ("p:^", "ARROW_UP"), ("p:v", "ARROW_DOWN"), ("p:{", "ICON_HEART"), ("p:}", "ICON_GUM"), ("p:~L", "ICON_SOOT_LEFT"),
                     ("p:~R", "ICON_SOOT_RIGHT"), ("s:capL", "PLATE_CAP_LEFT"), ("s:capR", "PLATE_CAP_RIGHT"), ("s:joint", "PLATE_JOINT"),
                     ("s:fill", "PLATE_FILL"), ("s:f_tl", "FRAME_TL"), ("s:f_t", "FRAME_T"), ("s:f_tr", "FRAME_TR"), ("s:f_l", "FRAME_L"),
-                    ("s:f_r", "FRAME_R"), ("s:f_bl", "FRAME_BL"), ("s:f_b", "FRAME_B"), ("s:f_br", "FRAME_BR"), ("s:rule", "RULE"), ("s:pop_burst", "POP_BURST")):
+                    ("s:f_r", "FRAME_R"), ("s:f_bl", "FRAME_BL"), ("s:f_b", "FRAME_B"), ("s:f_br", "FRAME_BR"), ("s:rule", "RULE"), ("s:pop_burst", "POP_BURST"), ("s:aim_caret", "AIM_CARET")):
         h.append("#define FIXFONT_%s %d" % (name, t[k]))
     for spec in a.overlay:
         path, _, at = spec.rpartition("@")
