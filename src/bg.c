@@ -131,7 +131,10 @@ static const u8 MOOD_PAL_COUNT[BG_MOOD_COUNT] = { CITY_PALETTE_COUNT, DUSK_PALET
 
 static u8 fade_vis(void) { return g_fade.phase == BGF_OUT ? g_bg_mood : g_want; }
 static u8 fade_level(void) { return g_fade.phase == BGF_IDLE ? BG_FADE_MAX : g_fade.level; }
-static void backdrop_put(void) { gfx_pal(4095, bg_fade_color((g_hidden ? TRIP_BACKDROP : BACKDROP)[fade_vis()], fade_level())); }
+static u8 g_dark; /* video_init: the backdrop stays black until the screen fade-up, so the BIOS return shows no blue while it blocks */
+static u16 backdrop_color(void) { return bg_fade_color((g_hidden ? TRIP_BACKDROP : BACKDROP)[fade_vis()], fade_level()); }
+static void backdrop_put(void) { gfx_pal(4095, g_dark ? 0 : backdrop_color()); }
+void bg_backdrop_dark(u8 on) { g_dark = on; if (!on) backdrop_put(); }
 /* One frame of palette writes; returns 1 when every palette (and nothing else) is at its wanted level. */
 static u8 fade_sync(void) {
     u8 vis = fade_vis(), lvl = fade_level(), written = 0, base = 0;
@@ -160,7 +163,7 @@ void bg_load_palettes(void) {
         for (int i = 0; i < 16; i++)
             gfx_pal((STORM_PAL_SLOT + p) * 16 + i, storm_palettes[p][i]);
     /* The backdrop is the LAST palette RAM entry, not entry 0 (verified by snapshot, plan B2). */
-    gfx_pal(4095, BACKDROP[g_bg_mood]);
+    gfx_pal(4095, g_dark ? 0 : BACKDROP[g_bg_mood]);
     for (u8 i = 0; i < BG_PAL_TOTAL; i++) g_pal_lvl[i] = BG_FADE_MAX;
 }
 

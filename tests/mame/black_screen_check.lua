@@ -37,6 +37,12 @@ local function colours()
   end
   return k
 end
+-- GAMEOVER-BLUE: the colour of a flat frame (<= 2 colours) at pixel 0, nil on a frame with picture
+local function flat_tint()
+  if colours() > 2 then return nil end
+  return screen:pixels():sub(1, 3)
+end
+local tint_run, tint_max, tint_total = 0, 0, 0
 local function finish(ok, msg)
   W((ok and "PASS " or "FAIL ") .. msg); log:close(); manager.machine:exit()
 end
@@ -49,6 +55,15 @@ emu.register_frame_done(function()
   if st ~= last then W(string.format("frame %d run %d phase %s state %d -> %d credit %02x", n, run, phase, last, st, mem:read_u8(CREDIT))); last = st end
   -- black detectors, every phase after boot
   if phase ~= "boot" then
+    local tint = (phase == "over" or phase == "between") and flat_tint() or nil -- Game Over to menu only; the first boot has its own blue
+    if tint and tint ~= "\0\0\0" then tint_run = tint_run + 1; tint_total = tint_total + 1; if tint_run > tint_max then tint_max = tint_run end
+      if tlog then W(string.format("BLUE frame %d run %d phase %s state %d rgb %02x%02x%02x", n, run, phase, st, tint:byte(1), tint:byte(2), tint:byte(3))) end
+    else tint_run = 0 end
+    if tint_run > 6 then
+      fail = true
+      finish(false, string.format("blue frames: %d in a row, run %d phase %s state %d frame %d (a flat backdrop colour, not black)", tint_run, run, phase, st, n))
+      return
+    end
     if n % 10 == 0 then
       if colours() <= 2 then black_run = black_run + 10 else black_run = 0 end
       -- 90, not 60: every game-end SYSTEM_RETURN with a credit shows ~52 frames of one colour (UniBIOS clears palette RAM at
