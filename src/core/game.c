@@ -569,6 +569,7 @@ static void game_step_toss(Game *g, uint8_t input)
         f->x = FL_PX(toss_foot[s][0]);
         f->y = FL_PX(toss_foot[s][1]) - flier_half_h(f);
         f->vx = f->vy = 0;
+        f->facing = s < 2;   /* left and back seats look right, right and front seats look left: the pose cells mirror the same way (main.c tosspose_strips) */
         f->spawn_inv = 0;
     }
     g->cpu_count = (uint8_t)(c);
