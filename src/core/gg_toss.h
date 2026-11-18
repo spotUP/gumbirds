@@ -47,4 +47,10 @@ uint8_t gg_toss_seat_of(uint8_t p);
 uint8_t gg_toss_count(const GgToss *t);   /* living birds */
 /* One frame; in1/in2 are the two players' input bytes. */
 void gg_toss_step(GgToss *t, uint8_t in1, uint8_t in2);
+/* Pose cell of the bird on a seat (tools/make_toss_sheet.py order), -1 = the normal standing body.
+ * 0 carry, 1 windup, 2 release, 3 follow-through, 4 reach, 5 catch, 6 absorb, 7 recoil.
+ * The gum leaves the wing at GT_RELEASE_FRAME of the flight and lands on the last flight frame. */
+#define GT_RELEASE_FRAME 8
+enum { GT_POSE_CARRY, GT_POSE_WINDUP, GT_POSE_RELEASE, GT_POSE_FOLLOW, GT_POSE_REACH, GT_POSE_CATCH, GT_POSE_ABSORB, GT_POSE_RECOIL, GT_POSE_COUNT };
+int gg_toss_pose(const GgToss *t, uint8_t seat);
 #endif

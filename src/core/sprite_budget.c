@@ -29,6 +29,8 @@ const SpriteBudgetEntry SPRITE_BUDGET[] = {
     { "mid A plane", BG_MIDA_SPRITE,      BG_MIDA_COUNT, BG_MIDA_Y0, BG_MIDA_Y1, BG_MIDA_COUNT, SB_COLUMNS },
     { "mid B plane", BG_MIDB_SPRITE,      BG_MIDB_COUNT, BG_MIDB_Y0, BG_MIDB_Y1, BG_MIDB_COUNT, SB_COLUMNS },
     { "near plane",  BG_NEAR_SPRITE,      BG_NEAR_COUNT, BG_NEAR_Y0, BG_NEAR_Y1, BG_NEAR_COUNT, SB_COLUMNS },
+    /* The Toss Gum poses (32 tiles, 8 cells of 32x32) draw in the body's own two columns in place of the standing frame: no sprite and no
+       column on a line is added, so they are inside this entry (a second entry over the same slots would count them twice). */
     { "gameplay",    POOL_SPRITE_BASE,    HERO_SPRITE + HERO_SPRITE_COUNT - POOL_SPRITE_BASE,
                                                                 0, 224, SB_GAMEPLAY_PER_LINE, SB_ALWAYS },
     /* 24 columns, not the 21 visible at a camera offset: the LSPC picks sprites per line by Y only, so columns with X off screen still count. */

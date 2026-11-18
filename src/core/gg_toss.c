@@ -110,3 +110,13 @@ void gg_toss_step(GgToss *t, uint8_t in1, uint8_t in2)
     default: break;
     }
 }
+
+int gg_toss_pose(const GgToss *t, uint8_t seat)
+{
+    if (t->phase == GT_HOLD && seat == t->carrier)
+        return t->lead > GT_LEAD_FRAMES - 9 ? GT_POSE_ABSORB : t->lead > GT_LEAD_FRAMES - 18 ? GT_POSE_RECOIL : GT_POSE_CARRY;
+    if (t->phase != GT_FLIGHT) return -1;
+    if (seat == t->carrier) return t->t < 6 ? GT_POSE_WINDUP : t->t < GT_RELEASE_FRAME ? GT_POSE_RELEASE : t->t < 16 ? GT_POSE_FOLLOW : -1;
+    if (seat == t->target) return t->t >= 22 ? GT_POSE_CATCH : t->t >= 12 ? GT_POSE_REACH : -1;
+    return -1;
+}

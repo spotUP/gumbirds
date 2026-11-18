@@ -74,6 +74,26 @@ int main(void)
     { int i; for (i = 0; i < 20000 && t.phase != GT_RESULT; i++) { gg_toss_step(&t, 0, 0); if (t.phase == GT_HOLD && t.carrier == 0 && !t.lead) gg_toss_step(&t, IN_A, 0); else gg_toss_step(&t, 0, 0); }
       CHECK(t.phase == GT_RESULT && gg_toss_count(&t) == 1); }
 
+    /* poses: only the carrier and the target leave the standing body; windup, release, reach, catch, absorb in this order */
+    gg_toss_start(&t, 5, 1);
+    t.carrier = 0; t.lead = 0;
+    CHECK(gg_toss_pose(&t, 0) == GT_POSE_CARRY && gg_toss_pose(&t, 1) == -1);
+    gg_toss_step(&t, IN_A, 0);
+    CHECK(t.phase == GT_FLIGHT);
+    { int i, last_from = GT_POSE_CARRY, last_to = -1, ok = 1; uint8_t to = t.target;
+      for (i = 0; i < GT_FLIGHT_FRAMES + 2 && t.phase == GT_FLIGHT; i++) {
+          int a = gg_toss_pose(&t, 0), b = gg_toss_pose(&t, to), s;
+          if (a >= 0 && a < last_from) ok = 0;
+          if (b < last_to) ok = 0;
+          if (a >= 0) last_from = a;
+          last_to = b;
+          if (t.t < GT_RELEASE_FRAME && a != GT_POSE_WINDUP && a != GT_POSE_RELEASE) ok = 0;   /* the gum is still on the wing */
+          for (s = 0; s < (int)GT_SEATS; s++) if (s != 0 && s != to && gg_toss_pose(&t, (uint8_t)s) != -1) ok = 0;
+          gg_toss_step(&t, 0, 0);
+      }
+      CHECK(ok && last_to == GT_POSE_CATCH);
+      CHECK(t.phase == GT_HOLD && t.carrier == to && gg_toss_pose(&t, to) == GT_POSE_ABSORB && gg_toss_pose(&t, 0) == -1); }
+
     printf("%s: %d checks, %d failures\n", failures ? "FAIL" : "PASS", checks, failures);
     return failures != 0;
 }

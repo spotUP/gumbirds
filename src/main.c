@@ -27,6 +27,7 @@
 #include "gen/arcade_tables.h"
 #include "core/arc_view.h"
 #include "gen/trippickup_tables.h"
+#include "gen/tosspose_tables.h"
 #include "gen/gumbubble_tables.h"
 #include "gen/gumleak_tables.h"
 #include "gen/countdown_tables.h"
@@ -248,6 +249,24 @@ static void chute_place(u16 slot, u8 anim, u8 n, int flip, int left, int top) {
     gfx_sprite_place(slot, f->tiles_w, f->tiles_h, left, top);
 }
 
+/* Toss Gum pose (tools/make_toss_sheet.py): one 32x32 cell in the body's own two sprite columns, left edge = the body sprite left, top = feet - 32.
+ * The birds on the right and front seats (2, 3) face left. Palette = TOSSPOSE_PAL_SLOT + seat. */
+static void tosspose_strips(u16 slot, u8 pose, u8 seat) {
+    const TossposeFrame *f = &tosspose_frames[pose];
+    const u16 *tiles = &tosspose_tile_index[f->tile_offset];
+    int flip = seat >= 2;
+    u16 attr = (u16)((TOSSPOSE_PAL_SLOT + seat) << 8 | (flip ? SOOT_FLIP : 0));
+    for (u8 c = 0; c < f->tiles_w; c++)
+        gfx_sprite_strips((u16)(slot + c), 1, f->tiles_h, tiles + (flip ? f->tiles_w - 1 - c : c) * f->tiles_h, TOSSPOSE_TILE_BASE, attr);
+}
+_Static_assert(SOOT_COLUMNS == 2, "a toss pose is two columns wide and draws in the body columns");
+/* Pool body code for a flier in Toss Gum: seat << 4 | pose + 1 (low nibble 0 = standing body), 0 outside Toss Gum and for a bird on no seat. */
+static u8 toss_pose_code(const Game *g, const Flier *fl) {
+    if (!g->gg_toss) return 0;
+    for (u8 s = 0; s < GT_SEATS; s++) if (game_toss_flier(g, s) == fl) return (u8)(s << 4 | (gg_toss_pose(&g->toss, s) + 1));
+    return 0;
+}
+
 static void hero_show(const Game *g, int cam_px) {
     const Flier *fl = &g->hero[0];
     int feet = (int)((fl->y + flier_half_h(fl)) >> 16);
@@ -276,8 +295,14 @@ static void hero_show(const Game *g, int cam_px) {
         if (d >= 0) { hero_hide(); slot = (u16)(DEAD_BODY_SPRITE + d * DEAD_BODY_COLUMNS); }
     } else dead_release(DEAD_OWNER_HERO(0));
     g_gum_pose[0].drawn = 1;
-    soot_strips(slot, f, tiles, flip, attr);
-    gfx_sprite_place(slot, SOOT_COLUMNS, f->tiles_h, left, top);
+    int pose = g->gg_toss ? gg_toss_pose(&g->toss, 0) : -1;   /* player 1 stands on seat 0 */
+    if (pose >= 0) {
+        tosspose_strips(slot, (u8)pose, 0);
+        gfx_sprite_place(slot, SOOT_COLUMNS, 2, left, feet - 32);
+    } else {
+        soot_strips(slot, f, tiles, flip, attr);
+        gfx_sprite_place(slot, SOOT_COLUMNS, f->tiles_h, left, top);
+    }
     if (fl->state == FLIER_PARACHUTE) {
         chute_place(HERO_CHUTE_SPRITE, CHUTE_ANIM_PLAYER, (u8)((g->frame / CHUTE_FRAME_TICKS) & 7), flip, left, feet - 46);
         g_hero_chute_up = 1;
@@ -654,6 +679,7 @@ static void pool_sync_cpus(const Game *g) {
         p->type = flier_anim_step(&g_cpu_anim[i], c, &k_clips, &flip); /* sheet frame; the player palette offset is added in pool_show_hero */
         if (arc_pump_in_window(&g->pump[i]) && c->state == FLIER_ALIVE) p->type = flier_pump_frame(&k_clips, arc_pump_progress(&g->pump[i])); /* sitting rival: pump frame */
         if (flip) p->flags |= POOL_F_FLIP; else p->flags &= (u8)~POOL_F_FLIP;
+        p->anim = toss_pose_code(g, c);
         p->x = c->x;
         p->y = feet;
         if (flier_view_visible(c, g->frame)) p->flags &= (u8)~POOL_F_BLINK; else p->flags |= POOL_F_BLINK;
@@ -693,6 +719,7 @@ static void pool_sync_p2(const Game *g) {
     b->type = flier_anim_step(&g_hero_anim[1], fl, &k_clips, &flip);
     if (arc_pump_in_window(&g->hpump[1]) && fl->state == FLIER_ALIVE) b->type = flier_pump_frame(&k_clips, arc_pump_progress(&g->hpump[1]));
     if (flip) b->flags |= POOL_F_FLIP; else b->flags &= (u8)~POOL_F_FLIP;
+    b->anim = toss_pose_code(g, fl);
     b->x = fl->x; b->y = feet;
     if (flier_view_visible(fl, g->frame)) b->flags &= (u8)~POOL_F_BLINK; else b->flags |= POOL_F_BLINK;
     g_p2_shown = 1;
@@ -889,6 +916,7 @@ hide:
     if (g_pool_drawn[i]) pool_hide_run(i);
 }
 
+static u8 g_pool_pose[POOL_MAX];   /* toss_pose_code the strips of a body object hold; a change redraws them (the pose and the seat palette are not in the g_pool_drawn key) */
 static void pool_show_hero(PoolObj *p, u8 i, u16 *scb3) {
     if ((p->type & 0xE0) == 0xE0) { pool_show_leak(p, i, scb3); return; }
     if ((p->type & 0xC0) == 0xC0) { pool_show_gum(p, i, scb3); return; }
@@ -909,8 +937,21 @@ static void pool_show_hero(PoolObj *p, u8 i, u16 *scb3) {
     if (!camera_visible(x, SOOT_COLUMNS * 16)) { pool_hide_run(i); return; }
     const u16 *tiles = &sootling_tile_index[f->tile_offset];
     u8 key = (u8)(p->type + 1 + (flip ? 128 : 0)); /* frame and mirror state the strips hold; the computer palette only, so the clip frame is unique */
+    u8 seat = p->anim >> 4;   /* Toss Gum seat (toss_pose_code) */
+    if (g_pool_pose[i] != p->anim) { g_pool_pose[i] = p->anim; g_pool_drawn[i] = 0; }
+    if (p->anim & 15) {
+        if (!g_pool_drawn[i]) {
+            tosspose_strips(slot, (u8)((p->anim & 15) - 1), seat);
+            if (g_pool_cols[i] != SOOT_COLUMNS) { gfx_sprite_chain(slot, SOOT_COLUMNS); g_pool_cols[i] = SOOT_COLUMNS; }
+            g_pool_drawn[i] = 0xFF;
+        }
+        scb3[i] = gfx_scb3_word(2, obj_pool_px(p->y) - 32);
+        g_pool_scb4[i] = gfx_scb4_word(x);
+        return;
+    }
     if (g_pool_drawn[i] != key) {
-        soot_strips(slot, f, tiles, flip, (u16)(((p2 ? SOOT_P2_PAL_SLOT : SOOT_PAL_SLOT + f->palette) << 8) | (flip ? SOOT_FLIP : 0)));
+        /* Toss Gum: the birds on seats 2 and 3 stand in gold and violet */
+        soot_strips(slot, f, tiles, flip, (u16)(((p2 || seat == 2 ? SOOT_P2_PAL_SLOT : seat == 3 ? SOOT_VIOLET_PAL_SLOT : SOOT_PAL_SLOT + f->palette) << 8) | (flip ? SOOT_FLIP : 0)));
         if (g_pool_cols[i] != SOOT_COLUMNS) { gfx_sprite_chain(slot, SOOT_COLUMNS); g_pool_cols[i] = SOOT_COLUMNS; }
         g_pool_drawn[i] = key;
     }
@@ -1228,14 +1269,43 @@ static const s8 g_tossb_dy[GUMBUBBLE_SEQ_COUNT] = GUMBUBBLE_TABLE_SEQ_DY;
 static const u8 g_tossb_ticks[GUMBUBBLE_SEQ_COUNT] = GUMBUBBLE_TABLE_SEQ_TICKS;
 static u8 g_tossb_on;
 static u8 g_tossb_cell_shown = 0xFF;
+static const u8 g_toss_ax[GT_POSE_COUNT] = TOSSPOSE_TABLE_ANCHOR_X, g_toss_ay[GT_POSE_COUNT] = TOSSPOSE_TABLE_ANCHOR_Y;
+static s16 g_tossb_x, g_tossb_y;     /* the gum knot (bottom centre of the bubble cell), arena pixels */
+static s16 g_tossb_x0, g_tossb_y0;   /* where the knot left the wing: start of the arc */
+static u8 g_tossb_live, g_tossb_arc;
+/* The gum point on the wing of the bird on a seat, for a pose cell. */
+static void toss_anchor(const Game *g, u8 seat, int pose, int *x, int *y) {
+    const Flier *f = game_toss_flier(g, seat);
+    u8 ax = g_toss_ax[pose];
+    *x = (int)(f->x >> 16) - FLIER_HALF_W - SOOT_BOX_DX + (seat >= 2 ? 31 - ax : ax);
+    *y = (int)((f->y + flier_half_h(f)) >> 16) - 32 + g_toss_ay[pose];
+}
+static int toss_slide(int from, int to) { int d = to - from; return from + (d > 6 ? 6 : d < -6 ? -6 : d); }
+/* The knot never jumps: on a wing it slides to the pose's gum point (6 px a frame at most), in the air it flies a 46 px high arc from where
+ * it left the wing to the catch point of the target, and the catch poses take it over from there. */
 static void toss_bubble_step(const Game *g) {
-    const Flier *c = g ? game_toss_carrier(g) : 0;
-    if (c) {
-        int t = (int)(g->frame * (1u + (g->toss.fuse < 150u) + (g->toss.fuse < 60u)) % GUMBUBBLE_LOOP_TICKS), k = 0, sx;
+    const GgToss *tt = g && g->gg_toss ? &g->toss : 0;
+    if (tt && (tt->phase == GT_HOLD || tt->phase == GT_FLIGHT)) {
+        int t = (int)(g->frame * (1u + (tt->fuse < 150u) + (tt->fuse < 60u)) % GUMBUBBLE_LOOP_TICKS), k = 0, sx, x, y;
         while (k < GUMBUBBLE_SEQ_COUNT - 1 && t >= g_tossb_ticks[k]) { t -= g_tossb_ticks[k]; k++; }
-        sx = camera_screen_x((int)(c->x >> 16) - 8 + g_tossb_dx[k], g_cam_px, 16);
+        if (tt->phase == GT_FLIGHT && tt->t >= GT_RELEASE_FRAME) {
+            int n = GT_FLIGHT_FRAMES - GT_RELEASE_FRAME, a = tt->t - GT_RELEASE_FRAME + 1;
+            if (!g_tossb_arc) { g_tossb_arc = 1; g_tossb_x0 = g_tossb_x; g_tossb_y0 = g_tossb_y; }
+            if (a > n) a = n;
+            toss_anchor(g, tt->target, GT_POSE_CATCH, &x, &y);
+            g_tossb_x = (s16)(g_tossb_x0 + (x - g_tossb_x0) * a / n);
+            g_tossb_y = (s16)(g_tossb_y0 + (y - g_tossb_y0) * a / n - 4 * 46 * a * (n - a) / (n * n));
+        } else {
+            int pose = gg_toss_pose(tt, tt->carrier);
+            toss_anchor(g, tt->carrier, pose < 0 ? GT_POSE_CARRY : pose, &x, &y);
+            g_tossb_x = (s16)(g_tossb_live ? toss_slide(g_tossb_x, x) : x);
+            g_tossb_y = (s16)(g_tossb_live ? toss_slide(g_tossb_y, y) : y);
+            g_tossb_arc = 0;
+        }
+        g_tossb_live = 1;
+        sx = camera_screen_x(g_tossb_x - 8 + g_tossb_dx[k], g_cam_px, 16);
         if (camera_visible(sx, 16)) {
-            u16 s3 = gfx_scb3_word(1, (int)(c->y >> 16) - 34 + g_tossb_dy[k]), s4 = gfx_scb4_word(sx);
+            u16 s3 = gfx_scb3_word(1, g_tossb_y - 16 + g_tossb_dy[k]), s4 = gfx_scb4_word(sx);
             if (g_tossb_cell_shown != g_tossb_cell[k]) {
                 gfx_sprite_strips(ROOST_SPRITE, 1, 1, &gumbubble_tile_index[g_tossb_cell[k]], GUMBUBBLE_TILE_BASE, (u16)(GUMBUBBLE_PAL_SLOT << 8));
                 g_tossb_cell_shown = g_tossb_cell[k];
@@ -1245,7 +1315,7 @@ static void toss_bubble_step(const Game *g) {
             gfx_scb_run((u16)(ADDR_SCB4 + ROOST_SPRITE), 1, &s4, 1);
             return;
         }
-    }
+    } else g_tossb_live = 0;   /* burst, result or no Toss Gum: the next gum appears on its wing */
     if (g_tossb_on) { obs_hide_slot(ROOST_SPRITE); g_tossb_on = 0; g_tossb_cell_shown = 0xFF; }
 }
 
