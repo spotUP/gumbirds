@@ -37,10 +37,13 @@ local function colours()
   end
   return k
 end
--- GAMEOVER-BLUE: the colour of a flat frame (<= 2 colours) at pixel 0, nil on a frame with picture
+-- GAMEOVER-BLUE-2: the colour of a frame that is ONE flat colour (>= 85% of the sampled pixels equal pixel 0), nil on a frame with picture.
+-- Two or more in a row fail: the first fade-up step of the whole screen is one dim, nearly flat frame. The 2-colour test missed it: a lit backdrop with a few fix-layer letters on top has ~20 colours but is still the flat blue the owner saw.
 local function flat_tint()
-  if colours() > 2 then return nil end
-  return screen:pixels():sub(1, 3)
+  local px = screen:pixels()
+  local c0, same, tot = px:sub(1, 3), 0, 0
+  for i = 1, #px - 3, 4 * 37 do tot = tot + 1; if px:sub(i, i + 2) == c0 then same = same + 1 end end
+  if same * 100 >= 85 * tot then return c0 end
 end
 local tint_run, tint_max, tint_total = 0, 0, 0
 local function finish(ok, msg)
@@ -55,13 +58,13 @@ emu.register_frame_done(function()
   if st ~= last then W(string.format("frame %d run %d phase %s state %d -> %d credit %02x", n, run, phase, last, st, mem:read_u8(CREDIT))); last = st end
   -- black detectors, every phase after boot
   if phase ~= "boot" then
-    local tint = (phase == "over" or phase == "between") and flat_tint() or nil -- Game Over to menu only; the first boot has its own blue
+    local tint = (phase == "over" or phase == "between") and st ~= 2 and st ~= 3 and flat_tint() or nil -- Game Over to title/table only (demo and play start with the designed entry hold: world hidden, backdrop alone); the first boot has its own blue
     if tint and tint ~= "\0\0\0" then tint_run = tint_run + 1; tint_total = tint_total + 1; if tint_run > tint_max then tint_max = tint_run end
-      if tlog then W(string.format("BLUE frame %d run %d phase %s state %d rgb %02x%02x%02x", n, run, phase, st, tint:byte(1), tint:byte(2), tint:byte(3))) end
+      if tlog then W(string.format("BLUE frame %d run %d phase %s state %d rgb %02x%02x%02x backdrop %04x", n, run, phase, st, tint:byte(1), tint:byte(2), tint:byte(3), mem:read_u16(0x401ffe))) end
     else tint_run = 0 end
-    if tint_run > 6 then
+    if tint_run > 1 and not tlog then -- BRAWL_TRACE logs every blue frame instead of stopping at the first
       fail = true
-      finish(false, string.format("blue frames: %d in a row, run %d phase %s state %d frame %d (a flat backdrop colour, not black)", tint_run, run, phase, st, n))
+      finish(false, string.format("blue frame: run %d phase %s state %d frame %d rgb %02x%02x%02x backdrop word %04x (a flat non-black frame between Game Over and the menu, every frame sampled)", run, phase, st, n, tint:byte(1), tint:byte(2), tint:byte(3), mem:read_u16(0x401ffe)))
       return
     end
     if n % 10 == 0 then
@@ -83,7 +86,8 @@ emu.register_frame_done(function()
     end
   end
   if TRACE and phase == "over" or (TRACE and phase == "between" and n - t0 < 400) then
-    tlog:write(string.format("T run %d n %d state %d colours %d busy %d fc %d", run, n, st, colours(), mem:read_u8(busy_addr), fc) .. "\n"); tlog:flush()
+    local p0 = screen:pixels():sub(1, 3)
+    tlog:write(string.format("T run %d n %d state %d colours %d busy %d fc %d p0 %02x%02x%02x bd %04x", run, n, st, colours(), mem:read_u8(busy_addr), fc, p0:byte(1), p0:byte(2), p0:byte(3), mem:read_u16(0x401ffe)) .. "\n"); tlog:flush()
   end
   local cr_now = mem:read_u8(CREDIT)
   if phase ~= "boot" and cr_now < cr_prev and st ~= 3 then cr_drop = cr_drop or n end

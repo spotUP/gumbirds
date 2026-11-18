@@ -2680,6 +2680,9 @@ static void video_init(void) {
     gfx_word(ADDR_SCB3 + SPRITE_RESERVED, 0); /* sprite 0 is never visible (src/sprite_slots.h): nothing else writes this slot */
     bg_init();
     bg_set_mood(g_flow.game.mood, 1); /* the screen is black here anyway: swap to the wanted mood at once, not a visible fade out and in after the BIOS return */
+    /* GAMEOVER-BLUE-2: finish the plane swap here, while the screen is still black. Left to bg_update it took ~14 frames after the fade-up, and the
+     * lit backdrop showed alone (flat blue, fix text on top) until the strips landed. */
+    for (u8 guard = 0; g_bg_mood_busy && guard < 200; guard++) { bg_update(0); gfx_commit_all(); gfx_drain(); }
     hazard_init();
     trip_strip_init();
     hero_hide();
