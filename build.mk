@@ -107,17 +107,17 @@ $(BUILDDIR)/%.o: %.c
 	$(M68KGCC) -o $@ $^ $(NGLDFLAGS) $(LDFLAGS)
 
 $(PROM1): | $(ROM)
-	$(M68KOBJCOPY) -O binary -S -R .text2 --gap-fill 0xff --pad-to $(PROMSIZE) $< $@ && dd if=$@ of=$@ conv=notrunc,swab status=none
+	$(M68KOBJCOPY) -O binary -S -R .text2 --gap-fill 0xff --pad-to $(PROMSIZE) $< $@.tmp && dd if=$@.tmp of=$@.tmp conv=notrunc,swab status=none && mv $@.tmp $@
 
 ifdef PROM2SIZE
 $(PROM2)_bank%: | $(ROM)
-	$(M68KOBJCOPY) -O binary -j .text2 --gap-fill 0xff --pad-to $$((0x200000+$(PROMSIZE))) $< $@ && dd if=$@ of=$@ conv=notrunc,swab status=none
+	$(M68KOBJCOPY) -O binary -j .text2 --gap-fill 0xff --pad-to $$((0x200000+$(PROMSIZE))) $< $@.tmp && dd if=$@.tmp of=$@.tmp conv=notrunc,swab status=none && mv $@.tmp $@
 
 $(PROM2): | $(ROM)
-	echo $^ | xargs -r cat > $@ && $(TRUNCATE) -s $(PROM2SIZE) $@
+	echo $^ | xargs -r cat > $@.tmp && $(TRUNCATE) -s $(PROM2SIZE) $@.tmp && mv $@.tmp $@
 else
 $(PROM2): | $(ROM)
-	$(M68KOBJCOPY) -O binary -j .text2 --gap-fill 0xff --pad-to $$((0x200000+$(PROMSIZE))) $< $@ && dd if=$@ of=$@ conv=notrunc,swab status=none
+	$(M68KOBJCOPY) -O binary -j .text2 --gap-fill 0xff --pad-to $$((0x200000+$(PROMSIZE))) $< $@.tmp && dd if=$@.tmp of=$@.tmp conv=notrunc,swab status=none && mv $@.tmp $@
 endif
 
 
