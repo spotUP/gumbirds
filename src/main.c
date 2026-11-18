@@ -1446,7 +1446,7 @@ static u8 g_bg_paused; /* this frame the entry hold skipped flow_step: the frame
  * island tiles (trip_strip_step ready 0, island_trip_preload), so the reveal frame only places and shows them. */
 /* Stadium stands: Big Blow, Burst Race and Gum Fling (stadium_hw.c); never the intro cards or the other events. */
 static u8 stadium_on(const Game *g) {
-    return g->mode == GAME_MODE_GUM && !g->gg_gather && !g->gg_pop && !g->gg_dash;
+    return g->mode == GAME_MODE_GUM && !g->gg_gather && !g->gg_pop && !g->gg_dash && !g->gg_toss;
 }
 static u8 cap99(uint32_t v) { return v > 99u ? 99u : (u8)v; }
 static u8 g_trip_islands_loaded;

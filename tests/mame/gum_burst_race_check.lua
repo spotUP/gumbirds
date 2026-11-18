@@ -43,6 +43,7 @@ local done = false
 local function finish(ok, msg)
   if done then return end
   done = true
+  msg = msg .. st.peak_text(); if ok and st.peak_max() > 96 then ok = false end   -- stadium_snap.lua: sprites per line over every slot
   local f = io.open(result, "w"); f:write((ok and "PASS " or "FAIL ") .. msg .. "\n"); f:close()
   print("BRAWL_TEST " .. (ok and "PASS " or "FAIL ") .. msg)
   manager.machine:exit()

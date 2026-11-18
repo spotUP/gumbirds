@@ -8,7 +8,7 @@ local result = os.getenv("BRAWL_RESULT")
 local L = {}
 for v in (os.getenv("BRAWL_BLOW_LAYOUT") or ""):gmatch("%d+") do L[#L + 1] = tonumber(v) end
 local O = { state = L[1], mode = L[2], fling = L[3], phase = L[4], dist = L[5], score = L[6], record = L[7], foul = L[8], best = L[9] }
-local K = { playing = L[10], gum = L[11], trip = L[12], over = L[13], gfend = L[14], windup = L[15], card = L[16] }
+local K = { playing = L[10], gum = L[11], trip = L[12], over = L[13], gfend = L[14], windup = L[15], card = L[16], x = L[18] }
 local mem = manager.machine.devices[":maincpu"].spaces["program"]
 local st = dofile("tests/mame/stadium_snap.lua")(mem, flow_addr)
 local ports = manager.machine.ioport.ports
@@ -38,6 +38,7 @@ local done = false
 local function finish(ok, msg)
   if done then return end
   done = true
+  msg = msg .. st.peak_text(); if ok and st.peak_max() > 96 then ok = false end   -- stadium_snap.lua: sprites per line over every slot
   local f = io.open(result, "w"); f:write((ok and "PASS " or "FAIL ") .. msg .. "\n"); f:close()
   print("BRAWL_TEST " .. (ok and "PASS " or "FAIL ") .. msg)
   manager.machine:exit()
@@ -45,6 +46,7 @@ end
 if not (coin and start1 and up and abtn and bbtn and cbtn and pick) then finish(false, "missing ports") end
 
 -- per attempt: mash 40 frames, pause, hold B 51 frames (about 35 degrees), release, then wait for the flight and the landing
+local mode_prev_flight, last_fx = false, 0
 local cardn, maxlit, maxrow = 0, 0, -1
 local n, phase, t0, hud, trips, attempts, lastphase = 0, "boot", 0, false, 0, 0, -1
 emu.register_frame_done(function()
@@ -74,6 +76,11 @@ emu.register_frame_done(function()
     if ph == K.windup and lastphase ~= K.windup then t0 = n + (attempts == 0 and 61 or 0); attempts = attempts + 1 end   -- GET SET freezes the first windup for 60 frames
     lastphase = ph
     if attempts == 1 and ph == K.windup and n == t0 + 40 then st.shot() end
+    -- seam shot (stadium columns 21-22 of the 23 column plane): the last flight frame of attempt 1, field scroll logged next to it
+    if attempts == 1 and mode_prev_flight and ph ~= 2 and os.getenv("STADIUM_SEAM_LOG") then
+      local lf = io.open(os.getenv("STADIUM_SEAM_LOG"), "a"); lf:write("scroll " .. last_fx .. "\n"); lf:close(); st.shot((os.getenv("STADIUM_NAME") or "x"):gsub("%.png$", "") .. "_seam.png"); mode_prev_flight = false
+    end
+    if ph == 2 and attempts == 1 and K.x then mode_prev_flight = true; last_fx = mem:read_u32(flow_addr + K.x) >> 16 end
     if ph == 1 and mode == K.gum and (n % 40 == 0) and os.getenv("FLING_DUMP") then
       local o = {}
       for i = 0, 9 do local a = (323 + i) * 64; o[#o + 1] = string.format("%x/%x s3=%x", fix[a] or -1, fix[a + 1] or -1, fix[0x8200 + 323 + i] or -1) end
