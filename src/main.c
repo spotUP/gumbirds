@@ -606,6 +606,7 @@ static u8 pump_level(const ArcPump *pp, int alive) {
  * The bubble is always full size, like the player's in the arena; gum_view_offset decides per body frame whether it shows (pool_show_gum). */
 #define GUM_OBJ_POP_OVER 255
 _Static_assert(GUM_VIEW_POP_SHEET * GUM_POP_FRAMES < GUM_OBJ_POP_OVER, "the pop clock of a pool bubble fits a byte");
+static u8 g_sync_ticks = 1;       /* game frames one gum_obj_sync call stands for: 2 for a staggered rival (pool_sync_cpus) */
 static u8 g_gum_pop_t[POOL_MAX];   /* per bubble object: game frames since its pop started (level 0), GUM_OBJ_POP_OVER = none */
 static void gum_obj_sync(u8 *slot, int want, const Game *g, const PoolObj *body, int leaking, u8 level, int burst) {
     u8 k = *slot;
@@ -624,7 +625,7 @@ static void gum_obj_sync(u8 *slot, int want, const Game *g, const PoolObj *body,
     p->anim = body->type;
     /* anim_tick: bubble level 1..16 (pool_show_gum / pool_show_leak), 0 = burst: the pop plays on g_gum_pop_t, then nothing */
     if (!burst) p->anim_tick = level;
-    else { if (p->anim_tick) g_gum_pop_t[k] = 0; else if (g_gum_pop_t[k] < GUM_OBJ_POP_OVER) g_gum_pop_t[k]++; p->anim_tick = 0; }
+    else { if (p->anim_tick) g_gum_pop_t[k] = 0; else if (g_gum_pop_t[k] < GUM_OBJ_POP_OVER) g_gum_pop_t[k] = (u8)(g_gum_pop_t[k] + g_sync_ticks < GUM_OBJ_POP_OVER ? g_gum_pop_t[k] + g_sync_ticks : GUM_OBJ_POP_OVER); p->anim_tick = 0; }
     p->x = body->x; p->y = body->y;
 }
 
@@ -661,6 +662,19 @@ static void pool_sync_cpus(const Game *g) {
         u8 k = g_cpu_obj[i];
         int32_t feet = c->y + flier_half_h(c); /* once: used by the visibility test and the pool y */
         int visible = i < g->cpu_count && flier_body_visible(c) && (c->state >= FLIER_FALLING || (int)(feet >> 16) <= SCREEN_H);
+        /* Stagger: rival i runs the full sync (animation, gum, leak, chute state) on frames where (frame + i) is even and on the
+           others only follows its body, so every object still moves each frame; the state it shows lags at most one frame. */
+        if (visible && k != POOL_NONE && ((g->frame + (u32)i) & 1u)) {
+            PoolObj *p = &g_pool.obj[k];
+            p->x = c->x; p->y = feet;
+            u8 o = g_chute_obj[i];
+            if (o != POOL_NONE) { g_pool.obj[o].x = c->x; g_pool.obj[o].y = feet; }
+            o = g_gum_obj[i];
+            if (o != POOL_NONE) { g_pool.obj[o].x = c->x; g_pool.obj[o].y = feet; }
+            o = g_leak_obj[i];
+            if (o != POOL_NONE) { g_pool.obj[o].x = c->x; g_pool.obj[o].y = feet; }
+            continue;
+        }
         if (!visible) dead_release(DEAD_OWNER_CPU(i));
         if (!visible || cpu_show_front(g, i)) {
             if (k != POOL_NONE) { obj_pool_free(&g_pool, k); g_cpu_obj[i] = POOL_NONE; }
@@ -678,7 +692,7 @@ static void pool_sync_cpus(const Game *g) {
         }
         PoolObj *p = &g_pool.obj[k];
         int flip;
-        p->type = flier_anim_step(&g_cpu_anim[i], c, &k_clips, &flip); /* sheet frame; the player palette offset is added in pool_show_hero */
+        p->type = flier_anim_step_n(&g_cpu_anim[i], c, &k_clips, &flip, 2); /* sheet frame (2 ticks: stepped every other frame); the player palette offset is added in pool_show_hero */
         if (arc_pump_in_window(&g->pump[i]) && c->state == FLIER_ALIVE) p->type = flier_pump_frame(&k_clips, arc_pump_progress(&g->pump[i])); /* sitting rival: pump frame */
         if (flip) p->flags |= POOL_F_FLIP; else p->flags &= (u8)~POOL_F_FLIP;
         p->anim = toss_pose_code(g, c);
@@ -687,8 +701,10 @@ static void pool_sync_cpus(const Game *g) {
         if (flier_view_visible(c, g->frame)) p->flags &= (u8)~POOL_F_BLINK; else p->flags |= POOL_F_BLINK;
         chute_obj_sync(g, i, c->state == FLIER_PARACHUTE, flip, c, feet);
         u8 lvl = pump_level(&g->pump[i], c->state == FLIER_ALIVE);
+        g_sync_ticks = 2;
         gum_obj_sync(&g_gum_obj[i], !g->gg_toss, g, p, gum_view_leaks_balloons(c->balloons), lvl, flier_gum_burst(c));   /* Toss Gum has its own bubble: no arena gum on the birds */
         leak_obj_sync(&g_leak_obj[i], &g_gum_obj[i], !g->gg_toss && gum_view_leaks_balloons(c->balloons), g, p, lvl);
+        g_sync_ticks = 1;
     }
 }
 

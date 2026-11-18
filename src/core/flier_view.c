@@ -34,7 +34,7 @@ static uint8_t hold_of(const FlierClips *c, uint8_t clip, uint8_t frame, uint8_t
     return c->ticks[shown];
 }
 
-uint8_t flier_anim_step(FlierAnim *a, const Flier *f, const FlierClips *c, int *flip)
+uint8_t flier_anim_step_n(FlierAnim *a, const Flier *f, const FlierClips *c, int *flip, int ticks)
 {
     uint8_t steady = steady_clip(f, c);
     uint8_t grounded = (uint8_t)(f->on_ground && f->state == FLIER_ALIVE);
@@ -74,10 +74,14 @@ uint8_t flier_anim_step(FlierAnim *a, const Flier *f, const FlierClips *c, int *
     if ((a->clip == c->flap || a->clip == c->settle) && steady != c->fly) play(a, steady);
     if (c->loop[a->clip] && a->clip != steady) play(a, steady);
     {
+        uint8_t first = (uint8_t)(c->first[a->clip] + a->frame);
+        int t;
+        for (t = 0; t < ticks; t++) { /* ticks > 1: a staggered rival advances several ticks on its frame; the checks above ran once */
         uint8_t shown = (uint8_t)(c->first[a->clip] + a->frame);
         if (a->clip == c->flap) { /* the wingbeat shows on the body the sway has now, and the sway runs on */
             uint8_t s = (uint8_t)(c->first[a->sway_clip] + a->sway_frame);
             if (c->sway[s]) shown = (uint8_t)(c->first[c->sway[s] == 1 ? c->flap_r : c->flap_l] + a->frame);
+            if (t == 0) first = shown;
             if (++a->sway_tick >= c->ticks[s]) {
                 a->sway_tick = 0;
                 if (++a->sway_frame >= c->count[a->sway_clip]) { /* fly loops; settle ends into fly */
@@ -97,8 +101,14 @@ uint8_t flier_anim_step(FlierAnim *a, const Flier *f, const FlierClips *c, int *
                 } else play(a, steady);
             }
         }
-        return shown;
+        }
+        return first;
     }
+}
+
+uint8_t flier_anim_step(FlierAnim *a, const Flier *f, const FlierClips *c, int *flip)
+{
+    return flier_anim_step_n(a, f, c, flip, 1);
 }
 
 int flier_body_visible(const Flier *f) {

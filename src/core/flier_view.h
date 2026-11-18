@@ -44,6 +44,8 @@ typedef struct {
 void flier_anim_init(FlierAnim *a);
 /* One video frame for flier f. Returns the sheet frame to draw; *flip is 1 when it must be mirrored (facing left). */
 uint8_t flier_anim_step(FlierAnim *a, const Flier *f, const FlierClips *c, int *flip);
+/* Same, advancing `ticks` ticks (the transition checks run once): a rival stepped every other frame passes 2 to keep the animation speed. */
+uint8_t flier_anim_step_n(FlierAnim *a, const Flier *f, const FlierClips *c, int *flip, int ticks);
 
 /* Sheet frame a pumping rival shows: the inflate clip spread over arc_pump_progress (0 .. ARC_PUMP_STAGES - 1 inside the pump window). */
 uint8_t flier_pump_frame(const FlierClips *c, int progress);

@@ -31,6 +31,7 @@ typedef struct {
     int8_t dir;       /* held between thinks */
     uint32_t thinks;  /* think count (test sentinel) */
     int8_t think_cut;/* frames shaved off every think period by the rank; negative = slower than the arena value (party Slow Thinkers) */
+    int8_t out_dir;   /* steering the last think produced; game.c repeats it on the frames the rival does not think (stagger) */
     uint8_t hold;     /* 1 = AI_HOLD: fly to the target and stand on it (set by game.c for the Roost Rule holder) */
     uint8_t flee;     /* 1 = every think flees the target at any range (Hot Gum: rivals of the carrier; set by game.c) */
 } Ai;
