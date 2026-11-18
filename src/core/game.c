@@ -172,7 +172,10 @@ void game_set_mode(Game *g, uint8_t mode)
     g->roost.last = 0xFF;
     for (int i = 0; i < ROOST_FIGHTERS; i++) g->roost.total[i] = 0;
     g->mode = mode == GAME_MODE_TRIP || mode == GAME_MODE_ARCADE || mode == GAME_MODE_GUM ? mode : GAME_MODE_ARENA;
-    if (g->mode == GAME_MODE_GUM) gg_blow_start(&g->blow, 1);
+    if (g->mode == GAME_MODE_GUM) {
+        gg_blow_start(&g->blow, 1);
+        g->hero[0].x = camera_centre_x(g);   /* the camera stays put in Gum Games (game_step_gum): stand on the screen centre, not on the arena spawn at its left edge */
+    }
     if (g->mode == GAME_MODE_ARCADE) {
         arc_start(&g->arc);
         arc_lives_start(&g->lives[0]); /* the arena step builds stage 1 at its first frame (match_start) */

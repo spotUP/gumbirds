@@ -204,6 +204,7 @@ $(BUILDDIR)/gen/chute_sprites.o: $(BUILDDIR)/gen/chute_sprites.c
 $(BUILDDIR)/gen/gumbubble.c1 $(BUILDDIR)/gen/gumbubble.c2 $(BUILDDIR)/gen/gumbubble_sprites.c $(BUILDDIR)/gen/gumbubble_sprites.h $(BUILDDIR)/gen/gumbubble_tables.h: assets/gum_bubble/gum_bubble_sheet.png assets/gum_bubble/gum_bubble_sheet.json tools/build_gumbubble_sprites.py tools/sprite_pipeline.py
 	$(PYTHON) -I tools/build_gumbubble_sprites.py --out $(BUILDDIR)/gen
 $(BUILDDIR)/gen/gumbubble_sprites.o: $(BUILDDIR)/gen/gumbubble_sprites.c
+	$(M68KGCC) $(NGCFLAGS) $(CFLAGS) -c $< -o $@
 # Toss Gum poses: 8 cells 32x32 (tools/make_toss_sheet.py) + the gum anchor per pose in tosspose_tables.h. C-ROM position: last, so no earlier tile base moves.
 $(BUILDDIR)/gen/tosspose.c1 $(BUILDDIR)/gen/tosspose.c2 $(BUILDDIR)/gen/tosspose_sprites.c $(BUILDDIR)/gen/tosspose_sprites.h $(BUILDDIR)/gen/tosspose_tables.h: assets/toss/toss_sheet.png assets/toss/toss_sheet.json tools/build_tosspose_sprites.py tools/sprite_pipeline.py
 	$(PYTHON) -I tools/build_tosspose_sprites.py --out $(BUILDDIR)/gen
@@ -413,6 +414,7 @@ test: cart
 	@$(MAKE) --no-print-directory test-party
 	@$(MAKE) --no-print-directory test-party-toss
 	@$(MAKE) --no-print-directory test-gum-big-blow
+	@$(MAKE) --no-print-directory test-gum-visible
 	@$(MAKE) --no-print-directory test-gum-burst-race
 	@$(MAKE) --no-print-directory test-gum-burst-race-2p
 	@$(MAKE) --no-print-directory test-gum-flap-dash
@@ -915,6 +917,19 @@ test-party-toss: cart bios
 	cat $$T/result.txt; \
 	if grep -q '^PASS' $$T/result.txt; then rm -rf $$T; echo "[OK] make test-party-toss passed"; else echo "[FAIL] make test-party-toss, log kept in $$T"; exit 1; fi
 
+# Gum visibility (tests/mame/gum_visible_check.lua): Big Blow and Toss Gum each must show the hero on screen and a lit bubble sprite.
+test-gum-visible: cart bios
+	@if [ ! -f "$(UNIBIOS)" ]; then echo "[FAIL] UNIBIOS file not found: $(UNIBIOS)"; exit 1; fi
+	@$(MAKE) --no-print-directory $(UNIBIOS_DIR)/neogeo.zip
+	@set -e; for SC in blow toss; do T=$$(mktemp -d $(BUILDDIR)/test-run.XXXXXX); \
+	BRAWL_SCEN=$$SC BRAWL_FLOW_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flow"{print $$1}') \
+	BRAWL_VIS_LAYOUT="$$($(M68KGCC) $(NGCFLAGS) -Ibuild -std=c99 -S -o - tests/mame/gum_visible_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
+	BRAWL_RESULT=$$T/result.txt \
+	SDL_VIDEODRIVER=dummy nice -n 19 $(MAME) -window -nomaximize -video none -sound none -nothrottle -seconds_to_run 400 -noautosave -skip_gameinfo -hash $(ROM) -rp "$(UNIBIOS_DIR);$(ROM)" -bios unibios40 -nvram_directory $$T -autoboot_script tests/mame/gum_visible_check.lua neogeo -cart1 $(GAMEROM) > $$T/mame.log 2>&1 || true; \
+	if [ ! -f $$T/result.txt ]; then tail -n 15 $$T/mame.log; echo "[FAIL] no result from gum visible Lua script ($$SC)"; exit 1; fi; \
+	cat $$T/result.txt; \
+	if grep -q '^PASS' $$T/result.txt; then rm -rf $$T; else echo "[FAIL] make test-gum-visible ($$SC), log kept in $$T"; exit 1; fi; done; echo "[OK] make test-gum-visible passed"
+
 # PARTY Roost Rule (tests/mame/party_roost_check.lua): UniBIOS, Arena 1P Start, rule set to Roost, P2 join restarts the match; the island is picked,
 # the round timer runs and a sole standing human is paid ticks. `make test-party-roost` alone.
 test-party-roost: cart bios
@@ -1224,7 +1239,7 @@ test-logo: cart bios
 	cat $$T/result.txt; \
 	if grep -q '^PASS' $$T/result.txt; then rm -rf $$T; echo "[OK] make test-logo passed"; else echo "[FAIL] make test-logo, log kept in $$T"; exit 1; fi
 
-.PHONY: run test test-mood test-arcade test-arcade-walk test-arcade-bonus test-crom test-srom test-debug-header test-camera test-sprite-peak test-left-column test-flier test-small-sootling test-reach test-vblank test-scroll test-slots test-hazard test-hazard-kill test-soft-reset test-ring test-solid test-trip test-score test-sound test-unibios test-coop test-arena-join test-party test-party-toss test-party-roost test-party-name test-gum-big-blow test-gum-burst-race test-gum-burst-race-2p test-gum-bubble-gather-fail test-gum-flap-dash test-gum-bubble-gather test-gum-pop-drop test-gum-fling test-logo
+.PHONY: run test test-mood test-arcade test-arcade-walk test-arcade-bonus test-crom test-srom test-debug-header test-camera test-sprite-peak test-left-column test-flier test-small-sootling test-reach test-vblank test-scroll test-slots test-hazard test-hazard-kill test-soft-reset test-ring test-solid test-trip test-score test-sound test-unibios test-coop test-arena-join test-party test-party-toss test-party-roost test-party-name test-gum-big-blow test-gum-visible test-gum-burst-racetest-gum-burst-race-2p test-gum-bubble-gather-fail test-gum-flap-dash test-gum-bubble-gather test-gum-pop-drop test-gum-fling test-logo
 
 # Header dependencies from -MMD (build/**/*.d): a changed header rebuilds every object that includes it.
 -include $(shell find $(BUILDDIR) -name '*.d' 2>/dev/null)
