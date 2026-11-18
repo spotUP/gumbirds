@@ -772,6 +772,9 @@ static int human_leaks(const Game *g, int pl) {
 static u8 human_bubble_level(const Game *g, int pl) { return flier_gum_burst(&g->hero[pl]) ? 0 : pump_level(&g->hpump[pl], g->hero[pl].state == FLIER_ALIVE); }   /* 0: gum_step plays the pop */
 /* Burst Race bubble of side s: the pump size on the same 1..16 levels (at least 1, so the bubble shows from the first frame); gum_step takes it as a gum value; 0 once this side won the heat: gum_step plays the pop. */
 static uint16_t race_gum(const Game *g, int s) { if (gg_race_bursts(&g->race, s)) return 0; uint16_t v = (uint16_t)(g->race.size[s] * (GUM_MAX / GG_BLOW_MAX)); return v ? v : 1; }
+/* Big Blow is GAME_MODE_GUM with no other event flag. */
+static int is_big_blow(const Game *g) { return g->mode == GAME_MODE_GUM && !(g->gg_race || g->gg_pop || g->gg_dash || g->gg_gather || g->gg_fling || g->gg_toss); }
+static uint16_t blow_gum(const Game *g) { if (g->blow.phase == GG_BLOW_BURST || (g->blow.phase >= GG_BLOW_RESULT && g->blow.burst)) return 0;   /* burst stays set into the next attempt: only the burst and its result screen count */ uint16_t v = (uint16_t)(g->blow.size * (GUM_MAX / GG_BLOW_MAX)); return v ? v : 1; }
 static void human_leak_sync(const Game *g) {
     for (int pl = 0; pl < HUMANS; pl++) {
         int want = (g->mode == GAME_MODE_TRIP ? pl == 0 : (pl == 0 || g->players == 2)) && human_leaks(g, pl);
@@ -1304,7 +1307,7 @@ static void toss_bubble_step(const Game *g) {
             g_tossb_arc = 0;
         }
         g_tossb_live = 1;
-        sx = camera_screen_x(g_tossb_x - 8 + g_tossb_dx[k], g_cam_px, 16);
+        sx = camera_screen_x(g_tossb_x - 8 + g_tossb_dx[k], game_flier_cam_px(g), 16);   /* Toss Gum birds live in screen space: camera 0 */
         if (camera_visible(sx, 16)) {
             u16 s3 = gfx_scb3_word(1, g_tossb_y - 16 + g_tossb_dy[k]), s4 = gfx_scb4_word(sx);
             if (g_tossb_cell_shown != g_tossb_cell[k]) {
@@ -2921,11 +2924,12 @@ static void game_loop(void) {
             /* Arena: the bubble is full size until the last balloon bursts (level 0 starts the pop); Gum Trip: its gum meter. */
             u8 arena = world && (view.game->mode == GAME_MODE_ARENA || view.game->mode == GAME_MODE_ARCADE);
             u8 race = world && view.game->gg_race;
-            gum_step(0, arena || race || (trip && game_trip_ready(view.game)), trip ? view.game->trip.gum : (race ? race_gum(view.game, 0) : arena ? (uint16_t)(human_bubble_level(view.game, 0) * (GUM_MAX / GUM_VIEW_LEVELS)) : GUM_MAX), (trip || arena || race) ? view.game->frame : 0, g_gum_pose[0].drawn, g_gum_pose[0].frame, g_gum_pose[0].flip, g_gum_pose[0].cx, g_gum_pose[0].top, world && human_leaks(view.game, 0));
+            u8 blow = world && is_big_blow(view.game);
+            gum_step(0, arena || race || blow || (trip && game_trip_ready(view.game)), trip ? view.game->trip.gum : (race ? race_gum(view.game, 0) : blow ? blow_gum(view.game) : arena ? (uint16_t)(human_bubble_level(view.game, 0) * (GUM_MAX / GUM_VIEW_LEVELS)) : GUM_MAX), (trip || arena || race || blow) ? view.game->frame : 0, g_gum_pose[0].drawn, g_gum_pose[0].frame, g_gum_pose[0].flip, g_gum_pose[0].cx, g_gum_pose[0].top, world && human_leaks(view.game, 0));
             roost_marker_step(arena && view.state == FLOW_PLAYING ? view.game : 0);
             card_scene_step(view.state == FLOW_PLAYING && view.card, view.card_t);
             countdown_step(view.state == FLOW_PLAYING && view.game ? ggcd_word(view.game->cd_t) : GGCD_WORD_NONE);
-            toss_bubble_step(arena && view.state == FLOW_PLAYING ? view.game : 0);
+            toss_bubble_step(view.state == FLOW_PLAYING ? view.game : 0);   /* Toss Gum is GAME_MODE_GUM, not arena: the function checks gg_toss itself */
             fling_arc_step(world && view.state == FLOW_PLAYING && !view.card ? view.game : 0);
             gum_step(1, race || (arena && view.game->players == 2), race ? race_gum(view.game, 1) : (uint16_t)(human_bubble_level(view.game, 1) * (GUM_MAX / GUM_VIEW_LEVELS)), view.game->frame, g_gum_pose[1].drawn, g_gum_pose[1].frame, g_gum_pose[1].flip, g_gum_pose[1].cx, g_gum_pose[1].top, world && human_leaks(view.game, 1));
             {   /* the splash starts from the same crossing that plays the splosh sound; it keeps running through Game Over */
