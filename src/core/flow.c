@@ -246,6 +246,9 @@ const char *flow_gg_name(uint8_t i) { return gg_names[i]; }
 
 /* Rules cards in gg_order order (owner 2026-11-17: Gum Fling first, the other events get theirs later). */
 static const GgCard gg_cards[GG_PICK_COUNT] = {
+    [1] = { "BLOW YOUR BUBBLE BIGGER THAN THE RIVAL",
+            { { "PRESS A", "THEN B" }, { "KEEP ALTERNATING", "A AND B" }, { "FIRST TO BURST", "WINS" } },
+            { "THE SAME BUTTON TWICE", "DOES NOT COUNT" } },
     [5] = { "FLING THE GUM AS FAR AS YOU CAN",
             { { "MASH A", "FOR POWER" }, { "HOLD A", "TO AIM" }, { "LET GO", "TO FLING" } },
             { "SAFE ANGLE: 15 TO 75 DEGREES", "TAKE TURNS: 3 THROWS EACH" } },

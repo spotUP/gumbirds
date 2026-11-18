@@ -74,6 +74,7 @@ int main(void)
         CHECK(f.gg_event == GG_BURST_RACE);
         f.tables.gg_record[GG_BURST_RACE] = 90;
         flow_step(&f, 0, 1, 1);
+        while (f.gg_card) flow_step(&f, 0, 0, 0);                  /* the rules card holds the game until it times out */
         CHECK(f.state == FLOW_PLAYING && f.game.gg_race && f.game.rounds == 0);
         f.game.race.seq.best[0] = 120;
         f.game.race.phase = GG_RACE_END;
@@ -84,10 +85,20 @@ int main(void)
         flow_coin(&f);
         flow_step(&f, IN_A, 0, 0); flow_step(&f, 0, 0, 0); /* A opens the GUM GAMES list */
         flow_step(&f, 0, 1, 1);
+        while (f.gg_card) flow_step(&f, 0, 0, 0);                  /* the rules card holds the game until it times out */
         f.game.race.seq.best[0] = 80;
         f.game.race.phase = GG_RACE_END;
         flow_step(&f, 0, 0, 0);
         CHECK(f.tables.gg_record[GG_BURST_RACE] == 80 && f.dirty);   /* lower time replaces a record, and fills an empty one */
+    }
+    /* the pump counts only alternating A and B (one button repeated pumps nothing), so the rules card must say so */
+    {
+        GgMash m; uint8_t prev = 0; int n = 0;
+        const GgCard *c = flow_gg_card(GG_BURST_RACE);
+        gg_mash_reset(&m);
+        for (int i = 0; i < 20; i++) { uint8_t in = (i & 1) ? 0 : IN_A; n += gg_mash_step(&m, in, prev); prev = in; }
+        CHECK(n == 1);
+        CHECK(c != 0 && c->step[0][1] && c->step[1][0]);
     }
     printf("test_burst_race: %d failures\n", fails);
     return fails != 0;
