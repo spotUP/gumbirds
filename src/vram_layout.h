@@ -128,6 +128,7 @@ _Static_assert(ATTRACT_PAL_SLOT < 16, "fix layer palettes are 4 bits: the overla
 #define RULECARD_PAL_SLOT (COUNTDOWN_HOT_PAL_SLOT + COUNTDOWN_EXTRA_PALETTE_COUNT) /* rules card example props: slab, needle, gum */
 #define FLFIELD_TURF_PAL_SLOT (RULECARD_PAL_SLOT + RULECARD_PALETTE_COUNT) /* fling field turf and puff: the mood's turf palette is written here */
 #define FLFIELD_GEAR_PAL_SLOT (FLFIELD_TURF_PAL_SLOT + 1) /* fling field chalk line, boards, mark: the mood's gear palette */
-_Static_assert(FLFIELD_GEAR_PAL_SLOT + 1 <= 256, "palette slots exceed the 256 the hardware has");
+#define STADIUM_PAL_SLOT (FLFIELD_GEAR_PAL_SLOT + 1) /* ground-event stands: base palette, then the extra ones (mood x team x variant x near/far, structure, dusk light) */
+_Static_assert(STADIUM_PAL_SLOT + STADIUM_PALETTE_COUNT + STADIUM_EXTRA_PALETTE_COUNT <= 256, "palette slots exceed the 256 the hardware has");
 
 #endif

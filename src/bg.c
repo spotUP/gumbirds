@@ -101,6 +101,9 @@ static const u16 TILE_BASE[BG_MOOD_COUNT] = { CITY_TILE_BASE, DUSK_TILE_BASE, ST
 /* Mood change: g_want is the mood asked for, g_step the next column to rewrite while g_bg_mood_busy. */
 static u8 g_want, g_step;
 static u8 g_hidden; /* planes bg_trip_planes hides (BG_TRIP_HIDDEN_MASK bits) */
+static u8 g_stadium; /* 1: the stadium owns sprite slots 21..110, planes far..near stay hidden (sky stays) */
+#define STADIUM_HIDDEN_MASK 0x1E /* plane bits 1..4 */
+static u8 hidden_mask(void) { return (u8)(g_hidden | (g_stadium ? STADIUM_HIDDEN_MASK : 0)); }
 static u16 g_scb3_show[BG_SPRITE_TOTAL], g_scb3_out[BG_SPRITE_TOTAL];
 static const u16 g_scb3_zero[BG_SPRITE_TOTAL];
 /* Strips per frame while the mood changes: at most 9 x 7 rows of tile pairs. The show run (every column's SCB3 word, about 31
@@ -192,7 +195,7 @@ void bg_init(void) {
             g_scb3_show[i] = n ? gfx_scb3_word(n, (u16)(PLANE_TOP[p] + 16 * COL_ROW0[i])) : 0; /* 0 rows: height 0 hides the sprite */
             gfx_word((u16)(ADDR_SCB2 + slot), 0xFFF);
             column_strip(g_bg_mood, slot);
-            gfx_word((u16)(ADDR_SCB3 + slot), (g_hidden & (1u << p)) ? 0 : g_scb3_show[i]); /* a BIOS return inside Gum Trip keeps far and near hidden */
+            gfx_word((u16)(ADDR_SCB3 + slot), (hidden_mask() & (1u << p)) ? 0 : g_scb3_show[i]); /* a BIOS return inside Gum Trip keeps far and near hidden */
         }
         g_bg_plane_x[p] = 0x7FFF; /* no x written yet: the next bg_update sends all planes */
         g_last_valid = 0;
@@ -243,13 +246,13 @@ static void mood_step(void) {
         for (u8 first = g_step; g_step < end && (g_step == first || !fade_late()); g_step++) column_strip(g_want, (u8)(BG_SKY_SPRITE + g_step));
         return;
     }
-    if (g_hidden)
+    if (hidden_mask())
         for (u8 p = 0; p < BG_PLANE_COUNT; p++)
             for (u8 c = 0; c < PLANE_COLS[p]; c++) {
                 u8 i = (u8)(PLANE_FIRST[p] + c - BG_SKY_SPRITE);
-                g_scb3_out[i] = (g_hidden & (1u << p)) ? 0 : g_scb3_show[i];
+                g_scb3_out[i] = (hidden_mask() & (1u << p)) ? 0 : g_scb3_show[i];
             }
-    gfx_scb_run((u16)(ADDR_SCB3 + BG_SKY_SPRITE), 1, g_hidden ? g_scb3_out : g_scb3_show, BG_SPRITE_TOTAL); /* nothing hidden: the show words as they are */
+    gfx_scb_run((u16)(ADDR_SCB3 + BG_SKY_SPRITE), 1, hidden_mask() ? g_scb3_out : g_scb3_show, BG_SPRITE_TOTAL); /* nothing hidden: the show words as they are */
     g_bg_mood = g_want;
     g_bg_mood_changes++;
     bg_fade_swapped(&g_fade); /* busy until the fade in has written the last palette */
@@ -272,12 +275,10 @@ static void change_step(void) {
 /* Gum Trip drops the planes in BG_TRIP_HIDDEN_MASK (far, near): hide = SCB3 height 0 for each of their columns, show = bg_init's word.
  * Trip also swaps the backdrop (palette RAM entry 4095) to the sky colour, so the tiles the importer blanked (sky behind far, mid B behind
  * near) show sky instead of dark. Written on a change only, so a hidden plane costs no per-line sprites and no VRAM writes per frame. */
-void bg_trip_planes(u8 trip) {
-    u8 want = trip ? BG_TRIP_HIDDEN_MASK : 0, diff = (u8)(want ^ g_hidden);
+static void planes_apply(u8 before) {
+    u8 diff = (u8)(before ^ hidden_mask()), want = hidden_mask();
     if (!diff) return;
-    g_hidden = want;
-    backdrop_put();
-    if (g_fade.phase == BGF_DARK) return; /* every column is hidden now; the show run at the end of the swap reads g_hidden */
+    if (g_fade.phase == BGF_DARK) return; /* every column is hidden now; the show run at the end of the swap reads hidden_mask */
     for (u8 p = 0; p < BG_PLANE_COUNT; p++) {
         if (!(diff & (1u << p))) continue;
         for (u8 c = 0; c < PLANE_COLS[p]; c++) {
@@ -285,6 +286,22 @@ void bg_trip_planes(u8 trip) {
             if (COL_ROWS[i]) gfx_word((u16)(ADDR_SCB3 + slot), (want & (1u << p)) ? 0 : g_scb3_show[i]);
         }
     }
+}
+
+void bg_trip_planes(u8 trip) {
+    u8 before = hidden_mask(), want = trip ? BG_TRIP_HIDDEN_MASK : 0;
+    if (want == g_hidden) return;
+    g_hidden = want;
+    backdrop_put();
+    planes_apply(before);
+}
+
+void bg_stadium_planes(u8 on) {
+    u8 before = hidden_mask();
+    on = on ? 1 : 0;
+    if (on == g_stadium) return;
+    g_stadium = on;
+    planes_apply(before);
 }
 
 /* unwrapped_px = camera_unwrapped_px: plane offset = floor(px * k / 16) mod plane width (src/core/bg_scroll.c, one 16 bit divide per

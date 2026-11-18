@@ -9,6 +9,7 @@ extern volatile u32 g_bg_x_writes;    /* plane SCB4 runs (one per plane, all its
 
 void bg_load_palettes(void);          /* palettes + backdrop colour; call from video_init() */
 void bg_init(void);                   /* tiles, tops and heights of every column, written once; forces the x words on the next update */
+void bg_stadium_planes(u8 on);         /* 1: planes far..near (slots 21..110) stay hidden for the stadium, which owns those slots; the sky stays. Words go out on a change only */
 void bg_trip_planes(u8 trip);          /* 1 hides the planes Gum Trip drops (BG_TRIP_HIDDEN_MASK: far, near), 0 shows them again; also the backdrop colour: sky colour in trip, dark otherwise; words go out only on a change */
 void bg_set_mood(u8 mood, u8 cut);    /* GAME_MOOD_*: fades the planes out, rewrites their strips in the dark over the next bg_update calls, fades in;
                                        * cut 1 (world hidden, entry hold): hides the planes now and swaps at full colour, no fade. No-op for the mood shown or asked */
