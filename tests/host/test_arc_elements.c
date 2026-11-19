@@ -1,6 +1,7 @@
 /* Host test for src/core/arc_elements.[ch]: element cycles, hit/miss boxes, flipper bounce, grate zone, per-stage tables. */
 #include <stdio.h>
 #include "../../src/core/arc_elements.h"
+#include "../../src/core/arcade.h"
 
 static int checks, failures;
 #define CHECK(c) do { checks++; if (!(c)) { failures++; printf("FAIL %s:%d: %s\n", __FILE__, __LINE__, #c); } } while (0)
@@ -156,6 +157,20 @@ int main(void) {
     CHECK(arc_elements_lift(&a, 248, 186 - ARC_GRATE_H - 5 - 1, 2, 5) == 0);
     CHECK(arc_elements_lift(&a, 248, 170, 2, 5) < 0 && arc_elements_kill(&a, 248, 170, 2, 5) == 0);
     arc_elements_init(&a, 0); CHECK(arc_elements_lift(&a, 184, 100, 2, 5) == 0);
+
+    /* arc_elements_touch is bounce | lift << 1 on every stage layout, both flier heights, over the whole arena (sound cue touch bits) */
+    {
+        int s, x, y, hh, bad = 0;
+        for (s = 0; s < ARC_STAGE_COUNT; s++) {
+            arc_elements_init(&a, s);
+            for (hh = 5; hh <= 13; hh += 8) for (y = -16; y < 240; y++) for (x = -16; x < 400; x++) {
+                int32_t vx = 0, vy = 0;
+                int want = (arc_elements_bounce(&a, x, y, 2, hh, &vx, &vy) ? 1 : 0) | (arc_elements_lift(&a, x, y, 2, hh) ? 2 : 0);
+                if (arc_elements_touch(&a, x, y, 2, hh) != want) bad++;
+            }
+        }
+        CHECK(bad == 0);
+    }
 
     printf("test_arc_elements: %d checks, %d failures\n", checks, failures);
     return failures != 0;

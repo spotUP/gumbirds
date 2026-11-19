@@ -87,6 +87,7 @@ int arc_elements_kill(const ArcElements *a, int cx, int cy, int hw, int hh);   /
 /* Flipper: if the box touches one, set *vx / *vy (16.16) to ARC_FLIP_SPEED away from its centre and return 1. */
 int arc_elements_bounce(const ArcElements *a, int cx, int cy, int hw, int hh, int32_t *vx, int32_t *vy);
 int32_t arc_elements_lift(const ArcElements *a, int cx, int cy, int hw, int hh);   /* summed vy delta (negative is up), 0 outside */
+int arc_elements_touch(const ArcElements *a, int cx, int cy, int hw, int hh);      /* bit 0: a flipper hit (bounce), bit 1: a grate hit (lift) */
 /* kill, then bounce, then lift in one pass: returns 1 (killed, speeds untouched) or 0 with *vx / *vy set by the flipper and *vy lifted by the grates. */
 int arc_elements_apply(const ArcElements *a, int cx, int cy, int hw, int hh, int32_t *vx, int32_t *vy);
 int arc_elements_grab_frame(uint16_t timer);   /* grabber frame 0..ARC_GRAB_FRAMES-1 for its timer, -1 while hidden (timer 0) (used by arc_view) */

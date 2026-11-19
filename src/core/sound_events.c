@@ -22,8 +22,9 @@ static uint16_t liquid_edge(SoundEvents *e, const Flier *f, uint8_t hazard)
     return SE_SPLOSH;
 }
 
-/* One flier's edges against what it was last frame; a flier not seen last frame (new slot, new round) only primes. */
-static uint16_t flier_edges(SoundEvents *e, int slot, const Flier *f, uint8_t live, uint8_t hazard, uint8_t pops)
+/* One flier's edges against what it was last frame; a flier not seen last frame (new slot, new round) only primes.
+   Inlined: as a call (7 stack arguments) it cost about 0.8 raster lines per live flier on the 68000 (l4-slowdown.md Pass 33). */
+static inline __attribute__((always_inline)) uint16_t flier_edges(SoundEvents *e, int slot, const Flier *f, uint8_t live, uint8_t hazard, uint8_t pops)
 {
     uint16_t ev;
     uint8_t was, was_b;
@@ -73,6 +74,18 @@ static uint16_t death_events(SoundEvents *e, const Game *g, uint8_t playing)
 
 /* Cue edges of one playing frame; emit is 0 on the first playing frame (it only records). */
 #define SE_UNSEEN_PUMP 0xFF   /* state nibble 15: never a real pump state */
+/* One pump slot's cue bits; inlined so each of the two loops in cue_events folds `human` (the per-slot ternaries cost frame time). */
+static inline __attribute__((always_inline)) uint32_t pump_edge(SoundEvents *e, int slot, const ArcPump *p, uint8_t emit, int active, int human)
+{
+    uint8_t was = e->prev_pump[slot], now = (uint8_t)(p->state << 4 | (p->state == ARC_PUMP_PUMPING ? arc_pump_progress(p) : 0));
+    e->prev_pump[slot] = (emit || p->state != ARC_PUMP_PUMPING) ? now : SE_UNSEEN_PUMP;   /* a pump already pumping on the first playing frame still owes its first stroke */
+    if (now == was || !emit || !active) return 0;
+    if (p->state == ARC_PUMP_PUMPING) return (was >> 4 != ARC_PUMP_PUMPING || now > was) ? 1ul << ((now & 1) ? SC_PUMP_A : SC_PUMP_B) : 0;   /* entering the pump window is its first stroke */
+    if (human) return 0;
+    if (p->state == ARC_PUMP_FLYING) return was >> 4 == ARC_PUMP_PUMPING ? 1ul << SC_RIVAL_LAUNCH : 0;
+    if (p->state == ARC_PUMP_DEFEATED) return 1ul << SC_DEFEAT;
+    return 0;
+}
 static void cue_events(SoundEvents *e, const Game *g, uint8_t emit)
 {
     uint32_t c = 0;
@@ -85,17 +98,9 @@ static void cue_events(SoundEvents *e, const Game *g, uint8_t emit)
     if (g->bounces > e->prev_bounces) c |= 1ul << SC_BUMP;
     e->prev_bounces = g->bounces;
     if (g->mode != GAME_MODE_TRIP) {   /* pumps run in arena, party and arcade; the Trip has none */
-        for (i = 0; i < STAGE_SPAWN_COUNT + HUMANS; i++) {   /* slots 0.. computer fliers, then the human pumps (strokes only: no rival launch or defeat for a human) */
-            int human = i >= STAGE_SPAWN_COUNT;
-            const ArcPump *p = human ? &g->hpump[i - STAGE_SPAWN_COUNT] : &g->pump[i];
-            uint8_t was = e->prev_pump[i], now = (uint8_t)(p->state << 4 | (p->state == ARC_PUMP_PUMPING ? arc_pump_progress(p) : 0));
-            e->prev_pump[i] = (emit || p->state != ARC_PUMP_PUMPING) ? now : SE_UNSEEN_PUMP;   /* a pump already pumping on the first playing frame still owes its first stroke */
-            if (now == was || !emit || (human ? i - STAGE_SPAWN_COUNT >= g->players : i >= g->cpu_count)) continue;
-            if (p->state == ARC_PUMP_PUMPING) { if (was >> 4 != ARC_PUMP_PUMPING || now > was) c |= 1ul << ((now & 1) ? SC_PUMP_A : SC_PUMP_B); }   /* entering the pump window is its first stroke */
-            else if (human) continue;
-            else if (p->state == ARC_PUMP_FLYING) { if (was >> 4 == ARC_PUMP_PUMPING) c |= 1ul << SC_RIVAL_LAUNCH; }
-            else if (p->state == ARC_PUMP_DEFEATED) c |= 1ul << SC_DEFEAT;
-        }
+        /* slots 0.. computer fliers, then the human pumps (strokes only: no rival launch or defeat for a human) */
+        for (i = 0; i < STAGE_SPAWN_COUNT; i++) c |= pump_edge(e, i, &g->pump[i], emit, i < g->cpu_count, 0);
+        for (i = 0; i < HUMANS; i++) c |= pump_edge(e, STAGE_SPAWN_COUNT + i, &g->hpump[i], emit, i < g->players, 1);
     }
     if (g->mode == GAME_MODE_ARCADE) {
         uint8_t touch = 0;
@@ -112,11 +117,9 @@ static void cue_events(SoundEvents *e, const Game *g, uint8_t emit)
                 else if (arc_elements_grab_frame(t) == ARC_GRAB_HIT_FIRST && arc_elements_grab_frame(was) != ARC_GRAB_HIT_FIRST) c |= 1ul << SC_GRAB_BITE;
             }
         }
-        if (g->elems.n && g->hero[0].state < FLIER_FALLING) {   /* the same boxes game.c arc_element_apply uses; the speeds go to scratch */
+        if (g->elems.n && g->hero[0].state < FLIER_FALLING) {   /* the same boxes game.c arc_element_apply uses */
             int cx = (int)(g->hero[0].x >> 16), cy = (int)(g->hero[0].y >> 16), hh = (int)(flier_half_h(&g->hero[0]) >> 16);
-            int32_t vx = 0, vy = 0;
-            if (arc_elements_bounce(&g->elems, cx, cy, FLIER_HALF_W, hh, &vx, &vy)) touch |= 1;
-            if (arc_elements_lift(&g->elems, cx, cy, FLIER_HALF_W, hh)) touch |= 2;
+            touch = (uint8_t)arc_elements_touch(&g->elems, cx, cy, FLIER_HALF_W, hh);
         }
         if (touch & ~e->prev_touch & 1) c |= 1ul << SC_FLIPPER;
         if (touch & ~e->prev_touch & 2) c |= 1ul << SC_GRATE;

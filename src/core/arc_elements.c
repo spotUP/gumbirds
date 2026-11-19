@@ -162,6 +162,17 @@ int32_t arc_elements_lift(const ArcElements *a, int cx, int cy, int hw, int hh) 
     return d;
 }
 
+/* (arc_elements_bounce != 0) | (arc_elements_lift != 0) << 1 in one pass, no speeds: the sound cues' flipper and grate touch bits. */
+int arc_elements_touch(const ArcElements *a, int cx, int cy, int hw, int hh) {
+    int i, t = 0;
+    for (i = 0; i < a->n; i++) {
+        const ArcElement *e = &a->el[i];
+        if (e->kind == ARC_EL_FLIPPER) { if (box_hit(cx, cy, hw, hh, e->x, e->y, ARC_FLIP_HALF, ARC_FLIP_HALF)) t |= 1; }
+        else if (e->kind == ARC_EL_GRATE && box_hit(cx, cy, hw, hh, e->x, e->y - ARC_GRATE_H / 2, ARC_GRATE_HALF_W, ARC_GRATE_H / 2)) t |= 2;
+    }
+    return t;
+}
+
 /* kill, bounce and lift in one pass over the elements: the same result as calling arc_elements_kill, then (if not killed) _bounce, then _lift. */
 int arc_elements_apply(const ArcElements *a, int cx, int cy, int hw, int hh, int32_t *vx, int32_t *vy) {
     int i, bounced = 0;
