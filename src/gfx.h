@@ -52,6 +52,7 @@ void gfx_center_text(u8 y, u8 pal, const char *s);
 /* The cells gfx_center_text of a w-space string writes on rows y..y+h-1, in one vq_fix_clear pass. */
 void gfx_center_blank(u8 y, u8 h, u8 w, u8 pal);
 void gfx_cls(void);
+void gfx_cls_busy(void); /* same screen as gfx_cls, cheaper when most of the layer is written */
 void gfx_commit_all(void);          /* commit every changed fix cell now (init and reset paths, outside the frame budget) */
 void gfx_commit(void);              /* fold the fix layer changes into the queue (end of the frame's logic) */
 void gfx_wait_vblank(void);         /* park until the next vblank; the vblank callback flushes the queue */

@@ -164,6 +164,11 @@ int main(void)
     vq_fix_fill(&q, 0x20);
     vq_fix_put(&q, 2, 3, 0x1041);
     CHECK(commit_all() == 0);
+    /* wipe: same hardware result as a fill, only cells that differ are pushed */
+    vq_fix_wipe(&q, 0x20);
+    CHECK(commit_all() == 1);
+    vq_fix_put(&q, 2, 3, 0x1041);
+    CHECK(commit_all() == 1);
     vq_fix_put(&q, 2, 3, 0x1042);
     vq_fix_put(&q, 2, 3, 0x1042);
     CHECK(vq_fix_commit(&q) && vq_pending(&q) == 1);

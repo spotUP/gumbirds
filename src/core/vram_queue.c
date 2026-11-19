@@ -193,6 +193,17 @@ void vq_fix_fill(VramQueue *q, u16 cell) {
     }
 }
 
+/* Blank the whole layer without comparing: every cell wanted blank, every column dirty. vq_fix_fill's per-pair compare cost 164
+ * raster lines when the result screen ends (it wrote nearly every cell); the commit still pushes only cells that differ from the
+ * hardware, in the same order, so the screen is the same. Use it only when most cells are known non-blank. */
+void vq_fix_wipe(VramQueue *q, u16 cell) {
+    vq_pair *w = (vq_pair *)q->fix_want;
+    const vq_pair cc = ((vq_pair)cell << 16) | cell;
+    for (u16 i = 0; i < VQ_FIX_COLS * VQ_FIX_ROWS / 2; i++) w[i] = cc;
+    for (u16 x = 0; x < VQ_FIX_COLS; x++) q->fix_dirty[x] = 0xFFFFFFFFul;
+    q->fix_any = 1;
+}
+
 /* One pass with no per-cell call: blanking the 22 x 8 round clear banner through vq_fix_put cost about 200 raster lines
  * on the stage switch frame and pushed the logic of that frame past vblank (make test-arcade-walk). */
 u16 vq_fix_clear_shadowed(VramQueue *q, u8 x, u8 y, u8 w, u8 h, u16 *shadow, u16 cell) {

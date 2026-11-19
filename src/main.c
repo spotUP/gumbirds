@@ -2385,10 +2385,12 @@ static void draw_result_fx(const Result *r) {
 
 static void draw(const FlowView *v) {
     char buf[3];
+    u8 res_over = 0;
     /* The header only changes with the state: send it after the clear. The fix shadow (vq_fix_put) keeps it, and a
      * hardware reset of the fix layer goes through video_init, which forces this branch (g_draw_state = -1). */
     if (g_res_up && !(v->state == FLOW_PLAYING && v->game && v->game->res.active)) {
         g_res_up = 0;
+        res_over = 1;
         resfx_hide();
         g_draw_state = -1; /* the result screen is over: clear the fix layer, the HUD comes back */
     }
@@ -2400,7 +2402,7 @@ static void draw(const FlowView *v) {
     u8 toss_now = v->game && v->game->gg_toss;
     if (toss_now != g_toss_up) { g_toss_up = toss_now; g_draw_state = -1; }
     if ((int)v->state != g_draw_state) {
-        gfx_cls();
+        if (res_over) gfx_cls_busy(); else gfx_cls();
         title_reset();
         g_draw_state = (int)v->state;
         g_hud[0].kind = g_hud[1].kind = HUD_KIND_NONE;

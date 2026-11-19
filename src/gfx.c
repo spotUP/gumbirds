@@ -145,6 +145,7 @@ void gfx_center_blank(u8 y, u8 h, u8 w, u8 pal) {
 }
 
 void gfx_cls(void) { vq_fix_fill(&g_gfx_q, SROM_EMPTY_TILE); }
+void gfx_cls_busy(void) { vq_fix_wipe(&g_gfx_q, SROM_EMPTY_TILE); } /* the layer is mostly written (result screen over) */
 
 void gfx_commit(void) {
     u16 max = vq_fix_line_budget(VQ_RASTER_LINE(*REG_LSPCMODE)); /* a late heavy frame leaves cells dirty for the next one */

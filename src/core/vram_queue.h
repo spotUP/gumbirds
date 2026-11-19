@@ -147,6 +147,7 @@ void vq_fix_put(VramQueue *q, u8 x, u8 y, u16 cell);
  * goes through it every frame. */
 void vq_fix_text(VramQueue *q, u8 x, u8 y, u16 hi, const u16 *map, const char *s);
 void vq_fix_fill(VramQueue *q, u16 cell);
+void vq_fix_wipe(VramQueue *q, u16 cell); /* fill without the compare: all columns dirty, commit skips cells already blank */
 /* Sets to `cell` every cell of the w x h rectangle at (x, y) whose caller shadow (row-major, w per row) differs, and updates the
  * shadow; cells the shadow already holds as `cell` are left alone. Returns the cells changed. */
 u16 vq_fix_clear_shadowed(VramQueue *q, u8 x, u8 y, u8 w, u8 h, u16 *shadow, u16 cell);
