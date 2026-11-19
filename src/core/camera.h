@@ -51,9 +51,17 @@ int camera_arrived(const Camera *c, const int32_t *human_x16, int n);
  * edge in whole world pixels (any int, wrapped here), w its width in pixels. Result: screen x of the left edge,
  * normalised into [-w, ARENA_W - w) so an object slides in and out at both screen edges; two copies of a sprite
  * are ARENA_W apart, so never both on a 320 px screen. */
-int camera_screen_x(int world_px, int cam_px, int w);
+static inline int camera_screen_x(int world_px, int cam_px, int w) { /* inline: called per sprite per frame (l4-slowdown.md Pass 36) */
+    int sx;
+    while (world_px < 0) world_px += arena_ring;
+    while (world_px >= arena_ring) world_px -= arena_ring;
+    sx = world_px - cam_px;
+    if (sx < -w) sx += arena_ring;
+    else if (sx >= arena_ring - w) sx -= arena_ring;
+    return sx;
+}
 /* 1 when a sprite of width w at screen x sx shows any pixel of the 320 px screen. */
-int camera_visible(int sx, int w);
+static inline int camera_visible(int sx, int w) { return sx > -w && sx < SCREEN_W; }
 /* Sentinel of camera_column_x: no pixel of the column shows (same value hazard.c uses for "no x sent yet"). */
 #define CAMERA_COL_HIDDEN 0x7FFF
 /* Screen x of the left edge of ONE 16 px column whose left edge is world_px (any int, wrapped), or CAMERA_COL_HIDDEN when no

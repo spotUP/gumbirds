@@ -1099,6 +1099,10 @@ static u8 g_arc_dirty; /* slots may hold element sprites: hide them once after t
 static u8 g_arc_drawn[ARC_ELEM_COUNT];
 static ArcSprite g_arc_last[ARC_VIEW_MAX]; /* blocks and camera of the last placement: the same again places the same words, so the loop is skipped */
 static int g_arc_last_n = -1, g_arc_last_cam;
+/* Per block index of the last placement: frame index, columns used before it, columns it took (0: not placed). A block equal to last
+ * time with the same columns before it lands in the same slot with the same frame, so its strips, chain and SCB3 word still hold
+ * (the other blocks of a frame use disjoint slots); it is skipped, or with a moved camera gets only its SCB4 word. */
+static u8 g_arc_fi[ARC_VIEW_MAX], g_arc_u0[ARC_VIEW_MAX], g_arc_add[ARC_VIEW_MAX];
 static u8 g_arc_used = ARC_ELEM_COUNT; /* columns used last frame (top of the range); the ones below are already hidden */
 _Static_assert(ARCADE_FRAME_COUNT < 255, "arc frame cache holds frame index + 1 in a byte");
 
@@ -1128,22 +1132,32 @@ static void arcade_elems_step(const Game *g) {
     }
     if (!g) g_arc_last_n = -1;
     else if (n == g_arc_last_n && g_arc_last_cam == (int)g_cam_px && arc_blocks_same(blocks, n)) return;
+    int cam_same = g_arc_last_cam == (int)g_cam_px;
     for (int i = 0; i < n; i++) {
-        const ArcSprite *b = &blocks[i];
-        u8 fi = (u8)(arcade_anims[k_arc_anim[b->piece]].first_frame + k_arc_first[b->piece] + b->frame);
+        const ArcSprite *b = &blocks[i], *l = &g_arc_last[i];
+        int same = i < g_arc_last_n && b->x == l->x && b->y == l->y && b->piece == l->piece && b->frame == l->frame;
+        int keep = same && g_arc_add[i] && g_arc_u0[i] == used;
+        if (keep && cam_same) { used += g_arc_add[i]; continue; }
+        u8 fi = same ? g_arc_fi[i] : (u8)(arcade_anims[k_arc_anim[b->piece]].first_frame + k_arc_first[b->piece] + b->frame);
         const ArcadeFrame *f = &arcade_frames[fi];
         int w = f->tiles_w * 16, sx = camera_screen_x(b->x - f->pad_left, g_cam_px, w);
+        g_arc_fi[i] = fi;
+        g_arc_u0[i] = (u8)used;
+        g_arc_add[i] = 0;
         if (used + f->tiles_w > ARC_ELEM_COUNT || !camera_visible(sx, w)) continue;
         int s = ARC_ELEM_COUNT - used - f->tiles_w;
         u16 slot = (u16)(ARC_ELEM_SPRITE + s);
-        if (g_arc_drawn[s] != (u8)(fi + 1)) {
-            gfx_sprite_strips(slot, f->tiles_w, f->tiles_h, &arcade_tile_index[f->tile_offset], ARCADE_TILE_BASE, (u16)((ARCADE_PAL_SLOT + f->palette) << 8));
-            gfx_sprite_chain(slot, f->tiles_w);
-            g_arc_drawn[s] = (u8)(fi + 1);
-            for (int c = 1; c < f->tiles_w; c++) g_arc_drawn[s + c] = 0;
+        if (!keep) {
+            if (g_arc_drawn[s] != (u8)(fi + 1)) {
+                gfx_sprite_strips(slot, f->tiles_w, f->tiles_h, &arcade_tile_index[f->tile_offset], ARCADE_TILE_BASE, (u16)((ARCADE_PAL_SLOT + f->palette) << 8));
+                gfx_sprite_chain(slot, f->tiles_w);
+                g_arc_drawn[s] = (u8)(fi + 1);
+                for (int c = 1; c < f->tiles_w; c++) g_arc_drawn[s + c] = 0;
+            }
+            gfx_word((u16)(ADDR_SCB3 + slot), gfx_scb3_word(f->tiles_h, b->y - f->pad_top));
         }
-        gfx_word((u16)(ADDR_SCB3 + slot), gfx_scb3_word(f->tiles_h, b->y - f->pad_top));
         gfx_word((u16)(ADDR_SCB4 + slot), gfx_scb4_word(sx));
+        g_arc_add[i] = f->tiles_w;
         used += f->tiles_w;
     }
     for (int i = ARC_ELEM_COUNT - g_arc_used; i < ARC_ELEM_COUNT - used; i++) { obs_hide_slot(ARC_ELEM_SPRITE + i); g_arc_drawn[i] = 0; }

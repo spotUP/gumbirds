@@ -103,18 +103,6 @@ int camera_px(const Camera *c) { return (int)(c->cam >> 16); }
 
 int32_t camera_unwrapped_px(const Camera *c) { return c->lap + (int32_t)(c->cam >> 16); }
 
-int camera_screen_x(int world_px, int cam_px, int w) {
-    int sx;
-    while (world_px < 0) world_px += arena_ring;
-    while (world_px >= arena_ring) world_px -= arena_ring;
-    sx = world_px - cam_px;
-    if (sx < -w) sx += arena_ring;
-    else if (sx >= arena_ring - w) sx -= arena_ring;
-    return sx;
-}
-
-int camera_visible(int sx, int w) { return sx > -w && sx < SCREEN_W; }
-
 int camera_column_x(int world_px, int cam_px) {
     int sx = camera_screen_x(world_px, cam_px, 16);
     return camera_visible(sx, 16) ? sx : CAMERA_COL_HIDDEN;
