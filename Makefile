@@ -80,11 +80,11 @@ $(PROM1): $(ELF)
 # five fix palettes come with it in build/gen/fix_font.h (src/gfx.c prints through the maps).
 # The Gum Trip gum meter tiles (assets/tripmeter, 13 tiles) are pasted into the font at tile 186; tripmeter.h holds the cell table.
 # The attract overlay icons (59 fix tiles) sit in the S-ROM right after the font (tile 0x400); the S-ROM rule below concatenates both.
-$(BUILDDIR)/gen/attract_icons.h $(BUILDDIR)/gen/attract_icons.fix: assets/attract/attract_icons.json assets/attract/attract_icons.png tools/build_attract_icons.py tools/sprite_pipeline.py tools/attract_layout.py
+$(BUILDDIR)/gen/attract_icons.h $(BUILDDIR)/gen/attract_icons.fix &: assets/attract/attract_icons.json assets/attract/attract_icons.png tools/build_attract_icons.py tools/sprite_pipeline.py tools/attract_layout.py
 	$(PYTHON) -I tools/build_attract_icons.py --out $(BUILDDIR)/gen/attract_icons.h --fix-base 0x400
-$(BUILDDIR)/gen/tripmeter.fix $(BUILDDIR)/gen/tripmeter.h: assets/tripmeter/tripmeter_sheet.png assets/tripmeter/tripmeter_sheet.json assets/font/fix_font.json tools/build_tripmeter_tiles.py tools/sprite_pipeline.py
+$(BUILDDIR)/gen/tripmeter.fix $(BUILDDIR)/gen/tripmeter.h &: assets/tripmeter/tripmeter_sheet.png assets/tripmeter/tripmeter_sheet.json assets/font/fix_font.json tools/build_tripmeter_tiles.py tools/sprite_pipeline.py
 	$(PYTHON) -I tools/build_tripmeter_tiles.py --out $(BUILDDIR)/gen
-$(BUILDDIR)/gen/fix_font.fix $(BUILDDIR)/gen/fix_font.h: assets/font/fix_font_sheet.png assets/font/fix_font.json tools/build_fix_font.py tools/sprite_pipeline.py assets/tripmeter/tripmeter_sheet.png assets/font/pop_burst.png assets/font/aim_caret.png assets/result/result_palettes.json $(BUILDDIR)/gen/tripmeter.fix
+$(BUILDDIR)/gen/fix_font.fix $(BUILDDIR)/gen/fix_font.h &: assets/font/fix_font_sheet.png assets/font/fix_font.json tools/build_fix_font.py tools/sprite_pipeline.py assets/tripmeter/tripmeter_sheet.png assets/font/pop_burst.png assets/font/aim_caret.png assets/result/result_palettes.json $(BUILDDIR)/gen/tripmeter.fix
 	$(PYTHON) -I tools/build_fix_font.py --out $(BUILDDIR)/gen --overlay assets/tripmeter/tripmeter_sheet.png@186 --overlay assets/font/pop_burst.png@75 --overlay assets/font/aim_caret.png@76 --extra-pal assets/result/result_palettes.json
 	dd if=$(BUILDDIR)/gen/fix_font.fix bs=32 skip=954 count=13 2>/dev/null | cmp -s - $(BUILDDIR)/gen/tripmeter.fix || { echo "[FAIL] fix_font.fix tiles 954..966 differ from tripmeter.fix"; exit 1; }
 $(SROM1): $(BUILDDIR)/gen/fix_font.fix $(BUILDDIR)/gen/attract_icons.fix $(BUILDDIR)/gen/result_scene.fix $(BUILDDIR)/gen/rulecard_tiles.fix
@@ -112,43 +112,43 @@ $(CROM_LAYOUT): crom-layout-check
 	@mkdir -p $(@D); echo '$(CROM_SETS)' | cmp -s - $@ || echo '$(CROM_SETS)' > $@
 # Flier (Sootling) sprite pipeline (tools/build_flier_sprites.py). The sheet is imported from a draft PNG by
 # tools/import_flier_sheet.py and committed under assets/flier/; re-importing a new draft is the whole art swap.
-$(BUILDDIR)/gen/sootling.c1 $(BUILDDIR)/gen/sootling.c2 $(BUILDDIR)/gen/sootling_sprites.c $(BUILDDIR)/gen/sootling_sprites.h $(BUILDDIR)/gen/sootling_tables.h: assets/flier/sootling_sheet.png assets/flier/sootling_sheet.json tools/build_flier_sprites.py tools/sprite_pipeline.py
+$(BUILDDIR)/gen/sootling.c1 $(BUILDDIR)/gen/sootling.c2 $(BUILDDIR)/gen/sootling_sprites.c $(BUILDDIR)/gen/sootling_sprites.h $(BUILDDIR)/gen/sootling_tables.h &: assets/flier/sootling_sheet.png assets/flier/sootling_sheet.json tools/build_flier_sprites.py tools/sprite_pipeline.py
 	$(PYTHON) -I tools/build_flier_sprites.py --out $(BUILDDIR)/gen
 $(BUILDDIR)/gen/sootling_sprites.o: $(BUILDDIR)/gen/sootling_sprites.c
 	$(M68KGCC) $(NGCFLAGS) $(CFLAGS) -c $< -o $@
 # Obstacle sprite pipeline (tools/build_obstacle_sprites.py, shared module tools/sprite_pipeline.py).
 # The sheet itself is drawn by tools/draw_obstacle_sheet.py and committed under assets/obstacles/.
-$(BUILDDIR)/gen/obs.c1 $(BUILDDIR)/gen/obs.c2 $(BUILDDIR)/gen/obs_sprites.c $(BUILDDIR)/gen/obs_sprites.h: assets/obstacles/obstacle_sheet.png assets/obstacles/obstacle_sheet.json tools/build_obstacle_sprites.py tools/sprite_pipeline.py
+$(BUILDDIR)/gen/obs.c1 $(BUILDDIR)/gen/obs.c2 $(BUILDDIR)/gen/obs_sprites.c $(BUILDDIR)/gen/obs_sprites.h &: assets/obstacles/obstacle_sheet.png assets/obstacles/obstacle_sheet.json tools/build_obstacle_sprites.py tools/sprite_pipeline.py
 	$(PYTHON) -I tools/build_obstacle_sprites.py --out $(BUILDDIR)/gen
 $(BUILDDIR)/gen/obs_sprites.o: $(BUILDDIR)/gen/obs_sprites.c
 	$(M68KGCC) $(NGCFLAGS) $(CFLAGS) -c $< -o $@
 # City background sprite pipeline (tools/build_city_sprites.py over tools/sprite_pipeline.py).
 # The sheet is stacked from the draft planes by tools/import_bg_sheet.py and committed under assets/city/.
-$(BUILDDIR)/gen/city.c1 $(BUILDDIR)/gen/city.c2 $(BUILDDIR)/gen/city_sprites.c $(BUILDDIR)/gen/city_sprites.h $(BUILDDIR)/gen/city_tables.h: assets/city/city_sheet.png assets/city/city_sheet.json tools/build_city_sprites.py tools/sprite_pipeline.py
+$(BUILDDIR)/gen/city.c1 $(BUILDDIR)/gen/city.c2 $(BUILDDIR)/gen/city_sprites.c $(BUILDDIR)/gen/city_sprites.h $(BUILDDIR)/gen/city_tables.h &: assets/city/city_sheet.png assets/city/city_sheet.json tools/build_city_sprites.py tools/sprite_pipeline.py
 	$(PYTHON) -I tools/build_city_sprites.py --out $(BUILDDIR)/gen
 $(BUILDDIR)/gen/city_sprites.o: $(BUILDDIR)/gen/city_sprites.c
 	$(M68KGCC) $(NGCFLAGS) $(CFLAGS) -c $< -o $@
 # Dusk mood planes: same importer (tools/import_bg_sheet.py dusk), same plane layout as the moon, own tiles and palettes.
-$(BUILDDIR)/gen/dusk.c1 $(BUILDDIR)/gen/dusk.c2 $(BUILDDIR)/gen/dusk_sprites.c $(BUILDDIR)/gen/dusk_sprites.h $(BUILDDIR)/gen/dusk_tables.h: assets/dusk/dusk_sheet.png assets/dusk/dusk_sheet.json tools/build_dusk_sprites.py tools/sprite_pipeline.py
+$(BUILDDIR)/gen/dusk.c1 $(BUILDDIR)/gen/dusk.c2 $(BUILDDIR)/gen/dusk_sprites.c $(BUILDDIR)/gen/dusk_sprites.h $(BUILDDIR)/gen/dusk_tables.h &: assets/dusk/dusk_sheet.png assets/dusk/dusk_sheet.json tools/build_dusk_sprites.py tools/sprite_pipeline.py
 	$(PYTHON) -I tools/build_dusk_sprites.py --out $(BUILDDIR)/gen
 $(BUILDDIR)/gen/dusk_sprites.o: $(BUILDDIR)/gen/dusk_sprites.c
 	$(M68KGCC) $(NGCFLAGS) $(CFLAGS) -c $< -o $@
 # Storm mood planes: same importer (tools/import_bg_sheet.py storm), same plane layout as the moon, own tiles and palettes (STORM-1).
-$(BUILDDIR)/gen/storm.c1 $(BUILDDIR)/gen/storm.c2 $(BUILDDIR)/gen/storm_sprites.c $(BUILDDIR)/gen/storm_sprites.h $(BUILDDIR)/gen/storm_tables.h: assets/storm/storm_sheet.png assets/storm/storm_sheet.json tools/build_storm_sprites.py tools/sprite_pipeline.py
+$(BUILDDIR)/gen/storm.c1 $(BUILDDIR)/gen/storm.c2 $(BUILDDIR)/gen/storm_sprites.c $(BUILDDIR)/gen/storm_sprites.h $(BUILDDIR)/gen/storm_tables.h &: assets/storm/storm_sheet.png assets/storm/storm_sheet.json tools/build_storm_sprites.py tools/sprite_pipeline.py
 	$(PYTHON) -I tools/build_storm_sprites.py --out $(BUILDDIR)/gen
 $(BUILDDIR)/gen/storm_sprites.o: $(BUILDDIR)/gen/storm_sprites.c
 	$(M68KGCC) $(NGCFLAGS) $(CFLAGS) -c $< -o $@
 
 # Hazard strip sprite set (tools/build_hazard_sprites.py over tools/sprite_pipeline.py). The sheet is cut from
 # assets/hazard/frames_*_1x.png by assets/hazard/build_sheet.py and committed under assets/hazard/.
-$(BUILDDIR)/gen/hazard.c1 $(BUILDDIR)/gen/hazard.c2 $(BUILDDIR)/gen/hazard_sprites.c $(BUILDDIR)/gen/hazard_sprites.h $(BUILDDIR)/gen/hazard_tables.h: assets/hazard/hazard_sheet.png assets/hazard/hazard_sheet.json tools/build_hazard_sprites.py tools/sprite_pipeline.py
+$(BUILDDIR)/gen/hazard.c1 $(BUILDDIR)/gen/hazard.c2 $(BUILDDIR)/gen/hazard_sprites.c $(BUILDDIR)/gen/hazard_sprites.h $(BUILDDIR)/gen/hazard_tables.h &: assets/hazard/hazard_sheet.png assets/hazard/hazard_sheet.json tools/build_hazard_sprites.py tools/sprite_pipeline.py
 	$(PYTHON) -I tools/build_hazard_sprites.py --out $(BUILDDIR)/gen
 $(BUILDDIR)/gen/hazard_sprites.o: $(BUILDDIR)/gen/hazard_sprites.c
 	$(M68KGCC) $(NGCFLAGS) $(CFLAGS) -c $< -o $@
 
 # Floating island sprite set (tools/build_island_sprites.py over tools/sprite_pipeline.py). The sheet is imported from the
 # island drawing by tools/import_islands_sheet.py and committed under assets/islands/. C-ROM position: after the hazard set.
-$(BUILDDIR)/gen/island.c1 $(BUILDDIR)/gen/island.c2 $(BUILDDIR)/gen/island_sprites.c $(BUILDDIR)/gen/island_sprites.h $(BUILDDIR)/gen/island_tables.h: assets/islands/island_sheet.png assets/islands/island_sheet.json tools/build_island_sprites.py tools/sprite_pipeline.py
+$(BUILDDIR)/gen/island.c1 $(BUILDDIR)/gen/island.c2 $(BUILDDIR)/gen/island_sprites.c $(BUILDDIR)/gen/island_sprites.h $(BUILDDIR)/gen/island_tables.h &: assets/islands/island_sheet.png assets/islands/island_sheet.json tools/build_island_sprites.py tools/sprite_pipeline.py
 	$(PYTHON) -I tools/build_island_sprites.py --out $(BUILDDIR)/gen
 $(BUILDDIR)/gen/island_sprites.o: $(BUILDDIR)/gen/island_sprites.c
 	$(M68KGCC) $(NGCFLAGS) $(CFLAGS) -c $< -o $@
@@ -162,88 +162,88 @@ $(BUILDDIR)/gen/island_deck_sprites.o: $(BUILDDIR)/gen/island_deck_sprites.c
 
 # Gum Trip kill strip sprite set (tools/build_tripstrip_sprites.py over tools/sprite_pipeline.py). Sheet imported from
 # thoughts/shared/drafts/2026-11-11-gum-trip-import/ and committed under assets/tripstrip/. C-ROM position: after the island set.
-$(BUILDDIR)/gen/tripstrip.c1 $(BUILDDIR)/gen/tripstrip.c2 $(BUILDDIR)/gen/tripstrip_sprites.c $(BUILDDIR)/gen/tripstrip_sprites.h $(BUILDDIR)/gen/tripstrip_tables.h: assets/tripstrip/tripstrip_sheet.png assets/tripstrip/tripstrip_sheet.json tools/build_tripstrip_sprites.py tools/sprite_pipeline.py
+$(BUILDDIR)/gen/tripstrip.c1 $(BUILDDIR)/gen/tripstrip.c2 $(BUILDDIR)/gen/tripstrip_sprites.c $(BUILDDIR)/gen/tripstrip_sprites.h $(BUILDDIR)/gen/tripstrip_tables.h &: assets/tripstrip/tripstrip_sheet.png assets/tripstrip/tripstrip_sheet.json tools/build_tripstrip_sprites.py tools/sprite_pipeline.py
 	$(PYTHON) -I tools/build_tripstrip_sprites.py --out $(BUILDDIR)/gen
 $(BUILDDIR)/gen/tripstrip_sprites.o: $(BUILDDIR)/gen/tripstrip_sprites.c
 	$(M68KGCC) $(NGCFLAGS) $(CFLAGS) -c $< -o $@
 # Gum Trip pickup sprite set (step V3): idle and collect animations, one palette. C-ROM position: after the kill strip set.
-$(BUILDDIR)/gen/trippickup.c1 $(BUILDDIR)/gen/trippickup.c2 $(BUILDDIR)/gen/trippickup_sprites.c $(BUILDDIR)/gen/trippickup_sprites.h $(BUILDDIR)/gen/trippickup_tables.h: assets/trippickup/trippickup_sheet.png assets/trippickup/trippickup_sheet.json tools/build_trippickup_sprites.py tools/sprite_pipeline.py
+$(BUILDDIR)/gen/trippickup.c1 $(BUILDDIR)/gen/trippickup.c2 $(BUILDDIR)/gen/trippickup_sprites.c $(BUILDDIR)/gen/trippickup_sprites.h $(BUILDDIR)/gen/trippickup_tables.h &: assets/trippickup/trippickup_sheet.png assets/trippickup/trippickup_sheet.json tools/build_trippickup_sprites.py tools/sprite_pipeline.py
 	$(PYTHON) -I tools/build_trippickup_sprites.py --out $(BUILDDIR)/gen
 $(BUILDDIR)/gen/trippickup_sprites.o: $(BUILDDIR)/gen/trippickup_sprites.c
 	$(M68KGCC) $(NGCFLAGS) $(CFLAGS) -c $< -o $@
-$(BUILDDIR)/gen/triphaz.c1 $(BUILDDIR)/gen/triphaz.c2 $(BUILDDIR)/gen/triphaz_sprites.c $(BUILDDIR)/gen/triphaz_sprites.h $(BUILDDIR)/gen/triphaz_tables.h: assets/triphaz/triphaz_sheet.png assets/triphaz/triphaz_sheet.json tools/build_triphaz_sprites.py tools/sprite_pipeline.py
+$(BUILDDIR)/gen/triphaz.c1 $(BUILDDIR)/gen/triphaz.c2 $(BUILDDIR)/gen/triphaz_sprites.c $(BUILDDIR)/gen/triphaz_sprites.h $(BUILDDIR)/gen/triphaz_tables.h &: assets/triphaz/triphaz_sheet.png assets/triphaz/triphaz_sheet.json tools/build_triphaz_sprites.py tools/sprite_pipeline.py
 	$(PYTHON) -I tools/build_triphaz_sprites.py --out $(BUILDDIR)/gen
 $(BUILDDIR)/gen/triphaz_sprites.o: $(BUILDDIR)/gen/triphaz_sprites.c
 	$(M68KGCC) $(NGCFLAGS) $(CFLAGS) -c $< -o $@
-$(BUILDDIR)/gen/gum.c1 $(BUILDDIR)/gen/gum.c2 $(BUILDDIR)/gen/gum_sprites.c $(BUILDDIR)/gen/gum_sprites.h $(BUILDDIR)/gen/gum_tables.h: assets/gum/gum_sheet.png assets/gum/gum_sheet.json tools/build_gum_sprites.py tools/sprite_pipeline.py
+$(BUILDDIR)/gen/gum.c1 $(BUILDDIR)/gen/gum.c2 $(BUILDDIR)/gen/gum_sprites.c $(BUILDDIR)/gen/gum_sprites.h $(BUILDDIR)/gen/gum_tables.h &: assets/gum/gum_sheet.png assets/gum/gum_sheet.json tools/build_gum_sprites.py tools/sprite_pipeline.py
 	$(PYTHON) -I tools/build_gum_sprites.py --out $(BUILDDIR)/gen
 $(BUILDDIR)/gen/gum_sprites.o: $(BUILDDIR)/gen/gum_sprites.c
 	$(M68KGCC) $(NGCFLAGS) $(CFLAGS) -c $< -o $@
 # Splash of a flier in water or lava: both strips stacked into one sheet by the build script. C-ROM position: last, after the logo.
-$(BUILDDIR)/gen/splash.c1 $(BUILDDIR)/gen/splash.c2 $(BUILDDIR)/gen/splash_sprites.c $(BUILDDIR)/gen/splash_sprites.h $(BUILDDIR)/gen/splash_tables.h: assets/splash/splash_water_1x.png assets/splash/splash_lava_1x.png assets/splash/splash_gum_1x.png assets/splash/splash.json tools/build_splash_sprites.py tools/sprite_pipeline.py
+$(BUILDDIR)/gen/splash.c1 $(BUILDDIR)/gen/splash.c2 $(BUILDDIR)/gen/splash_sprites.c $(BUILDDIR)/gen/splash_sprites.h $(BUILDDIR)/gen/splash_tables.h &: assets/splash/splash_water_1x.png assets/splash/splash_lava_1x.png assets/splash/splash_gum_1x.png assets/splash/splash.json tools/build_splash_sprites.py tools/sprite_pipeline.py
 	$(PYTHON) -I tools/build_splash_sprites.py --out $(BUILDDIR)/gen
 $(BUILDDIR)/gen/splash_sprites.o: $(BUILDDIR)/gen/splash_sprites.c
 	$(M68KGCC) $(NGCFLAGS) $(CFLAGS) -c $< -o $@
 # Arcade stage elements (tools/build_arcade_sprites.py over assets/arcade/, made by tools/import_arcade_sheet.py). C-ROM position: last, after the splash.
-$(BUILDDIR)/gen/arcade.c1 $(BUILDDIR)/gen/arcade.c2 $(BUILDDIR)/gen/arcade_sprites.c $(BUILDDIR)/gen/arcade_sprites.h $(BUILDDIR)/gen/arcade_tables.h: assets/arcade/arcade_sheet.png assets/arcade/arcade_sheet.json tools/build_arcade_sprites.py tools/sprite_pipeline.py
+$(BUILDDIR)/gen/arcade.c1 $(BUILDDIR)/gen/arcade.c2 $(BUILDDIR)/gen/arcade_sprites.c $(BUILDDIR)/gen/arcade_sprites.h $(BUILDDIR)/gen/arcade_tables.h &: assets/arcade/arcade_sheet.png assets/arcade/arcade_sheet.json tools/build_arcade_sprites.py tools/sprite_pipeline.py
 	$(PYTHON) -I tools/build_arcade_sprites.py --out $(BUILDDIR)/gen
 $(BUILDDIR)/gen/arcade_sprites.o: $(BUILDDIR)/gen/arcade_sprites.c
 	$(M68KGCC) $(NGCFLAGS) $(CFLAGS) -c $< -o $@
 # Bonus result screen (tools/build_result_art.py paints all of it): the still scene for the S-ROM (after the attract icons), the baked bubble
 # paths, and the moving parts as the resfx sprite set. C-ROM position: last, after the arcade set.
-$(BUILDDIR)/gen/resfx.c1 $(BUILDDIR)/gen/resfx.c2 $(BUILDDIR)/gen/resfx_sprites.c $(BUILDDIR)/gen/resfx_sprites.h $(BUILDDIR)/gen/resfx_tables.h $(BUILDDIR)/gen/result_scene.fix $(BUILDDIR)/gen/result_scene.h $(BUILDDIR)/gen/result_paths.h: assets/result/result_palettes.json tools/build_result_art.py tools/build_attract_icons.py tools/sprite_pipeline.py
+$(BUILDDIR)/gen/resfx.c1 $(BUILDDIR)/gen/resfx.c2 $(BUILDDIR)/gen/resfx_sprites.c $(BUILDDIR)/gen/resfx_sprites.h $(BUILDDIR)/gen/resfx_tables.h $(BUILDDIR)/gen/result_scene.fix $(BUILDDIR)/gen/result_scene.h $(BUILDDIR)/gen/result_paths.h &: assets/result/result_palettes.json tools/build_result_art.py tools/build_attract_icons.py tools/sprite_pipeline.py
 	$(PYTHON) -I tools/build_result_art.py --out $(BUILDDIR)/gen
 $(BUILDDIR)/gen/resfx_sprites.o: $(BUILDDIR)/gen/resfx_sprites.c
 	$(M68KGCC) $(NGCFLAGS) $(CFLAGS) -c $< -o $@
 # Parachute (variant C, both palettes) over a flier in state PARACHUTE. C-ROM position: last, after the result sprites, so no earlier tile base moves.
-$(BUILDDIR)/gen/chute.c1 $(BUILDDIR)/gen/chute.c2 $(BUILDDIR)/gen/chute_sprites.c $(BUILDDIR)/gen/chute_sprites.h $(BUILDDIR)/gen/chute_tables.h: assets/chute/chute_sheet.png assets/chute/chute_sheet.json tools/build_chute_sprites.py tools/sprite_pipeline.py
+$(BUILDDIR)/gen/chute.c1 $(BUILDDIR)/gen/chute.c2 $(BUILDDIR)/gen/chute_sprites.c $(BUILDDIR)/gen/chute_sprites.h $(BUILDDIR)/gen/chute_tables.h &: assets/chute/chute_sheet.png assets/chute/chute_sheet.json tools/build_chute_sprites.py tools/sprite_pipeline.py
 	$(PYTHON) -I tools/build_chute_sprites.py --out $(BUILDDIR)/gen
 $(BUILDDIR)/gen/chute_sprites.o: $(BUILDDIR)/gen/chute_sprites.c
 	$(M68KGCC) $(NGCFLAGS) $(CFLAGS) -c $< -o $@
 # Gum bubble B (Hot Gum, not drawn in play yet): 7 cells 16x16 + the frame sequence in gumbubble_tables.h. C-ROM position: last, after the parachute, so no earlier tile base moves.
-$(BUILDDIR)/gen/gumbubble.c1 $(BUILDDIR)/gen/gumbubble.c2 $(BUILDDIR)/gen/gumbubble_sprites.c $(BUILDDIR)/gen/gumbubble_sprites.h $(BUILDDIR)/gen/gumbubble_tables.h: assets/gum_bubble/gum_bubble_sheet.png assets/gum_bubble/gum_bubble_sheet.json tools/build_gumbubble_sprites.py tools/sprite_pipeline.py
+$(BUILDDIR)/gen/gumbubble.c1 $(BUILDDIR)/gen/gumbubble.c2 $(BUILDDIR)/gen/gumbubble_sprites.c $(BUILDDIR)/gen/gumbubble_sprites.h $(BUILDDIR)/gen/gumbubble_tables.h &: assets/gum_bubble/gum_bubble_sheet.png assets/gum_bubble/gum_bubble_sheet.json tools/build_gumbubble_sprites.py tools/sprite_pipeline.py
 	$(PYTHON) -I tools/build_gumbubble_sprites.py --out $(BUILDDIR)/gen
 $(BUILDDIR)/gen/gumbubble_sprites.o: $(BUILDDIR)/gen/gumbubble_sprites.c
 	$(M68KGCC) $(NGCFLAGS) $(CFLAGS) -c $< -o $@
 # Toss Gum poses: 8 cells 32x32 (tools/make_toss_sheet.py) + the gum anchor per pose in tosspose_tables.h. C-ROM position: last, so no earlier tile base moves.
-$(BUILDDIR)/gen/tosspose.c1 $(BUILDDIR)/gen/tosspose.c2 $(BUILDDIR)/gen/tosspose_sprites.c $(BUILDDIR)/gen/tosspose_sprites.h $(BUILDDIR)/gen/tosspose_tables.h: assets/toss/toss_sheet.png assets/toss/toss_sheet.json tools/build_tosspose_sprites.py tools/sprite_pipeline.py
+$(BUILDDIR)/gen/tosspose.c1 $(BUILDDIR)/gen/tosspose.c2 $(BUILDDIR)/gen/tosspose_sprites.c $(BUILDDIR)/gen/tosspose_sprites.h $(BUILDDIR)/gen/tosspose_tables.h &: assets/toss/toss_sheet.png assets/toss/toss_sheet.json tools/build_tosspose_sprites.py tools/sprite_pipeline.py
 	$(PYTHON) -I tools/build_tosspose_sprites.py --out $(BUILDDIR)/gen
 $(BUILDDIR)/gen/tosspose_sprites.o: $(BUILDDIR)/gen/tosspose_sprites.c
 	$(M68KGCC) $(NGCFLAGS) $(CFLAGS) -c $< -o $@
 # Gum leak (air jet + hole over a damaged bubble, 12 frames of 32x16). C-ROM position: last, after the gum bubble set, so no earlier tile base moves.
-$(BUILDDIR)/gen/gumleak.c1 $(BUILDDIR)/gen/gumleak.c2 $(BUILDDIR)/gen/gumleak_sprites.c $(BUILDDIR)/gen/gumleak_sprites.h $(BUILDDIR)/gen/gumleak_tables.h: assets/gum_leak/gum_leak_sheet.png assets/gum_leak/gum_leak_sheet.json tools/build_gumleak_sprites.py tools/sprite_pipeline.py
+$(BUILDDIR)/gen/gumleak.c1 $(BUILDDIR)/gen/gumleak.c2 $(BUILDDIR)/gen/gumleak_sprites.c $(BUILDDIR)/gen/gumleak_sprites.h $(BUILDDIR)/gen/gumleak_tables.h &: assets/gum_leak/gum_leak_sheet.png assets/gum_leak/gum_leak_sheet.json tools/build_gumleak_sprites.py tools/sprite_pipeline.py
 	$(PYTHON) -I tools/build_gumleak_sprites.py --out $(BUILDDIR)/gen
 $(BUILDDIR)/gen/gumleak_sprites.o: $(BUILDDIR)/gen/gumleak_sprites.c
 	$(M68KGCC) $(NGCFLAGS) $(CFLAGS) -c $< -o $@
 # Countdown GET SET / GO! (A2, Pink Gum + Hot Gum swap, not drawn yet): 6 + 3 glyph frames in whole 16x32 columns + glyph x tables in countdown_tables.h. C-ROM position: last, after the gum leak, so no earlier tile base moves.
-$(BUILDDIR)/gen/countdown.c1 $(BUILDDIR)/gen/countdown.c2 $(BUILDDIR)/gen/countdown_sprites.c $(BUILDDIR)/gen/countdown_sprites.h $(BUILDDIR)/gen/countdown_tables.h: assets/countdown/countdown_sheet.png assets/countdown/countdown_sheet.json tools/build_countdown_sprites.py tools/sprite_pipeline.py
+$(BUILDDIR)/gen/countdown.c1 $(BUILDDIR)/gen/countdown.c2 $(BUILDDIR)/gen/countdown_sprites.c $(BUILDDIR)/gen/countdown_sprites.h $(BUILDDIR)/gen/countdown_tables.h &: assets/countdown/countdown_sheet.png assets/countdown/countdown_sheet.json tools/build_countdown_sprites.py tools/sprite_pipeline.py
 	$(PYTHON) -I tools/build_countdown_sprites.py --out $(BUILDDIR)/gen
 $(BUILDDIR)/gen/countdown_sprites.o: $(BUILDDIR)/gen/countdown_sprites.c
 	$(M68KGCC) $(NGCFLAGS) $(CFLAGS) -c $< -o $@
 # Gum Games rules card (layout A): 12 fix tiles (button A up / down, bar segments) after the result scene in the S-ROM, and 5 example props (slab, needles, gum, dot) last in the C-ROM, so no earlier tile base moves. Art: tools/draw_rulecard_art.py.
-$(BUILDDIR)/gen/rulecard_tiles.h $(BUILDDIR)/gen/rulecard_tiles.fix: assets/rulecard/rulecard_fix.png tools/build_rulecard_tiles.py tools/build_attract_icons.py tools/sprite_pipeline.py
+$(BUILDDIR)/gen/rulecard_tiles.h $(BUILDDIR)/gen/rulecard_tiles.fix &: assets/rulecard/rulecard_fix.png tools/build_rulecard_tiles.py tools/build_attract_icons.py tools/sprite_pipeline.py
 	$(PYTHON) -I tools/build_rulecard_tiles.py --out $(BUILDDIR)/gen/rulecard_tiles.h
-$(BUILDDIR)/gen/rulecard.c1 $(BUILDDIR)/gen/rulecard.c2 $(BUILDDIR)/gen/rulecard_sprites.c $(BUILDDIR)/gen/rulecard_sprites.h: assets/rulecard/rulecard_sheet.png assets/rulecard/rulecard_sheet.json tools/build_rulecard_sprites.py tools/sprite_pipeline.py
+$(BUILDDIR)/gen/rulecard.c1 $(BUILDDIR)/gen/rulecard.c2 $(BUILDDIR)/gen/rulecard_sprites.c $(BUILDDIR)/gen/rulecard_sprites.h &: assets/rulecard/rulecard_sheet.png assets/rulecard/rulecard_sheet.json tools/build_rulecard_sprites.py tools/sprite_pipeline.py
 	$(PYTHON) -I tools/build_rulecard_sprites.py --out $(BUILDDIR)/gen
 $(BUILDDIR)/gen/rulecard_sprites.o: $(BUILDDIR)/gen/rulecard_sprites.c
 	$(M68KGCC) $(NGCFLAGS) $(CFLAGS) -c $< -o $@
 # Gum Fling field (turf, chalk line, distance boards, dust puff; hand-pixeled grids in tools/draw_fling_field.py, 3 mood palettes), last in the C-ROM.
-$(BUILDDIR)/gen/flfield.c1 $(BUILDDIR)/gen/flfield.c2 $(BUILDDIR)/gen/flfield_sprites.c $(BUILDDIR)/gen/flfield_sprites.h $(BUILDDIR)/gen/flfield_tables.h: tools/draw_fling_field.py tools/build_flfield_sprites.py tools/sprite_pipeline.py
+$(BUILDDIR)/gen/flfield.c1 $(BUILDDIR)/gen/flfield.c2 $(BUILDDIR)/gen/flfield_sprites.c $(BUILDDIR)/gen/flfield_sprites.h $(BUILDDIR)/gen/flfield_tables.h &: tools/draw_fling_field.py tools/build_flfield_sprites.py tools/sprite_pipeline.py
 	$(PYTHON) -I tools/build_flfield_sprites.py --out $(BUILDDIR)/gen
 $(BUILDDIR)/gen/flfield_sprites.o: $(BUILDDIR)/gen/flfield_sprites.c
 	$(M68KGCC) $(NGCFLAGS) $(CFLAGS) -c $< -o $@
 # Stadium stands for the ground events (every unique tile of the hand-pixeled stand art in assets/stadium/, 3 mood palettes x teams), after the Fling field.
-$(BUILDDIR)/gen/stadium.c1 $(BUILDDIR)/gen/stadium.c2 $(BUILDDIR)/gen/stadium_sprites.c $(BUILDDIR)/gen/stadium_sprites.h $(BUILDDIR)/gen/stadium_tables.h $(BUILDDIR)/gen/stadium_motion.h $(BUILDDIR)/gen/stadium_layout.h: assets/stadium/draw_stadium.py assets/stadium/draw_polish.py tools/draw_fling_field.py tools/build_stadium_sprites.py tools/sprite_pipeline.py
+$(BUILDDIR)/gen/stadium.c1 $(BUILDDIR)/gen/stadium.c2 $(BUILDDIR)/gen/stadium_sprites.c $(BUILDDIR)/gen/stadium_sprites.h $(BUILDDIR)/gen/stadium_tables.h $(BUILDDIR)/gen/stadium_motion.h $(BUILDDIR)/gen/stadium_layout.h &: assets/stadium/draw_stadium.py assets/stadium/draw_polish.py tools/draw_fling_field.py tools/build_stadium_sprites.py tools/sprite_pipeline.py
 	$(PYTHON) -I tools/build_stadium_sprites.py --out $(BUILDDIR)/gen
 $(BUILDDIR)/src/core/stadium.o: $(BUILDDIR)/gen/stadium_motion.h src/core/stadium.h
 $(BUILDDIR)/gen/stadium_sprites.o: $(BUILDDIR)/gen/stadium_sprites.c
 	$(M68KGCC) $(NGCFLAGS) $(CFLAGS) -c $< -o $@
-$(BUILDDIR)/gen/popdrop.c1 $(BUILDDIR)/gen/popdrop.c2 $(BUILDDIR)/gen/popdrop_sprites.c $(BUILDDIR)/gen/popdrop_sprites.h $(BUILDDIR)/gen/popdrop_tables.h: assets/popdrop/popdrop_sheet.png assets/popdrop/popdrop_sheet.json tools/build_popdrop_sprites.py tools/sprite_pipeline.py
+$(BUILDDIR)/gen/popdrop.c1 $(BUILDDIR)/gen/popdrop.c2 $(BUILDDIR)/gen/popdrop_sprites.c $(BUILDDIR)/gen/popdrop_sprites.h $(BUILDDIR)/gen/popdrop_tables.h &: assets/popdrop/popdrop_sheet.png assets/popdrop/popdrop_sheet.json tools/build_popdrop_sprites.py tools/sprite_pipeline.py
 	$(PYTHON) -I tools/build_popdrop_sprites.py --out $(BUILDDIR)/gen
 $(BUILDDIR)/gen/popdrop_sprites.o: $(BUILDDIR)/gen/popdrop_sprites.c
 	$(M68KGCC) $(NGCFLAGS) $(CFLAGS) -c $< -o $@
 # Title logo (tools/build_logo_sprites.py over assets/logo/): animated strips and free pieces, no .c file (macros only in logo_sprites.h). C-ROM position: after the gum set, so no earlier tile base moves.
-$(BUILDDIR)/gen/logo.c1 $(BUILDDIR)/gen/logo.c2 $(BUILDDIR)/gen/logo_sprites.h: assets/logo/logo_rim.json assets/logo/logo_rim_frames_1x.png assets/logo/logo_rim_pieces_1x.png assets/logo/logo_pieces.json tools/build_logo_sprites.py
+$(BUILDDIR)/gen/logo.c1 $(BUILDDIR)/gen/logo.c2 $(BUILDDIR)/gen/logo_sprites.h &: assets/logo/logo_rim.json assets/logo/logo_rim_frames_1x.png assets/logo/logo_rim_pieces_1x.png assets/logo/logo_pieces.json tools/build_logo_sprites.py
 	$(PYTHON) -I tools/build_logo_sprites.py --out $(BUILDDIR)/gen
 
 $(BUILDDIR)/src/main.o $(BUILDDIR)/src/bg.o $(BUILDDIR)/src/gfx.o $(BUILDDIR)/src/hazard.o $(BUILDDIR)/src/island.o $(BUILDDIR)/src/trip_strip.o $(BUILDDIR)/src/fling_field.o $(BUILDDIR)/src/stadium_hw.o $(BUILDDIR)/src/trip_pickup.o $(BUILDDIR)/src/gum.o $(BUILDDIR)/src/logo.o $(BUILDDIR)/src/splash.o $(BUILDDIR)/src/core/sprite_budget.o $(BUILDDIR)/src/core/island_layout.o $(BUILDDIR)/src/core/banner.o $(BUILDDIR)/src/core/result_view.o $(BUILDDIR)/src/core/result.o: $(BUILDDIR)/gen/result_scene.h $(BUILDDIR)/gen/result_paths.h $(BUILDDIR)/gen/resfx_sprites.h $(BUILDDIR)/gen/chute_sprites.h $(BUILDDIR)/gen/gumbubble_sprites.h $(BUILDDIR)/gen/tosspose_sprites.h $(BUILDDIR)/gen/gumleak_sprites.h $(BUILDDIR)/gen/gumleak_tables.h $(BUILDDIR)/gen/countdown_sprites.h $(BUILDDIR)/gen/countdown_tables.h $(BUILDDIR)/gen/rulecard_sprites.h $(BUILDDIR)/gen/popdrop_sprites.h $(BUILDDIR)/gen/flfield_sprites.h $(BUILDDIR)/gen/stadium_sprites.h $(BUILDDIR)/gen/stadium_layout.h src/stadium_hw.h $(BUILDDIR)/gen/rulecard_tiles.h $(BUILDDIR)/gen/fix_font.h $(BUILDDIR)/gen/attract_icons.h src/core/attract_overlay.h $(BUILDDIR)/gen/tripmeter.h $(BUILDDIR)/gen/island_tables.h $(BUILDDIR)/gen/city_tables.h $(BUILDDIR)/gen/dusk_tables.h $(BUILDDIR)/gen/storm_tables.h $(BUILDDIR)/gen/island_sprites.h $(BUILDDIR)/gen/island_garden_sprites.h $(BUILDDIR)/gen/island_deck_sprites.h $(BUILDDIR)/gen/tripstrip_sprites.h $(BUILDDIR)/gen/tripstrip_tables.h $(BUILDDIR)/gen/trippickup_sprites.h $(BUILDDIR)/gen/trippickup_tables.h $(BUILDDIR)/gen/triphaz_sprites.h $(BUILDDIR)/gen/triphaz_tables.h $(BUILDDIR)/gen/gum_sprites.h $(BUILDDIR)/gen/gum_tables.h $(BUILDDIR)/gen/logo_sprites.h src/logo.h $(BUILDDIR)/gen/splash_sprites.h $(BUILDDIR)/gen/splash_tables.h $(BUILDDIR)/gen/arcade_sprites.h $(BUILDDIR)/gen/arcade_tables.h src/splash.h src/core/splash_view.h $(BUILDDIR)/gen/hazard_sprites.h $(BUILDDIR)/gen/obs_sprites.h $(BUILDDIR)/gen/city_sprites.h $(BUILDDIR)/gen/dusk_sprites.h $(BUILDDIR)/gen/storm_sprites.h $(BUILDDIR)/gen/sootling_sprites.h src/core/flier_view.h src/core/gum_view.h src/vram_layout.h src/sprite_slots.h src/bg.h src/gfx.h src/hazard.h src/island.h src/core/island_layout.h src/core/vram_queue.h

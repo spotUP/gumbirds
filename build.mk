@@ -179,7 +179,7 @@ $(CROM8): | $(ROM)
 
 ifdef VROMTEMPLATE
 VROMS?=$(shell echo $(VROM1) $(VROM2) $(VROM3) $(VROM4) | wc -w)
-$(VROM1) $(VROM2) $(VROM3) $(VROM4): | $(ROM)
+$(VROM1) $(VROM2) $(VROM3) $(VROM4) &: | $(ROM)
 	$(VROMTOOL) --roms -s $(VROMSIZE) $^ -o $(VROMTEMPLATE) -n $(VROMS)
 else
 $(VROM1): | $(ROM)
