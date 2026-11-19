@@ -94,6 +94,13 @@ void stage_set_level(int level) { cur_look = stage_look_for_level(level); }
 typedef struct { int32_t cx16, left16, top16, w16, h16; int16_t cx, half; } PlatNear;
 static PlatNear plat_tab[STAGE_PLATFORM_COUNT];
 static int plat_n = -1; /* -1: not built yet (the initial layout 0 is static data) */
+/* Per world column, the platforms (bit = plat_tab index) whose first-reject distance to that column is within the solid reach:
+ * a superset of what floor and solids scans accept, so they visit only these. Built for the ring in col_ring. */
+#define SOLID_REACH_PX STAGE_SOLID_REACH_PX /* reach of the solid list beyond the flier box: a flier moves a few pixels per frame, so a platform whose copy is this much farther away than touching cannot be hit this frame */
+static uint8_t plat_cols[ARENA_W];
+static int32_t col_ring;
+typedef char plat_cols_one_bit_per_platform[STAGE_PLATFORM_COUNT <= 8 ? 1 : -1];
+typedef char plat_cols_cover_floor_reach[FLIER_SOLID_MAX_HALF_W >= FLIER_HALF_W ? 1 : -1];
 
 static void plat_build(void) {
     plat_n = 0;
@@ -109,6 +116,17 @@ static void plat_build(void) {
         t->cx = (int16_t)(p->x + (p->w >> 1));
         t->half = (int16_t)(p->w >> 1);
         plat_n++;
+    }
+    col_ring = arena_ring;
+    for (int x = 0; x < ARENA_W; x++) plat_cols[x] = 0;
+    for (int i = 0; i < plat_n; i++) {
+        int r = plat_tab[i].half + FLIER_SOLID_MAX_HALF_W + SOLID_REACH_PX + 2;
+        int x = plat_tab[i].cx - r + 1;
+        while (x < 0) x += (int)col_ring;
+        for (int k = 2 * r - 1; k > 0; k--) {
+            if (x >= col_ring) x -= (int)col_ring;
+            plat_cols[x++] |= (uint8_t)(1u << i);
+        }
     }
 }
 
@@ -130,9 +148,14 @@ int32_t stage_floor_y(int32_t x16, int32_t feet16) {
     int32_t best = FLIER_NO_FLOOR;
     int32_t hw = FL_PX(FLIER_HALF_W);
     int xpx = (int)(x16 >> 16);
-    if (plat_n < 0) plat_build();
-    for (int i = 0; i < plat_n; i++) {
-        const PlatNear *p = &plat_tab[i];
+    unsigned mask;
+    if (plat_n < 0 || col_ring != arena_ring) plat_build();
+    if ((unsigned)xpx >= (unsigned)col_ring) mask = (1u << plat_n) - 1;
+    else mask = plat_cols[xpx];
+    for (int i = 0; mask; i++, mask >>= 1) {
+        const PlatNear *p;
+        if (!(mask & 1)) continue;
+        p = &plat_tab[i];
         if (p->top16 < feet16) continue;
         if (plat_px_dist(xpx, p) >= p->half + FLIER_HALF_W + 2) continue;
         /* The platform's copy nearest the flier: an island that meets the seam is found from both sides. */
@@ -143,19 +166,20 @@ int32_t stage_floor_y(int32_t x16, int32_t feet16) {
     return best;
 }
 
-/* Reach of the solid list beyond the flier box: a flier moves a few pixels per frame, so a platform whose copy is this much
- * farther away than touching cannot be hit this frame. */
-#define SOLID_REACH_PX STAGE_SOLID_REACH_PX
-
 /* A flier that steers out from under a platform keeps going until its box is this far past the edge. */
 #define OVERHEAD_CLEAR_PX 4
 
 int stage_solids_near(int32_t x16, FlierSolid *out, int max) {
     int n = 0;
     int xpx = (int)(x16 >> 16);
-    if (plat_n < 0) plat_build();
-    for (int i = 0; i < plat_n && n < max; i++) {
-        const PlatNear *p = &plat_tab[i];
+    unsigned mask;
+    if (plat_n < 0 || col_ring != arena_ring) plat_build();
+    if ((unsigned)xpx >= (unsigned)col_ring) mask = (1u << plat_n) - 1;
+    else mask = plat_cols[xpx];
+    for (int i = 0; mask && n < max; i++, mask >>= 1) {
+        const PlatNear *p;
+        if (!(mask & 1)) continue;
+        p = &plat_tab[i];
         if (plat_px_dist(xpx, p) >= p->half + FLIER_SOLID_MAX_HALF_W + SOLID_REACH_PX + 2) continue;
         int32_t cx = arena_near_x(x16, p->cx16);
         int32_t d = x16 > cx ? x16 - cx : cx - x16;
