@@ -699,10 +699,12 @@ static const ArcPost arc_posts[] = {
 static int add_post_solids(int32_t x16, FlierSolid *so, int n)
 {
     unsigned i;
+    int layout = stage_layout_index();
     for (i = 0; i < sizeof(arc_posts) / sizeof(arc_posts[0]); i++) {
         const ArcPost *p = &arc_posts[i];
-        const StagePlatform *pl = &stage_platforms[p->plat];
-        if (p->layout != stage_layout_index()) continue;
+        const StagePlatform *pl;
+        if (p->layout != layout) continue;
+        pl = &stage_platforms[p->plat];
         so[n].x16 = arena_near_x(x16, FL_PX(p->x + ARC_POST_W / 2)) - FL_PX(ARC_POST_W / 2);
         so[n].y16 = FL_PX(p->up ? pl->y - p->len : pl->y + STAGE_PLATFORM_H);
         so[n].w16 = FL_PX(ARC_POST_W);
@@ -729,16 +731,13 @@ static void arena_flier_step(const Game *g, Flier *f, const FlierInput *in) {
 /* Stage elements act on one live flier: a kill drowns it like the hazard line, a flipper sets its speed, a grate lifts it. */
 static void arc_element_apply(const ArcElements *a, Flier *f)
 {
-    int cx = (int)(f->x >> 16), cy = (int)(f->y >> 16), hh = (int)(flier_half_h(f) >> 16);
     if (f->state >= FLIER_FALLING) return;
-    if (arc_elements_kill(a, cx, cy, FLIER_HALF_W, hh)) {
+    if (arc_elements_apply(a, (int)(f->x >> 16), (int)(f->y >> 16), FLIER_HALF_W, (int)(flier_half_h(f) >> 16), &f->vx, &f->vy)) {
         f->state = FLIER_DROWNED;
         f->vx = 0;
         if (f->vy < 0) f->vy = 0;
         return;
     }
-    arc_elements_bounce(a, cx, cy, FLIER_HALF_W, hh, &f->vx, &f->vy);
-    f->vy += arc_elements_lift(a, cx, cy, FLIER_HALF_W, hh);
     if (f->vy < -FLIER_RISE_MAX) f->vy = -FLIER_RISE_MAX;
 }
 
@@ -1181,6 +1180,7 @@ void game_step_arena(Game *g, uint8_t input)
         }
         if (c->state == FLIER_PARACHUTE) ci.dir = 0; /* parachute steering is for players only (owner 2026-11-17); rivals keep the sway drop */
         arena_flier_step(g, c, &ci);
+        PROF_MARK(25);
         if (g->mode == GAME_MODE_ARCADE) arc_element_apply(&g->elems, c);
         if (pumping && !arc_pump_in_window(&g->pump[i])) {
             if (c->balloons == 0) flier_add_balloon(c); /* a self-pumped rival keeps the damaged (one) gum; a stage-start window already holds full gum (owner 2026-11-18) */

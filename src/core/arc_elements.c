@@ -161,3 +161,37 @@ int32_t arc_elements_lift(const ArcElements *a, int cx, int cy, int hw, int hh) 
     }
     return d;
 }
+
+/* kill, bounce and lift in one pass over the elements: the same result as calling arc_elements_kill, then (if not killed) _bounce, then _lift. */
+int arc_elements_apply(const ArcElements *a, int cx, int cy, int hw, int hh, int32_t *vx, int32_t *vy) {
+    int i, bounced = 0;
+    int32_t bx = 0, by = 0, lift = 0;
+    for (i = 0; i < a->n; i++) {
+        const ArcElement *e = &a->el[i];
+        switch (e->kind) {
+        case ARC_EL_VENT:
+            if (e->timer >= ARC_VENT_LAUNCH && e->timer < ARC_VENT_LAUNCH + ARC_VENT_BURST_TICKS
+                && box_hit(cx, cy, hw, hh, e->x, e->y - ARC_VENT_PLUME_H / 2, ARC_VENT_HALF_W, ARC_VENT_PLUME_H / 2)) return 1;
+            break;
+        case ARC_EL_GRABBER: {
+            int f = arc_elements_grab_frame(e->timer);
+            if (f >= ARC_GRAB_HIT_FIRST && f <= ARC_GRAB_HIT_LAST
+                && box_hit(cx, cy, hw, hh, e->x, e->y - ARC_GRAB_HIT_H / 2, ARC_GRAB_HALF_W, ARC_GRAB_HIT_H / 2)) return 1;
+            break;
+        }
+        case ARC_EL_FLIPPER:
+            if (!bounced && box_hit(cx, cy, hw, hh, e->x, e->y, ARC_FLIP_HALF, ARC_FLIP_HALF)) {
+                bounced = 1;
+                bx = cx < e->x ? -ARC_FLIP_SPEED : ARC_FLIP_SPEED;
+                by = cy < e->y ? -ARC_FLIP_SPEED : ARC_FLIP_SPEED;
+            }
+            break;
+        case ARC_EL_GRATE:
+            if (box_hit(cx, cy, hw, hh, e->x, e->y - ARC_GRATE_H / 2, ARC_GRATE_HALF_W, ARC_GRATE_H / 2)) lift -= ARC_GRATE_LIFT;
+            break;
+        }
+    }
+    if (bounced) { *vx = bx; *vy = by; }
+    *vy += lift;
+    return 0;
+}
