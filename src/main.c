@@ -2,6 +2,7 @@
  * main.c - Neo Geo glue for Gumbirds: vblank loop, joypad, backup RAM, fix-layer drawing.
  * All game logic lives in src/core (host tested). Nothing here decides gameplay.
  */
+#include <string.h>
 #include <ngdevkit/neogeo.h>
 #include "core/fastdiv.h"
 #include <ngdevkit/ng-fix.h>
@@ -1096,6 +1097,8 @@ static u8 g_arc_dirty; /* slots may hold element sprites: hide them once after t
 /* Like g_pool_drawn: arcade frame index + 1 whose strips and sticky chain column c holds as a block start (0: unknown or not a start). Every
  * column in use is rewritten each frame and the free ones are hidden, so a start column that still holds the same frame holds its whole block. */
 static u8 g_arc_drawn[ARC_ELEM_COUNT];
+static ArcSprite g_arc_last[ARC_VIEW_MAX]; /* blocks and camera of the last placement: the same again places the same words, so the loop is skipped */
+static int g_arc_last_n = -1, g_arc_last_cam;
 static u8 g_arc_used = ARC_ELEM_COUNT; /* columns used last frame (top of the range); the ones below are already hidden */
 _Static_assert(ARCADE_FRAME_COUNT < 255, "arc frame cache holds frame index + 1 in a byte");
 
@@ -1103,6 +1106,13 @@ static void arcade_elems_forget(void) {
     for (u8 c = 0; c < ARC_ELEM_COUNT; c++) g_arc_drawn[c] = 0;
     g_arc_used = ARC_ELEM_COUNT;
     g_arc_dirty = 1;
+    g_arc_last_n = -1;
+}
+
+static int arc_blocks_same(const ArcSprite *b, int n) {
+    const ArcSprite *l = g_arc_last;
+    for (; n > 0; n--, b++, l++) if (b->x != l->x || b->y != l->y || b->piece != l->piece || b->frame != l->frame) return 0;
+    return 1;
 }
 
 static void arcade_elems_step(const Game *g) {
@@ -1116,6 +1126,8 @@ static void arcade_elems_step(const Game *g) {
         for (u8 c = 0; c < 5; c++) gfx_pal((u16)((ARCADE_PAL_SLOT + arcade_frames[arcade_anims[ARCADE_ANIM_VENT].first_frame].palette) * 16 + 1 + c), k_vent_heat[heat * 5 + c]);
         g_arc_heat = heat;
     }
+    if (!g) g_arc_last_n = -1;
+    else if (n == g_arc_last_n && g_arc_last_cam == (int)g_cam_px && arc_blocks_same(blocks, n)) return;
     for (int i = 0; i < n; i++) {
         const ArcSprite *b = &blocks[i];
         u8 fi = (u8)(arcade_anims[k_arc_anim[b->piece]].first_frame + k_arc_first[b->piece] + b->frame);
@@ -1136,6 +1148,7 @@ static void arcade_elems_step(const Game *g) {
     }
     for (int i = ARC_ELEM_COUNT - g_arc_used; i < ARC_ELEM_COUNT - used; i++) { obs_hide_slot(ARC_ELEM_SPRITE + i); g_arc_drawn[i] = 0; }
     g_arc_used = (u8)used;
+    if (g) { memcpy(g_arc_last, blocks, (size_t)n * sizeof blocks[0]); g_arc_last_n = n; g_arc_last_cam = (int)g_cam_px; }
 }
 
 /* Bonus stage: bubbles (Gum Trip pickup art, 2 sprite columns each) in the first slots of the shared strip range, in the order of the live
