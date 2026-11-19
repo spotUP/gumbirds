@@ -2885,6 +2885,15 @@ int main(void) {
  */
 static u8 g_bram_unsaved, g_game_ended;
 
+/* Every return from game_loop reaches the BIOS through SYSTEM_RETURN, and the BIOS writes IRQACK (an LSPC register) about 19
+ * lines later, before it calls USER again. A return from a park that woke late in vblank put that ack 5.6 lines past vblank end
+ * (tests/mame/vblank_check.lua, game end at frame 1769). Return only in the first 16 vblank lines (0x1F0..0x1FF, 24+ lines
+ * left), interrupts masked so the wait cannot be preempted; the screen is already faded to black, so at most one black frame. */
+static void bios_return_sync(void) {
+    __asm__ volatile ("move.w #0x2700,%%sr" ::: "memory");
+    while (VQ_RASTER_LINE(*REG_LSPCMODE) < 0x1F0u) *REG_WATCHDOGW = 0;
+}
+
 static void game_loop(void) {
     FlowView view;
     for (;;) {
@@ -2945,6 +2954,7 @@ static void game_loop(void) {
         else if (g_game_ended && g_flow.state <= FLOW_ATTRACT_DEMO) {
             g_game_ended = 0;
             screen_fade(BG_FADE_MAX, 0); /* fade down, not a hard cut to the BIOS black */
+            bios_return_sync();
             return; /* still user mode 2: SYSTEM_RETURN before any vblank sees mode 1 with a stale compulsion timer (see above) */
         }
         flow_view(&g_flow, &view);
@@ -3086,6 +3096,7 @@ static void game_loop(void) {
         if (g_bram_unsaved && (bios_user_mode == 1 || g_flow.state == FLOW_SAVE_REMINDER)) {
             g_bram_unsaved = 0;
             screen_fade(BG_FADE_MAX, 0);
+            bios_return_sync();
             return; /* to the BIOS: SYSTEM_RETURN, backup RAM save, USER again (see above) */
         }
     }
