@@ -106,7 +106,8 @@ u8 hazard_preloaded(void) { return g_running || (g_pre_kind == hazard_kind_now()
 static void start(int cam_px) {
     u8 kind = hazard_kind_now(); /* the strip is hidden here, so this is the kind of the next match */
     for (u8 b = (kind == g_pre_kind) ? g_pre_banks : 0; b < 2; b++) load_bank(kind, b);
-    g_pre_kind = 0xFF; /* one use: later starts (round restarts) load their own tiles as before */
+    g_pre_banks = 2; /* both banks of this kind now sit in VRAM (only hazard.c writes these sprites): a restart of the same kind, such as CLEAR to the bonus stage, loads nothing */
+    g_pre_kind = kind;
     for (u8 c = 0; c < HAZARD_STRIP_COLS; c++) g_col_x[c] = CAMERA_COL_HIDDEN;
     g_placed_cam = -1;
     place(cam_px);
