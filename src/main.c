@@ -1580,7 +1580,7 @@ static void draw_toss(const Game *g) {
     if (key == g_blow_key) return;
     g_blow_key = key;
     for (u8 s = 0; s < GT_SEATS; s++) {
-        if (g_toss_tag[s][0]) text(g_toss_tag[s][0], g_toss_tag[s][1], PAL_TEXT, "   ");
+        if (g_toss_tag[s][0]) text(g_toss_tag[s][0], g_toss_tag[s][1], PAL_TEXT, "     ");
         g_toss_tag[s][0] = 0;
     }
     if (t->phase == GT_HOLD) {
@@ -1591,8 +1591,12 @@ static void draw_toss(const Game *g) {
         for (u8 s = 0; s < GT_SEATS; s++) {
             const Flier *f = game_toss_flier(g, s);
             if (!tag[s][0] || !f) continue;
-            g_toss_tag[s][0] = (u8)((f->x >> 16) / 8 - 1); g_toss_tag[s][1] = (u8)((f->y >> 16) / 8 - 3);
-            text(g_toss_tag[s][0], g_toss_tag[s][1], PAL_HIGH, (const char *)tag[s]);
+            char plate_txt[6] = { ' ', 0 };   /* the key letters on the same backing plate as the other prompts (gfx_text_plated) */
+            u8 n = 0;
+            while (tag[s][n]) { plate_txt[1 + n] = (char)tag[s][n]; n++; }
+            plate_txt[1 + n] = ' ';
+            g_toss_tag[s][0] = (u8)((f->x >> 16) / 8 - 1 - (n - 1) / 2); g_toss_tag[s][1] = (u8)((f->y >> 16) / 8 - 3);
+            gfx_text_plated(g_toss_tag[s][0], g_toss_tag[s][1], PAL_HIGH, plate_txt);
         }
     }
     const char *msg = t->phase == GT_HOLD ? "TOSS THE GUM ON   A  B  C      " : t->phase == GT_FLIGHT ? "                              " :
