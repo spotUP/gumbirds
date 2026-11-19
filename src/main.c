@@ -1500,6 +1500,7 @@ static u8 cap99(uint32_t v) { return v > 99u ? 99u : (u8)v; }
 static u8 g_trip_islands_loaded;
 /* The Gum Fling grass field also hosts Toss Gum: one gate for both. The field reads the Fling state only for the flight scroll and landing puff; Toss Gum passes an idle one. */
 static u8 ground_field(const Game *g) { return g && (g->gg_fling || g->gg_toss); }
+static u8 pop_field(const Game *g) { return g && g->gg_pop; }
 static const GgFling g_idle_fling;   /* all zero: wind-up phase, no scroll */
 static u8 bg_pending(void) {
     u8 world = g_flow.state == FLOW_PLAYING || g_flow.state == FLOW_ATTRACT_DEMO;
@@ -3028,14 +3029,14 @@ static void game_loop(void) {
             u8 world = world_shown(&view);
             u8 trip = world && view.game->mode == GAME_MODE_TRIP;
             u8 trip_game = (world || view.state == FLOW_GAME_OVER) && view.game && view.game->mode == GAME_MODE_TRIP;
-            hazard_step((world || view.state == FLOW_GAME_OVER) && !trip_game && !ground_field(view.game), g_cam_px); /* the hazard strip is the arena's floor; Gum Trip has its own */
+            hazard_step((world || view.state == FLOW_GAME_OVER) && !trip_game && !ground_field(view.game) && !pop_field(view.game), g_cam_px); /* the hazard strip is the arena's floor; Gum Trip has its own, Pop Drop shows only its platforms */
             if (g_bg_paused && world_state(&view) && view.game->mode != GAME_MODE_TRIP && !ground_field(view.game)) hazard_preload(); /* the reveal frame then only places it */
             /* arcade only: elements kill, so they must be seen (worst scanline with them is checked in tests/host/test_sprite_budget.c) */
             /* Bonus first: on the frame it ends it parks slot 323, which the stage elements share and draw right after. */
             arcade_bonus_step(world && ((view.game->mode == GAME_MODE_ARCADE && view.game->arc.state == ARC_BONUS) || (view.game->mode == GAME_MODE_GUM && view.game->gg_gather)) && !view.game->res.active ? view.game : 0);
             arcade_elems_step(world && view.game->mode == GAME_MODE_ARCADE && view.game->arc.state != ARC_BONUS ? view.game : 0); /* the bonus shows no stage elements: hidden once on entry */
             u8 stadium = world_state(&view) && stadium_on(view.game);
-            island_step(world && !trip && !stadium && !ground_field(view.game), g_cam_px); /* arena islands are not drawn in Gum Trip, on the stadium events or on the Gum Fling / Toss Gum field */
+            island_step(world && !trip && !stadium && !ground_field(view.game) && !pop_field(view.game), g_cam_px); /* arena islands are not drawn in Gum Trip, on the stadium events, on the Gum Fling / Toss Gum field or in Pop Drop */
             fling_field_step(ground_field(view.game) ? view.game->gg_toss ? &g_idle_fling : &view.game->fling : 0, view.game ? view.game->mood : 0, world_state(&view), world, !(view.game && view.game->gg_toss)); /* after island_step: it takes the island slots */
             {   /* stadium stands: scores, result and wave edges from the event state */
                 static u8 s_fin;
