@@ -16,6 +16,13 @@ static int flap_ref(AiState st, int32_t dx, int32_t dy) {
     return cy < AI_FLAP_MAX;
 }
 
+/* The steer decision as ai_step made it before ai_steer_dir: dir.x of flier_angle, negated when fleeing. */
+static int steer_ref(AiState st, int32_t dx, int32_t dy) {
+    int16_t cx = flier_cos(flier_angle(dx, dy));
+    if (st == AI_FLEE) cx = (int16_t)-cx;
+    return cx > AI_STEER_MIN ? 1 : cx < -AI_STEER_MIN ? -1 : 0;
+}
+
 static Flier mk(int x, int y, int balloons) {
     Flier f;
     flier_init(&f, FL_PX(x), FL_PX(y), (uint8_t)balloons, 0);
@@ -279,6 +286,26 @@ int main(void) {
             if (ai_flap_wanted(st, dx, dy) != flap_ref(st, dx, dy)) bad++;
         }
         if (bad) printf("ai_flap_wanted differs on %d inputs\n", bad);
+        CHECK(bad == 0);
+    }
+
+    { /* ai_steer_dir gives the same answer as the angle search */
+        int bad = 0, dx, dy, k;
+        uint32_t lcg = 777u;
+        for (k = 0; k < 2; k++) {
+            AiState st = k ? AI_FLEE : AI_CHASE;
+            for (dx = -191; dx <= 192; dx++)
+                for (dy = -2048; dy <= 2048; dy++)
+                    if (ai_steer_dir(st, dx, dy) != steer_ref(st, dx, dy)) bad++;
+        }
+        for (k = 0; k < 4000000; k++) {
+            AiState st = (k & 1) ? AI_FLEE : AI_CHASE;
+            lcg = lcg * 1664525u + 1013904223u; dx = (int16_t)(lcg >> 16);
+            lcg = lcg * 1664525u + 1013904223u; dy = (int16_t)(lcg >> 16);
+            if (k & 2) dy >>= 8;
+            if (ai_steer_dir(st, dx, dy) != steer_ref(st, dx, dy)) bad++;
+        }
+        if (bad) printf("ai_steer_dir differs on %d inputs\n", bad);
         CHECK(bad == 0);
     }
 

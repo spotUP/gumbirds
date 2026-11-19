@@ -48,5 +48,7 @@ AiState ai_decide(const Flier *self, const Flier *target);
 void ai_step(Ai *a, Rng *r, const Flier *self, const Flier *target, FlierInput *out);
 /* The per-frame flap test: dir.y (Q15, y down, negated when fleeing) of the direction (dx, dy) < AI_FLAP_MAX. */
 int ai_flap_wanted(AiState s, int32_t dx, int32_t dy);
+/* Steering direction (-1, 0, 1) at a think: same answer as the sign test on dir.x of flier_angle, without the angle search. */
+int ai_steer_dir(AiState s, int32_t dx, int32_t dy);
 
 #endif

@@ -50,13 +50,24 @@ AiState ai_decide(const Flier *self, const Flier *target) {
     return AI_CHASE;
 }
 
-/* Vertical aim: the direction to the target as a Q15 sine (y down), negated when fleeing. Same maths for the steering
- * decision at a think; the flap decision every frame asks ai_flap_wanted, which gives the same answer cheaper. */
-static void aim(AiState s, const Flier *self, const Flier *target, int16_t *cx, int16_t *cy) {
-    uint8_t ang = flier_angle((int32_t)arena_dx(px(target->x), px(self->x)), (int32_t)(px(target->y) - px(self->y)));
-    *cx = flier_cos(ang);
-    *cy = flier_sin(ang);
-    if (s == AI_FLEE) { *cx = (int16_t)-*cx; *cy = (int16_t)-*cy; }
+/* Steering at a think: dir.x of the angle to the target (Q15 cosine, negated when fleeing) against +-AI_STEER_MIN. The angle search
+ * of flier_angle is not needed: with the target folded below (dy > 0) the angle a in [0,128) is at least c exactly when
+ * cross(c) >= 0, cos(a) > AI_STEER_MIN holds for a < AI_STEER_A1 and cos(a) < -AI_STEER_MIN for a >= AI_STEER_A2 (the table is
+ * antisymmetric, so the fold's half turn only flips the sign). dy == 0 is on the axis. tests/host/test_ai.c checks it against
+ * the angle search. */
+#define AI_STEER_A1 54
+#define AI_STEER_A2 75
+static int cross_ge(uint8_t c, int16_t x, int16_t y) { return m16(flier_cos(c), y) - m16(flier_sin(c), x) >= 0; }
+
+int ai_steer_dir(AiState s, int32_t dx, int32_t dy) {
+    int d, flip = s == AI_FLEE;
+    if (dy == 0) d = dx < 0 ? -1 : 1;
+    else {
+        if (dy < 0) { dx = -dx; dy = -dy; flip ^= 1; }
+        while (dx > 20000 || dx < -20000 || dy > 20000) { dx >>= 1; dy >>= 1; }
+        d = !cross_ge(AI_STEER_A1, (int16_t)dx, (int16_t)dy) ? 1 : cross_ge(AI_STEER_A2, (int16_t)dx, (int16_t)dy) ? -1 : 0;
+    }
+    return flip ? -d : d;
 }
 
 /* aim()'s flap test, dir.y < AI_FLAP_MAX, without the 7-step angle search (about 5 raster lines a rival a frame on the 68000).
@@ -104,12 +115,7 @@ void ai_step(Ai *a, Rng *r, const Flier *self, const Flier *target, FlierInput *
         if (target) {
             AiState s = a->flee ? AI_FLEE : ai_decide(self, target);
             a->state = (uint8_t)s;
-            if (s != AI_FILL) {
-                int16_t cx, cy;
-                aim(s, self, target, &cx, &cy);
-                if (cx > AI_STEER_MIN) a->dir = 1;
-                else if (cx < -AI_STEER_MIN) a->dir = -1;
-            }
+            if (s != AI_FILL) a->dir = (int8_t)ai_steer_dir(s, arena_dx(px(target->x), px(self->x)), (int32_t)(px(target->y) - px(self->y)));
         }
     }
     out->dir = a->dir;
