@@ -27,16 +27,29 @@ void ai_init(Ai *a, Rng *r, int rank) {
     a->timer = next_timer(a, r);
 }
 
+/* Nearest live flier, first minimum wins. Cull before the multiplies: with bm = max(|bdx|,|bdy|) of the best so far, bd <= 2*bm^2.
+ * A candidate with |dx| or |dy| >= cut = bm + bm/2 + 1 > 1.5*bm has d >= cut^2 > 2.25*bm^2 >= bd, so it cannot be strictly
+ * nearer (ties keep the first) and is skipped. The +1 covers the integer floor of bm/2. tests/host/test_ai.c checks it. */
 const Flier *ai_nearest(const Flier *self, const Flier *humans, int human_count, const Flier *cpus, int cpu_count) {
     const Flier *best = 0;
     int32_t bd = 0;
+    int16_t cut = 0;
     int i;
     for (i = -human_count; i < cpu_count; i++) {
         const Flier *c = i < 0 ? &humans[human_count + i] : &cpus[i];
+        int16_t dx, dy, ax, ay;
         int32_t d;
         if (c == self || c->state > FLIER_PARACHUTE) continue;
-        d = dist2(self, c);
-        if (!best || d < bd) { best = c; bd = d; }
+        dx = (int16_t)arena_dx(px(self->x), px(c->x));
+        dy = (int16_t)(px(self->y) - px(c->y));
+        ax = dx < 0 ? -dx : dx;
+        ay = dy < 0 ? -dy : dy;
+        if (best && (ax >= cut || ay >= cut)) continue;
+        d = m16(dx, dx) + m16(dy, dy);
+        if (!best || d < bd) {
+            int16_t bm = ax > ay ? ax : ay;
+            best = c; bd = d; cut = (int16_t)(bm + (bm >> 1) + 1);
+        }
     }
     return best;
 }

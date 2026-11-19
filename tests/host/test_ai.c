@@ -23,6 +23,23 @@ static int steer_ref(AiState st, int32_t dx, int32_t dy) {
     return cx > AI_STEER_MIN ? 1 : cx < -AI_STEER_MIN ? -1 : 0;
 }
 
+/* ai_nearest as it was before the cull: every candidate gets the full distance, first minimum wins. */
+static const Flier *nearest_ref(const Flier *self, const Flier *humans, int hn, const Flier *cpus, int cn) {
+    const Flier *best = 0;
+    int32_t bd = 0;
+    int i;
+    for (i = -hn; i < cn; i++) {
+        const Flier *c = i < 0 ? &humans[hn + i] : &cpus[i];
+        int32_t dx, dy, d;
+        if (c == self || c->state > FLIER_PARACHUTE) continue;
+        dx = arena_dx((int16_t)(self->x >> 16), (int16_t)(c->x >> 16));
+        dy = (int16_t)(self->y >> 16) - (int16_t)(c->y >> 16);
+        d = dx * dx + dy * dy;
+        if (!best || d < bd) { best = c; bd = d; }
+    }
+    return best;
+}
+
 static Flier mk(int x, int y, int balloons) {
     Flier f;
     flier_init(&f, FL_PX(x), FL_PX(y), (uint8_t)balloons, 0);
@@ -113,6 +130,32 @@ int main(void) {
     ai_init(&a, &r, 1);
     for (i = 0; i < 60 && a.thinks == 0; i++) ai_step(&a, &r, &me, 0, &in);
     CHECK(in.dir == 0 && in.flap == 0);
+
+    /* ai_nearest cull: same pick as the full scan over random states, wide and clustered (ties), with dead fliers. */
+    {
+        uint32_t r = 12345u;
+        long n, bad = 0;
+        for (n = 0; n < 400000; n++) {
+            Flier hu[2], cp[4];
+            int k, span = (n & 1) ? 6 : 400, hn = 1 + (int)(n % 2), cn = (int)(n / 2 % 5);
+            for (k = 0; k < 6; k++) {
+                Flier *f = k < hn ? &hu[k] : &cp[k - hn];
+                int x, y;
+                if (k >= hn + cn && k >= hn) break;
+                r = r * 1664525u + 1013904223u; x = (int)((r >> 8) % (unsigned)span);
+                r = r * 1664525u + 1013904223u; y = (int)((r >> 8) % (unsigned)span);
+                if (span == 6) { x += 100 + (n % 3 ? 0 : 280); y += 100; }
+                *f = mk(x % 384, y, 2);
+                r = r * 1664525u + 1013904223u;
+                if ((r >> 12) % 5 == 0) f->state = FLIER_FALLING;
+            }
+            for (k = 0; k < hn + cn; k++) {
+                const Flier *self = k < hn ? &hu[k] : &cp[k - hn];
+                if (ai_nearest(self, hu, hn, cp, cn) != nearest_ref(self, hu, hn, cp, cn)) bad++;
+            }
+        }
+        CHECK(bad == 0);
+    }
 
     /* ai_nearest: picks the nearest live rival, skips self and the dead. */
     {
