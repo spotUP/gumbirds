@@ -28,7 +28,12 @@ SRCDIRS=assets src
 # DEBUG_HEADER=1 builds the GUMBIRDS / state name header back in (src/main.c draw); off in the normal build. Objects do not track
 # the flag: gmake clean (or touch src/main.c) when switching.
 DEBUG_HEADER ?=
-CFLAGS=-I$(BUILDDIR) -std=c99 -fomit-frame-pointer -O2 -g -MMD -MP $(if $(DEBUG_HEADER),-DGUMBIRDS_DEBUG_HEADER)
+CFLAGS=-I$(BUILDDIR) -std=c99 -fomit-frame-pointer -O2 -g -MMD -MP $(if $(DEBUG_HEADER),-DGUMBIRDS_DEBUG_HEADER) -include $(BUILDDIR)/prof_cfg.h
+# PROF=1 / release switch as a force-included header: -MMD records it, so switching PROF rebuilds every object (before this, a PROF build
+# silently reused release objects and every mark read 0.0). Rewritten only when the value changes.
+HASH:=\#
+PROF_CFG:=$(if $(PROF),$(HASH)define GUMBIRDS_PROF 1,/* release */)
+$(shell mkdir -p $(BUILDDIR); echo '$(PROF_CFG)' | cmp -s - $(BUILDDIR)/prof_cfg.h || echo '$(PROF_CFG)' > $(BUILDDIR)/prof_cfg.h)
 # Cartridge header eyecatcher mode (ngdevkit.ld rom_eye_catcher_mode: 0 BIOS draws it, 1 game, 2 none). 2 keeps UniBIOS from
 # drawing its eyecatcher text with tile codes that collide with the game's fix ROM (thoughts/spot/2026-11-12-u3-eyecatcher-hunt.md).
 LDFLAGS=-Wl,--defsym,rom_eye_catcher_mode=2
