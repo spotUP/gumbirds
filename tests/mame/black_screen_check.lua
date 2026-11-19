@@ -17,6 +17,8 @@ local coin = field(":AUDIO_COIN", "Coin 1")
 local start = field(":edge:joy:START", "1 Player Start")
 local down = field(":edge:joy:JOY1", "P1 Down")
 local abtn = field(":edge:joy:JOY1", "P1 A")
+local TRACE = os.getenv("BRAWL_TRACE") -- file path: per-frame colour count after Game Over (GAMEOVER-BLACK-GAP)
+local tlog = TRACE and io.open(TRACE, "w")
 local CREDIT = 0x10fe00
 local RUNS = 5
 local log = io.open(out, "w")
@@ -31,10 +33,19 @@ local function colours()
   local seen, k = {}, 0
   for i = 1, #px - 3, 4 * 37 do
     local c = px:sub(i, i + 2)
-    if not seen[c] then seen[c] = true; k = k + 1; if k > 2 then return k end end
+    if not seen[c] then seen[c] = true; k = k + 1; if k > 2 and not TRACE then return k end end
   end
   return k
 end
+-- GAMEOVER-BLUE-2: the colour of a frame that is ONE flat colour (>= 85% of the sampled pixels equal pixel 0), nil on a frame with picture.
+-- Two or more in a row fail: the first fade-up step of the whole screen is one dim, nearly flat frame. The 2-colour test missed it: a lit backdrop with a few fix-layer letters on top has ~20 colours but is still the flat blue the owner saw.
+local function flat_tint()
+  local px = screen:pixels()
+  local c0, same, tot = px:sub(1, 3), 0, 0
+  for i = 1, #px - 3, 4 * 37 do tot = tot + 1; if px:sub(i, i + 2) == c0 then same = same + 1 end end
+  if same * 100 >= 85 * tot then return c0 end
+end
+local tint_run, tint_max, tint_total = 0, 0, 0
 local function finish(ok, msg)
   W((ok and "PASS " or "FAIL ") .. msg); log:close(); manager.machine:exit()
 end
@@ -47,6 +58,15 @@ emu.register_frame_done(function()
   if st ~= last then W(string.format("frame %d run %d phase %s state %d -> %d credit %02x", n, run, phase, last, st, mem:read_u8(CREDIT))); last = st end
   -- black detectors, every phase after boot
   if phase ~= "boot" then
+    local tint = (phase == "over" or phase == "between") and st ~= 2 and st ~= 3 and flat_tint() or nil -- Game Over to title/table only (demo and play start with the designed entry hold: world hidden, backdrop alone); the first boot has its own blue
+    if tint and tint ~= "\0\0\0" then tint_run = tint_run + 1; tint_total = tint_total + 1; if tint_run > tint_max then tint_max = tint_run end
+      if tlog then W(string.format("BLUE frame %d run %d phase %s state %d rgb %02x%02x%02x backdrop %04x", n, run, phase, st, tint:byte(1), tint:byte(2), tint:byte(3), mem:read_u16(0x401ffe))) end
+    else tint_run = 0 end
+    if tint_run > 1 and not tlog then -- BRAWL_TRACE logs every blue frame instead of stopping at the first
+      fail = true
+      finish(false, string.format("blue frame: run %d phase %s state %d frame %d rgb %02x%02x%02x backdrop word %04x (a flat non-black frame between Game Over and the menu, every frame sampled)", run, phase, st, n, tint:byte(1), tint:byte(2), tint:byte(3), mem:read_u16(0x401ffe)))
+      return
+    end
     if n % 10 == 0 then
       if colours() <= 2 then black_run = black_run + 10 else black_run = 0 end
       -- 90, not 60: every game-end SYSTEM_RETURN with a credit shows ~52 frames of one colour (UniBIOS clears palette RAM at
@@ -64,6 +84,10 @@ emu.register_frame_done(function()
       finish(false, string.format("entry hold stuck run %d state %d frame %d: busy %d mood %d", run, st, n, mem:read_u8(busy_addr), mem:read_u8(mood_addr)))
       return
     end
+  end
+  if TRACE and phase == "over" or (TRACE and phase == "between" and n - t0 < 400) then
+    local p0 = screen:pixels():sub(1, 3)
+    tlog:write(string.format("T run %d n %d state %d colours %d busy %d fc %d p0 %02x%02x%02x bd %04x", run, n, st, colours(), mem:read_u8(busy_addr), fc, p0:byte(1), p0:byte(2), p0:byte(3), mem:read_u16(0x401ffe)) .. "\n"); tlog:flush()
   end
   local cr_now = mem:read_u8(CREDIT)
   if phase ~= "boot" and cr_now < cr_prev and st ~= 3 then cr_drop = cr_drop or n end
@@ -92,7 +116,7 @@ emu.register_frame_done(function()
     if st == 4 then phase = "over"; t0 = n end
     if k > 9000 then fail = true; finish(false, string.format("run %d never ended (state %d)", run, st)) return end
   elseif phase == "over" then          -- Game Over: no rank; path 2 coins here
-    if st == 4 then mem:write_u32(flow_addr + 22, 0) end
+    if st == 4 then mem:write_u32(flow_addr + 38, 0); mem:write_u32(flow_addr + 42, 0) end -- Flow.last_score[2] (offset 38 on the m68k build)
     if run == 2 then press(coin, k >= 20 and k < 30) end
     press(start, run == 1 and (k % 18) < 4)                           -- run 1: Start mashed through Game Over into the title
     press(abtn, run == 2 and (k % 18) < 4)                            -- run 2: A mashed the same way

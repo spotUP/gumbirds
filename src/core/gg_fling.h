@@ -4,14 +4,13 @@
 #include "flier.h"
 #include "gumgames.h"
 
-/* Gum Games event Gum Fling (pure logic), A only: mash A for run-up power, hold A (GF_HOLD_FRAMES) to start the angle
- * needle, keep holding to sweep it (0..90 degrees), release A to launch. Ballistic flight, no flapping. Distance in pixels is read at touch-down; three attempts, best counts.
+/* Gum Games event Gum Fling (pure logic), mash A for run-up power, press B to end the run-up and start the
+ * angle needle, keep B held to sweep it (0..90 degrees), release B to launch. Ballistic flight, no flapping. Distance in pixels is read at touch-down; three attempts, best counts.
  * A launch below GF_DEG_MIN or above GF_DEG_MAX degrees, or no launch before the run-up clock ends, is a foul (zero). */
 #define GF_ATTEMPTS 3u
 #define GF_WINDUP_FRAMES 360u           /* run-up clock per attempt */
 #define GF_POWER_MAX 32u                /* counted A presses that fill the power bar */
-#define GF_HOLD_FRAMES 12u              /* A held this long in the run-up ends it and starts the angle needle */
-#define GF_AIM_CAP 128u                 /* frames of A held for the needle to reach 90 degrees */
+#define GF_AIM_CAP 128u                 /* frames of B held for the needle to reach 90 degrees */
 #define GF_DEG_MIN 15u
 #define GF_DEG_MAX 75u
 #define GF_V0_BASE FL_PX(1)             /* launch speed with no run-up, 16.16 px per frame */
@@ -55,12 +54,15 @@ void gumfling_init(GgFling *f);
 void gumfling_add_p2(GgFling *f);
 /* Winner of a finished 2P event: 0 or 1, 2 = tie. */
 uint8_t gumfling_winner(const GgFling *f);
-/* Needle angle in degrees for an aim charge (frames of A held). */
+/* Needle angle in degrees for an aim charge (frames of B held). */
 uint8_t gumfling_deg(uint16_t charge);
 /* One frame in the arena (WINDUP, AIM) or on the landing / result screen. Returns a GF_EV_* (LAUNCH: switch to the course). */
 int gumfling_step(GgFling *f, uint8_t in);
 /* One flight frame. Returns GF_EV_LANDED on the touch-down frame. */
 int gumfling_fly(GgFling *f);
+/* Preview of a throw with run-up power and aim charge (frames of B held): n points (dx, dy) in pixels from the launch point, dy up
+ * positive, spread evenly in time over the whole flight, using the same launch and flight frame as the real throw. Returns the flight frames. */
+int gumfling_path(uint8_t power, uint16_t charge, int16_t *dx, int16_t *dy, int n);
 /* Scroll step of the last flight frame in 16.16 px. */
 int32_t gumfling_scroll(const GgFling *f);
 #endif

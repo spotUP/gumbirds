@@ -4,7 +4,7 @@
 
 void gumdash_init(GgDash *d, Flier *hero)
 {
-    d->mash.last = 0; d->mash.count = 0;
+    d->mash.count = 0;
     d->prev_in = 0; d->laps = 0; d->done = 0; d->end_t = 0; d->frames = 0; d->lap_dist = 0;
     flier_init(hero, 0, GD_FLOOR_Y, 2, 0);
     hero->y = GD_FLOOR_Y - FL_PX(16);

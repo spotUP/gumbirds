@@ -78,7 +78,7 @@ static void chute_pump_test(void) {
 }
 
 /* Arcade re-pump (user decision 2026-11-16): a rival that loses its last gum in the air parachutes down, stands
-   ARC_REPUMP_STAND_FRAMES, pumps the stage-start window at the same rank and lifts off with full gum; a touch in the window
+   ARC_REPUMP_STAND_FRAMES, pumps the stage-start window at the same rank and lifts off with ONE (damaged) gum, never full; a touch in the window
    defeats it; a rival popped while standing takes the same path. Arena mode keeps no parachute and no re-pump. */
 static void repump_tests(void) {
     static Game g;
@@ -105,7 +105,7 @@ static void repump_tests(void) {
         if (arc_pump_in_window(&g.pump[0])) { CHECK(g.cpu[0].balloons >= last && g.cpu[0].balloons < FLIER_START_BALLOONS); last = g.cpu[0].balloons; } /* grows, never full inside the window */
     }
     CHECK(last == 1 && n == arc_rank(rank)->pump_frames && g.pump[0].state == ARC_PUMP_FLYING && g.pump[0].rank == rank);
-    CHECK(g.cpu[0].state == FLIER_ALIVE && g.cpu[0].balloons == FLIER_START_BALLOONS && g.cpu[0].vy < 0 && !g.cpu[0].on_ground);
+    CHECK(g.cpu[0].state == FLIER_ALIVE && g.cpu[0].balloons == 1 && g.cpu[0].vy < 0 && !g.cpu[0].on_ground);
     /* popped while standing: same stand, then a level touch in the window defeats it at the rank's defeat score */
     g.cpu[0].x = FL_PX(stage_spawns[0].x); g.cpu[0].y = FL_PX(stage_spawns[0].y); g.cpu[0].vx = 0; g.cpu[0].vy = 0;
     for (n = 0; !g.cpu[0].on_ground && n < 200; n++) { g.cpu[0].vx = 0; away_step(&g); }

@@ -29,6 +29,8 @@ const SpriteBudgetEntry SPRITE_BUDGET[] = {
     { "mid A plane", BG_MIDA_SPRITE,      BG_MIDA_COUNT, BG_MIDA_Y0, BG_MIDA_Y1, BG_MIDA_COUNT, SB_COLUMNS },
     { "mid B plane", BG_MIDB_SPRITE,      BG_MIDB_COUNT, BG_MIDB_Y0, BG_MIDB_Y1, BG_MIDB_COUNT, SB_COLUMNS },
     { "near plane",  BG_NEAR_SPRITE,      BG_NEAR_COUNT, BG_NEAR_Y0, BG_NEAR_Y1, BG_NEAR_COUNT, SB_COLUMNS },
+    /* The Toss Gum poses (32 tiles, 8 cells of 32x32) draw in the body's own two columns in place of the standing frame: no sprite and no
+       column on a line is added, so they are inside this entry (a second entry over the same slots would count them twice). */
     { "gameplay",    POOL_SPRITE_BASE,    HERO_SPRITE + HERO_SPRITE_COUNT - POOL_SPRITE_BASE,
                                                                 0, 224, SB_GAMEPLAY_PER_LINE, SB_ALWAYS },
     /* 24 columns, not the 21 visible at a camera offset: the LSPC picks sprites per line by Y only, so columns with X off screen still count. */
@@ -39,6 +41,8 @@ const SpriteBudgetEntry SPRITE_BUDGET[] = {
     { "gum bubble",  GUM_SPRITE,          GUM_COUNT,            0, 224, GUM_COUNT, SB_ALWAYS },
     /* The Roost Rule marker (PARTY): 2 columns, 32 high, sits on any island line. */
     { "roost marker", ROOST_SPRITE,       ROOST_COUNT,          0, 224, ROOST_COUNT, SB_PARTY_ONLY },
+    /* Gum Fling aim aids (GUM arena aim only): pointer + 9 dots, 1 column each. Worst case 10 sprites on a line. It is not summed (SB_FLING_AIM): Gum Fling has no computer fliers, which frees 10 of the 14 reserved gameplay columns. */
+    { "fling aim",   FLING_ARC_SPRITE,    FLING_ARC_COUNT,      0, 224, 10, SB_FLING_AIM },
     /* The splash cell is 48 x 48 at screen lines 160..207 (water 162, lava 160 to 209): 3 columns on those lines only. */
     { "splash",      SPLASH_SPRITE,       SPLASH_COUNT,       160, 210, SPLASH_COUNT, SB_ALWAYS },
     { "hazard",      HAZARD_SPRITE,       HAZARD_COUNT,       192, 224, 24, SB_ALWAYS },
@@ -93,6 +97,7 @@ static int budget_line(int m, int y, int trip, int party) {
         if (e->mood == SB_RAIN_ONLY && !rain) continue;
         if (e->mood == SB_TRIP_ONLY && !trip) continue;
         if (e->mood == SB_PARTY_ONLY && !party) continue;
+        if (e->mood == SB_FLING_AIM) continue;   /* paid from the unused flier reserve: Gum Fling has no computer fliers (cpu_count 0), so 2 humans use 4 of the 14 reserved columns */
         total += e->mood == SB_COLUMNS ? columns_on_line(mood, e, y, trip) : e->mood == SB_ISLANDS && !trip ? platform_columns_on_line(y) : e->per_line;
     }
     return total;

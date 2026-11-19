@@ -8,5 +8,5 @@
 #define R(m) (G(race) + offsetof(GgRace, m))
 unsigned int probe[] = {
     offsetof(Flow, state), G(mode), G(gg_race), R(phase), R(size), R(size) + 1, R(winner), G(score), G(players), R(players),
-    FLOW_PLAYING, GAME_MODE_GUM, GG_RACE_INTRO, GG_RACE_PLAY, GG_RACE_RESULT,
+    FLOW_PLAYING, GAME_MODE_GUM, GG_RACE_INTRO, GG_RACE_PLAY, GG_RACE_RESULT, offsetof(Flow, gg_card),
 };

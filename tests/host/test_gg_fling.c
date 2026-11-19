@@ -6,14 +6,14 @@
 static int fails;
 #define CHECK(c) do { if (!(c)) { printf("FAIL line %d: %s\n", __LINE__, #c); fails++; } } while (0)
 
-/* tap A every other frame for 2 * mash frames (mash counted presses), then hold A (GF_HOLD_FRAMES to start the needle,
+/* tap A every other frame for 2 * mash frames (mash counted presses), then hold B (first frame starts the needle,
  * then hold frames of needle), release; returns the event of the release frame */
 static int shoot(GgFling *f, int mash, int hold)
 {
     int i, ev = GF_EV_NONE;
     for (i = 0; i < 2 * mash; i++) gumfling_step(f, (uint8_t)((i & 1) ? 0 : IN_A));
     gumfling_step(f, 0);
-    for (i = 0; i < (int)GF_HOLD_FRAMES + hold; i++) gumfling_step(f, IN_A);
+    for (i = 0; i < 1 + hold; i++) gumfling_step(f, IN_B);
     ev = gumfling_step(f, 0);
     return ev;
 }
@@ -63,13 +63,14 @@ int main(void)
       next(&f);
       CHECK(f.phase == GF_END && f.seq.best[0] == best); }
 
-    /* A only: taps count as power and never start the needle; B and C do nothing */
+    /* A taps count as power and never start the needle; C does nothing; B starts the needle */
     gumfling_init(&f);
     for (i = 0; i < 20; i++) gumfling_step(&f, (uint8_t)((i & 1) ? 0 : IN_A));
     CHECK(f.phase == GF_WINDUP && f.power == 10);
-    for (i = 0; i < 40; i++) gumfling_step(&f, (uint8_t)(IN_B | IN_C));
-    CHECK(f.phase == GF_WINDUP && f.power == 10);
-    for (i = 0; i < (int)GF_HOLD_FRAMES; i++) gumfling_step(&f, IN_A);
+    for (i = 0; i < 40; i++) gumfling_step(&f, IN_A);
+    for (i = 0; i < 40; i++) gumfling_step(&f, IN_C);
+    CHECK(f.phase == GF_WINDUP && f.power == 11);
+    gumfling_step(&f, IN_B);
     CHECK(f.phase == GF_AIM);
 
     /* sounds: a throw, a landing, a foul */
@@ -99,6 +100,30 @@ int main(void)
       CHECK(gumfling_winner(&f) == 1 && f.seq.best[1] > f.seq.best[0]);
       next(&f);
       CHECK(f.phase == GF_END); }
+
+    /* aim preview: the path points are the real flight's positions, evenly in time, and the last one is the touch-down */
+    {
+        int16_t px[10], py[10];
+        int mash = 20, hold = 40, frames, k, n = 0, t = 0;
+        GgFling a;
+        gumfling_init(&a);
+        shoot(&a, mash, hold);
+        CHECK(a.phase == GF_FLIGHT);
+        frames = gumfling_path(a.power, (uint16_t)hold + 1, px, py, 10);   /* power is the counted presses, charge the frames of B held */
+        CHECK(frames > 10 && px[9] > 0 && py[9] == 0);
+        for (k = 0; k < frames && a.phase == GF_FLIGHT; k++) {
+            gumfling_fly(&a); t++;
+            if (n < 10 && t == frames * (n + 1) / 10) {
+                CHECK(px[n] == (int16_t)(a.phase == GF_FLIGHT ? a.x >> 16 : a.dist) && py[n] == (int16_t)(a.h >> 16));
+                n++;
+            }
+        }
+        CHECK(n == 10 && a.phase == GF_LANDED && px[9] == (int16_t)a.dist);
+        gumfling_init(&a); shoot(&a, 32, 40); gumfling_path(32, 41, px, py, 10);
+        printf("path full power 56deg: last dx %d, apex dy %d\n", px[9], py[4]);
+        gumfling_init(&a); shoot(&a, 20, 30); gumfling_path(20, 31, px, py, 10);
+        printf("path mid: last dx %d, apex dy %d\n", px[9], py[4]);
+    }
 
     /* flow: Left from Big Blow wraps to Gum Fling, Right from Gum Fling wraps to Big Blow; Start runs it */
     {
