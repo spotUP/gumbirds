@@ -149,6 +149,9 @@ void island_step(u8 playing, int cam_px) {
      * of the old layout (arc-spike): that frame writes no island at all; the old columns stay one more frame under the frozen
      * banner and are hidden on the next one. */
     if (g_relayout_hold) { g_relayout_hold = 0; return; }
+    /* The frame after the hold hides the old columns only and the load starts one frame later: hide, island 0 and the
+     * arcade round start's first rival draw (match_rivals) on one frame were the steady worst frame of stages 4, 7, 10 (Pass 37). */
+    if (!g_loaded && g_shown) { hide(); g_shown = 0; return; }
     if (!g_loaded) load_step();
     if (playing && g_loaded) {
         place(cam_px);
