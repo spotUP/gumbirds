@@ -1500,6 +1500,7 @@ static u8 cap99(uint32_t v) { return v > 99u ? 99u : (u8)v; }
 static u8 g_trip_islands_loaded;
 /* The Gum Fling grass field also hosts Toss Gum: one gate for both. The field reads the Fling state only for the flight scroll and landing puff; Toss Gum passes an idle one. */
 static u8 ground_field(const Game *g) { return g && (g->gg_fling || g->gg_toss); }
+static u8 pop_field(const Game *g) { return g && g->gg_pop; }
 static const GgFling g_idle_fling;   /* all zero: wind-up phase, no scroll */
 static u8 bg_pending(void) {
     u8 world = g_flow.state == FLOW_PLAYING || g_flow.state == FLOW_ATTRACT_DEMO;
@@ -1795,7 +1796,9 @@ static void draw_pop_drop(const GgPop *p) {
     text((u8)((40 - BLOW_TEXT_W) / 2), BLOW_TEXT_ROW + 2, PAL_TEXT, line);
 }
 
-/* Pop Drop sprites: bird, platforms, gum candy and shield in the free shared slots; all parked then redrawn each frame. */
+/* Pop Drop sprites: bird, platforms, gum candy and shield in the free shared slots. Each frame redraws the live pieces and hides only the
+ * slots that showed last frame and not this one: hiding every slot first queued an SCB3 = 0 per slot ahead of its redraw, and when the
+ * vblank flush ran out of budget (GFX_FLUSH_BUDGET_US) between the two, the platform stayed hidden on screen (owner report 2026-11-19). */
 #define PD_SPRITE 323
 #define PD_BIRD_SLOT PD_SPRITE
 #define PD_PLAT_SLOT (PD_SPRITE + 2)                 /* 4 platforms x 5 pieces */
@@ -1804,6 +1807,8 @@ static void draw_pop_drop(const GgPop *p) {
 #define PD_SPRITE_END (PD_SHIELD_SLOT + 2)
 _Static_assert(PD_SPRITE_END <= 367, "Pop Drop slots overlap the Trip pickup slots");
 static u8 g_pd_on;
+static uint32_t g_pd_shown, g_pd_new; /* bit (slot - PD_SPRITE): drawn last frame / this frame */
+_Static_assert(PD_SPRITE_END - PD_SPRITE <= 32, "Pop Drop slot mask is 32 bits");
 
 static const PopdropFrame *pd_frame(u8 anim, u16 n) {
     const PopdropAnim *a = &popdrop_anims[anim];
@@ -1819,16 +1824,29 @@ static void pd_piece(u16 slot, const PopdropFrame *f, int wx, int top, int flip,
         gfx_sprite_strips((u16)(slot + c), 1, f->tiles_h, t + (flip ? f->tiles_w - 1 - c : c) * f->tiles_h, POPDROP_TILE_BASE,
                           (u16)(((POPDROP_PAL_SLOT + pal) << 8) | (flip ? 1 : 0)));
     gfx_sprite_place(slot, f->tiles_w, f->tiles_h, sx, top);
+    g_pd_new |= ((1UL << f->tiles_w) - 1) << (slot - PD_SPRITE);
 }
 
 static void pop_hide(void) {
     for (u16 s = PD_SPRITE; s < PD_SPRITE_END; s++) obs_hide_slot(s);
+    g_pd_shown = 0;
 }
 
+static void pop_show_pieces(const Game *g);
+
 static void pop_show(const Game *g) {
-    const GgPop *p = &g->pop;
-    pop_hide();
+    if (!g_pd_on) pop_hide(); /* entry: the shared slots may hold another view's sprites */
     g_pd_on = 1;
+    g_pd_new = 0;
+    pop_show_pieces(g);
+    uint32_t gone = g_pd_shown & ~g_pd_new;
+    for (u16 s = PD_SPRITE; gone; s++, gone >>= 1)
+        if (gone & 1) obs_hide_slot(s);
+    g_pd_shown = g_pd_new;
+}
+
+static void pop_show_pieces(const Game *g) {
+    const GgPop *p = &g->pop;
     for (u8 k = 0; k < PD_PLATS; k++) {
         const PdPlat *pl = &p->plat[k];
         if (!pl->live) continue;
@@ -1849,6 +1867,7 @@ static void pop_show(const Game *g) {
         u16 sl = (u16)(PD_GUM_SLOT + k * 2);
         gfx_sprite_strips(sl, 2, 2, &trippickup_tile_index[f->tile_offset], TRIPPICKUP_TILE_BASE, (u16)(TRIPPICKUP_PAL_SLOT << 8));
         gfx_sprite_place(sl, 2, 2, sx, gm->y - 16);
+        g_pd_new |= 3UL << (sl - PD_SPRITE);
     }
     if (p->phase != PD_FALL && p->phase != PD_CRASH) return;
     u8 lvl = p->hits > 2 ? 2 : p->hits;
@@ -3010,14 +3029,14 @@ static void game_loop(void) {
             u8 world = world_shown(&view);
             u8 trip = world && view.game->mode == GAME_MODE_TRIP;
             u8 trip_game = (world || view.state == FLOW_GAME_OVER) && view.game && view.game->mode == GAME_MODE_TRIP;
-            hazard_step((world || view.state == FLOW_GAME_OVER) && !trip_game && !ground_field(view.game), g_cam_px); /* the hazard strip is the arena's floor; Gum Trip has its own */
+            hazard_step((world || view.state == FLOW_GAME_OVER) && !trip_game && !ground_field(view.game) && !pop_field(view.game), g_cam_px); /* the hazard strip is the arena's floor; Gum Trip has its own, Pop Drop shows only its platforms */
             if (g_bg_paused && world_state(&view) && view.game->mode != GAME_MODE_TRIP && !ground_field(view.game)) hazard_preload(); /* the reveal frame then only places it */
             /* arcade only: elements kill, so they must be seen (worst scanline with them is checked in tests/host/test_sprite_budget.c) */
             /* Bonus first: on the frame it ends it parks slot 323, which the stage elements share and draw right after. */
             arcade_bonus_step(world && ((view.game->mode == GAME_MODE_ARCADE && view.game->arc.state == ARC_BONUS) || (view.game->mode == GAME_MODE_GUM && view.game->gg_gather)) && !view.game->res.active ? view.game : 0);
             arcade_elems_step(world && view.game->mode == GAME_MODE_ARCADE && view.game->arc.state != ARC_BONUS ? view.game : 0); /* the bonus shows no stage elements: hidden once on entry */
             u8 stadium = world_state(&view) && stadium_on(view.game);
-            island_step(world && !trip && !stadium && !ground_field(view.game), g_cam_px); /* arena islands are not drawn in Gum Trip, on the stadium events or on the Gum Fling / Toss Gum field */
+            island_step(world && !trip && !stadium && !ground_field(view.game) && !pop_field(view.game), g_cam_px); /* arena islands are not drawn in Gum Trip, on the stadium events, on the Gum Fling / Toss Gum field or in Pop Drop */
             fling_field_step(ground_field(view.game) ? view.game->gg_toss ? &g_idle_fling : &view.game->fling : 0, view.game ? view.game->mood : 0, world_state(&view), world, !(view.game && view.game->gg_toss)); /* after island_step: it takes the island slots */
             {   /* stadium stands: scores, result and wave edges from the event state */
                 static u8 s_fin;
