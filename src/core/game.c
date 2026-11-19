@@ -1215,7 +1215,6 @@ void game_step_arena(Game *g, uint8_t input)
         }
         if (c->state == FLIER_PARACHUTE) ci.dir = 0; /* parachute steering is for players only (owner 2026-11-17); rivals keep the sway drop */
         arena_flier_step(g, c, &ci);
-        PROF_MARK(25);
         if (g->mode == GAME_MODE_ARCADE) arc_element_apply(&g->elems, c);
         if (pumping && !arc_pump_in_window(&g->pump[i])) {
             if (c->balloons == 0) flier_add_balloon(c); /* a self-pumped rival keeps the damaged (one) gum; a stage-start window already holds full gum (owner 2026-11-18) */
