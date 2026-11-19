@@ -1,0 +1,100 @@
+LOGO A, stretched gum (sprites, 1 palette, no dither)
+
+palette logo (index: RGB, 5-bit steps):
+   1 keyline plum         90,16,115 (5-bit 11,2,14)
+   2 gum deep             165,33,156 (5-bit 20,4,19)
+   3 gum mid              255,82,181 (5-bit 31,10,22)
+   4 gum light            255,156,214 (5-bit 31,19,26)
+   5 warm cream highlight 255,231,189 (5-bit 31,28,23)
+   6 specular white       255,255,255 (5-bit 31,31,31)
+   7 under shadow         24,8,49 (5-bit 3,1,6)
+   8 outer line           8,8,24 (5-bit 1,1,3)
+   9 cool rim light       99,222,255 (5-bit 12,27,31)
+  10 violet rim step      115,90,231 (5-bit 14,11,28)
+colours used: 10 of 15
+unique 16x16 tiles, flips reused: still (frame 3) 82; body layer over all 10 frames 123; free pieces 7; total 130
+draft round: 79 still, 155 over 10 frames. Grid offset search: 138 tiles at offset 0,0 -> 123 at offset x 5, y 2 (body, flips reused).
+sprites: 20 strips of 16 px for the body; at most 20 of them on one scanline; worst scanline with free pieces: 24 (frame 6, screen y 41). The title also shows two Sootlings (4 strips). Hardware limit 96 per scanline.
+layer top left on screen: x -13, y -8. Strips (index: screen x, screen y of first tile, tiles tall):
+  1: x 3 y 40 h 4 | 2: x 19 y 40 h 4 | 3: x 35 y 40 h 4 | 4: x 51 y 40 h 4 | 5: x 67 y 40 h 5
+  6: x 83 y 40 h 5 | 7: x 99 y 40 h 4 | 8: x 115 y 40 h 4 | 9: x 131 y 40 h 4 | 10: x 147 y 40 h 4
+  11: x 163 y 24 h 5 | 12: x 179 y 24 h 5 | 13: x 195 y 24 h 5 | 14: x 211 y 40 h 4 | 15: x 227 y 40 h 4
+  16: x 243 y 40 h 4 | 17: x 259 y 40 h 4 | 18: x 275 y 40 h 4 | 19: x 291 y 40 h 4 | 20: x 307 y 40 h 4
+free pieces per frame (screen x, y of the 16x16 tile): 
+  frame 6: (191,29) (183,21) (170,21) (162,30) (166,41) (178,45) (189,40) (66,103)
+  frame 7: (197,31) (185,19) (167,20) (156,32) (161,47) (178,53) (194,46) (66,110)
+  frame 8: (202,36) (165,22) (157,56) (198,54) (66,121)
+  frame 9: (66,136)
+frame times in the GIF (ms): 110 110 110 110 110 260 90 90 110 200
+separation, outermost gum pixels against the sky they cover (RGB distance: mean, 10th percentile, share under 80):
+  moon  before 177.0 102.1  5.0%   after 171.8  90.1  6.1%
+  dusk  before 157.7  81.3  3.6%   after 156.5  80.3  9.9%
+  storm before 211.5 137.5  0.7%   after 204.3 122.4  0.4%
+dark envelope: keyline 1 px + outer line 1 px before; keyline 1 px + outer line 2 px after; under shadow offset 2,3 -> 3,4 and darker.
+
+FONT A, Gumdrop (fix tiles, 8x8, 15 colours + transparent per palette)
+
+tiles: 52 plain glyph tiles (26 letters, 10 digits, 12 punctuation and arrows, heart, gum, Sootling icon = 2 tiles) + 20 tall digit tiles + 72 backed copies of both + 13 plate, panel and rule tiles = 157
+minimum for HUD row 27 alone: 12 letters (HIGSCOREUNDT) + 10 digits backed + 4 plate tiles = 26 extra tiles instead of 72.
+sheet fix_sheet_1x.png: 128 x 96 px, 16 tiles per row, tile index = row * 16 + column, drawn in the white palette, transparent = 255,0,255.
+rule: backed copy of a tile = its index + 96 (letters, digits, punctuation, icons, tall digits). Tall digit: top tile at 64 + digit, bottom tile at 80 + digit.
+character map (tile index: character):
+    0: A     1: B     2: C     3: D     4: E     5: F     6: G     7: H
+    8: I     9: J    10: K    11: L    12: M    13: N    14: O    15: P
+   16: Q    17: R    18: S    19: T    20: U    21: V    22: W    23: X
+   24: Y    25: Z    26: 0    27: 1    28: 2    29: 3    30: 4    31: 5
+   32: 6    33: 7    34: 8    35: 9    36: .    37: ,    38: :    39: !
+   40: ?    41: -    42: '    43: /    44: <    45: >    46: arrow up    47: arrow down
+   48: heart    49: gum bubble    50: Sootling left    51: Sootling right    52: capL    53: capR    54: joint    55: fill
+   56: f_tl    57: f_t    58: f_tr    59: f_l    60: f_r    61: f_bl    62: f_b    63: f_br
+   64: tall 0 top    65: tall 1 top    66: tall 2 top    67: tall 3 top    68: tall 4 top    69: tall 5 top    70: tall 6 top    71: tall 7 top
+   72: tall 8 top    73: tall 9 top    74: rule    80: tall 0 bottom    81: tall 1 bottom    82: tall 2 bottom    83: tall 3 bottom    84: tall 4 bottom
+   85: tall 5 bottom    86: tall 6 bottom    87: tall 7 bottom    88: tall 8 bottom    89: tall 9 bottom
+  96..147: backed copies of 0..51; 160..169 and 176..185: backed tall digits; 148..159, 75..79, 90..95, 170..175, 186..191 unused.
+palette slots: 1..4 face light to deep, 5 shadow, 6..8 heart, 9..11 gum, 12 white, 13 soot navy (also plate and panel fill), 14 soot blue, 15 ember
+palette text white: 255,255,255 222,231,255 165,181,239 107,115,198 16,8,41 132,16,49 231,49,66 255,148,148 181,41,165 255,82,181 255,165,222 255,255,255 24,24,74 82,148,181 255,198,90
+palette text pink : 255,239,247 255,181,222 255,115,189 214,57,148 41,8,41 132,16,49 231,49,66 255,148,148 181,41,165 255,82,181 255,165,222 255,255,255 24,24,74 82,148,181 255,198,90
+palette text lime : 247,255,222 189,247,132 107,222,82 33,156,74 8,33,33 132,16,49 231,49,66 255,148,148 16,140,74 82,214,74 173,247,123 255,255,255 24,24,74 82,148,181 255,198,90
+palette text gold : 255,255,214 255,231,115 255,181,49 214,107,24 49,16,16 132,16,49 231,49,66 255,148,148 181,41,165 255,82,181 255,165,222 255,255,255 24,24,74 82,148,181 255,198,90
+palette text dim  : 156,165,206 123,132,181 90,99,148 66,66,115 16,8,41 132,16,49 231,49,66 255,148,148 181,41,165 255,82,181 255,165,222 255,255,255 24,24,74 82,148,181 255,198,90
+  5-bit steps: every channel value above is v5 * 8 + v5 / 4 (integer), v5 = value >> 3; for example white palette: 31,31,31 27,28,31 20,22,29 13,14,24 2,1,5 16,2,6 28,6,8 31,18,18 22,5,20 31,10,22 31,20,27 31,31,31 3,3,9 10,18,22 31,24,11
+look-alike check, differing pixels between the two 7x7 bitmaps (before -> after):
+  O/0 3 -> 14   M/W 10 -> 15   I/1 5 -> 11   S/5 13 -> 13   B/8 3 -> 13   Z/2 14 -> 9   G/6 4 -> 7   D/O 8 -> 8   C/G 6 -> 6   O/Q 5 -> 5
+  closest pairs after: G/O 4  I/T 4  M/N 4  E/F 5  H/N 5  O/Q 5  O/U 5  B/G 6  B/O 6  C/G 6  C/O 6  F/P 6
+  closest pairs before: B/8 3  O/0 3  G/6 4  G/O 4  I/T 4  M/N 4  S/8 4  3/8 5  6/8 5  8/9 5  E/F 5  G/0 5
+  there is no lower case, so 1, I and l reduce to 1 and I.
+
+HUD layout 2, Corner tags (fix rows 0, 1 and 27 only, no band, no sprites)
+
+gap = mean luminance of the glyph face pixels minus the 90th percentile luminance of all other pixels in the same 8x8 cell of the finished picture
+(shadow, plate or backdrop). Negative means the backdrop is brighter than the glyph. Luminance = 0.299 R + 0.587 G + 0.114 B, 0..255.
+row 27 was measured over 3 moods x 4 hazard kinds (spikes, water, lava, fire from hazards-final) x 16 frames = 192 backdrops.
+row 27 worst cell per mood and hazard, before (draft, unbacked) -> after (plates):
+  moon  spikes before   18.6 (column  8, frame  0)   after  182.1 (column 22, U (white))
+  moon  water  before   26.3 (column 24, frame  0)   after  182.1 (column 22, U (white))
+  moon  lava   before   20.0 (column 33, frame  1)   after  182.1 (column 22, U (white))
+  moon  fire   before   -5.3 (column 33, frame  2)   after  182.1 (column 22, U (white))
+  dusk  spikes before   18.6 (column  8, frame  0)   after  182.1 (column 22, U (white))
+  dusk  water  before   26.3 (column 24, frame  0)   after  182.1 (column 22, U (white))
+  dusk  lava   before   20.0 (column 33, frame  1)   after  182.1 (column 22, U (white))
+  dusk  fire   before   -5.3 (column 33, frame  2)   after  182.1 (column 22, U (white))
+  storm spikes before   18.6 (column  8, frame  0)   after  182.1 (column 22, U (white))
+  storm water  before   26.3 (column 24, frame  0)   after  182.1 (column 22, U (white))
+  storm lava   before   20.0 (column 33, frame  1)   after  182.1 (column 22, U (white))
+  storm fire   before   -5.3 (column 33, frame  2)   after  182.1 (column 22, U (white))
+row 27 worst cell overall: before -5.3 (dusk, fire, frame 2, column 33); after 182.1 (dusk, fire, frame 0, column 22, U (white)). Cells under 70: before 1119 of 5568, after 0 of 5568.
+rows 0 and 1 stay unbacked (sky open). Worst cell per mood (dim PLAYER 2 label left out):
+  moon    94.5  row 1 column 32, 0 (white), background scene, two players
+  dusk   112.6  row 1 column 37, 0 (white), background scene, two players
+  storm   38.7  row 0 column 10, L (pink), background scene, one player
+rows 0 and 1 cells under 70 per mood: moon 0, dusk 0, storm 18
+rows 0 and 1 cells under 70: 18 of 402
+fix cells drawn: two players 79, one player 76; unique tiles used by the two player HUD: 39
+
+MOCK-UPS
+
+every screen is built as a 40x28 grid with one tile and one palette per cell; 93 of the 157 tiles are used by the five screens.
+fix cells: title 55, results 739, name entry 768.
+title sprites: logo body 20 strips + up to 7 free pieces + 2 Sootlings (4 strips).
+score values on the results screen are placeholders (the design fixes "points for stomps and wins", no values).
+fix layer facts used: 8x8 tiles, 40x28 visible cells, 15 colours + transparent per palette, in front of all sprites, no flip, no scaling, no scroll.

@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>Gumbirds: round clear banner, second final</title>
+<style>
+body { background: #e6e7ea; color: #23252b; font-family: Helvetica, Arial, sans-serif; margin: 24px; line-height: 1.45; }
+h1 { font-size: 22px; margin: 0 0 6px; } h2 { font-size: 17px; margin: 34px 0 6px; color: #101114; }
+p { margin: 4px 0 10px; max-width: 1300px; } .num { color: #4c4f59; font-size: 14px; }
+img { image-rendering: pixelated; image-rendering: crisp-edges; image-rendering: pixelated; display: block; border: 1px solid #9a9ca6; background: #000; }
+.row { display: flex; flex-wrap: wrap; gap: 14px; margin: 8px 0 4px; } .cell { font-size: 13px; color: #4c4f59; }
+table { border-collapse: collapse; font-size: 14px; margin: 6px 0 12px; background: #f4f5f7; } td, th { border: 1px solid #b4b6be; padding: 4px 10px; text-align: left; }
+th { color: #101114; font-weight: 600; }
+</style></head><body>
+<h1>Gumbirds: round clear banner, second final</h1>
+<p>The panel now has its full size from the first frame and never changes size; text and icons arrive inside it.
+Shown while play is frozen for 2 seconds (120 frames) after a round ends. Fix layer only, Gumdrop font, 320 x 224 shown at 2x.
+Backdrops are the HUD mock-ups, not MAME screenshots. Build data: banner_spec.txt. Measurements: numbers.txt.</p>
+<p class="num">Cost: 1 new tile (pop burst), 0 new palettes, 176 fix cells. Most cell writes in one frame: 60 (split draw).
+Panel box measured on 4320 rendered frames: x 72 to 247, y 80 to 143 on every one. Worst text cell contrast: dusk 119, moon 119, storm 119.</p>
+
+<h2>Player 1 wins, on the three sky moods (animated)</h2><div class="row">
+<div class="cell"><img src="anim_p1_round02_dusk_1x.gif" width="640" height="448" alt="anim_p1_round02_dusk_1x.gif">dusk</div>
+<div class="cell"><img src="anim_p1_round02_moon_1x.gif" width="640" height="448" alt="anim_p1_round02_moon_1x.gif">moon</div>
+<div class="cell"><img src="anim_p1_round02_storm_1x.gif" width="640" height="448" alt="anim_p1_round02_storm_1x.gif">storm</div>
+</div>
+<h2>Timeline</h2><table><tr><th>Frame</th><th>What happens</th></tr><tr><td>0 to 2</td><td>The whole panel is drawn at its final size: outline on frame 0, navy plate on frames 1 and 2. It waits with a pink rule, a dim dot where each headline letter will land, and dim dashes where the two text lines will come.</td></tr><tr><td>4 to 52</td><td>ALL POPPED! letter by letter, a new letter every 4 frames: gum bubble, pop burst, white flash, pink (4 frames each).</td></tr><tr><td>56</td><td>Winner line appears in white.</td></tr><tr><td>60</td><td>Winner line takes the winner colour.</td></tr><tr><td>68</td><td>ROUND and the zero-padded round number (or MATCH OVER after the last round) appear in white, then swap white and gold every 8 frames.</td></tr><tr><td>92 to 119</td><td>The line stays gold.</td></tr><tr><td>120</td><td>Freeze over, banner cleared.</td></tr></table>
+<h2>Constant panel size: key frames 0, 4, 24, 48, 56, 72, 119</h2><p>Banner area, dusk. The light blue ticks in each label mark the first and last pixel column of the panel (x 72 and 247): the same on every frame. Left: ROUND 02. Right: last round, MATCH OVER.</p>
+<div class="row"><div class="cell"><img src="key_frames_dusk_1x.png" width="648" height="1280" alt="key_frames_dusk_1x.png">ROUND 02</div><div class="cell"><img src="key_frames_matchover_dusk_1x.png" width="648" height="1280" alt="key_frames_matchover_dusk_1x.png">MATCH OVER</div></div>
+<h2>The first three frames (split draw)</h2><p>Frame 0 writes the outline (56 cells), frame 1 every second column of the plate (60), frame 2 the rest (60). The box is the final size on all three; frames 0 and 1 last one sixtieth of a second each. Bottom picture: the alternative, all 176 cells on frame 0.</p>
+<div class="row"><div class="cell"><img src="first_frames_dusk_1x.png" width="648" height="734" alt="first_frames_dusk_1x.png"></div><div class="cell"><img src="letter_stages_8x.png" width="416" height="96" alt="letter_stages_8x.png">one headline cell at 8x: waiting dot, gum bubble, pop burst (the one new tile), white flash, pink</div></div>
+<h2>The other cases (animated)</h2><div class="row">
+<div class="cell"><img src="anim_p2_round02_moon_1x.gif" width="640" height="448" alt="anim_p2_round02_moon_1x.gif">Player 2 wins, lime (moon)</div>
+<div class="cell"><img src="anim_cpu_round02_storm_1x.gif" width="640" height="448" alt="anim_cpu_round02_storm_1x.gif">Computer bird wins: COMPUTER WINS, white (storm)</div>
+<div class="cell"><img src="anim_draw_round02_dusk_1x.gif" width="640" height="448" alt="anim_draw_round02_dusk_1x.gif">No survivor: NO SURVIVORS, dim blue, no bird icon (dusk)</div>
+<div class="cell"><img src="anim_p1_round12_moon_1x.gif" width="640" height="448" alt="anim_p1_round12_moon_1x.gif">Two-digit round: ROUND 12 (moon)</div>
+<div class="cell"><img src="anim_p1_matchover_dusk_1x.gif" width="640" height="448" alt="anim_p1_matchover_dusk_1x.gif">Last round of the match: MATCH OVER, gold (dusk)</div>
+</div>
+<h2>Last frame, every case on every sky mood</h2>
+<p>Player 1 wins</p><div class="row">
+<div class="cell"><img src="still_p1_round02_dusk_1x.png" width="640" height="448" alt="still_p1_round02_dusk_1x.png">dusk</div>
+<div class="cell"><img src="still_p1_round02_moon_1x.png" width="640" height="448" alt="still_p1_round02_moon_1x.png">moon</div>
+<div class="cell"><img src="still_p1_round02_storm_1x.png" width="640" height="448" alt="still_p1_round02_storm_1x.png">storm</div>
+</div>
+<p>Player 2 wins</p><div class="row">
+<div class="cell"><img src="still_p2_round02_dusk_1x.png" width="640" height="448" alt="still_p2_round02_dusk_1x.png">dusk</div>
+<div class="cell"><img src="still_p2_round02_moon_1x.png" width="640" height="448" alt="still_p2_round02_moon_1x.png">moon</div>
+<div class="cell"><img src="still_p2_round02_storm_1x.png" width="640" height="448" alt="still_p2_round02_storm_1x.png">storm</div>
+</div>
+<p>The computer bird wins</p><div class="row">
+<div class="cell"><img src="still_cpu_round02_dusk_1x.png" width="640" height="448" alt="still_cpu_round02_dusk_1x.png">dusk</div>
+<div class="cell"><img src="still_cpu_round02_moon_1x.png" width="640" height="448" alt="still_cpu_round02_moon_1x.png">moon</div>
+<div class="cell"><img src="still_cpu_round02_storm_1x.png" width="640" height="448" alt="still_cpu_round02_storm_1x.png">storm</div>
+</div>
+<p>No survivor (draw)</p><div class="row">
+<div class="cell"><img src="still_draw_round02_dusk_1x.png" width="640" height="448" alt="still_draw_round02_dusk_1x.png">dusk</div>
+<div class="cell"><img src="still_draw_round02_moon_1x.png" width="640" height="448" alt="still_draw_round02_moon_1x.png">moon</div>
+<div class="cell"><img src="still_draw_round02_storm_1x.png" width="640" height="448" alt="still_draw_round02_storm_1x.png">storm</div>
+</div>
+<p>Player 1 wins, round 12</p><div class="row">
+<div class="cell"><img src="still_p1_round12_dusk_1x.png" width="640" height="448" alt="still_p1_round12_dusk_1x.png">dusk</div>
+<div class="cell"><img src="still_p1_round12_moon_1x.png" width="640" height="448" alt="still_p1_round12_moon_1x.png">moon</div>
+<div class="cell"><img src="still_p1_round12_storm_1x.png" width="640" height="448" alt="still_p1_round12_storm_1x.png">storm</div>
+</div>
+<p>Player 1 wins, last round: MATCH OVER</p><div class="row">
+<div class="cell"><img src="still_p1_matchover_dusk_1x.png" width="640" height="448" alt="still_p1_matchover_dusk_1x.png">dusk</div>
+<div class="cell"><img src="still_p1_matchover_moon_1x.png" width="640" height="448" alt="still_p1_matchover_moon_1x.png">moon</div>
+<div class="cell"><img src="still_p1_matchover_storm_1x.png" width="640" height="448" alt="still_p1_matchover_storm_1x.png">storm</div>
+</div>
+<h2>Centre line proof</h2><p>Light blue line: screen centre (between pixel 159 and 160). Yellow marks: first and last ink column of each line, shadow included. Every line has an even cell count, so every cell box is centred exactly. From top to bottom: player 1, player 2, computer, no survivors, round 12, match over.</p>
+<div class="row"><div class="cell"><img src="centre_proof_dusk_2x.png" width="640" height="980" alt="centre_proof_dusk_2x.png"></div></div>
+<table><tr><th>Case</th><th>Line</th><th>Cells</th><th>Ink margin left / right (pixels)</th><th>Face margin left / right</th></tr>
+<tr><td>p1_round02</td><td>headline</td><td>20</td><td>80 / 83</td><td>80 / 84</td></tr>
+<tr><td>p1_round02</td><td>winner</td><td>16</td><td>98 / 96</td><td>98 / 97</td></tr>
+<tr><td>p1_round02</td><td>round</td><td>8</td><td>128 / 128</td><td>128 / 129</td></tr>
+<tr><td>p2_round02</td><td>headline</td><td>20</td><td>80 / 83</td><td>80 / 84</td></tr>
+<tr><td>p2_round02</td><td>winner</td><td>16</td><td>98 / 96</td><td>98 / 97</td></tr>
+<tr><td>p2_round02</td><td>round</td><td>8</td><td>128 / 128</td><td>128 / 129</td></tr>
+<tr><td>cpu_round02</td><td>headline</td><td>20</td><td>80 / 83</td><td>80 / 84</td></tr>
+<tr><td>cpu_round02</td><td>winner</td><td>16</td><td>98 / 96</td><td>98 / 97</td></tr>
+<tr><td>cpu_round02</td><td>round</td><td>8</td><td>128 / 128</td><td>128 / 129</td></tr>
+<tr><td>draw_round02</td><td>headline</td><td>20</td><td>80 / 83</td><td>80 / 84</td></tr>
+<tr><td>draw_round02</td><td>winner</td><td>12</td><td>112 / 112</td><td>112 / 113</td></tr>
+<tr><td>draw_round02</td><td>round</td><td>8</td><td>128 / 128</td><td>128 / 129</td></tr>
+<tr><td>p1_round12</td><td>headline</td><td>20</td><td>80 / 83</td><td>80 / 84</td></tr>
+<tr><td>p1_round12</td><td>winner</td><td>16</td><td>98 / 96</td><td>98 / 97</td></tr>
+<tr><td>p1_round12</td><td>round</td><td>8</td><td>128 / 128</td><td>128 / 129</td></tr>
+<tr><td>p1_matchover</td><td>headline</td><td>20</td><td>80 / 83</td><td>80 / 84</td></tr>
+<tr><td>p1_matchover</td><td>winner</td><td>16</td><td>98 / 96</td><td>98 / 97</td></tr>
+<tr><td>p1_matchover</td><td>match over</td><td>10</td><td>120 / 120</td><td>120 / 121</td></tr>
+</table>
+<h2>Contrast per sky mood</h2><table><tr><th>Mood</th><th>Worst text cell</th><th>Winner line by colour (worst cell)</th><th>MATCH OVER, gold</th></tr>
+<tr><td>dusk</td><td>119</td><td>pink 195, lime 201, white 212, dim 119</td><td>206</td></tr>
+<tr><td>moon</td><td>119</td><td>pink 195, lime 201, white 212, dim 119</td><td>206</td></tr>
+<tr><td>storm</td><td>119</td><td>pink 195, lime 201, white 212, dim 119</td><td>206</td></tr>
+</table><p class="num">Scale 0 to 255; under 90 is hard to read at 1x. Text sits on the navy plate of its own tile, so the sky does not change it.</p>
+</body></html>

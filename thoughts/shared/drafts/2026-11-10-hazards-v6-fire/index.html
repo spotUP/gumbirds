@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Fire hazard: v4, v5, v6</title>
+<style>
+  body { margin: 0; padding: 28px 32px 48px; background: #17181c; color: #d6d8de; font: 15px/1.5 -apple-system, "Helvetica Neue", Arial, sans-serif; }
+  h1 { font-size: 22px; font-weight: 600; margin: 0 0 4px; color: #f1f2f5; }
+  h2 { font-size: 16px; font-weight: 600; margin: 34px 0 10px; color: #f1f2f5; border-bottom: 1px solid #34363e; padding-bottom: 6px; }
+  p { margin: 0 0 12px; max-width: 900px; }
+  img { image-rendering: pixelated; display: block; max-width: 100%; border: 1px solid #34363e; background: #0a0c22; }
+  .row { display: flex; flex-wrap: wrap; gap: 20px; }
+  figure { margin: 0; }
+  figcaption { margin-top: 6px; font-size: 13px; color: #a3a7b3; }
+  table { border-collapse: collapse; margin: 6px 0 12px; }
+  th, td { text-align: right; padding: 4px 14px 4px 0; border-bottom: 1px solid #2b2d34; font-size: 14px; }
+  th:first-child, td:first-child { text-align: left; }
+  th { color: #a3a7b3; font-weight: 500; }
+</style>
+</head>
+<body>
+<h1>Fire hazard, version 6</h1>
+<p>Three changes against version 5: a sharp leaning tip, a tall flame that moves between four places, and no smoke. Same scene, same strip height (32 pixels), same 16 frames at 4 video frames each.</p>
+<p>View at 100 percent browser zoom.</p>
+
+<h2>Animation: version 4, version 5, version 6</h2>
+<div class="row">
+  <figure><img src="../2026-11-10-hazards-v4/anim_B_16f_4x.gif" alt="Fire version 4"><figcaption>Version 4</figcaption></figure>
+  <figure><img src="../2026-11-10-hazards-v5-fire/anim_B_16f_4x.gif" alt="Fire version 5"><figcaption>Version 5</figcaption></figure>
+  <figure><img src="anim_B_16f_4x.gif" alt="Fire version 6"><figcaption>Version 6 (new)</figcaption></figure>
+</div>
+
+<h2>Still in the scene, frame 2</h2>
+<div class="row">
+  <figure><img src="../2026-11-10-hazards-v4/scene_B_3x.png" alt="Scene with fire version 4"><figcaption>Version 4</figcaption></figure>
+  <figure><img src="../2026-11-10-hazards-v5-fire/scene_B_3x.png" alt="Scene with fire version 5"><figcaption>Version 5</figcaption></figure>
+  <figure><img src="scene_B_3x.png" alt="Scene with fire version 6"><figcaption>Version 6 (new)</figcaption></figure>
+</div>
+
+<h2>Measured, embers excluded, same measure on all three</h2>
+<table>
+  <tr><th>Version</th><th>Tallest tongue, mean</th><th>Lowest</th><th>Highest</th><th>Second tongue, mean</th><th>Smallest gap, tallest to second</th><th>Flame pixels per tile, mean</th><th>Taper, mean</th><th>Tip width, mean</th></tr>
+  <tr><td>Version 4</td><td>18.2</td><td>14</td><td>22</td><td>14.6</td><td>0 (frames 4, 5, 8)</td><td>334</td><td>0.73</td><td>5.8</td></tr>
+  <tr><td>Version 5</td><td>21.3</td><td>20</td><td>23</td><td>13.4</td><td>5</td><td>392</td><td>0.51</td><td>5.3</td></tr>
+  <tr><td>Version 6</td><td>21.6</td><td>19</td><td>23</td><td>15.2</td><td>2</td><td>403</td><td>0.38</td><td>2.9</td></tr>
+</table>
+<p>Heights are pixels above the coal line. The coal bed takes the lowest 7 rows of the strip, so 25 is the most a flame can reach. Taper is the width of the tallest tongue at 70 percent of its height divided by its width at 25 percent: lower is sharper. Tip width is the width in pixels at 90 percent of its height.</p>
+
+<h2>Where the tall flame stands, frame by frame</h2>
+<table>
+  <tr><th>Frames</th><th>15, 0, 1, 2</th><th>3, 4, 5, 6</th><th>7, 8, 9, 10</th><th>11, 12, 13, 14</th></tr>
+  <tr><td>Tile</td><td>B</td><td>A</td><td>B</td><td>A</td></tr>
+  <tr><td>Position in the 128 pixel pair</td><td>109 to 112</td><td>6 to 12</td><td>83 to 85</td><td>36 to 41</td></tr>
+</table>
+<p>Version 5 kept the tall flame at position 5 to 10 in all 16 frames.</p>
+
+<h2>All 16 frames of version 6</h2>
+<figure><img src="frames_B_16_3x.png" alt="All 16 frames of fire version 6"><figcaption>Each frame in the scene, full width, 3x</figcaption></figure>
+
+<h2>Tile sheet, version 6</h2>
+<figure><img src="frames_B_1x.png" alt="Tile sheet of fire version 6" style="width: 100%; max-width: 1024px;"><figcaption>Frames as tiles: upper row tile A, lower row tile B</figcaption></figure>
+
+<h2>All 16 frames of version 5, for comparison</h2>
+<figure><img src="../2026-11-10-hazards-v5-fire/frames_B_16_3x.png" alt="All 16 frames of fire version 5"><figcaption>Version 5, each frame in the scene, 3x</figcaption></figure>
+</body>
+</html>

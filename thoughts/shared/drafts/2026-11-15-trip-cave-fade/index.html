@@ -1,0 +1,23 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Trip cave fade</title>
+<style>
+body{background:#16131f;color:#e4e0ee;font:15px/1.5 system-ui,sans-serif;margin:24px;max-width:1000px}
+h1{font-size:22px}h2{font-size:17px;margin-top:32px;border-bottom:1px solid #3a3350;padding-bottom:4px}
+img{image-rendering:pixelated;display:block;margin:8px 0;max-width:100%;border:1px solid #3a3350}
+p{color:#b9b2cc;margin:4px 0}
+</style></head><body>
+<h1>Trip cave: fade to black (hand-typed rows)</h1>
+<p>Floor: lip, 1 fill row, fade A, fade B, darkest gum. Roof: rim, fade A, fade B, black. Numbers in numbers.txt, pixels in cave_fade_art.py.</p>
+<h2>Fade tiles, 1x and 3x</h2>
+<p>Top: floor (fill, A, B, solid). Middle: roof (black, B, A, fill, rim). Bottom: roof as placed, without the fill row.</p>
+<img src="tiles_1x.png" alt="fade tiles 1x"><img src="tiles_3x.png" alt="fade tiles 3x">
+<h2>v3 mock with the fade, 320x224 at 3x</h2>
+<img src="mock_a_3x.png" alt="mock a"><img src="mock_b_3x.png" alt="mock b"><img src="mock_c_3x.png" alt="mock c">
+<h2>Still from the scroll (lip frame 3, scroll x 760)</h2>
+<img src="scroll_still_3x.png" alt="scroll still">
+<h2>Demo: roof pushed 32 px down</h2>
+<p>Not the seed 6 sequence. With seed 6 the roof is at most 32 px deep, so roof fade B never reaches the screen. This shows both roof rows.</p>
+<img src="demo_deep_roof_3x.png" alt="deep roof demo">
+<h2>Alternative: fade at fixed screen rows</h2>
+<p>Same tiles. Fade A always at row 192, B at row 208, fill rows above. No step in the fade under slopes, but a taller gum wall.</p>
+<img src="alt_fixed_rows_mock_c_3x.png" alt="fixed rows alternative">
+</body></html>

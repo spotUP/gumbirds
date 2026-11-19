@@ -1,0 +1,5 @@
+A_banner_strip: frames 7, new fix tiles 12, new 16x16 sprite tiles 5, sprite columns max 12, screen colours 151
+B_centre_card: frames 7, new fix tiles 14, new 16x16 sprite tiles 5, sprite columns max 10, screen colours 149
+C_three_steps: frames 4, new fix tiles 12, new 16x16 sprite tiles 5, sprite columns max 20, screen colours 138
+B_centre_card_flap_dash: frames 4, new fix tiles 18, new 16x16 sprite tiles 1, sprite columns max 5, screen colours 146
+icon sheet (A B C up and down, stick): 28 unique fix tiles

@@ -1,0 +1,64 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Gum Trip endless planes</title><style>
+body{background:#1a1c21;color:#d9dce3;font-family:Helvetica,Arial,sans-serif;font-size:15px;line-height:1.45;margin:24px 32px}
+h1{font-size:24px;font-weight:600;margin:0 0 8px}h2{font-size:19px;font-weight:600;margin:40px 0 10px;border-top:1px solid #3a3e48;padding-top:18px}
+h3{font-size:15px;font-weight:600;margin:22px 0 6px;color:#aeb4c2}
+img{image-rendering:pixelated;max-width:100%;height:auto;display:block;border:1px solid #3a3e48}
+table{border-collapse:collapse;margin:8px 0 14px}td,th{border:1px solid #3a3e48;padding:4px 10px;text-align:left;font-variant-numeric:tabular-nums}
+th{background:#252830;font-weight:600}p{max-width:980px;margin:6px 0}.cap{color:#aeb4c2;margin:14px 0 4px}
+</style></head><body>
+<h1>Gum Trip endless background planes</h1>
+<p>Draft for task T-B4b, step 1. Each parallax plane keeps its arena width and is redrawn at the join so that its right end continues into its left end. The sky does not move. Scroll is to the right at the capped speed of 1.0 pixel per frame.</p>
+<p>Speeds in pixels per frame: sky 0, clouds back 0.0625, clouds front 0.125, far 0.25, mid A 0.5, mid B 0.75, near 1.0, hazard strip 1.0, airship 0.1 leftward. The animations run at 20 frames per second with 3 pixels of scroll per frame: the speed is true, the motion is coarser than on the machine. They are 9.6 seconds long and jump back at the end (the planes repeat at different distances, so no short animation closes).</p>
+<p>Seam measure 1: rows in which the last and the first pixel column of a plane differ, compared with all neighbouring column pairs inside the plane. Seam measure 2 (far, mid A, mid B): the skyline is drawn 64 pixels past the end of the ring; count of those columns that differ from the first 64 columns of the ring, over all 8 animation frames.</p>
+<p>Unique 16 x 16 tiles for far, mid A, mid B and near together: ring 694, arena 685; 48 ring tiles are not in the arena set. Columns changed against the arena planes: far 0, 335; mid A 0, 335..351; mid B 0, 335..367; near 332..342, 347..357, 362..383.</p>
+<h2>Clear night, moon</h2>
+<img src="trip_moon_3x.gif" width="960" height="672" alt="moon trip scroll">
+<table><tr><th>Plane</th><th>Loop width</th><th>Unique tiles</th><th>Palettes (colours)</th><th>Seam measure 1</th><th>Seam measure 2</th></tr>
+<tr><td>sky</td><td>320, still</td><td>165</td><td>1 (11 distinct)</td><td>not a ring</td><td>-</td></tr>
+<tr><td>far</td><td>336</td><td>95</td><td>1 (10 distinct)</td><td>3 of 80 rows (before 5); 250 of 335 interior pairs as large</td><td>0 of 64</td></tr>
+<tr><td>midA</td><td>352</td><td>149</td><td>3 (19 distinct)</td><td>39 of 64 rows (before 41); 39 of 351 interior pairs as large</td><td>0 of 64</td></tr>
+<tr><td>midB</td><td>368</td><td>184</td><td>3 (21 distinct)</td><td>44 of 64 rows (before 60); 16 of 367 interior pairs as large</td><td>0 of 64</td></tr>
+<tr><td>near</td><td>384</td><td>266</td><td>3 (26 distinct)</td><td>61 of 96 rows (before 65); 41 of 383 interior pairs as large</td><td>n/a</td></tr>
+<tr><td>cloudsfront</td><td>320 (unchanged)</td><td>45</td><td>1 (4 distinct)</td><td>0 of 32 rows; end columns empty</td><td>n/a</td></tr>
+<tr><td>cloudsback</td><td>160 (unchanged)</td><td>32</td><td>1 (4 distinct)</td><td>0 of 32 rows; end columns empty</td><td>n/a</td></tr>
+</table>
+<p>Scenery sprites per 16 lines from the top (ring-valid trim): 20 20 20 25 35 49 62 63 65 47 47 24 24 24. Worst 65, with the gameplay reserve of 24: 89 of 90.</p>
+<p class="cap">far, tiled twice at 2x. The join is at the centre, under the yellow ticks.</p><img src="join_moon_far_2x.png" alt="far join">
+<p class="cap">midA, tiled twice at 2x. The join is at the centre, under the yellow ticks.</p><img src="join_moon_midA_2x.png" alt="midA join">
+<p class="cap">midB, tiled twice at 2x. The join is at the centre, under the yellow ticks.</p><img src="join_moon_midB_2x.png" alt="midB join">
+<p class="cap">near, tiled twice at 2x. The join is at the centre, under the yellow ticks.</p><img src="join_moon_near_2x.png" alt="near join">
+<p class="cap">cloudsfront, tiled twice at 2x. The join is at the centre, under the yellow ticks.</p><img src="join_moon_cloudsfront_2x.png" alt="cloudsfront join">
+<p class="cap">cloudsback, tiled twice at 2x. The join is at the centre, under the yellow ticks.</p><img src="join_moon_cloudsback_2x.png" alt="cloudsback join">
+<h2>Storm, rain and search beams</h2>
+<img src="trip_storm_3x.gif" width="960" height="672" alt="storm trip scroll">
+<table><tr><th>Plane</th><th>Loop width</th><th>Unique tiles</th><th>Palettes (colours)</th><th>Seam measure 1</th><th>Seam measure 2</th></tr>
+<tr><td>sky</td><td>320, still</td><td>153</td><td>1 (9 distinct)</td><td>not a ring</td><td>-</td></tr>
+<tr><td>far</td><td>336</td><td>95</td><td>1 (10 distinct)</td><td>3 of 80 rows (before 5); 250 of 335 interior pairs as large</td><td>0 of 64</td></tr>
+<tr><td>midA</td><td>352</td><td>149</td><td>3 (19 distinct)</td><td>39 of 64 rows (before 41); 39 of 351 interior pairs as large</td><td>0 of 64</td></tr>
+<tr><td>midB</td><td>368</td><td>184</td><td>3 (21 distinct)</td><td>44 of 64 rows (before 60); 16 of 367 interior pairs as large</td><td>0 of 64</td></tr>
+<tr><td>near</td><td>384</td><td>266</td><td>3 (26 distinct)</td><td>61 of 96 rows (before 65); 41 of 383 interior pairs as large</td><td>n/a</td></tr>
+</table>
+<p>Scenery sprites per 16 lines from the top (ring-valid trim): 20 20 20 25 35 49 62 63 65 47 47 24 24 24. Worst 65, with the gameplay reserve of 24: 89 of 90.</p>
+<p class="cap">far, tiled twice at 2x. The join is at the centre, under the yellow ticks.</p><img src="join_storm_far_2x.png" alt="far join">
+<p class="cap">midA, tiled twice at 2x. The join is at the centre, under the yellow ticks.</p><img src="join_storm_midA_2x.png" alt="midA join">
+<p class="cap">midB, tiled twice at 2x. The join is at the centre, under the yellow ticks.</p><img src="join_storm_midB_2x.png" alt="midB join">
+<p class="cap">near, tiled twice at 2x. The join is at the centre, under the yellow ticks.</p><img src="join_storm_near_2x.png" alt="near join">
+<h2>Ember dusk, low sun</h2>
+<img src="trip_dusk_3x.gif" width="960" height="672" alt="dusk trip scroll">
+<table><tr><th>Plane</th><th>Loop width</th><th>Unique tiles</th><th>Palettes (colours)</th><th>Seam measure 1</th><th>Seam measure 2</th></tr>
+<tr><td>sky</td><td>320, still</td><td>156</td><td>1 (12 distinct)</td><td>not a ring</td><td>-</td></tr>
+<tr><td>far</td><td>336</td><td>95</td><td>1 (10 distinct)</td><td>3 of 80 rows (before 5); 250 of 335 interior pairs as large</td><td>0 of 64</td></tr>
+<tr><td>midA</td><td>352</td><td>149</td><td>3 (19 distinct)</td><td>39 of 64 rows (before 41); 39 of 351 interior pairs as large</td><td>0 of 64</td></tr>
+<tr><td>midB</td><td>368</td><td>184</td><td>3 (21 distinct)</td><td>44 of 64 rows (before 60); 16 of 367 interior pairs as large</td><td>0 of 64</td></tr>
+<tr><td>near</td><td>384</td><td>266</td><td>3 (26 distinct)</td><td>61 of 96 rows (before 65); 41 of 383 interior pairs as large</td><td>n/a</td></tr>
+<tr><td>cloudsfront</td><td>320 (unchanged)</td><td>45</td><td>1 (4 distinct)</td><td>0 of 32 rows; end columns empty</td><td>n/a</td></tr>
+<tr><td>cloudsback</td><td>160 (unchanged)</td><td>32</td><td>1 (4 distinct)</td><td>0 of 32 rows; end columns empty</td><td>n/a</td></tr>
+</table>
+<p>Scenery sprites per 16 lines from the top (ring-valid trim): 20 20 20 25 35 49 62 63 65 47 47 24 24 24. Worst 65, with the gameplay reserve of 24: 89 of 90.</p>
+<p class="cap">far, tiled twice at 2x. The join is at the centre, under the yellow ticks.</p><img src="join_dusk_far_2x.png" alt="far join">
+<p class="cap">midA, tiled twice at 2x. The join is at the centre, under the yellow ticks.</p><img src="join_dusk_midA_2x.png" alt="midA join">
+<p class="cap">midB, tiled twice at 2x. The join is at the centre, under the yellow ticks.</p><img src="join_dusk_midB_2x.png" alt="midB join">
+<p class="cap">near, tiled twice at 2x. The join is at the centre, under the yellow ticks.</p><img src="join_dusk_near_2x.png" alt="near join">
+<p class="cap">cloudsfront, tiled twice at 2x. The join is at the centre, under the yellow ticks.</p><img src="join_dusk_cloudsfront_2x.png" alt="cloudsfront join">
+<p class="cap">cloudsback, tiled twice at 2x. The join is at the centre, under the yellow ticks.</p><img src="join_dusk_cloudsback_2x.png" alt="cloudsback join">
+<h2>All numbers</h2><p>See numbers.txt and README.md in this folder.</p></body></html>

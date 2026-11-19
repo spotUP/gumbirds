@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Trip cave smooth fade</title>
+<style>
+body{background:#17131c;color:#e6e0ee;font-family:system-ui,sans-serif;margin:24px;line-height:1.45}
+h1{font-size:22px;margin:0 0 6px} h2{font-size:17px;margin:32px 0 8px;color:#ff9ac8}
+p{max-width:980px;margin:6px 0;color:#bdb3c9}
+.pair{display:flex;flex-wrap:wrap;gap:16px}
+figure{margin:0} figcaption{font-size:13px;color:#bdb3c9;margin-top:4px}
+img{image-rendering:pixelated;display:block;max-width:100%;border:1px solid #3a3044}
+</style></head><body>
+<h1>Trip cave: fade that follows the slope</h1>
+<p>Left: new sloped fade. Right: the stepped fade from the earlier gallery. All mocks 320x224 at 3x.
+Fill and fade bands keep one depth under the lip in every pixel column (fade starts 30 px under the lip surface, solid colour at 62 px).
+Cost: 19 floor tiles and 18 roof tiles, 2368 bytes per C-ROM file, on top of the 14 flat fade tiles. Lookup table in <a style="color:#8fd8ff" href="numbers.txt">numbers.txt</a> and <a style="color:#8fd8ff" href="fade_map.json">fade_map.json</a>.</p>
+
+<h2>Mock C: both curves (the stair cut was worst here)</h2>
+<div class="pair">
+<figure><img src="mock_c_3x.png" alt="mock C sloped fade"><figcaption>Sloped fade</figcaption></figure>
+<figure><img src="../2026-11-15-trip-cave-fade/mock_c_3x.png" alt="mock C stepped fade"><figcaption>Stepped fade (earlier)</figcaption></figure>
+</div>
+<h2>Mock A</h2>
+<div class="pair">
+<figure><img src="mock_a_3x.png" alt="mock A sloped fade"><figcaption>Sloped fade</figcaption></figure>
+<figure><img src="../2026-11-15-trip-cave-fade/mock_a_3x.png" alt="mock A stepped fade"><figcaption>Stepped fade (earlier)</figcaption></figure>
+</div>
+<h2>Mock B</h2>
+<div class="pair">
+<figure><img src="mock_b_3x.png" alt="mock B sloped fade"><figcaption>Sloped fade</figcaption></figure>
+<figure><img src="../2026-11-15-trip-cave-fade/mock_b_3x.png" alt="mock B stepped fade"><figcaption>Stepped fade (earlier)</figcaption></figure>
+</div>
+<h2>Deep roof demo (roof lowered 32 px so the roof fade shows)</h2>
+<div class="pair">
+<figure><img src="demo_deep_roof_3x.png" alt="deep roof sloped fade"><figcaption>Sloped fade</figcaption></figure>
+<figure><img src="../2026-11-15-trip-cave-fade/demo_deep_roof_3x.png" alt="deep roof stepped fade"><figcaption>Stepped fade (earlier)</figcaption></figure>
+</div>
+<h2>Scroll still (lip frame 3, mid scroll)</h2>
+<div class="pair">
+<figure><img src="scroll_still_3x.png" alt="scroll still sloped fade"><figcaption>Sloped fade</figcaption></figure>
+<figure><img src="../2026-11-15-trip-cave-fade/scroll_still_3x.png" alt="scroll still stepped fade"><figcaption>Stepped fade (earlier)</figcaption></figure>
+</div>
+<h2>Close-up of the curve pieces</h2>
+<figure><img src="closeup_3x.png" alt="close-up of curve pieces"><figcaption>Roof (deep) above; floor gentle curve left, steep curve right</figcaption></figure>
+<h2>Curve blocks with the new tiles</h2>
+<figure><img src="blocks_3x.png" alt="curve blocks"><figcaption>Each 48 px curve piece with its fill, fade and solid rows</figcaption></figure>
+</body></html>

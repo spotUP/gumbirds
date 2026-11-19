@@ -1,0 +1,10 @@
+Gum Fling field draft 2026-11-18
+floor: turf top y 160, 4 tile rows to 224 (first Trip chunk win_bottom 160, flat floor strip rows)
+turf: 32 x 64 px period, 8 unique tiles, palette roles used 10 of 15 defined (+ transparent), 3 mood palettes (swap only)
+puff: 5 frames of 32 x 16, 10 unique tiles, turf palette, roles used 10
+gear (chalk, pole, boards): 26 unique tiles (14 number faces 10..150 M without 50, 1 tile per extra 10 M), 1 palette, 15 colours
+total: 44 unique tiles, 2 palettes on screen (turf of the mood + gear); 4 palettes in ROM (3 turf + gear)
+sprites: turf 20 columns + 1 (scroll) of 4 tiles; per 10 M board 2 columns (board 2 tiles, line 4 tiles) or 1 column of 6;
+  11 boards on a 320 screen at 30 px pitch; mark board 3 tiles high; puff 2 columns of 1 tile
+turf roles used: a b c d e f g h k m s t u w
+gear roles used: C D G K L M N O R T U W Y n r

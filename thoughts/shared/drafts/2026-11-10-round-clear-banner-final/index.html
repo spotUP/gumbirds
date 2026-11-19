@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>Gumbirds: round clear banner, final</title>
+<style>
+body { background: #1b1c20; color: #d6d7dc; font-family: Helvetica, Arial, sans-serif; margin: 24px; line-height: 1.45; }
+h1 { font-size: 22px; margin: 0 0 6px; } h2 { font-size: 17px; margin: 34px 0 6px; color: #ffffff; }
+p { margin: 4px 0 10px; max-width: 1300px; } .num { color: #a9abb6; font-size: 14px; }
+img { image-rendering: pixelated; display: block; border: 1px solid #3a3c44; background: #000; }
+.row { display: flex; flex-wrap: wrap; gap: 14px; margin: 8px 0 4px; } .cell { font-size: 13px; color: #a9abb6; }
+table { border-collapse: collapse; font-size: 14px; margin: 6px 0 12px; } td, th { border: 1px solid #3a3c44; padding: 4px 10px; text-align: left; }
+th { color: #ffffff; font-weight: 600; }
+</style></head><body>
+<h1>Gumbirds: round clear banner, final</h1>
+<p>Variants D and C combined. Shown while play is frozen for 2 seconds (120 frames) after a round ends. Fix layer only, Gumdrop font,
+320 x 224 shown at 2x. Backdrops are the HUD mock-ups, not MAME screenshots. Build data: banner_spec.txt. Measurements: numbers.txt.</p>
+<p class="num">Cost: 1 new tile (pop burst), 0 new palettes, 176 fix cells at most. Worst text cell contrast: dusk 119, moon 119, storm 119.</p>
+
+<h2>Player 1 wins, on the three sky moods (animated)</h2><div class="row">
+<div class="cell"><img src="anim_p1_round02_dusk_1x.gif" width="640" height="448" alt="anim_p1_round02_dusk_1x.gif">dusk</div>
+<div class="cell"><img src="anim_p1_round02_moon_1x.gif" width="640" height="448" alt="anim_p1_round02_moon_1x.gif">moon</div>
+<div class="cell"><img src="anim_p1_round02_storm_1x.gif" width="640" height="448" alt="anim_p1_round02_storm_1x.gif">storm</div>
+</div>
+<h2>Timeline</h2><table><tr><th>Frame</th><th>What happens</th></tr><tr><td>0</td><td>Navy ribbon appears (3 rows). First letter starts.</td></tr><tr><td>0 to 47</td><td>ALL POPPED! letter by letter, a new letter every 4 frames: gum bubble, pop burst, white flash, pink (4 frames each).</td></tr><tr><td>48</td><td>Last letter is pink. The ribbon opens downward into the panel.</td></tr><tr><td>52</td><td>Winner line appears in white.</td></tr><tr><td>56</td><td>Winner line takes the winner colour.</td></tr><tr><td>64</td><td>ROUND and the next round number appear in white, then swap white and gold every 8 frames.</td></tr><tr><td>96 to 119</td><td>ROUND stays gold.</td></tr><tr><td>120</td><td>Freeze over, banner cleared.</td></tr></table>
+<div class="row"><div class="cell"><img src="key_frames_dusk_1x.png" width="1292" height="916" alt="key_frames_dusk_1x.png">key frames, banner area, dusk</div></div>
+<div class="row"><div class="cell"><img src="letter_stages_8x.png" width="336" height="96" alt="letter_stages_8x.png">one letter cell at 8x: gum bubble, pop burst (the one new tile), white flash, pink</div></div>
+<h2>The other cases (animated)</h2><div class="row">
+<div class="cell"><img src="anim_p2_round02_moon_1x.gif" width="640" height="448" alt="anim_p2_round02_moon_1x.gif">Player 2 wins, lime (moon)</div>
+<div class="cell"><img src="anim_cpu_round02_storm_1x.gif" width="640" height="448" alt="anim_cpu_round02_storm_1x.gif">A computer rival wins: COMPUTER WINS, white (storm)</div>
+<div class="cell"><img src="anim_draw_round02_dusk_1x.gif" width="640" height="448" alt="anim_draw_round02_dusk_1x.gif">No survivor: NO SURVIVORS, dim blue, no bird icon (dusk)</div>
+<div class="cell"><img src="anim_p1_round12_moon_1x.gif" width="640" height="448" alt="anim_p1_round12_moon_1x.gif">Two-digit round: ROUND 12 (moon)</div>
+</div>
+<h2>Last frame, every case on every sky mood</h2>
+<p>Player 1 wins</p><div class="row">
+<div class="cell"><img src="still_p1_round02_dusk_1x.png" width="640" height="448" alt="still_p1_round02_dusk_1x.png">dusk</div>
+<div class="cell"><img src="still_p1_round02_moon_1x.png" width="640" height="448" alt="still_p1_round02_moon_1x.png">moon</div>
+<div class="cell"><img src="still_p1_round02_storm_1x.png" width="640" height="448" alt="still_p1_round02_storm_1x.png">storm</div>
+</div>
+<p>Player 2 wins</p><div class="row">
+<div class="cell"><img src="still_p2_round02_dusk_1x.png" width="640" height="448" alt="still_p2_round02_dusk_1x.png">dusk</div>
+<div class="cell"><img src="still_p2_round02_moon_1x.png" width="640" height="448" alt="still_p2_round02_moon_1x.png">moon</div>
+<div class="cell"><img src="still_p2_round02_storm_1x.png" width="640" height="448" alt="still_p2_round02_storm_1x.png">storm</div>
+</div>
+<p>A computer rival wins</p><div class="row">
+<div class="cell"><img src="still_cpu_round02_dusk_1x.png" width="640" height="448" alt="still_cpu_round02_dusk_1x.png">dusk</div>
+<div class="cell"><img src="still_cpu_round02_moon_1x.png" width="640" height="448" alt="still_cpu_round02_moon_1x.png">moon</div>
+<div class="cell"><img src="still_cpu_round02_storm_1x.png" width="640" height="448" alt="still_cpu_round02_storm_1x.png">storm</div>
+</div>
+<p>No survivor (draw)</p><div class="row">
+<div class="cell"><img src="still_draw_round02_dusk_1x.png" width="640" height="448" alt="still_draw_round02_dusk_1x.png">dusk</div>
+<div class="cell"><img src="still_draw_round02_moon_1x.png" width="640" height="448" alt="still_draw_round02_moon_1x.png">moon</div>
+<div class="cell"><img src="still_draw_round02_storm_1x.png" width="640" height="448" alt="still_draw_round02_storm_1x.png">storm</div>
+</div>
+<p>Player 1 wins, round 12</p><div class="row">
+<div class="cell"><img src="still_p1_round12_dusk_1x.png" width="640" height="448" alt="still_p1_round12_dusk_1x.png">dusk</div>
+<div class="cell"><img src="still_p1_round12_moon_1x.png" width="640" height="448" alt="still_p1_round12_moon_1x.png">moon</div>
+<div class="cell"><img src="still_p1_round12_storm_1x.png" width="640" height="448" alt="still_p1_round12_storm_1x.png">storm</div>
+</div>
+<h2>Centre line proof</h2><p>Light blue line: screen centre (between pixel 159 and 160). Yellow marks: first and last ink column of each line, shadow included. Every line now has an even cell count, so every cell box is centred exactly; the old 4 pixel left offset is gone. From top to bottom: player 1, player 2, computer, no survivors, round 12.</p>
+<div class="row"><div class="cell"><img src="centre_proof_dusk_2x.png" width="640" height="816" alt="centre_proof_dusk_2x.png"></div></div>
+<table><tr><th>Case</th><th>Line</th><th>Cells</th><th>Ink margin left / right (pixels)</th><th>Face margin left / right</th></tr>
+<tr><td>p1_round02</td><td>headline</td><td>20</td><td>80 / 83</td><td>80 / 84</td></tr>
+<tr><td>p1_round02</td><td>winner</td><td>16</td><td>98 / 96</td><td>98 / 97</td></tr>
+<tr><td>p1_round02</td><td>round</td><td>8</td><td>128 / 128</td><td>128 / 129</td></tr>
+<tr><td>p2_round02</td><td>headline</td><td>20</td><td>80 / 83</td><td>80 / 84</td></tr>
+<tr><td>p2_round02</td><td>winner</td><td>16</td><td>98 / 96</td><td>98 / 97</td></tr>
+<tr><td>p2_round02</td><td>round</td><td>8</td><td>128 / 128</td><td>128 / 129</td></tr>
+<tr><td>cpu_round02</td><td>headline</td><td>20</td><td>80 / 83</td><td>80 / 84</td></tr>
+<tr><td>cpu_round02</td><td>winner</td><td>16</td><td>98 / 96</td><td>98 / 97</td></tr>
+<tr><td>cpu_round02</td><td>round</td><td>8</td><td>128 / 128</td><td>128 / 129</td></tr>
+<tr><td>draw_round02</td><td>headline</td><td>20</td><td>80 / 83</td><td>80 / 84</td></tr>
+<tr><td>draw_round02</td><td>winner</td><td>12</td><td>112 / 112</td><td>112 / 113</td></tr>
+<tr><td>draw_round02</td><td>round</td><td>8</td><td>128 / 128</td><td>128 / 129</td></tr>
+<tr><td>p1_round12</td><td>headline</td><td>20</td><td>80 / 83</td><td>80 / 84</td></tr>
+<tr><td>p1_round12</td><td>winner</td><td>16</td><td>98 / 96</td><td>98 / 97</td></tr>
+<tr><td>p1_round12</td><td>round</td><td>8</td><td>128 / 128</td><td>128 / 129</td></tr>
+</table>
+<h2>Contrast per sky mood</h2><table><tr><th>Mood</th><th>Worst text cell</th><th>Winner line by colour (worst cell)</th></tr>
+<tr><td>dusk</td><td>119</td><td>pink 195, lime 201, white 212, dim 119</td></tr>
+<tr><td>moon</td><td>119</td><td>pink 195, lime 201, white 212, dim 119</td></tr>
+<tr><td>storm</td><td>119</td><td>pink 195, lime 201, white 212, dim 119</td></tr>
+</table><p class="num">Scale 0 to 255; under 90 is hard to read at 1x. Text sits on the navy plate of its own tile, so the sky does not change it.</p>
+</body></html>

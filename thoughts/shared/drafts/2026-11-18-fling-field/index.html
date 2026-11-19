@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Gum Fling field draft, second pass</title>
+<style>
+body{background:#14181f;color:#dfe5ee;font:15px/1.5 system-ui,sans-serif;margin:24px;max-width:1240px}
+h1{font-size:22px}h2{font-size:17px;margin-top:32px;border-bottom:1px solid #334;padding-bottom:4px}
+img{image-rendering:pixelated;display:block;margin:8px 0;max-width:100%}
+p,li{color:#aeb8c6}a{color:#8fc0ff}
+</style></head><body>
+<h1>Gum Fling throwing field, second pass (2026-11-18)</h1>
+<p>Hand-pixeled grids in <code>draw_fling_field.py</code>; counts and sprite budget in <a href="numbers.txt">numbers.txt</a>.
+First pass kept in <a href="old/index.html">old/</a>. Mocks now use only the sky and the four parallax planes: no arena platforms, balloons, clouds or airship.
+The dotted arc and the two birds are for scale (a 62 M throw).</p>
+<ul>
+<li>Turf: 4 hand columns of 16 px in an irregular order of 32 (512 px) instead of one 32 px period; tufts lit from the right, shadow on the left.</li>
+<li>Chalk: one width from top to bottom, quieter colours, grass gaps; the 50 M line is one gold stripe, no steps.</li>
+<li>Puff: 6 frames of 32 x 32 dust with flying blades, no dark outline.</li>
+<li>Storm turf retuned to a cold wet green; boards, chalk and poles have one palette per mood.</li>
+</ul>
+<h2>Dusk</h2><img src="mock_dusk_3x.png" alt="dusk mock">
+<h2>Moon</h2><img src="mock_moon_3x.png" alt="moon mock">
+<h2>Storm</h2><img src="mock_storm_3x.png" alt="storm mock">
+<h2>Old against new: mocks</h2>
+<img src="cmp_mock_dusk_2x.png" alt="dusk old and new"><img src="cmp_mock_moon_2x.png" alt="moon old and new"><img src="cmp_mock_storm_2x.png" alt="storm old and new">
+<h2>Old against new: closeup at 50 M, three moods</h2><img src="cmp_closeup_4x.png" alt="closeup old and new">
+<h2>Old against new: turf repeat</h2><img src="cmp_turf_2x.png" alt="turf old and new">
+<h2>Turf strip per mood</h2><img src="turf_strip_2x.png" alt="turf strips">
+<h2>Old against new: landing puff</h2><img src="cmp_puff_4x.png" alt="puff old and new">
+<h2>Landing puff in motion</h2>
+<img src="puff_dusk_3x.gif" alt="puff dusk"><img src="puff_moon_3x.gif" alt="puff moon"><img src="puff_storm_3x.gif" alt="puff storm">
+<h2>Gear sheet (dusk, moon, storm palettes)</h2><img src="sheet_gear_4x.png" alt="gear sheet">
+<h2>Turf column sheets (P Q R S)</h2>
+<img src="sheet_turf_dusk_1x.png" width="256" alt="turf dusk"><img src="sheet_turf_moon_1x.png" width="256" alt="turf moon"><img src="sheet_turf_storm_1x.png" width="256" alt="turf storm">
+</body></html>

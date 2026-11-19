@@ -1,0 +1,7 @@
+Round 3: air only. Holes, rim-follow table and wobble as round 2 (../2026-11-17-gum-leak-hole/numbers.txt).
+Puff simulation: drag 0.62, rise 0.22 px per leak frame (round-1 puff_xy). Round-2 tile counts: D 12, E 8, F 6.
+
+D  D: round puncture, steady blow                       frames 12  tick 3 game frames  loop 0.60 s  1 tile(s) per frame  tiles 12 (unique 12)  extra sprites 1 (16 px wide each)  gum palette entries: 1 2 5 6 9 a b c  (air: a b c)
+E  E: jagged split, two gusts                           frames  8  tick 3 game frames  loop 0.40 s  1 tile(s) per frame  tiles  8 (unique  8)  extra sprites 1 (16 px wide each)  gum palette entries: 1 2 5 6 9 a b c  (air: a b c)
+F  F: puncture plus torn tongue, thin stream            frames 12  tick 3 game frames  loop 0.60 s  1 tile(s) per frame  tiles 12 (unique 12)  extra sprites 1 (16 px wide each)  gum palette entries: 1 2 5 6 9 a b c  (air: a b c)
+W  W: D's puncture, air in 32 x 16 (2 tiles per frame)  frames 12  tick 3 game frames  loop 0.60 s  2 tile(s) per frame  tiles 24 (unique 24)  extra sprites 2 (16 px wide each)  gum palette entries: 1 2 5 6 9 a b c  (air: a b c)

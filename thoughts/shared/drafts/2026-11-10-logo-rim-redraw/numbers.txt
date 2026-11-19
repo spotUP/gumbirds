@@ -1,0 +1,74 @@
+RIM REDRAW of the accepted GUMBIRDS logo: index change only, no pixel moved
+
+rule: variant A. An inner-line pixel (index 8) that touches the outside becomes index 11 (rim). Outside = transparent key, 4-neighbourhood for variant A (up, down, left, right), so the rim is 1 pixel and the second line pixel stays dark; an enclosed see-through hole under 8 pixels does not count. Rim runs of 4 pixels or fewer go back to the dark line. Then the hand list below.
+index roles:
+   0 transparent
+   1 keyline plum
+   2 gum deep
+   3 gum mid
+   4 gum light
+   5 warm cream highlight
+   6 specular white
+   7 under shadow
+   8 inner line and counters (was: outer line)
+   9 cool rim light
+  10 violet rim step
+  11 outer rim (new)
+
+palettes (index 1..11, RGB; only 7 and 11 differ between moods; new values are multiples of 8):
+  dusk  90,16,115 165,33,156 255,82,181 255,156,214 255,231,189 255,255,255 24,8,49 8,8,24 99,222,255 115,90,231 8,8,24
+        rim (11) (8, 8, 24)  shadow (7) (24, 8, 49)
+  storm 90,16,115 165,33,156 255,82,181 255,156,214 255,231,189 255,255,255 0,0,0 8,8,24 99,222,255 115,90,231 160,200,184
+        rim (11) (160, 200, 184)  shadow (7) (0, 0, 0)
+  moon  90,16,115 165,33,156 255,82,181 255,156,214 255,231,189 255,255,255 0,0,16 8,8,24 99,222,255 115,90,231 160,192,248
+        rim (11) (160, 192, 248)  shadow (7) (0, 0, 16)
+palette entries used by the logo (body and free pieces): 11 of 15 (indices [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]); accepted logo: 10
+
+dusk proof: redraw rendered with the dusk palette against the accepted frames: 0 differing pixels over the 10 body frames, 0 over the free pieces
+index proof: pixels whose index changed in any way other than 8 -> 11: 0
+
+unique 16x16 tiles, flips reused (same count as the final folder: still, body over 10 frames, free pieces, total):
+  before: still 82, body 123, pieces 7, total 130
+  after : still 82, body 123, pieces 7, total 130
+
+pixels per frame: inner line kept (8), rim (11), join fixes by rule, hand corrections
+  frame 0: line 2384  rim  433  rule fixes 15  hand 0
+  frame 1: line 2404  rim  437  rule fixes 17  hand 0
+  frame 2: line 2420  rim  448  rule fixes 13  hand 0
+  frame 3: line 2439  rim  452  rule fixes 15  hand 0
+  frame 4: line 2475  rim  445  rule fixes 13  hand 0
+  frame 5: line 2485  rim  457  rule fixes 14  hand 0
+  frame 6: line 2391  rim  439  rule fixes 13  hand 0
+  frame 7: line 2401  rim  436  rule fixes 16  hand 0
+  frame 8: line 2377  rim  432  rule fixes 13  hand 0
+  frame 9: line 2383  rim  434  rule fixes 15  hand 0
+  free pieces: line 110  rim 490 (all frames, with repeats)
+enclosed see-through holes in the still (pixels, x0, y0, x1, y1): [(110, 262, 76, 270, 91), (6, 242, 86, 243, 89)]
+
+join fixes by rule (x, y in frame coordinates, kind), frame 3: [(191, 61, 'pale speck of 2 px'), (191, 62, 'pale speck of 2 px'), (123, 90, 'pale speck of 3 px'), (124, 91, 'pale speck of 3 px'), (125, 92, 'pale speck of 3 px'), (230, 99, 'pale speck of 4 px'), (231, 100, 'pale speck of 4 px'), (232, 101, 'pale speck of 4 px'), (233, 102, 'pale speck of 4 px'), (191, 102, 'pale speck of 4 px'), (192, 103, 'pale speck of 4 px'), (193, 104, 'pale speck of 4 px'), (194, 105, 'pale speck of 4 px'), (246, 106, 'pale speck of 2 px'), (247, 107, 'pale speck of 2 px')]
+hand corrections (frames, x, y, new index, why): 0 entries
+
+MEASURE: copy of compose_moods.py analyse(): WCAG contrast of each outer logo pixel against its sky 4-neighbours, body layer,
+weak = share of edge pixels under 1.5. still = frame 3. "frames" = lowest to highest over the 10 frames.
+  dusk  before still: mean 3.77  min 1.01  weak  3.2%  under 1.2  1.0%  edge pixels 884 | frames weak  2.9.. 4.1%  mean 3.75..3.92  min 1.01
+  dusk  after  still: mean 3.77  min 1.01  weak  3.2%  under 1.2  1.0%  edge pixels 884 | frames weak  2.9.. 4.1%  mean 3.75..3.92  min 1.01
+        per frame weak % before: 3.2 3.3 3.3 3.2 3.5 4.1 2.9 3.1 3.1 3.2
+        per frame weak % after : 3.2 3.3 3.3 3.2 3.5 4.1 2.9 3.1 3.1 3.2
+  storm before still: mean 3.03  min 1.01  weak 17.9%  under 1.2  3.6%  edge pixels 884 | frames weak 16.1..19.2%  mean 3.03..3.17  min 1.01
+  storm after  still: mean 4.54  min 1.02  weak  5.2%  under 1.2  1.1%  edge pixels 884 | frames weak  4.6.. 6.2%  mean 4.48..4.54  min 1.02
+        per frame weak % before: 16.5 16.5 16.9 17.9 18.6 19.2 16.2 16.1 16.7 16.6
+        per frame weak % after : 5.0 5.7 5.6 5.2 6.1 6.2 5.3 5.4 4.6 5.0
+  moon  before still: mean 3.00  min 1.01  weak 11.7%  under 1.2  4.6%  edge pixels 884 | frames weak  9.9..14.3%  mean 2.99..3.17  min 1.01
+  moon  after  still: mean 4.05  min 1.01  weak  4.8%  under 1.2  1.0%  edge pixels 884 | frames weak  4.8.. 5.9%  mean 3.94..4.07  min 1.01
+        per frame weak % before: 10.1 10.2 10.8 11.7 14.3 14.3 9.9 10.1 10.2 10.1
+        per frame weak % after : 5.2 5.8 5.9 4.8 5.0 5.3 5.6 5.5 4.8 5.3
+
+palette tuning, tried on the still (rim, shadow: weak %, mean). Kept the start values for both moods:
+  storm 160,200,184 / 0,0,0: 5.2, 4.54 (kept) | 136,176,160: 6.4, 3.93 | 184,216,200: 4.8, 5.06 | 200,224,208: 4.8, 5.37 | shadow 8,16,24: 6.7, 4.38 | 152,192,192 with 0,8,16: 6.0, 4.28
+  moon  160,192,248 / 0,0,16: 4.8, 4.05 (kept) | 136,168,240: 5.2, 3.53 | 184,208,248: 6.1, 4.47 | 200,216,248: 6.1, 4.73 | shadow 16,8,48: 5.1, 3.92 | 168,176,248 with 8,0,32: 4.8, 3.77
+  storm: a paler rim gains 0.4 points and starts to read as a white sticker edge; a darker rim or a lifted shadow loses edge.
+  moon: every other value measures the same or worse; a paler rim melts into the moon disc behind the D and S.
+
+rim against what it touches inside (still, 4-neighbours): contacts and contrast per mood
+  rim vs inner line a  635 contacts: storm 10.82  moon 10.76
+  rim vs under shadow    7 contacts: storm 11.45  moon 11.31

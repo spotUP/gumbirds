@@ -1,0 +1,62 @@
+== mood moon: Clear night, moon (hazard water, 100 ms per hazard step in the GIF)
+  sky           palettes 1 (colours [11]; 11 distinct)  unique tiles  165  animated tile positions  12  loop frames 4  |  dither px  13125  median lum step  29.9  min  29.8
+  far           palettes 1 (colours [10]; 10 distinct)  unique tiles   94  animated tile positions  12  loop frames 8  |  dither px   4453  median lum step  32.4  min  32.4
+  midA          palettes 3 (colours [15, 15, 8]; 19 distinct)  unique tiles  142  animated tile positions  26  loop frames 8  |  dither px   1138  median lum step  44.7  min  44.7
+  midB          palettes 3 (colours [15, 15, 7]; 21 distinct)  unique tiles  172  animated tile positions  29  loop frames 8  |  dither px   1147  median lum step  32.9  min  32.9
+  near          palettes 3 (colours [15, 15, 11]; 26 distinct)  unique tiles  231  animated tile positions  30  loop frames 8  |  dither px   4155  median lum step  30.3  min  30.3
+  clouds front  palettes 1 (colours [4]; 4 distinct)  unique tiles   45  animated tile positions  11  loop frames 4  |  dither px   1224  median lum step  33.5  min  33.5
+  clouds back   palettes 1 (colours [4]; 4 distinct)  unique tiles   32  animated tile positions   9  loop frames 4  |  dither px    249  median lum step  33.5  min  33.5
+  airship       palettes 1 (colours [9]; 9 distinct)  unique tiles   11  animated tile positions   2  loop frames 5  |  dither px    486  median lum step  39.3  min  39.3
+  near plane: packed with the level 3 lit palette (all roles distinct); 3 lit copies of each near palette, one level per 16 px column;
+  near cast-light pair step at level 1 / 2 / 3: 30.3 / 42.1 / 54.0; at level 0 the light role equals the wall colour (no dither shown)
+  totals: 14 palettes (+ lit copies), 892 unique tiles, 131 animated tile positions
+  scenery sprites per scanline, column sprites trimmed to their visible tiles (hazard strip and gameplay not counted): worst 58 at lines 128..143 (rain there: 0)
+  same count with the v1 method (every plane counted full width over its whole height): worst 67 at lines 80..87
+  per 16 lines, trimmed count: 20 31 35 39 57 52 50 55 58 41 28 20 20 20
+  play area lines 16..175: darker than 24: 6.3%  brighter than 150: 5.0%  (p5 22 median 74 p95 152)
+     v1, same lines:     darker than 24: 19.4%  brighter than 150: 4.9%  (p5 6 median 45 p95 149)
+  play area lines 16..191: darker than 24: 6.2%  brighter than 150: 4.7%  (p5 22 median 72 p95 149)
+     v1, same lines:     darker than 24: 19.4%  brighter than 150: 4.7%  (p5 3 median 45 p95 149)
+  build sheets (1x, transparent colour 255,0,255): sky 320x128, far 336x80, midA 336x64, midB 336x64, near 320x96, cloudsfront 320x32, cloudsback 160x32, airship 256x32
+  gif: 80 frames, 115 colours, 1.94 MB, decode check on 4 frames: equal
+== mood storm: Storm, rain and search beams (hazard spikes, 70 ms per hazard step in the GIF)
+  sky           palettes 1 (colours [9]; 9 distinct)  unique tiles  153  animated tile positions   0  loop frames 1  |  dither px  14739  median lum step  29.8  min  28.8
+  far           palettes 1 (colours [10]; 10 distinct)  unique tiles   94  animated tile positions  12  loop frames 8  |  dither px   4453  median lum step  41.4  min  41.4
+  midA          palettes 3 (colours [15, 15, 8]; 19 distinct)  unique tiles  142  animated tile positions  26  loop frames 8  |  dither px   1138  median lum step  50.4  min  50.4
+  midB          palettes 3 (colours [15, 15, 6]; 21 distinct)  unique tiles  172  animated tile positions  29  loop frames 8  |  dither px   1147  median lum step  35.7  min  35.7
+  near          palettes 3 (colours [15, 15, 11]; 26 distinct)  unique tiles  231  animated tile positions  30  loop frames 8  |  dither px   4155  median lum step  30.2  min  30.2
+  beams         palettes 1 (colours [1]; 1 distinct)  unique tiles   86  animated tile positions  22  loop frames 5  |  dither px      0  median lum step   0.0  min   0.0
+  rain          palettes 1 (colours [2])  unique tiles 8 (1 tile x 8 frames)  14 sprites (2 full columns, 6 split around lines 80..143), at most 8 per line; mesh, not counted as dither
+  near plane: packed with the level 3 lit palette (all roles distinct); 3 lit copies of each near palette, one level per 16 px column;
+  near cast-light pair step at level 1 / 2 / 3: 30.2 / 41.9 / 54.0; at level 0 the light role equals the wall colour (no dither shown)
+  totals: 13 palettes (+ lit copies), 886 unique tiles, 119 animated tile positions
+  scenery sprites per scanline, column sprites trimmed to their visible tiles (hazard strip and gameplay not counted): worst 60 at lines 128..143 (rain there: 2)
+  same count with the v1 method (every plane counted full width over its whole height): worst 65 at lines 112..127
+  per 16 lines, trimmed count: 34 33 32 37 46 49 52 57 60 49 36 28 28 28
+  play area lines 16..175: darker than 24: 5.2%  brighter than 150: 6.8%  (p5 14 median 68 p95 168)
+     v1, same lines:     darker than 24: 22.1%  brighter than 150: 7.5%  (p5 7 median 47 p95 180)
+  play area lines 16..191: darker than 24: 5.3%  brighter than 150: 6.5%  (p5 14 median 68 p95 168)
+     v1, same lines:     darker than 24: 24.2%  brighter than 150: 7.1%  (p5 3 median 47 p95 180)
+  build sheets (1x, transparent colour 255,0,255): sky 320x128, far 336x80, midA 336x64, midB 336x64, near 320x96, beams 320x88
+  gif: 64 frames, 205 colours, 2.61 MB, decode check on 4 frames: equal
+== mood dusk: Ember dusk, low sun (hazard lava, 130 ms per hazard step in the GIF)
+  sky           palettes 1 (colours [12]; 12 distinct)  unique tiles  156  animated tile positions   7  loop frames 4  |  dither px  11948  median lum step  30.0  min  29.6
+  far           palettes 1 (colours [10]; 10 distinct)  unique tiles   94  animated tile positions  12  loop frames 8  |  dither px   4453  median lum step  33.7  min  33.7
+  midA          palettes 3 (colours [15, 15, 8]; 19 distinct)  unique tiles  142  animated tile positions  26  loop frames 8  |  dither px   1138  median lum step  74.6  min  74.6
+  midB          palettes 3 (colours [15, 15, 6]; 21 distinct)  unique tiles  172  animated tile positions  29  loop frames 8  |  dither px   1147  median lum step  59.2  min  59.2
+  near          palettes 3 (colours [15, 15, 11]; 26 distinct)  unique tiles  231  animated tile positions  30  loop frames 8  |  dither px   4155  median lum step  29.9  min  29.9
+  clouds front  palettes 1 (colours [4]; 4 distinct)  unique tiles   45  animated tile positions  11  loop frames 4  |  dither px   1224  median lum step  44.5  min  44.5
+  clouds back   palettes 1 (colours [4]; 4 distinct)  unique tiles   32  animated tile positions   9  loop frames 4  |  dither px    249  median lum step  44.5  min  44.5
+  airship       palettes 1 (colours [9]; 9 distinct)  unique tiles   11  animated tile positions   2  loop frames 5  |  dither px    486  median lum step  35.4  min  35.4
+  near plane: packed with the level 3 lit palette (all roles distinct); 3 lit copies of each near palette, one level per 16 px column;
+  near cast-light pair step at level 1 / 2 / 3: 29.9 / 42.1 / 54.3; at level 0 the light role equals the wall colour (no dither shown)
+  totals: 14 palettes (+ lit copies), 883 unique tiles, 126 animated tile positions
+  scenery sprites per scanline, column sprites trimmed to their visible tiles (hazard strip and gameplay not counted): worst 58 at lines 128..143 (rain there: 0)
+  same count with the v1 method (every plane counted full width over its whole height): worst 67 at lines 80..87
+  per 16 lines, trimmed count: 20 31 39 43 57 52 50 55 58 41 28 20 20 20
+  play area lines 16..175: darker than 24: 3.7%  brighter than 150: 6.3%  (p5 25 median 87 p95 177)
+     v1, same lines:     darker than 24: 7.4%  brighter than 150: 15.9%  (p5 15 median 66 p95 189)
+  play area lines 16..191: darker than 24: 3.8%  brighter than 150: 6.0%  (p5 25 median 77 p95 177)
+     v1, same lines:     darker than 24: 8.5%  brighter than 150: 14.7%  (p5 8 median 66 p95 189)
+  build sheets (1x, transparent colour 255,0,255): sky 320x128, far 336x80, midA 336x64, midB 336x64, near 320x96, cloudsfront 320x32, cloudsback 160x32, airship 256x32
+  gif: 80 frames, 119 colours, 2.06 MB, decode check on 4 frames: equal

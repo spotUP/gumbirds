@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Fire tile C draft</title>
+<style>
+  body { background: #14151a; color: #d6d7dc; font-family: Helvetica, Arial, sans-serif; margin: 24px; line-height: 1.45; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  h2 { font-size: 16px; margin: 28px 0 8px; color: #ffb02e; }
+  p, li { font-size: 14px; max-width: 960px; }
+  img { image-rendering: pixelated; display: block; border: 1px solid #2c2e38; max-width: 100%; }
+  .pair { display: flex; flex-wrap: wrap; gap: 20px; }
+  .pair div { font-size: 13px; }
+  .pair span { display: block; margin-bottom: 6px; }
+  a { color: #ff7a1e; }
+</style>
+</head>
+<body>
+<h1>Fire tile variant C</h1>
+<p>Draft, 2026-11-10. Row A B C repeats after 192 px; row A B repeats after 128 px. A and B are unchanged.</p>
+
+<h2>Animation: A B against A B C</h2>
+<div class="pair">
+  <div><span>A B (accepted)</span><img src="anim_ab_3x.gif" alt="A B animation"></div>
+  <div><span>A B C (new)</span><img src="anim_abc_3x.gif" alt="A B C animation"></div>
+</div>
+
+<h2>Still, frame 2, A B C</h2>
+<img src="strip_abc_3x.png" alt="A B C still">
+
+<h2>Tiles A, B, C, frames 0 4 8 12</h2>
+<img src="tiles_abc_4x.png" alt="tiles">
+
+<h2>Build input, 1x (rows A, B, C; 16 frames of 64 x 32 per row)</h2>
+<img src="frames_fire_abc_1x.png" alt="frame sheet">
+
+<h2>Numbers</h2>
+<ul>
+  <li>Gap between the two tallest tongues on the wrapped 192 px row: min 2, per frame 6 7 2 4 6 4 4 2 9 9 3 5 3 3 3 4.</li>
+  <li>Dither in C: 2107 px, pair step median 33.4, p10 32.7.</li>
+  <li>Palette: 11 colours, none new.</li>
+  <li>Unique tiles: C 115 of 128, A B C 343 of 384.</li>
+</ul>
+
+<h2>Weak points</h2>
+<ul>
+  <li>C has no white-hot core and only mid-height tongues (10 to 18 px). This keeps the gap rule.</li>
+  <li>The right 10 px of C copy the right edge of B; the left 5 px copy the left edge of A.</li>
+  <li>The frame 15 to 0 step changes more pixels in C than the other steps.</li>
+</ul>
+<p>Details: <a href="README.md">README.md</a>, <a href="numbers.txt">numbers.txt</a>.</p>
+</body>
+</html>

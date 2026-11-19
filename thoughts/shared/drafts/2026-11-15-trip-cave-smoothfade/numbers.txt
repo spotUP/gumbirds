@@ -1,0 +1,17 @@
+sloped fade: fade A starts 30 px under the lip surface in every pixel column (flat columns: the same 30); roof fade A starts 16 px above the nominal rock edge (the floor curve upside down)
+new floor tiles: 19 (static; tiles that hold a moving lip pixel: none)
+new roof tiles: 18 (static)
+C-ROM: 37 new tiles x 64 bytes per file = 2368 bytes per file (on top of the 14 flat fade tiles, 896 bytes per file)
+lookup (rows top to bottom; floor row 0 = piece top row, roof row 0 = 2 tile rows above the piece top row):
+  floor S16_col0: piece piece F0 F1 F2 solid solid
+  floor S16_col1: piece piece F3 F4 F5 solid solid
+  floor S16_col2: piece fill F6 F7 F8 solid solid
+  floor S32_col0: empty piece piece F9 F10 F11 solid solid
+  floor S32_col1: piece piece F12 F13 F14 F15 solid solid
+  floor S32_col2: piece piece F16 F17 F18 solid solid solid
+  roof S16_col0: R0 R1 R2 piece
+  roof S16_col1: R3 R4 R5 piece
+  roof S16_col2: black R6 R7 piece
+  roof S32_col0: R8 R9 R10 piece empty
+  roof S32_col1: R11 R12 R13 R14 piece
+  roof S32_col2: black R15 R16 R17 piece

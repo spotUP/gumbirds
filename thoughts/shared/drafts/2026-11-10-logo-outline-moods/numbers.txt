@@ -1,0 +1,135 @@
+logo colours in the still: 10 (palette indices unchanged by every candidate; only RGB values of existing indices move)
+measure: same as ../2026-11-10-logo-three-skies/numbers.txt (WCAG contrast ratio of each outer logo pixel against its sky 4-neighbours)
+"frames" = weak-edge percent (under 1.5) over the 10 animation frames, lowest to highest; frame 0 is the widest stretch
+
+#### storm REF: current logo
+  changed palette entries: none
+== storm REF still
+  logo outline colour (most common on the outer ring) (8, 8, 24), 474 of 884 edge pixels
+  edge pixels 884, edge/sky pairs 1236
+  contrast edge vs sky outside: mean 3.03, min 1.01 (per pair), mean per edge pixel 3.03
+  edge pixels under 1.5: 17.9%  under 1.2: 3.6%
+  sky colour that collides most: (28, 41, 56) (103 pairs under 1.5; of 276 such pairs)
+  outer line vs inside neighbour (90, 16, 115): 2022 contacts, contrast 1.66
+  outer line vs inside neighbour (24, 8, 49): 816 contacts, contrast 1.06  (under 1.5)
+  frames: weak 16.1% to 19.2%; frame 0 (widest) 16.5%; worst frame 5
+
+#### storm S1: pale grey-green rim, shadow kept
+  changed palette entries: outer line (8, 8, 24) -> (184, 216, 200)
+== storm S1 still
+  logo outline colour (most common on the outer ring) (184, 216, 200), 474 of 884 edge pixels
+  edge pixels 884, edge/sky pairs 1236
+  contrast edge vs sky outside: mean 4.94, min 1.02 (per pair), mean per edge pixel 4.89
+  edge pixels under 1.5: 6.1%  under 1.2: 3.3%
+  sky colour that collides most: (18, 31, 42) (31 pairs under 1.5; of 108 such pairs)
+  outer line vs inside neighbour (90, 16, 115): 2022 contacts, contrast 7.80
+  outer line vs inside neighbour (24, 8, 49): 816 contacts, contrast 12.25
+  frames: weak 5.8% to 6.9%; frame 0 (widest) 6.0%; worst frame 5
+
+#### storm S2: grey-green rim, black shadow
+  changed palette entries: outer line (8, 8, 24) -> (160, 200, 184); drop shadow (24, 8, 49) -> (0, 0, 0)
+== storm S2 still
+  logo outline colour (most common on the outer ring) (160, 200, 184), 474 of 884 edge pixels
+  edge pixels 884, edge/sky pairs 1236
+  contrast edge vs sky outside: mean 4.58, min 1.02 (per pair), mean per edge pixel 4.54
+  edge pixels under 1.5: 5.0%  under 1.2: 1.0%
+  sky colour that collides most: (18, 31, 42) (31 pairs under 1.5; of 85 such pairs)
+  outer line vs inside neighbour (90, 16, 115): 2022 contacts, contrast 6.52
+  outer line vs inside neighbour (0, 0, 0): 816 contacts, contrast 11.45
+  frames: weak 4.4% to 5.8%; frame 0 (widest) 4.8%; worst frame 5
+
+#### storm S3: lightning rim, pale shadow, deeper keyline
+  changed palette entries: outer line (8, 8, 24) -> (232, 248, 232); drop shadow (24, 8, 49) -> (168, 208, 192); keyline (90, 16, 115) -> (64, 8, 88)
+== storm S3 still
+  logo outline colour (most common on the outer ring) (232, 248, 232), 474 of 884 edge pixels
+  edge pixels 884, edge/sky pairs 1236
+  contrast edge vs sky outside: mean 6.67, min 1.01 (per pair), mean per edge pixel 6.60
+  edge pixels under 1.5: 2.4%  under 1.2: 0.6%
+  sky colour that collides most: (130, 180, 190) (20 pairs under 1.5; of 47 such pairs)
+  outer line vs inside neighbour (64, 8, 88): 2022 contacts, contrast 13.65
+  outer line vs inside neighbour (168, 208, 192): 816 contacts, contrast 1.53
+  frames: weak 2.4% to 2.6%; frame 0 (widest) 2.5%; worst frame 1
+
+#### moon REF: current logo
+  changed palette entries: none
+== moon REF still
+  logo outline colour (most common on the outer ring) (8, 8, 24), 474 of 884 edge pixels
+  edge pixels 884, edge/sky pairs 1236
+  contrast edge vs sky outside: mean 3.00, min 1.01 (per pair), mean per edge pixel 3.01
+  edge pixels under 1.5: 11.7%  under 1.2: 4.6%
+  sky colour that collides most: (38, 37, 98) (71 pairs under 1.5; of 189 such pairs)
+  outer line vs inside neighbour (90, 16, 115): 2022 contacts, contrast 1.66
+  outer line vs inside neighbour (24, 8, 49): 816 contacts, contrast 1.06  (under 1.5)
+  frames: weak 9.9% to 14.3%; frame 0 (widest) 10.1%; worst frame 5
+
+#### moon M1: moonlight rim, shadow kept
+  changed palette entries: outer line (8, 8, 24) -> (168, 200, 248)
+== moon M1 still
+  logo outline colour (most common on the outer ring) (168, 200, 248), 474 of 884 edge pixels
+  edge pixels 884, edge/sky pairs 1236
+  contrast edge vs sky outside: mean 4.14, min 1.01 (per pair), mean per edge pixel 4.11
+  edge pixels under 1.5: 5.0%  under 1.2: 3.2%
+  sky colour that collides most: (24, 22, 70) (31 pairs under 1.5; of 89 such pairs)
+  outer line vs inside neighbour (90, 16, 115): 2022 contacts, contrast 6.99
+  outer line vs inside neighbour (24, 8, 49): 816 contacts, contrast 10.99
+  frames: weak 5.0% to 6.2%; frame 0 (widest) 5.4%; worst frame 1
+
+#### moon M2: moonlight rim, blue-black shadow
+  changed palette entries: outer line (8, 8, 24) -> (160, 192, 248); drop shadow (24, 8, 49) -> (0, 0, 16)
+== moon M2 still
+  logo outline colour (most common on the outer ring) (160, 192, 248), 474 of 884 edge pixels
+  edge pixels 884, edge/sky pairs 1236
+  contrast edge vs sky outside: mean 4.10, min 1.01 (per pair), mean per edge pixel 4.06
+  edge pixels under 1.5: 4.5%  under 1.2: 0.9%
+  sky colour that collides most: (24, 22, 70) (31 pairs under 1.5; of 87 such pairs)
+  outer line vs inside neighbour (90, 16, 115): 2022 contacts, contrast 6.48
+  outer line vs inside neighbour (0, 0, 16): 816 contacts, contrast 11.31
+  frames: weak 4.5% to 5.6%; frame 0 (widest) 4.9%; worst frame 2
+
+#### moon M3: ice rim, sky-blue shadow, deeper keyline
+  changed palette entries: outer line (8, 8, 24) -> (224, 240, 248); drop shadow (24, 8, 49) -> (152, 184, 248); keyline (90, 16, 115) -> (72, 8, 104)
+== moon M3 still
+  logo outline colour (most common on the outer ring) (224, 240, 248), 474 of 884 edge pixels
+  edge pixels 884, edge/sky pairs 1236
+  contrast edge vs sky outside: mean 5.90, min 1.10 (per pair), mean per edge pixel 5.87
+  edge pixels under 1.5: 2.8%  under 1.2: 1.9%
+  sky colour that collides most: (120, 150, 220) (21 pairs under 1.5; of 51 such pairs)
+  outer line vs inside neighbour (72, 8, 104): 2022 contacts, contrast 11.91
+  outer line vs inside neighbour (152, 184, 248): 816 contacts, contrast 1.71
+  frames: weak 2.8% to 3.7%; frame 0 (widest) 3.3%; worst frame 6
+
+#### dusk REF: current logo
+  changed palette entries: none
+== dusk REF still
+  logo outline colour (most common on the outer ring) (8, 8, 24), 474 of 884 edge pixels
+  edge pixels 884, edge/sky pairs 1236
+  contrast edge vs sky outside: mean 3.77, min 1.01 (per pair), mean per edge pixel 3.77
+  edge pixels under 1.5: 3.2%  under 1.2: 1.0%
+  sky colour that collides most: (70, 24, 84) (11 pairs under 1.5; of 50 such pairs)
+  outer line vs inside neighbour (90, 16, 115): 2022 contacts, contrast 1.66
+  outer line vs inside neighbour (24, 8, 49): 816 contacts, contrast 1.06  (under 1.5)
+  frames: weak 2.9% to 4.1%; frame 0 (widest) 3.2%; worst frame 5
+
+#### dusk D1: apricot rim, shadow kept (optional)
+  changed palette entries: outer line (8, 8, 24) -> (248, 216, 168)
+== dusk D1 still
+  logo outline colour (most common on the outer ring) (248, 216, 168), 474 of 884 edge pixels
+  edge pixels 884, edge/sky pairs 1236
+  contrast edge vs sky outside: mean 5.21, min 1.00 (per pair), mean per edge pixel 5.15
+  edge pixels under 1.5: 1.9%  under 1.2: 0.8%
+  sky colour that collides most: (73, 25, 83) (9 pairs under 1.5; of 34 such pairs)
+  outer line vs inside neighbour (90, 16, 115): 2022 contacts, contrast 8.76
+  outer line vs inside neighbour (24, 8, 49): 816 contacts, contrast 13.76
+  frames: weak 1.8% to 2.7%; frame 0 (widest) 2.1%; worst frame 1
+
+#### summary (still): id, mean contrast, min contrast, weak edge % (under 1.5), frames range
+  storm REF  mean 3.03  min 1.01  weak  17.9%  frames 16.1..19.2%  current logo
+  storm S1   mean 4.94  min 1.02  weak   6.1%  frames  5.8.. 6.9%  pale grey-green rim, shadow kept
+  storm S2   mean 4.58  min 1.02  weak   5.0%  frames  4.4.. 5.8%  grey-green rim, black shadow
+  storm S3   mean 6.67  min 1.01  weak   2.4%  frames  2.4.. 2.6%  lightning rim, pale shadow, deeper keyline
+  moon  REF  mean 3.00  min 1.01  weak  11.7%  frames  9.9..14.3%  current logo
+  moon  M1   mean 4.14  min 1.01  weak   5.0%  frames  5.0.. 6.2%  moonlight rim, shadow kept
+  moon  M2   mean 4.10  min 1.01  weak   4.5%  frames  4.5.. 5.6%  moonlight rim, blue-black shadow
+  moon  M3   mean 5.90  min 1.10  weak   2.8%  frames  2.8.. 3.7%  ice rim, sky-blue shadow, deeper keyline
+  dusk  REF  mean 3.77  min 1.01  weak   3.2%  frames  2.9.. 4.1%  current logo
+  dusk  D1   mean 5.21  min 1.00  weak   1.9%  frames  1.8.. 2.7%  apricot rim, shadow kept (optional)

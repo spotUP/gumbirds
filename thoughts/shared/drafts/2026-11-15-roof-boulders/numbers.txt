@@ -1,0 +1,6 @@
+roof tiles: 18 (R0-R17), changed against the smooth-fade draft: R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 R16 R17
+floor tiles: 19 (F0-F18), unchanged
+total sloped tiles: 37 + 14 flat fade tiles, unchanged count
+roof lookup identical to smooth-fade fade_map.json: yes (asserted)
+colours used: 11, all in the roof palette (11 entries)
+pixels that differ from the v3 piece inside restored rim boulders: outline row only (see README)

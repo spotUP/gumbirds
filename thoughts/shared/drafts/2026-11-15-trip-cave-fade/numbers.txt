@@ -1,0 +1,8 @@
+floor: lip band 16 px, N = 1 fill row, 2 fade rows (A, B) of 16 px, then solid darkest gum. Lip top to solid = 62 px (the last 2 rows of B are solid)
+roof: rim 16 px, N = 0 fill rows, 2 fade rows (A, B) of 16 px, then black. Curve blocks count as rim: the fade starts above the block top
+floor fade tiles: 4 (A 2 + B 2, 32 px repeat) + 1 solid darkest-gum tile = 5; static
+roof fade tiles: 8 (A 4 + B 4, 64 px repeat) + 1 solid black tile = 9; static
+floor colours used: A '0123', B '012' of the gum palette; no colour added. The gum palette has NO pure black: the floor ends in gum colour 0 (24, 0, 33)
+roof colours used: A '12345', B '0123'; '0' = pure black (0,0,0) is ADDED to the slate palette: 11 of 15 colours
+new tiles: 14 x 64 bytes per C-ROM file = 896 bytes per file
+visible at 320x224 with seed 6: floor lip rows [128, 144, 160] -> solid starts at lip + 62; roof rim bottoms [0, 16, 32] -> fade A is on screen only where the roof is 32 px deep

@@ -1,0 +1,114 @@
+{
+ "note": "Per curve piece and piece tile column (piece drawn rising (floor) / falling (roof) to the right; hflip swaps columns 0 and 2 and flips each tile). floor: list index = tile row below the piece top row; below the list: solid. roof: list index 0 = tile row 2 above the piece top row; above the list: black. piece = the v3 curve tile unchanged, fill/fillN = plain fill tile, A*/B* = flat fade tiles, solid/black, F*/R* = new sloped tiles.",
+ "row0_offset_tiles": {
+  "floor": 0,
+  "roof": -2
+ },
+ "map": {
+  "floor": {
+   "S16_col0": [
+    "piece",
+    "piece",
+    "F0",
+    "F1",
+    "F2",
+    "solid",
+    "solid"
+   ],
+   "S16_col1": [
+    "piece",
+    "piece",
+    "F3",
+    "F4",
+    "F5",
+    "solid",
+    "solid"
+   ],
+   "S16_col2": [
+    "piece",
+    "fill",
+    "F6",
+    "F7",
+    "F8",
+    "solid",
+    "solid"
+   ],
+   "S32_col0": [
+    "empty",
+    "piece",
+    "piece",
+    "F9",
+    "F10",
+    "F11",
+    "solid",
+    "solid"
+   ],
+   "S32_col1": [
+    "piece",
+    "piece",
+    "F12",
+    "F13",
+    "F14",
+    "F15",
+    "solid",
+    "solid"
+   ],
+   "S32_col2": [
+    "piece",
+    "piece",
+    "F16",
+    "F17",
+    "F18",
+    "solid",
+    "solid",
+    "solid"
+   ]
+  },
+  "roof": {
+   "S16_col0": [
+    "R0",
+    "R1",
+    "R2",
+    "piece"
+   ],
+   "S16_col1": [
+    "R3",
+    "R4",
+    "R5",
+    "piece"
+   ],
+   "S16_col2": [
+    "black",
+    "R6",
+    "R7",
+    "piece"
+   ],
+   "S32_col0": [
+    "R8",
+    "R9",
+    "R10",
+    "piece",
+    "empty"
+   ],
+   "S32_col1": [
+    "R11",
+    "R12",
+    "R13",
+    "R14",
+    "piece"
+   ],
+   "S32_col2": [
+    "black",
+    "R15",
+    "R16",
+    "R17",
+    "piece"
+   ]
+  }
+ },
+ "new_tiles": {
+  "floor": 19,
+  "roof": 18
+ },
+ "floor_tiles_that_differ_per_lip_frame": []
+}

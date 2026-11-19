@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>Gumbirds: round clear banner drafts</title>
+<style>
+body { background: #1b1c20; color: #d6d7dc; font-family: Helvetica, Arial, sans-serif; margin: 24px; line-height: 1.45; }
+h1 { font-size: 22px; margin: 0 0 6px; } h2 { font-size: 17px; margin: 34px 0 6px; color: #ffffff; }
+p { margin: 4px 0 10px; max-width: 1300px; } .num { color: #a9abb6; font-size: 14px; }
+img { image-rendering: pixelated; display: block; border: 1px solid #3a3c44; background: #000; }
+.row { display: flex; flex-wrap: wrap; gap: 14px; margin: 8px 0 4px; } .cell { font-size: 13px; color: #a9abb6; }
+.pick { border-left: 4px solid #ff52b5; padding-left: 12px; }
+</style></head><body>
+<h1>Gumbirds: round clear banner drafts</h1>
+<p>Shown while play is frozen for 2 seconds (120 frames) after a round ends. Fix layer only, Gumdrop font, 320 x 224 at 2x.
+Backdrops are the HUD mock-ups (not MAME screenshots). Numbers: numbers.txt in this folder.</p>
+
+<h2>A  Plain text</h2><p>Two centred lines, plain Gumdrop glyphs, white over gold. Nothing behind the letters.</p>
+<div class="row">
+<div class="cell"><img src="variant_a_moon_1x.png" width="640" height="448" alt="variant_a_moon_1x.png">moon</div>
+<div class="cell"><img src="variant_a_dusk_1x.png" width="640" height="448" alt="variant_a_dusk_1x.png">dusk (the weak case)</div>
+</div><p class="num">New tiles beyond the font: <b>0</b>. Palettes: <b>2</b> (gold, white), new: 0. Text cells: 16. Fix cells written: 16. Worst text cell contrast over the three moods: 56.</p>
+<h2>B  Gum band</h2><p>Same text on a gum pink band over the full width, thinner in the middle, with drips; headline letter-spaced.</p>
+<div class="row">
+<div class="cell"><img src="variant_b_moon_1x.png" width="640" height="448" alt="variant_b_moon_1x.png">moon</div>
+<div class="cell"><img src="variant_b_storm_1x.png" width="640" height="448" alt="variant_b_storm_1x.png">storm</div>
+</div><p class="num">New tiles beyond the font: <b>11</b>. Palettes: <b>2</b> (band, bandgold), new: 2. Text cells: 16. Fix cells written: 204. Worst text cell contrast over the three moods: 99.</p>
+<h2>C  Winner call</h2><p>Navy panel from the results screen tiles, PLAYER 1 WINS in the player colour between two Sootling icons, tall round digit.</p>
+<div class="row">
+<div class="cell"><img src="variant_c_moon_1x.png" width="640" height="448" alt="variant_c_moon_1x.png">moon</div>
+<div class="cell"><img src="variant_c_storm_1x.png" width="640" height="448" alt="variant_c_storm_1x.png">storm</div>
+</div><p class="num">New tiles beyond the font: <b>0</b>. Palettes: <b>2</b> (pink, white), new: 0. Text cells: 22. Fix cells written: 184. Worst text cell contrast over the three moods: 195.</p>
+<h2>D  All popped</h2><p>ALL POPPED! letter-spaced in a navy ribbon (panel tiles); each letter arrives as a gum bubble, pops, flashes white and settles pink; ROUND 2 blinks white and gold.</p>
+<div class="row">
+<div class="cell"><img src="variant_d_anim_moon_1x.gif" width="640" height="448" alt="variant_d_anim_moon_1x.gif">animated, moon</div>
+<div class="cell"><img src="variant_d_moon_1x.png" width="640" height="448" alt="variant_d_moon_1x.png">last frame, moon</div>
+</div><p class="num">New tiles beyond the font: <b>1</b>. Palettes: <b>3</b> (gold, pink, white), new: 0. Text cells: 16. Fix cells written: 78. Worst text cell contrast over the three moods: 193.</p>
+<div class="row"><div class="cell"><img src="variant_d_stages_8x.png" width="336" height="96" alt="variant_d_stages_8x.png">the four stages of one letter cell (8x): bubble, pop burst (the one new tile), white flash, pink</div></div>
+<h2 class="pick">Recommended: D on all three sky moods</h2>
+<p>Animated (top) and last frame (bottom). Moon, dusk, storm.</p><div class="row">
+<div class="cell"><img src="variant_d_anim_moon_1x.gif" width="640" height="448" alt="variant_d_anim_moon_1x.gif">moon, animated</div>
+<div class="cell"><img src="variant_d_anim_dusk_1x.gif" width="640" height="448" alt="variant_d_anim_dusk_1x.gif">dusk, animated</div>
+<div class="cell"><img src="variant_d_anim_storm_1x.gif" width="640" height="448" alt="variant_d_anim_storm_1x.gif">storm, animated</div>
+</div><div class="row">
+<div class="cell"><img src="variant_d_moon_1x.png" width="640" height="448" alt="variant_d_moon_1x.png">moon, last frame</div>
+<div class="cell"><img src="variant_d_dusk_1x.png" width="640" height="448" alt="variant_d_dusk_1x.png">dusk, last frame</div>
+<div class="cell"><img src="variant_d_storm_1x.png" width="640" height="448" alt="variant_d_storm_1x.png">storm, last frame</div>
+</div>
+<h2>Runner-up B on all three sky moods</h2><div class="row">
+<div class="cell"><img src="variant_b_moon_1x.png" width="640" height="448" alt="variant_b_moon_1x.png">moon</div>
+<div class="cell"><img src="variant_b_dusk_1x.png" width="640" height="448" alt="variant_b_dusk_1x.png">dusk</div>
+<div class="cell"><img src="variant_b_storm_1x.png" width="640" height="448" alt="variant_b_storm_1x.png">storm</div>
+</div>
+<h2>A with the backdrop at half brightness</h2><p>Plain text reads only if the arena is dimmed. That is a fade of every sprite palette (code cost), not a fix layer effect.</p><div class="row">
+<div class="cell"><img src="variant_a_dark_moon_1x.png" width="640" height="448" alt="variant_a_dark_moon_1x.png">moon</div>
+<div class="cell"><img src="variant_a_dark_dusk_1x.png" width="640" height="448" alt="variant_a_dark_dusk_1x.png">dusk</div>
+<div class="cell"><img src="variant_a_dark_storm_1x.png" width="640" height="448" alt="variant_a_dark_storm_1x.png">storm</div>
+</div>
+<h2>New tiles (8x)</h2><p>All 13 new 8 x 8 tiles of the four variants: band edges at four heights, drip pieces, pop burst. Grey = transparent.</p><div class="row"><div class="cell"><img src="new_tiles_8x.png" width="944" height="80" alt="new_tiles_8x.png"></div></div>
+</body></html>

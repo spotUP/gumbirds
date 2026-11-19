@@ -1,0 +1,14 @@
+roof take1_slate: tiles 12 (rim 4 + hang 0 + fill 8, static, no animation), colours 13 of 15, palettes 1 (new slot, not the gum palette)
+roof take2_stalactite: tiles 15 (rim 4 + hang 3 + fill 8, static, no animation), colours 11 of 15, palettes 1 (new slot, not the gum palette)
+roof take3_moss: tiles 16 (rim 4 + hang 4 + fill 8, static, no animation), colours 14 of 15, palettes 1 (new slot, not the gum palette)
+floor F0_today: tiles drawn by the code 17 (fill 1 + two rim roles x 8 frames; the sheet also ships roles t3..t6 = 24 tiles, vertical wall and corner pieces the code never draws; TRIPSTRIP_TILE_COUNT is 56), colours 10 of 15, palettes 1 (gum, unchanged)
+floor F1_flat_lip: tiles drawn by the code 17 (fill 1 + two rim roles x 8 frames; the sheet also ships roles t3..t6 = 24 tiles, vertical wall and corner pieces the code never draws; TRIPSTRIP_TILE_COUNT is 56), colours 8 of 15, palettes 1 (gum, unchanged)
+window sequence seed 6 (top,bottom per 192 px chunk): [(18, 162), (37, 157), (7, 143), (0, 120), (12, 156), (12, 148), (13, 133), (0, 144)]
+option A: biggest edge move between neighbouring 16 px columns: roof 6 px, floor 8 px; biggest move between neighbouring pixels: roof 6 px, floor 8 px
+option B: biggest edge move between neighbouring 16 px columns: roof 8 px, floor 8 px; biggest move between neighbouring pixels: roof 1 px, floor 1 px
+today: biggest edge jump at a chunk start: roof 30 px, floor 36 px
+option A new tiles: 0
+option B new tiles: roof 4 (one 2x2 block, static; hang row not drawn on ramps) + floor 25 (2x2 block x 8 rim frames, unique after dedupe; 4 if the ramp lip is left static) = 29
+total with take 1 roof, option B, animated floor ramps: roof 12 + 4 ramp, floor 17 used + 25 ramp (TRIPSTRIP_TILE_COUNT 56 today, of which 17 are drawn)
+gif: 150 steps stored as 138 frames (identical neighbours merged), 1152x672, 20 ms a frame, 0.9 px a frame = 45 px/s (real start speed 0.75 px at 60 Hz; max is 60 px/s), 3282 KB
+all palettes asserted <= 15 colours + transparent; all colours 5 bits per channel

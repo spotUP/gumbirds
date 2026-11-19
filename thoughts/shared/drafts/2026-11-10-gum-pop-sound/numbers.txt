@@ -1,0 +1,7 @@
+name duration_ms peak_dBFS rms_dBFS centroid_first20ms_Hz centroid_tail_Hz last_sample
+pop_1_dry_snap 90.0 -3.00 -19.59 4669 4754 0
+pop_2_wet_smack 170.0 -3.00 -15.80 2435 491 0
+pop_3_rubbery_pock 150.0 -3.00 -16.11 1262 202 0
+pop_4_double_pop 240.0 -3.00 -20.65 97 4099 0
+pop_5_bright_cartoon 160.0 -3.00 -16.48 236 4593 0
+pop_6_soft_bubble 220.0 -3.00 -16.99 1612 521 0

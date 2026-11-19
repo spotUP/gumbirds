@@ -1,0 +1,66 @@
+ROUND CLEAR BANNER DRAFTS, 10 November 2026 (written by draw_round_clear_banner.py)
+
+Fix layer only. Font and palettes: assets/font/fix_font_sheet.png + fix_font.json (Gumdrop, 192 sheet slots in use, 5 palettes).
+New tiles go to free sheet indices from 148; the S-ROM has 256 slots, 98 free before these drafts.
+New tiles drawn in total (all variants): 13.  New palettes in total: 2 (band, bandgold).  Fix palettes in use today: 5.
+Text cells = cells holding a glyph or icon tile. Fix cells = every cell the banner writes (and must clear after).
+Contrast = per text cell, mean luminance of the two lightest face colours minus the brightest quarter of what shows
+around the glyph in that cell (0..255 scale). Under 90 is hard to read at 1x.
+
+== A  Plain text
+  Two centred lines, plain Gumdrop glyphs, white over gold. Nothing behind the letters.
+  new unique tiles beyond the font: 0
+  palettes: 2 (gold, white); new: 0
+  text cells: 16   fix cells written: 16
+  contrast moon  worst   77  mean  129  cells under 90:   6%
+  contrast dusk  worst   56  mean   96  cells under 90:  31%
+  contrast storm worst   73  mean  117  cells under 90:  12%
+  contrast moon  worst  160  mean  188  cells under 90:   0%   (backdrop at half brightness: needs a fade of every sprite palette)
+  contrast dusk  worst  150  mean  171  cells under 90:   0%   (backdrop at half brightness: needs a fade of every sprite palette)
+  contrast storm worst  158  mean  183  cells under 90:   0%   (backdrop at half brightness: needs a fade of every sprite palette)
+
+== B  Gum band
+  Same text on a gum pink band over the full width, thinner in the middle, with drips; headline letter-spaced.
+  new unique tiles beyond the font: 11  (148 band_top_0, 149 band_bottom_0, 150 band_top_1, 151 band_bottom_1, 152 band_top_2, 153 band_bottom_2, 154 band_top_3, 155 band_bottom_3, 157 band_drip_neck_1, 158 band_drip_long, 159 band_drip_short)
+  palettes: 2 (band, bandgold); new: 2 (band, bandgold)
+  text cells: 16   fix cells written: 204
+  contrast moon  worst   99  mean  106  cells under 90:   0%
+  contrast dusk  worst   99  mean  106  cells under 90:   0%
+  contrast storm worst   99  mean  106  cells under 90:   0%
+
+== C  Winner call
+  Navy panel from the results screen tiles, PLAYER 1 WINS in the player colour between two Sootling icons, tall round digit.
+  new unique tiles beyond the font: 0
+  palettes: 2 (pink, white); new: 0
+  text cells: 22   fix cells written: 184
+  contrast moon  worst  195  mean  206  cells under 90:   0%
+  contrast dusk  worst  195  mean  206  cells under 90:   0%
+  contrast storm worst  195  mean  206  cells under 90:   0%
+
+== D  All popped
+  ALL POPPED! letter-spaced in a navy ribbon (panel tiles); each letter arrives as a gum bubble, pops, flashes white and settles pink; ROUND 2 blinks white and gold.
+  new unique tiles beyond the font: 1  (75 pop_burst)
+  palettes: 3 (gold, pink, white); new: 0
+  text cells: 16   fix cells written: 78
+  contrast moon  worst  193  mean  203  cells under 90:   0%
+  contrast dusk  worst  193  mean  203  cells under 90:   0%
+  contrast storm worst  193  mean  203  cells under 90:   0%
+  animation: 120 game frames. Letter n starts at frame 4 * n; stages of 4 frames each: gum bubble (tile 145), pop burst (new),
+  letter in the white palette, letter in the pink palette. ROUND 2 appears at frame 60 and swaps white / gold every 8 frames,
+  steady gold for the last 24 frames. Per frame at most 3 cells change tile or palette (plus 9 cells when line 2 appears, 69 for the ribbon at frame 0).
+  GIF: 30 frames of 70 ms (one per 4 game frames; real time would be 66.7 ms), colours per mood: moon 171, dusk 173, storm 156
+
+new palettes (slot 1..15, RGB at 5-bit steps):
+  band     255,255,255 255,255,255 255,239,247 255,214,239 74,8,82 132,16,49 231,49,66 255,148,148 181,41,165 255,82,181 255,165,222 255,255,255 255,82,181 82,148,181 255,198,90
+  bandgold 255,255,214 255,247,148 255,231,115 255,206,82 74,8,82 132,16,49 231,49,66 255,148,148 181,41,165 255,82,181 255,165,222 255,255,255 255,82,181 82,148,181 255,198,90
+  band: slot 13 (the plate colour of every backed glyph) is gum pink, so the 52 backed glyph tiles are reused as they are.
+  B with one palette only: print both lines with palette band (line 2 white instead of gold).
+
+notes:
+  backdrop moon: HUD digit 3 at cell 26,27 (palette white) changed to 2
+  backdrop dusk: HUD digit 3 at cell 26,27 (palette white) changed to 2
+  backdrop storm: HUD digit 3 at cell 26,27 (palette white) changed to 2
+  Lines with an odd cell count (ROUND CLEAR 11 or 23 spaced, ROUND 2 7, ALL POPPED! 23 spaced) sit 4 px left of the screen centre: the grid
+  has 40 cells and fix tiles cannot shift. All four variants keep both lines odd so they share one axis.
+  Fix tiles cannot flip, so every band edge height is its own tile; steps fall on cell borders, no slope tiles.
+  Backdrops are HUD mock-ups from 2026-11-10-hud-title-final, not MAME screenshots.

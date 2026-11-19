@@ -1,0 +1,13 @@
+throw loop frames 15 (4 poses)
+catch loop frames 17 (4 poses)
+toss frames 39
+burst frames 72, shreds incl. droplets 75, stuck on birds 3
+tile budget (16 x 16): name, non-empty tiles, unique after mirror dedupe
+  bird poses, 8 frames (32 x 32 cells)        32  30
+  tags A B C (16 x 32 cells)                   6   4
+  chalk ring (on the 16 px screen grid)       32  32
+  seat pad + 1P/2P chips                       4   4
+  shreds, streaks, beads                      14  12
+  splats, patches                             11   8
+  shadows, flash                               5   5
+  total new unique tiles                          95

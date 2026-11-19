@@ -1,0 +1,82 @@
+Sootling ground clips WITH GUM, measured by draw_walk_gum.py. Frame 24 x 32, col 0 left, row 0 top.
+
+How the sheet draws gum (assets/flier/sootling_sheet.json + sheet_base.py, which rebuilds all 63 frames
+pixel-exact; checked):
+  Frame 24 x 32, 7 clips: flap2 (0..7, gum 'two'), flap1 (8..15, gum 'one'), pop2 (16..27, two -> one),
+  pop1 (28..37, one -> none), inflate (38..51, none -> two), fall (52..61, none, loose string), idle (62, none,
+  gum wad at the beak). Gum states: 2 bubbles, 1 bubble, 0 (no bubble; idle carries the beak wad instead).
+  Two bubbles: 17 x 9 joined pair (two 9 x 9 lobes sharing outline col 8, seam open on rows 3..5),
+    at x 3..19, y 1..9 in flap2 frame 0; string from (11, 8) to the knot.
+  One bubble: 9 x 10 at x 7..15, y 1..10 in flap1 frame 0; string from (11, 10) to the knot.
+  Knot: 'n' on the brow's right outline pixel (col 18, body row 3) plus an 'm' tail one down-right.
+  String: 'n' core, 'k' sides, 2 segments with a bend; bubble drawn over the string, body over both.
+  Gum letters: k outline, h / w highlight, n light, m mid, q dark, p deepest (palette 0, 13, 14, 12, 11, 10, 9
+  in the player palette, rival same indices). In flight the bubble lifts 0..1 row (glift), x fixed.
+  No wad at the beak while gum is carried (flap frames have none).
+src/core/flier_view.c steady_clip(): balloons == 0 -> idle, 1 -> flap1, 2 -> flap2; flier_anim_step()
+  holds frame 0 of flap1 / flap2 while f->on_ground. So on the ground today: two bubbles = sheet frame 0,
+  one bubble = sheet frame 8, none = frame 62. Gum clips are needed for 2 and 1 bubbles (gum2, gum1);
+  0 bubbles uses the approved gumless drafts.
+
+Rest check (idle pose, bubble offsets 0):
+  gum2: rows 0..7 (bubble, above the string) match sheet frame 0 (flap2 frame 0): 192 of 192 pixels (the string below differs by design: flap frame 0 uses the 1-row squashed flight body)
+  gum1: rows 0..9 (bubble, above the string) match sheet frame 8 (flap1 frame 0): 240 of 240 pixels (the string below differs by design: flap frame 0 uses the 1-row squashed flight body)
+
+Tile method (same as measure.txt): render each frame with the player palette, pad it to 32 x 32 at x 0, cut 16 x 16 tiles,
+drop empty tiles, compare raw RGBA bytes (no flip matching, as measure.txt). 'new' = not in the current sheet's 63 player frames
+and not in the approved gumless walk C / landing / breathing drafts. The rival reuses the player tiles (palette swap). 8 x 8 counts beside them.
+
+walk_C gum2 (walk C hop-walk): 8 frames, holds 3 3 3 3 3 3 3 3 game frames (cycle 24 ticks = 0.400 s)
+  frame 0: bubble box cols 2..18 rows 1..9, 0 bubble px under the body/tuft, knot (19, 18), feet row 31
+  frame 1: bubble box cols 2..18 rows 3..10, 2 bubble px under the body/tuft, knot (19, 15), feet row 31
+  frame 2: bubble box cols 3..19 rows 1..10, 0 bubble px under the body/tuft, knot (19, 15), feet row 29
+  frame 3: bubble box cols 3..19 rows 0..9, 0 bubble px under the body/tuft, knot (18, 16), feet row 30  bubble touches row 0
+  frame 4: bubble box cols 2..18 rows 1..9, 0 bubble px under the body/tuft, knot (19, 18), feet row 31
+  frame 5: bubble box cols 2..18 rows 3..10, 2 bubble px under the body/tuft, knot (19, 15), feet row 31
+  frame 6: bubble box cols 3..19 rows 1..10, 4 bubble px under the body/tuft, knot (19, 15), feet row 29
+  frame 7: bubble box cols 3..19 rows 0..9, 0 bubble px under the body/tuft, knot (18, 16), feet row 30  bubble touches row 0
+  tiles 16x16: 26 unique, 17 new (25 not in the sheet alone); 8x8: 64 unique, 33 new
+
+land gum2 (landing pair): 2 frames, holds 9 12 game frames (cycle 21 ticks = 0.350 s)
+  frame 0: bubble box cols 3..19 rows 0..8, 0 bubble px under the body/tuft, knot (19, 18), feet row 31  bubble touches row 0
+  frame 1: bubble box cols 3..19 rows 3..10, 0 bubble px under the body/tuft, knot (18, 17), feet row 31
+  tiles 16x16: 8 unique, 5 new (7 not in the sheet alone); 8x8: 24 unique, 11 new
+
+breathe gum2 (idle breathing loop): 4 frames, holds 36 15 21 15 game frames (cycle 87 ticks = 1.450 s)
+  frame 0: bubble box cols 3..19 rows 1..9, 0 bubble px under the body/tuft, knot (18, 17), feet row 31
+  frame 1: bubble box cols 3..19 rows 1..9, 0 bubble px under the body/tuft, knot (18, 16), feet row 31
+  frame 2: bubble box cols 3..19 rows 0..8, 0 bubble px under the body/tuft, knot (18, 16), feet row 31  bubble touches row 0
+  frame 3: bubble box cols 3..19 rows 0..8, 0 bubble px under the body/tuft, knot (18, 17), feet row 31  bubble touches row 0
+  tiles 16x16: 12 unique, 6 new (7 not in the sheet alone); 8x8: 30 unique, 9 new
+
+gum2 total over walk C + landing + breathing: 16x16 45 unique, 28 new; 8x8 105 unique, 52 new
+
+walk_C gum1 (walk C hop-walk): 8 frames, holds 3 3 3 3 3 3 3 3 game frames (cycle 24 ticks = 0.400 s)
+  frame 0: bubble box cols 6..14 rows 1..10, 0 bubble px under the body/tuft, knot (19, 18), feet row 31
+  frame 1: bubble box cols 6..15 rows 2..10, 4 bubble px under the body/tuft, knot (19, 15), feet row 31
+  frame 2: bubble box cols 8..16 rows 1..10, 1 bubble px under the body/tuft, knot (19, 15), feet row 29
+  frame 3: bubble box cols 7..15 rows 0..9, 0 bubble px under the body/tuft, knot (18, 16), feet row 30  bubble touches row 0
+  frame 4: bubble box cols 6..14 rows 1..10, 0 bubble px under the body/tuft, knot (19, 18), feet row 31
+  frame 5: bubble box cols 6..15 rows 2..10, 4 bubble px under the body/tuft, knot (19, 15), feet row 31
+  frame 6: bubble box cols 6..14 rows 1..10, 3 bubble px under the body/tuft, knot (19, 15), feet row 29
+  frame 7: bubble box cols 7..15 rows 0..9, 0 bubble px under the body/tuft, knot (18, 16), feet row 30  bubble touches row 0
+  tiles 16x16: 24 unique, 14 new (22 not in the sheet alone); 8x8: 53 unique, 18 new
+
+land gum1 (landing pair): 2 frames, holds 9 12 game frames (cycle 21 ticks = 0.350 s)
+  frame 0: bubble box cols 7..15 rows 0..9, 0 bubble px under the body/tuft, knot (19, 18), feet row 31  bubble touches row 0
+  frame 1: bubble box cols 7..16 rows 3..11, 0 bubble px under the body/tuft, knot (18, 17), feet row 31
+  tiles 16x16: 8 unique, 5 new (7 not in the sheet alone); 8x8: 22 unique, 10 new
+
+breathe gum1 (idle breathing loop): 4 frames, holds 36 15 21 15 game frames (cycle 87 ticks = 1.450 s)
+  frame 0: bubble box cols 7..15 rows 1..10, 0 bubble px under the body/tuft, knot (18, 17), feet row 31
+  frame 1: bubble box cols 7..15 rows 1..10, 1 bubble px under the body/tuft, knot (18, 16), feet row 31
+  frame 2: bubble box cols 7..15 rows 0..9, 0 bubble px under the body/tuft, knot (18, 16), feet row 31  bubble touches row 0
+  frame 3: bubble box cols 7..15 rows 0..9, 0 bubble px under the body/tuft, knot (18, 17), feet row 31  bubble touches row 0
+  tiles 16x16: 12 unique, 5 new (6 not in the sheet alone); 8x8: 28 unique, 6 new
+
+gum1 total over walk C + landing + breathing: 16x16 42 unique, 24 new; 8x8 92 unique, 33 new
+
+ALL gum clips, both states, deduplicated together: 16x16 66 unique, 44 new C-ROM tiles; 8x8 149 unique, 78 new
+(pools: sheet 16x16 149, gumless drafts 16x16 36, union 179)
+
+walk_gum_sheet_draft.png: 192 x 384, rows top to bottom (player, rival per clip): walk C two bubbles, landing two, breathing two, walk C one bubble, landing one, breathing one

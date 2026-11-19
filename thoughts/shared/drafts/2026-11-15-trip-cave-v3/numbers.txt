@@ -1,0 +1,10 @@
+roof (take 1 slate, v3): 25 tiles = rim A 4 + rim B 4 + solo rim 2 + fill 4 + curve S16 6 + curve S32 5 (hflip for the other direction); colours 10 of 15; 1 palette slot; static
+floor curves: S16 5 tiles + S32 7 tiles = 12 static (hflip for the other direction; cells equal to the plain gum fill tile are not counted)
+floor curves animated: 96 tiles as 8 frame auto-animation runs (12 x 8); 50 if identical frames were shared (auto-animation cannot share them)
+tripstrip sheet: 56 -> 32 after freeing roles t3..t6 (24 tiles), + 96 floor curve tiles = 128; roof sheet 25; sum of new tiles 121
+C-ROM: 121 new tiles x 64 bytes per file = 7744 bytes per file on top of 305152 of 2097152 used
+curves: S16 = 4:1, 2:1, 4:1 over 48 px (16 px rise); S32 = 2:1, 1:1, 2:1 over 48 px (32 px rise); both start and end flat on the 16 px grid
+sequence (seed 6, snapped): TOP [16, 32, 0, 0, 16, 16, 16, 0] BOT [160, 160, 144, 128, 160, 144, 128, 144]
+curves used in the mock: roof ['S16', 'S32', None, 'S16', None, None, 'S16'] floor [None, 'S16', 'S16', 'S32', 'S16', 'S16', 'S16']
+height tables: heights.json (per piece, per tile column, 16 values each; measured from the typed pixels)
+scroll gif: 4 px per 90 ms frame = 44.4 px/s (target 45), 1x scale, lip frame steps once per gif frame, 2 part(s), bytes [1694547, 1694341]

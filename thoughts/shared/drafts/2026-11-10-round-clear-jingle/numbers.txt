@@ -1,0 +1,6 @@
+name duration_s peak_dBFS rms_dBFS dc_offset adpcm_a_bytes first_nonquiet_ms
+jingle_1_arpeggio_pops 1.600 -1.00 -15.79 +0.000000 14800 0.2
+jingle_2_bouncy_riff 1.800 -1.00 -12.06 -0.000001 16650 0.2
+jingle_3_chime_cascade 1.900 -1.00 -15.21 +0.000000 17575 0.3
+jingle_4_brass_fanfare 1.800 -1.00 -13.53 -0.000000 16650 0.3
+jingle_5_pluck_pop 1.500 -1.00 -18.83 -0.000001 13875 0.2

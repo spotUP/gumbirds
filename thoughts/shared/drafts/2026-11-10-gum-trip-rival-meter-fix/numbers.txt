@@ -1,0 +1,163 @@
+Gum Trip fix round: rival C brows, rival contrast, gum tube half mark.
+Written by draw_rival_meter_fix.py; every count below is measured by the script, most of them read back from the written PNG.
+
+== 1. Rival C brows
+old rule: 22 frames without brows [17, 18, 19, 20, 21, 22, 23, 24, 25, 29, 30, 31, 32, 33, 34, 35, 38, 39, 43, 44, 45, 49]
+old rule: 2 frames with one brow only, slanted the wrong way (far eye half behind the bubble) [26, 36]
+new rule: frames redrawn 24 (22 + 2); the other 39 frames are pixel-identical to the accepted old brow frames
+brow shape: 21 pixels (near eye 9, far eye and bridge 12), same shape and same columns in every frame; row T follows the eye socket
+check, read back from rival_c_sheet_1x.png: near-eye brow complete (9 of 9 pixels, exact index) in 63 of 63 frames; far-eye brow dark or behind gum on at least 11 of 12 pixels in 63 of 63 frames
+frame: T, socket state, near-eye px of 9, far-eye dark px of 12, far-eye px behind gum, px changed vs source
+   0: T 31, open, 9, 12,  0, 15
+   1: T 31, open, 9, 12,  0, 15
+   2: T 32, open, 9, 12,  0, 15
+   3: T 31, open, 9, 12,  0, 15
+   4: T 31, open, 9, 12,  0, 15
+   5: T 31, open, 9, 12,  0, 15
+   6: T 30, open, 9, 12,  0, 15
+   7: T 31, open, 9, 12,  0, 15
+   8: T 31, open, 9, 12,  0, 15
+   9: T 31, open, 9, 12,  0, 15
+  10: T 32, open, 9, 12,  0, 15
+  11: T 31, open, 9, 12,  0, 15
+  12: T 31, open, 9, 12,  0, 15
+  13: T 31, open, 9, 12,  0, 15
+  14: T 30, open, 9, 12,  0, 15
+  15: T 31, open, 9, 12,  0, 15
+  16: T 30, open, 9, 12,  0, 15
+  17: T 31, lid , 9, 12,  0, 17   (redrawn)
+  18: T 31, lid , 9, 12,  0, 17   (redrawn)
+  19: T 32, lid , 9, 12,  0, 17   (redrawn)
+  20: T 32, lid , 9, 11,  0, 16   (redrawn)
+  21: T 32, lid , 9,  5,  7, 13   (redrawn)
+  22: T 32, lid , 9,  5,  7, 13   (redrawn)
+  23: T 32, lid , 9,  9,  3, 16   (redrawn)
+  24: T 31, lid , 9, 11,  1, 16   (redrawn)
+  25: T 31, lid , 9, 12,  0, 17   (redrawn)
+  26: T 31, open, 9, 12,  0, 15   (redrawn)
+  27: T 31, open, 9, 12,  0, 15
+  28: T 30, open, 9, 12,  0, 15
+  29: T 31, lid , 9, 12,  0, 17   (redrawn)
+  30: T 31, lid , 9, 12,  0, 17   (redrawn)
+  31: T 32, lid , 9, 12,  0, 17   (redrawn)
+  32: T 32, lid , 9, 11,  0, 16   (redrawn)
+  33: T 32, lid , 9,  5,  7, 13   (redrawn)
+  34: T 32, lid , 9,  5,  7, 13   (redrawn)
+  35: T 31, lid , 9, 11,  1, 16   (redrawn)
+  36: T 31, open, 9, 12,  0, 15   (redrawn)
+  37: T 30, open, 9, 12,  0, 15
+  38: T 31, lid , 9, 12,  0, 17   (redrawn)
+  39: T 31, lid , 9, 12,  0, 17   (redrawn)
+  40: T 31, open, 9, 12,  0, 15
+  41: T 31, open, 9, 12,  0, 15
+  42: T 31, open, 9, 12,  0, 15
+  43: T 31, lid , 9, 12,  0, 17   (redrawn)
+  44: T 31, lid , 9, 12,  0, 17   (redrawn)
+  45: T 32, lid , 9, 12,  0, 17   (redrawn)
+  46: T 31, open, 9, 12,  0, 15
+  47: T 31, open, 9, 12,  0, 15
+  48: T 31, open, 9, 12,  0, 15
+  49: T 31, lid , 9, 12,  0, 17   (redrawn)
+  50: T 31, open, 9, 12,  0, 15
+  51: T 31, open, 9, 12,  0, 15
+  52: T 29, open, 9, 12,  0, 15
+  53: T 29, open, 9, 12,  0, 15
+  54: T 29, open, 9, 12,  0, 15
+  55: T 29, open, 9, 12,  0, 15
+  56: T 29, open, 9, 12,  0, 15
+  57: T 29, open, 9, 12,  0, 15
+  58: T 29, open, 9, 12,  0, 15
+  59: T 29, open, 9, 12,  0, 15
+  60: T 29, open, 9, 12,  0, 15
+  61: T 29, open, 9, 12,  0, 15
+  62: T 31, open, 9, 12,  0, 15
+  clip FLAP2   frames  0.. 7 brow row T: 31 31 32 31 31 31 30 31  largest step 1 px
+  clip FLAP1   frames  8..15 brow row T: 31 31 32 31 31 31 30 31  largest step 1 px
+  clip POP2    frames 16..27 brow row T: 30 31 31 32 32 32 32 32 31 31 31 31  largest step 1 px
+  clip POP1    frames 28..37 brow row T: 30 31 31 32 32 32 32 31 31 30  largest step 1 px
+  clip INFLATE frames 38..51 brow row T: 31 31 31 31 31 31 31 32 31 31 31 31 31 31  largest step 1 px
+  clip FALL    frames 52..61 brow row T: 29 29 29 29 29 29 29 29 29 29  largest step 0 px
+  clip IDLE    frames 62..62 brow row T: 31  largest step 0 px
+largest brow move between neighbouring frames of a clip: 1 px (the brow sits at a fixed offset from the socket, so it moves only when the eye does)
+tile cost versus the shared Sootling frames: 63 of 63 frames differ, 177 tile references differ, 156 new unique 16x16 tiles (old draft: 41 frames, 123 references, 111 tiles)
+
+== 2. Contrast (palette only)
+sky band: scene rows 16..95 of scene_<mood>_1x.png, full width; median, 10th and 90th percentile pixel by luminance
+  dusk  median (148, 55, 92)  p10 (94, 31, 92)  p90 (229, 118, 85)  (outline ceiling: a pure black outline gives 2.96 against the median)
+  moon  median (76, 60, 142)  p10 (38, 37, 98)  p90 (142, 96, 97)  (outline ceiling: a pure black outline gives 2.34 against the median)
+  storm median (53, 72, 85)  p10 (28, 41, 56)  p90 (82, 133, 130)  (outline ceiling: a pure black outline gives 2.21 against the median)
+contrast = (lighter luminance + 0.05) / (darker + 0.05); 1.00 is no contrast. Body = fur index 3 (most used fur colour, 6707 of 13539 fur pixels). Outline = index 1.
+  rival A Hornet  on dusk : body vs median 1.54 -> 2.22 | body vs p10 1.05 -> 3.60 | body vs p90 3.67 -> 1.07 | outline vs median 2.81 -> 2.81 | colour distance body to median 37 -> 70
+  rival A Hornet  on moon : body vs median 1.22 -> 2.80 | body vs p10 1.26 -> 4.31 | body vs p90 2.08 -> 1.64 | outline vs median 2.23 -> 2.23 | colour distance body to median 31 -> 102
+  rival A Hornet  on storm: body vs median 1.15 -> 2.97 | body vs p10 1.35 -> 4.62 | body vs p90 2.62 -> 1.31 | outline vs median 2.10 -> 2.10 | colour distance body to median 18 -> 69
+  rival B Bone    on dusk : body vs median 1.95 -> 2.05 | body vs p10 3.15 -> 3.33 | body vs p90 1.22 -> 1.16 | outline vs median 2.75 -> 2.74 | colour distance body to median 41 -> 42
+  rival B Bone    on moon : body vs median 2.46 -> 2.59 | body vs p10 3.78 -> 3.99 | body vs p90 1.44 -> 1.52 | outline vs median 2.18 -> 2.17 | colour distance body to median 35 -> 36
+  rival B Bone    on storm: body vs median 2.61 -> 2.75 | body vs p10 4.05 -> 4.27 | body vs p90 1.14 -> 1.21 | outline vs median 2.05 -> 2.05 | colour distance body to median 35 -> 36
+  rival C Bruiser on dusk : body vs median 1.50 -> 2.11 | body vs p10 1.08 -> 3.42 | body vs p90 3.57 -> 1.13 | outline vs median 2.75 -> 2.74 | colour distance body to median 47 -> 52
+  rival C Bruiser on moon : body vs median 1.19 -> 2.66 | body vs p10 1.30 -> 4.10 | body vs p90 2.02 -> 1.56 | outline vs median 2.18 -> 2.17 | colour distance body to median 18 -> 40
+  rival C Bruiser on storm: body vs median 1.12 -> 2.82 | body vs p10 1.39 -> 4.38 | body vs p90 2.55 -> 1.24 | outline vs median 2.05 -> 2.05 | colour distance body to median 61 -> 77
+  for reference player 1: body vs median dusk 1.34 moon 1.06 storm 1.00 | outline vs median dusk 2.80 moon 2.22 storm 2.09
+  for reference computer: body vs median dusk 1.41 moon 1.11 storm 1.05 | outline vs median dusk 2.77 moon 2.19 storm 2.07
+colour distance between body tones (CIELAB delta E 1976; fur index 2, 3, 4, 5; then the mean weighted by pixel use). Under about 10 two colours are hard to tell apart at a glance.
+  rival A vs player 1: old 18 22 26 31 mean 23.4 -> new 20 97 88 47 mean 74.3
+  rival A vs computer: old 12 34 58 56 mean 37.1 -> new 8 63 54 40 mean 47.9
+  rival B vs player 1: old 17 31 30 26 mean 27.5 -> new 17 32 32 27 mean 28.7
+  rival B vs computer: old 25 47 65 55 mean 47.2 -> new 26 48 66 56 mean 48.3
+  rival C vs player 1: old 8 32 72 78 mean 41.3 -> new 40 53 58 41 mean 49.8
+  rival C vs computer: old 22 56 86 81 mean 58.4 -> new 52 66 75 57 mean 63.8
+  rival A body (index 3) vs its own gum (index 12): old 105 -> new 44
+  rival C body (index 3) vs player 1 gum (index 11, 12): old 31, 55 -> new 20, 34; vs rival B gum (index 11, 12): old 14, 31 -> new 30, 22
+  body luminance (0..1): old A 0.046 B 0.238 C 0.049 -> new A 0.279 B 0.254 C 0.262; player 1 0.060, computer 0.055
+palette A (Hornet), 15 colours + transparent, 5 bits per channel, dark bit 0; indices changed versus the old draft: [2, 3, 4, 5, 6, 10, 11, 12, 13, 14]
+  5 bit: (1,1,2) (6,4,7) (21,17,6) (28,24,10) (31,30,20) (31,31,27) (12,1,3) (27,4,5) (31,17,9) (16,5,1) (24,9,1) (30,15,2) (31,23,10) (31,30,23) (31,31,31)
+  8 bit: (8,8,16) (49,33,57) (173,140,49) (231,198,82) (255,247,165) (255,255,222) (99,8,24) (222,33,41) (255,140,74) (132,41,8) (198,74,8) (247,123,16) (255,189,82) (255,247,189) (255,255,255)
+  old  : (8,8,16) (32,24,48) (64,56,88) (112,104,136) (176,176,200) (248,232,64) (96,8,24) (216,32,40) (248,136,72) (112,48,0) (184,96,0) (240,168,16) (248,224,96) (248,248,200) (248,248,248)
+palette B (Bone), 15 colours + transparent, 5 bits per channel, dark bit 0; indices changed versus the old draft: none (old values re-expressed in 5 bit units)
+  5 bit: (2,1,4) (9,7,14) (17,16,22) (25,25,28) (30,30,31) (31,7,7) (3,2,6) (8,7,13) (18,17,23) (6,2,12) (12,5,21) (18,11,29) (24,20,31) (29,28,31) (31,31,31)
+  8 bit: (16,8,33) (74,57,115) (140,132,181) (206,206,231) (247,247,255) (255,57,57) (24,16,49) (66,57,107) (148,140,189) (49,16,99) (99,41,173) (148,90,239) (198,165,255) (239,231,255) (255,255,255)
+  old  : (16,8,32) (72,56,112) (136,128,176) (200,200,224) (240,240,248) (248,56,56) (24,16,48) (64,56,104) (144,136,184) (48,16,96) (96,40,168) (144,88,232) (192,160,248) (232,224,248) (248,248,248)
+palette C (Bruiser), 15 colours + transparent, 5 bits per channel, dark bit 0; indices changed versus the old draft: [2, 3, 4, 5]
+  5 bit: (2,1,4) (11,3,17) (24,12,27) (28,19,30) (31,27,31) (31,31,20) (2,7,5) (5,20,11) (20,30,15) (12,0,3) (21,2,4) (29,6,5) (31,17,11) (31,27,22) (31,31,31)
+  8 bit: (16,8,33) (90,24,140) (198,99,222) (231,156,247) (255,222,255) (255,255,165) (16,57,41) (41,165,90) (165,247,123) (99,0,24) (173,16,33) (239,49,41) (255,140,90) (255,222,181) (255,255,255)
+  old  : (16,8,32) (40,16,72) (88,32,136) (152,64,184) (216,136,232) (248,248,160) (16,56,40) (40,160,88) (160,240,120) (96,0,24) (168,16,32) (232,48,40) (248,136,88) (248,216,176) (248,248,248)
+
+== 3. Meter A, gum tube with half mark (fix layer)
+cells: 5 fix cells in one row (1 gum ball icon + 4 tube cells), 40x8 px; fill steps 8 (+ empty); each tube cell holds two 4 px segments, one step each
+step -> cells: cell c (0..3 from the left) shows clamp(step - 2c, 0, 2) filled segments: 0 empty tile, 1 half tile, 2 full tile
+  step 8 (full): icon normal | 2 2 2 2
+  step 7 (in-between): icon normal | 2 2 2 1
+  step 6 (3/4): icon normal | 2 2 2 0
+  step 5 (in-between): icon normal | 2 2 1 0
+  step 4 (half): icon normal | 2 2 0 0
+  step 3 (in-between): icon normal | 2 1 0 0
+  step 2 (1/4): icon warning | 2 0 0 0
+  step 1 (in-between): icon warning | 1 0 0 0
+  step 0 (empty): icon warning | 0 0 0 0
+half mark: gold bar (slot 15) on the seam between tube cells 2 and 3, 8 px tall (2 px taller than the tube), 3 px caps on rows 0 and 7; it is part of the tiles, always shown; at step 4 the fill ends exactly on it
+unique tiles: 13 read back from meter_tiles_1x.png (13 drawn): icon 2 (normal, warning); plain tube cell 5 (empty, half, full, warning half, warning full); cell left of the mark 3; cell right of the mark 3
+colours: 11, all from the fix palette 'white' of assets/font/fix_font.json, slots [1, 4, 5, 6, 7, 8, 9, 10, 11, 13, 15]; no second palette (the old draft needed an orange palette for the warning; here the warning uses the red slots 6..8 as tiles)
+sprites: 0
+
+== files
+rival_c_dusk_3x.gif: 40 frames, 756x168, 209 KB
+rival_c_moon_3x.gif: 40 frames, 756x168, 210 KB
+rival_c_storm_3x.gif: 40 frames, 756x168, 213 KB
+compare_brows_3x.png: 1152x588, 32 colours
+compare_brows_heads_6x.png: 1524x216, 30 colours
+compare_meter_3x.png: 1068x156, 35 colours
+compare_palette_dusk_3x.png: 600x354, 136 colours
+compare_palette_moon_3x.png: 600x354, 135 colours
+compare_palette_storm_3x.png: 600x354, 132 colours
+lineup_new_squint_1x.png: 200x178, 137 colours
+lineup_new_squint_3x.png: 600x534, 137 colours
+meter_named_states_6x.png: 264x444, 12 colours
+meter_states_1x.png: 176x160, 24 colours
+meter_states_3x.png: 528x480, 24 colours
+meter_tiles_1x.png: 104x8, 12 colours
+meter_tiles_6x.png: 624x48, 12 colours
+rival_a_sheet_1x.png: 256x384, 16 colours
+rival_b_sheet_1x.png: 256x384, 16 colours
+rival_c_sheet_1x.png: 256x384, 16 colours
+rival_a_sheet_1x.png palette check: 15 colours + transparent, all in palette A
+rival_b_sheet_1x.png palette check: 15 colours + transparent, all in palette B
+rival_c_sheet_1x.png palette check: 15 colours + transparent, all in palette C

@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>Gum splat drafts</title>
+<style>
+body{background:#16142a;color:#ffd6c6;font:15px system-ui,sans-serif;margin:24px}
+h1{font-size:20px} h2{font-size:16px;margin:0 0 4px}
+.row{display:flex;gap:28px;flex-wrap:wrap;margin-bottom:24px}
+.card{background:#24002d;border:1px solid #732a6b;padding:12px;border-radius:4px}
+canvas,img{image-rendering:pixelated;display:block}
+img.sheet{margin-top:6px;width:1152px;max-width:100%;background:#16142a}
+button{background:#b5297b;color:#fff;border:0;padding:6px 12px;border-radius:3px;cursor:pointer}
+</style></head><body>
+<h1>Gum splat drafts (Gum Trip)</h1>
+<p>48 x 48, 12 frames, 4 ticks per frame (0.8 s). Preview is drawn behind the gum floor (strip C), 3x. <button id="slow">Slow x4</button> <button id="pause">Pause</button></p>
+<div class="row" id="row"></div>
+<h2>Raw sheets (576 x 48, shown 2x)</h2>
+<div id="sheets"></div>
+<script>
+const V=[["A","Thick blob burst and drip"],["B","Stringy strands that snap back"],["B2","B2 (polished)","gum_splat_B2.png"],["B3","B3 (lighter, rounder)","gum_splat_B3.png"],["C","Bubble that inflates and pops into droplets"]];
+const FW=48,FH=48,N=12,SURF=42,S=3,MS=66.7;
+let slow=1,paused=false,tick=0;
+const floor=new Image();floor.src="tripstrip_sheet.png";
+const row=document.getElementById("row"),sheets=document.getElementById("sheets");
+const cards=V.map(([k,n,fn])=>{fn=fn||k+"_gum_splat_1x.png";
+  const c=document.createElement("canvas");c.width=FW*S;c.height=60*S;
+  const d=document.createElement("div");d.className="card";d.innerHTML="<h2>"+k+": "+n+"</h2>";d.appendChild(c);row.appendChild(d);
+  const im=new Image();im.src=fn;
+  const s=document.createElement("img");s.className="sheet";s.src=fn;sheets.appendChild(s);
+  return {c:c.getContext("2d"),im};
+});
+function draw(f){
+  for(const {c,im} of cards){
+    c.imageSmoothingEnabled=false;c.setTransform(S,0,0,S,0,0);
+    c.fillStyle="#161428";c.fillRect(0,0,FW,60);
+    c.drawImage(im,f*FW,0,FW,FH,0,0,FW,FH);
+    c.fillStyle="#390839";c.fillRect(0,SURF+13,FW,60);
+    c.drawImage(floor,0,16,48,16,0,SURF-3,48,16);
+  }
+}
+let last=0;
+function loop(t){
+  if(!paused&&t-last>MS*slow){last=t;tick=(tick+1)%(N+6);draw(Math.min(tick,N-1));}
+  requestAnimationFrame(loop);
+}
+floor.onload=()=>requestAnimationFrame(loop);
+document.getElementById("slow").onclick=e=>{slow=slow==1?4:1;e.target.textContent=slow==1?"Slow x4":"Normal speed"};
+document.getElementById("pause").onclick=e=>{paused=!paused;e.target.textContent=paused?"Play":"Pause"};
+</script></body></html>

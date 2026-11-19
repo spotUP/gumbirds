@@ -1,0 +1,57 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Gumbirds islands, draft round 1</title><style>
+body{background:#15161b;color:#d8d9df;font-family:Helvetica,Arial,sans-serif;margin:24px}
+img{image-rendering:pixelated;max-width:none;display:block;margin:8px 0 16px 0}
+h2{margin-top:40px;border-top:1px solid #3a3c46;padding-top:16px}p{max-width:940px;line-height:1.4}
+.row{display:flex;gap:24px;align-items:flex-start}.col{flex:0 0 auto}.weak{color:#ffb86b}
+</style></head><body>
+<h1>Gumbirds islands, draft round 1</h1>
+<p>View at 100 percent browser zoom. Drafts only, nothing is in the game. Three options for the platforms, each drawn at the eight positions and widths of the stage table in the code, camera at 32 px so both seam islands show. The backdrop is the camera 0 picture of the final background pass, so the parallax offset is not exact. A player Sootling stands on the centre island, a computer Sootling flies above it. Numbers are in <a href="numbers.txt" style="color:#8ecbff">numbers.txt</a>, own choices in <a href="README.md" style="color:#8ecbff">README.md</a>.</p>
+<h2>Side by side, 1x (true size), all three moods</h2><div class="row">
+<div class="col"><h3>A  Roof chunk</h3><p style="max-width:300px">A brick roof fragment torn loose, stone coping on top, torn brickwork and rebar below, a lantern on a chain under the right end.</p><p class="weak" style="max-width:300px">Weak point: the torn lower edge is an even sawtooth and the brick face reads flat at true size; only the right end has motion.</p>
+<img src="moods_roof_1x.png" width="320" height="75" style="width:320px;height:auto" alt="roof three moods small">
+<p style="max-width:300px">41 unique tiles, 1 palette on screen, 17 platform sprites on the worst line.</p></div>
+<div class="col"><h3>B  Garden slab</h3><p style="max-width:300px">A floating planter: bright turf line, soil with buried stones, a root ball, vines and grass that move in the wind.</p><p class="weak" style="max-width:300px">Weak point: the buried stones and blossoms repeat every 32 px and show as a pattern; it costs the most tiles, and the storm soil sits close to the building greys.</p>
+<img src="moods_garden_1x.png" width="320" height="75" style="width:320px;height:auto" alt="garden three moods small">
+<p style="max-width:300px">72 unique tiles, 1 palette on screen, 17 platform sprites on the worst line.</p></div>
+<div class="col"><h3>C  Airship deck</h3><p style="max-width:300px">A steel deck plate with a hazard band on a see-through truss, held up by a rotor pod under each end.</p><p class="weak" style="max-width:300px">Weak point: the backdrop shows through the open truss, so the lower half reads less solid, and it is the option closest in material to the city scenery; the rotors are small at true size.</p>
+<img src="moods_deck_1x.png" width="320" height="75" style="width:320px;height:auto" alt="deck three moods small">
+<p style="max-width:300px">43 unique tiles, 1 palette on screen, 17 platform sprites on the worst line.</p></div>
+</div>
+<h2>Close view, centre island, 6x: moon, dusk, storm</h2><div class="row">
+<div class="col"><h3>A  Roof chunk</h3><img src="zoom_roof_6x.png" width="384" height="468" alt="roof zoom"></div>
+<div class="col"><h3>B  Garden slab</h3><img src="zoom_garden_6x.png" width="384" height="468" alt="garden zoom"></div>
+<div class="col"><h3>C  Airship deck</h3><img src="zoom_deck_6x.png" width="384" height="468" alt="deck zoom"></div>
+</div><p>Shown at half of the 6x file so the three fit side by side.</p>
+<h2>Motion, moon, 3x</h2>
+<h3>A  Roof chunk</h3><img src="anim_roof_3x.gif" width="960" height="672" alt="roof animation">
+<h3>B  Garden slab</h3><img src="anim_garden_3x.gif" width="960" height="672" alt="garden animation">
+<h3>C  Airship deck</h3><img src="anim_deck_3x.gif" width="960" height="672" alt="deck animation">
+<h2>Clear night, moon, 3x</h2>
+<h3>A  Roof chunk</h3><img src="scene_roof_moon_3x.png" width="960" height="672" alt="roof moon">
+<h3>B  Garden slab</h3><img src="scene_garden_moon_3x.png" width="960" height="672" alt="garden moon">
+<h3>C  Airship deck</h3><img src="scene_deck_moon_3x.png" width="960" height="672" alt="deck moon">
+<h2>Ember dusk, 3x</h2>
+<h3>A  Roof chunk</h3><img src="scene_roof_dusk_3x.png" width="960" height="672" alt="roof dusk">
+<h3>B  Garden slab</h3><img src="scene_garden_dusk_3x.png" width="960" height="672" alt="garden dusk">
+<h3>C  Airship deck</h3><img src="scene_deck_dusk_3x.png" width="960" height="672" alt="deck dusk">
+<h2>Storm, 3x</h2>
+<h3>A  Roof chunk</h3><img src="scene_roof_storm_3x.png" width="960" height="672" alt="roof storm">
+<h3>B  Garden slab</h3><img src="scene_garden_storm_3x.png" width="960" height="672" alt="garden storm">
+<h3>C  Airship deck</h3><img src="scene_deck_storm_3x.png" width="960" height="672" alt="deck storm">
+<h2>Build sheets, shown at 4x (files are 1x, transparent colour magenta 255, 0, 255)</h2><p>Row 1: left cap, middle A, middle B, right cap. Row 2: the eight frames of the left cap. Row 3: the eight frames of the right cap.</p>
+<h3>A  Roof chunk</h3><div class="row">
+<div class="col"><p>moon</p><img src="sheet_roof_moon_1x.png" width="512" height="384" alt="sheet roof moon"></div>
+<div class="col"><p>dusk</p><img src="sheet_roof_dusk_1x.png" width="512" height="384" alt="sheet roof dusk"></div>
+<div class="col"><p>storm</p><img src="sheet_roof_storm_1x.png" width="512" height="384" alt="sheet roof storm"></div>
+</div>
+<h3>B  Garden slab</h3><div class="row">
+<div class="col"><p>moon</p><img src="sheet_garden_moon_1x.png" width="512" height="384" alt="sheet garden moon"></div>
+<div class="col"><p>dusk</p><img src="sheet_garden_dusk_1x.png" width="512" height="384" alt="sheet garden dusk"></div>
+<div class="col"><p>storm</p><img src="sheet_garden_storm_1x.png" width="512" height="384" alt="sheet garden storm"></div>
+</div>
+<h3>C  Airship deck</h3><div class="row">
+<div class="col"><p>moon</p><img src="sheet_deck_moon_1x.png" width="512" height="384" alt="sheet deck moon"></div>
+<div class="col"><p>dusk</p><img src="sheet_deck_dusk_1x.png" width="512" height="384" alt="sheet deck dusk"></div>
+<div class="col"><p>storm</p><img src="sheet_deck_storm_1x.png" width="512" height="384" alt="sheet deck storm"></div>
+</div>
+</body></html>

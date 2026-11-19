@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Hazards v4: depth pass</title>
+<style>
+  body { margin: 0; padding: 28px 32px 60px; background: #14161c; color: #d8dce6;
+         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; font-size: 15px; line-height: 1.5; }
+  h1 { font-size: 26px; font-weight: 700; margin: 0 0 6px; color: #ffffff; }
+  h2 { font-size: 20px; font-weight: 700; margin: 44px 0 4px; color: #ffffff; border-top: 2px solid #2e3340; padding-top: 22px; }
+  p { margin: 4px 0 14px; max-width: 1100px; }
+  .note { color: #9aa2b4; }
+  .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; max-width: 2600px; }
+  figure { margin: 0; }
+  figcaption { font-size: 13px; font-weight: 600; color: #8fd0ff; margin-bottom: 6px; }
+  figcaption.old { color: #9aa2b4; }
+  img { image-rendering: pixelated; display: block; width: 100%; height: auto; background: #0a0c22; border: 1px solid #2e3340; }
+  img.scene { width: 960px; max-width: 100%; margin-top: 16px; }
+  img.rows { width: auto; max-width: 100%; margin-top: 16px; }
+</style>
+</head>
+<body>
+<h1>Hazards v4: depth pass</h1>
+<p class="note">One key light from the upper left on all four. Flame and melt give off their own light. Left: v4. Right: v3, same loop and timing.
+Below each pair: the full screen at 3x, then the build input at 1x (16 frames per row, one row per tile variant).</p>
+
+<h2>Spikes</h2>
+<p>Steel now has seven shades. Blades have a lit face, a ridge glint, a core shadow and reflected light on the far edge. Each sleeve is a bevelled block with a top face and a shadow side. The arc lights the blade faces next to it.</p>
+<div class="pair">
+  <figure><figcaption>v4</figcaption><img src="anim_A_16f_4x.gif" alt="spikes v4"></figure>
+  <figure><figcaption class="old">v3</figcaption><img src="../2026-11-10-hazards-v3/anim_A_16f_4x.gif" alt="spikes v3"></figure>
+</div>
+<img class="scene" src="scene_A_3x.png" alt="spikes scene">
+<img class="rows" src="frames_A_1x.png" alt="spikes frames">
+
+<h2>Fire</h2>
+<p>Nine sources of uneven strength and spacing over two tile variants (A B A B A). Flames have a white core, yellow and amber body, red shell, a cool magenta edge, a darker back row and violet smoke above the tips. Coals have an ash-lit top.</p>
+<div class="pair">
+  <figure><figcaption>v4</figcaption><img src="anim_B_16f_4x.gif" alt="fire v4"></figure>
+  <figure><figcaption class="old">v3</figcaption><img src="../2026-11-10-hazards-v3/anim_B_16f_4x.gif" alt="fire v3"></figure>
+</div>
+<img class="scene" src="scene_B_3x.png" alt="fire scene">
+<img class="rows" src="frames_B_1x.png" alt="fire frames">
+
+<h2>Water</h2>
+<p>Seven water shades: lit crest, teal where light enters the wave, indigo self-shadow behind each crest, deep bands. Rocks are violet with a lit face and a highlight edge. Weed is green with a shadow side. Both read at 1x. The lurker is a sprite with its own palette.</p>
+<div class="pair">
+  <figure><figcaption>v4</figcaption><img src="anim_C_16f_4x.gif" alt="water v4"></figure>
+  <figure><figcaption class="old">v3</figcaption><img src="../2026-11-10-hazards-v3/anim_C_16f_4x.gif" alt="water v3"></figure>
+</div>
+<img class="scene" src="scene_C_3x.png" alt="water scene">
+<img class="rows" src="frames_C_1x.png" alt="water frames">
+
+<h2>Lava</h2>
+<p>Two tile variants. The big bubble is in variant B only: two times across the screen, not five. Three smaller bubbles burst at other times. Crust plates have a top face, a side face, a violet shadow end, a glow underneath and a cast shadow on the melt. Cracks glow.</p>
+<div class="pair">
+  <figure><figcaption>v4</figcaption><img src="anim_D_16f_4x.gif" alt="lava v4"></figure>
+  <figure><figcaption class="old">v3</figcaption><img src="../2026-11-10-hazards-v3/anim_D_16f_4x.gif" alt="lava v3"></figure>
+</div>
+<img class="scene" src="scene_D_3x.png" alt="lava scene">
+<img class="rows" src="frames_D_1x.png" alt="lava frames">
+</body>
+</html>

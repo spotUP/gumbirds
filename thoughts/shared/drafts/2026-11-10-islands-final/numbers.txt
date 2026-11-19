@@ -1,0 +1,96 @@
+Gumbirds island sheets, final. All numbers are measured by draw_islands_final.py.
+
+Box: pieces are 16 px wide. Thin island = 16 px tall, tall island = 32 px tall.
+Standing line (collision height) = sheet row 4 in every piece; the sprite top is stage y - 4.
+Rows 0..3 hold decoration above the line; rows 4 and 5 are the bright line.
+Middle pieces used per width: 64 = m0 m3; 80 = m0 m2 m4; 96 = m0 m1 m3 m4; 112 = m0 m1 m2 m3 m4
+Animation: 8 frames at 110 ms, tile swaps in the two cap pieces only.
+
+A roof chunk (moon night)
+  palette (15 colours, 5 bits per channel, index 0 is transparent 255,0,255):
+     1 k    16,  8, 33  luminance  13
+     2 s1   49, 41, 82  luminance  48
+     3 s2   90, 82,123  luminance  89
+     4 s3  148,140,165  luminance 145
+     5 s4  206,198,198  luminance 200
+     6 s5  255,247,222  luminance 247
+     7 b1   57, 16, 49  luminance  32
+     8 b2   99, 33, 57  luminance  55
+     9 b3  156, 57, 57  luminance  87
+    10 b4  206, 99, 66  luminance 127
+    11 b5  247,156, 99  luminance 177
+    12 i1   41, 49, 74  luminance  49
+    13 i2  148,181,222  luminance 176
+    14 g1  255,165, 41  luminance 178
+    15 g2  255,247,165  luminance 240
+  palette entries used: 15 of 15
+  thin (one tile tall): 7 unique 16x16 tiles for all four widths, static; 11 with all animation frames (4 extra); 8 distinct frames; 2 tile positions swap
+  tall (two tiles tall): 14 unique 16x16 tiles for all four widths, static; 22 with all animation frames (8 extra); 8 distinct frames; 2 tile positions swap
+  both variants together: 21 static, 33 with animation (no tile flips counted)
+  lower edge under 24 luminance steps from the moon backdrop: proposal layout 5.0% of 5248 edge pixels (8 frames); sweep over the whole play area 3.7% of 143616
+  standing line under 24 steps from the backdrop pixel above it: proposal layout 0.2% of 5056; sweep 0.9% of 138720
+
+B garden slab (ember dusk)
+  palette (15 colours, 5 bits per channel, index 0 is transparent 255,0,255):
+     1 k    16,  8, 33  luminance  13
+     2 o1  255,173, 82  luminance 187
+     3 d2   57, 24, 66  luminance  39
+     4 d3  107, 49, 74  luminance  69
+     5 d4  173, 99, 82  luminance 119
+     6 t1  165,132,148  luminance 144
+     7 t2  247,222,206  luminance 228
+     8 g1   16, 57, 57  luminance  45
+     9 g2   33, 99, 57  luminance  74
+    10 g3   90,148, 49  luminance 119
+    11 g4  173,206, 66  luminance 180
+    12 g5  247,247,140  luminance 235
+    13 f1  132,222,231  luminance 196
+    14 f2  239,255,255  luminance 250
+    15 rt  231,181,132  luminance 190
+  palette entries used: 15 of 15
+  thin (one tile tall): 7 unique 16x16 tiles for all four widths, static; 9 with all animation frames (2 extra); 3 distinct frames; 1 tile positions swap
+  tall (two tiles tall): 14 unique 16x16 tiles for all four widths, static; 28 with all animation frames (14 extra); 8 distinct frames; 2 tile positions swap
+  both variants together: 21 static, 37 with animation (no tile flips counted)
+  lower edge under 24 luminance steps from the dusk backdrop: proposal layout 7.6% of 5248 edge pixels (8 frames); sweep over the whole play area 7.1% of 143616
+  standing line under 24 steps from the backdrop pixel above it: proposal layout 0.6% of 3984; sweep 1.2% of 110160
+
+C airship deck (storm)
+  palette (15 colours, 5 bits per channel, index 0 is transparent 255,0,255):
+     1 k     8,  8, 16  luminance   9
+     2 m1   24, 24, 33  luminance  25
+     3 m2   57, 57, 74  luminance  59
+     4 m3  107,107,115  luminance 108
+     5 m4  165,165,165  luminance 165
+     6 m5  222,222,214  luminance 221
+     7 m6  255,255,255  luminance 255
+     8 y1  140, 41, 24  luminance  69
+     9 y2  247,115, 24  luminance 144
+    10 y3  255,198, 90  luminance 203
+    11 c1   16, 82, 99  luminance  64
+    12 c2   41,173,181  luminance 134
+    13 c3  132,231,231  luminance 201
+    14 r1   99, 57, 41  luminance  68
+    15 r2  181,115, 66  luminance 129
+  palette entries used: 14 of 15
+  thin (one tile tall): 7 unique 16x16 tiles for all four widths, static; 21 with all animation frames (14 extra); 8 distinct frames; 2 tile positions swap
+  tall (two tiles tall): 14 unique 16x16 tiles for all four widths, static; 28 with all animation frames (14 extra); 8 distinct frames; 2 tile positions swap
+  both variants together: 21 static, 49 with animation (no tile flips counted)
+  lower edge under 24 luminance steps from the storm backdrop: proposal layout 6.1% of 5248 edge pixels (8 frames); sweep over the whole play area 4.8% of 143616
+  standing line under 24 steps from the backdrop pixel above it: proposal layout 0.2% of 5120; sweep 0.2% of 140352
+
+Sprite load per scanline (platform strips only, one strip per 16 px of width, every island counted
+whether or not it is on screen):
+  stage table today, all tall: worst line 17 strips (lines 160..167); lines shared by two or more islands: 36..67, 100..131, 160..191
+  stage table today, all thin: worst line 10 strips (lines 100..115, 160..175); lines shared by two or more islands: 36..51, 100..115, 160..175
+  proposal: worst line 7 strips (lines 124..139); lines shared by two or more islands: none
+
+Proposed layout (x, y, width, tiles tall) against the stage table (x, y, width):
+  (  0, 148,  80, 1)   table (  0, 164,  80)   sprite lines 144..159   differs in: y
+  (304, 164,  80, 1)   table (304, 164,  80)   sprite lines 160..175   differs in: nothing
+  (136, 128, 112, 1)   table (136, 140, 112)   sprite lines 124..139   differs in: y
+  ( 32,  92,  80, 1)   table ( 32, 104,  80)   sprite lines  88..103   differs in: y
+  (280, 108,  80, 1)   table (280, 104,  80)   sprite lines 104..119   differs in: y
+  (144,  68,  96, 1)   table (144,  72,  96)   sprite lines  64.. 79   differs in: y
+  (  0,  36,  64, 1)   table (  0,  40,  56)   sprite lines  32.. 47   differs in: y, width
+  (320,  52,  64, 1)   table (328,  40,  56)   sprite lines  48.. 63   differs in: x, y, width
+  strips per line: 0..31, 80..87, 120..123, 140..143, 176..223: 0, 32..63: 4, 88..119, 144..175: 5, 64..79: 6, 124..139: 7

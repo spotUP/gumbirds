@@ -1,0 +1,10 @@
+roof take1 (Take 1: slate boulders): tiles 12 = rim 4 + fill 4 + ramp 4 (one 2x2 block, hflip for the other way) + hang 0; colours 10 of 15; 1 palette slot; static
+roof take2 (Take 2: warm rock, blunt stalactites): tiles 15 = rim 4 + fill 4 + ramp 4 (one 2x2 block, hflip for the other way) + hang 3; colours 10 of 15; 1 palette slot; static
+roof take3 (Take 3: mossy rock, vines): tiles 16 = rim 4 + fill 4 + ramp 4 (one 2x2 block, hflip for the other way) + hang 4; colours 12 of 15; 1 palette slot; static
+floor F1: gum palette unchanged (9 gum colours used); rim = shipped t2_rim rows 4-15 with rows 0-3 replaced by an empty 2 px and a straight 2 px lip; fill unchanged
+floor ramp: 4 tiles static (one 2x2 block, hflip for the other way); animated with the 8 rim frames it would be up to 32 tiles
+ramp tiles in total per roof take + floor: 4 + 4 = 8
+sheet tiles freed by dropping roles t3..t6: 24 (4 + 8 + 8 + 4); tripstrip sheet 56 -> 32 + 4 = 36
+window sequence seed 6 snapped to 16 px (top, bottom per 192 px chunk): [(16, 160), (32, 160), (0, 144), (0, 128), (16, 160), (16, 144), (16, 128), (0, 144)]
+scroll gif: 4 px per 90 ms frame = 44.4 px/s (target 45), 2x scale, whole 8 chunk sequence
+all palettes asserted <= 15 colours + transparent, all colours 5 bits per channel; every ramp column asserted solid down to a 1 px stepped edge; every hang pixel asserted to touch rock

@@ -1,0 +1,62 @@
+Stadium polish 2026-11-18. Tile counts are the sets the script collected while drawing every frame (mirrored twins merged).
+A bird cell is now 2 tiles (head room + seat); empty head-room tiles are the shared blank tile and not counted.
+
+dry moods (dusk, moon):
+  struct all    60 unique 16 x 16 tiles
+  struct total  60
+  near   cheer  47 unique 16 x 16 tiles
+  near   idle   13 unique 16 x 16 tiles
+  near   wave   41 unique 16 x 16 tiles
+  near   win    43 unique 16 x 16 tiles
+  near   total  61
+  far    cheer 107 unique 16 x 16 tiles
+  far    idle   39 unique 16 x 16 tiles
+  far    wave   74 unique 16 x 16 tiles
+  far    win    73 unique 16 x 16 tiles
+  far    total 107
+  stands total (structure with scoreboard + near + far, all animations): 227; plus towers 4, score digits 10
+
+storm moods (storm, with umbrellas):
+  struct all    30 unique 16 x 16 tiles
+  struct total  30
+  near   cheer  66 unique 16 x 16 tiles
+  near   idle   15 unique 16 x 16 tiles
+  near   wave   50 unique 16 x 16 tiles
+  near   win    53 unique 16 x 16 tiles
+  near   total  81
+  far    cheer 245 unique 16 x 16 tiles
+  far    idle   96 unique 16 x 16 tiles
+  far    wave  171 unique 16 x 16 tiles
+  far    win   116 unique 16 x 16 tiles
+  far    total 245
+  stands total (structure with scoreboard + near + far, all animations): 355; plus towers 4, score digits 10
+
+all three moods in one ROM: 385 stand tiles + 4 tower + 10 score digits + 1 rain + 4 confetti
+scoreboard: 14 tile positions (7 x 2); 8 unique frame tiles + 10 digit tiles; 4 digit positions change in game
+dusk light: sun 3 + roof glow 3 + turf shadow 3 = 9 tiles, plus 30 sun-rim variants of roof / balcony / board tiles (dusk only; counted in the dry struct total of 60, moon alone needs 30); no new palette
+idle as hardware auto-animation, dry: near 22 sequences = 176 slots, far 27 = 216 slots (idle never enters the head-room tile)
+idle as hardware auto-animation, storm: near 29 sequences = 232 slots, far 32 = 256 slots (idle never enters the head-room tile)
+
+jump peaks: near cheer 8 / 10 / 6 px, near wave 6 px, far cheer 4 px, far wave 3 px (old: 2 / 2 / 1 / 1)
+VRAM tile words per animation step, worst case: near 50 birds x 2 + far 36 tiles x 2 = 172 (old 86)
+palettes per mood: unchanged, 19 (near crowd 6, far crowd 6, structure 2 + 2, turf, cone, rain)
+
+sprite strips: sky 20 (lines 0..31, the roof hides the rest), upper structure 21 (0..47: towers, scoreboard, roof),
+  far row A 21 (32..63), far row B 21 (48..95, balcony front included), near rows 21 each (80..111, 96..127, 112..159 with
+  the boards), turf 21, cones 14 (0..31), dusk sun + glow 20 (16..31), dusk shadow 20 (160..191), rain 11, confetti up to 12
+sprites per scanline (limit 96), stadium only, dusk / moon / storm:
+  lines   0..15   41 / 55 / 66
+  lines  16..31   61 / 55 / 66
+  lines  32..63   54 / 54 / 65   (two overlapping strips + confetti)
+  lines  64..79   33 / 33 / 44
+  lines  80..127  54 / 54 / 65
+  lines 128..159  33 / 33 / 44
+  lines 160..191  41 / 21 / 32
+  lines 192..223  21 / 21 / 32
+
+Gum Fling scroll: field 512 px, field scroll 0..192, stands at 1/4 = 48 px of stand travel, split centred at mid field.
+  stand shifts shown: [-24, -8, 8, 24, 64, 128] px; team split at screen x [184, 168, 152, 136, 96, 32]
+  the split stays on screen for the whole travel (x 136..184). The 336 px stand is 16 px wider than the screen, so
+  beyond a shift of +-8 px the repeat seam shows: up to 16 px of the other team at the screen edge at both field ends.
+
+GIF preview loops (frames shown of frames in the animation): cheer_storm 32/64, wave_storm 32/64, win_storm 32/64

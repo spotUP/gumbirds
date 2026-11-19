@@ -1,0 +1,73 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>Gumbirds: final title logo, font and HUD sheets</title><style>
+body{background:#101218;color:#d5d9e4;font:15px/1.5 -apple-system,"Helvetica Neue",Arial,sans-serif;margin:24px}
+h1{font-size:24px;margin:0 0 4px}h2{font-size:19px;margin:40px 0 10px;border-left:6px solid #37c6e8;padding-left:10px}
+h3{font-size:15px;margin:0 0 6px;color:#fff}p{margin:6px 0;max-width:70em}
+img{image-rendering:pixelated;max-width:100%;display:block;margin:6px 0;border:1px solid #2a2d3a;background:#2b2e3b}
+.row{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin:10px 0}.row.two{grid-template-columns:repeat(2,1fr)}
+.col{background:#191c26;padding:10px;border-radius:3px}.weak{color:#ffb35c}.cost{color:#8fe0ff}a{color:#8fe0ff}
+</style></head><body>
+<h1>Gumbirds: final title logo, fix font and HUD sheets</h1>
+<p>Final round, 10 November 2026: logo A (stretched gum), font A (Gumdrop) with tall digits, HUD layout 2 (corner tags). Mock-ups are 320 x 224 game pixels at 3x unless marked 1x; click an image for full size. Backdrops are earlier draft renders. All numbers are in <a href="numbers.txt">numbers.txt</a>, the reasoning in <a href="README.md">README.md</a>.</p>
+<h2>Fix 1: logo separation over the ember dusk sky</h2>
+<div class="row two"><div class="col"><h3>Before (draft round)</h3><a href="logo_before_dusk_3x.png"><img src="logo_before_dusk_3x.png" alt="logo_before_dusk_3x.png"></a></div><div class="col"><h3>After (final)</h3><a href="logo_after_dusk_3x.png"><img src="logo_after_dusk_3x.png" alt="logo_after_dusk_3x.png"></a></div></div>
+<div class="row two"><div class="col"><h3>Before (draft round)</h3><a href="logo_before_dusk_1x.png"><img src="logo_before_dusk_1x.png" alt="logo_before_dusk_1x.png"></a></div><div class="col"><h3>After (final)</h3><a href="logo_after_dusk_1x.png"><img src="logo_after_dusk_1x.png" alt="logo_after_dusk_1x.png"></a></div></div>
+<p class="cost">Outer gum pixels against the dusk sky, RGB distance mean 158 before, 157 after; share of edge pixels closer than 80: 4% before, 10% after. Line 2 px before, 3 px after; 10 colours in one palette.</p><p class="weak">Weak point: the still grew from 79 to 82 tiles because the line and the shadow are thicker. The measured colour distance of the outermost gum pixels did not improve; the gain is the wider dark line and the darker shadow. The warm cream highlight covers few pixels and reads as white at 1x. Over the storm sky the cool rim light is close to the sky colour, so there only the dark line separates the logo.</p>
+<p>Final logo over the three moods, 3x and 1x:</p>
+<a href="logo_moods_3x.png"><img src="logo_moods_3x.png" alt="logo_moods_3x.png"></a>
+<a href="logo_moods_1x.png"><img src="logo_moods_1x.png" alt="logo_moods_1x.png"></a>
+<h2>Fix 2: logo animation, 10 frames</h2>
+<div class="row"><div class="col"><h3>Clear night</h3><a href="anim_title_moon_3x.gif"><img src="anim_title_moon_3x.gif" alt="anim_title_moon_3x.gif"></a></div><div class="col"><h3>Ember dusk</h3><a href="anim_title_dusk_3x.gif"><img src="anim_title_dusk_3x.gif" alt="anim_title_dusk_3x.gif"></a></div><div class="col"><h3>Storm</h3><a href="anim_title_storm_3x.gif"><img src="anim_title_storm_3x.gif" alt="anim_title_storm_3x.gif"></a></div></div>
+<p>Before (draft animation) and after, every frame, 2x:</p>
+<div class="row two"><div class="col"><h3>Before (draft round)</h3><a href="logo_contact_before_2x.png"><img src="logo_contact_before_2x.png" alt="logo_contact_before_2x.png"></a></div><div class="col"><h3>After (final)</h3><a href="logo_contact_2x.png"><img src="logo_contact_2x.png" alt="logo_contact_2x.png"></a></div></div>
+<p class="cost">Unique 16x16 tiles: 82 still, 130 with all frames and pieces (draft: 79 and 155). 20 body strips, at most 24 sprites on a scanline.</p><p class="weak">Weak point: ten frames still step visibly, and the pop lasts only three frames. The shreds are one-tile sprites with a 1 px line and nearly vanish at 1x over the lit city windows. The tile cut is modest (155 to 130); the bubble and the drip still cost about 40 tiles on top of the still.</p>
+<p>Import sheets at 1x: the still, the ten body frames, the free pieces (shreds and drop):</p>
+<a href="logo_a_still_1x.png"><img src="logo_a_still_1x.png" alt="logo_a_still_1x.png"></a>
+<a href="logo_a_frames_1x.png"><img src="logo_a_frames_1x.png" alt="logo_a_frames_1x.png" style="width:352px"></a>
+<a href="logo_a_pieces_1x.png"><img src="logo_a_pieces_1x.png" alt="logo_a_pieces_1x.png" style="width:512px"></a>
+<h2>Fix 3: font look-alikes</h2>
+<div class="row two"><div class="col"><h3>Before (draft round)</h3><a href="font_pairs_before_1x.png"><img src="font_pairs_before_1x.png" alt="font_pairs_before_1x.png"></a></div><div class="col"><h3>After (final)</h3><a href="font_pairs_after_1x.png"><img src="font_pairs_after_1x.png" alt="font_pairs_after_1x.png"></a></div></div>
+<div class="row two"><div class="col"><h3>Before (draft round)</h3><a href="font_pairs_before_1x.png"><img src="font_pairs_before_1x.png" alt="font_pairs_before_1x.png" style="width:600px"></a></div><div class="col"><h3>After (final)</h3><a href="font_pairs_after_1x.png"><img src="font_pairs_after_1x.png" alt="font_pairs_after_1x.png" style="width:600px"></a></div></div>
+<p class="cost">Differing pixels, before to after: O/0 3 to 14, M/W 10 to 15, I/1 5 to 11, S/5 13 to 13, B/8 3 to 13, Z/2 14 to 9, G/6 4 to 7. Closest pair left: G/O with 4. 157 fix tiles in all.</p><p class="weak">Weak point: G/O, I/T and M/N still differ by only 4 pixels (shapes unchanged; they differ in silhouette, not in pixel count). Z/2 fell from 14 to 9 because the Z gained a cross bar. The backed copies double the glyph tiles; row 27 alone needs only 26 of them.</p>
+<p>Specimen, 3x and 1x:</p>
+<a href="font_specimen_3x.png"><img src="font_specimen_3x.png" alt="font_specimen_3x.png"></a>
+<a href="font_specimen_1x.png"><img src="font_specimen_1x.png" alt="font_specimen_1x.png"></a>
+<p>The fix tile sheet (import file), 1x and 4x. Tile order is in numbers.txt.</p>
+<a href="fix_sheet_1x.png"><img src="fix_sheet_1x.png" alt="fix_sheet_1x.png"></a>
+<a href="fix_sheet_1x.png"><img src="fix_sheet_1x.png" alt="fix_sheet_1x.png" style="width:512px"></a>
+<h2>Fix 4: Sootling icon</h2>
+<div class="row two"><div class="col"><h3>Before (draft round)</h3><a href="icon_before_8x.png"><img src="icon_before_8x.png" alt="icon_before_8x.png"></a></div><div class="col"><h3>After (final)</h3><a href="icon_after_8x.png"><img src="icon_after_8x.png" alt="icon_after_8x.png"></a></div></div>
+<div class="row two"><div class="col"><h3>Before (draft round)</h3><a href="icon_before_1x.png"><img src="icon_before_1x.png" alt="icon_before_1x.png"></a></div><div class="col"><h3>After (final)</h3><a href="icon_after_1x.png"><img src="icon_after_1x.png" alt="icon_after_1x.png"></a></div></div>
+<p class="weak">Weak point: at 1x the icon is two white eyes and an ember beak. Over a dark sky the navy outline disappears and only eyes and beak remain. It does not show the player colour.</p>
+<h2>Fix 5: row 27 over the hazard strip</h2>
+<p>Bottom 32 lines of the screen, every mood with every hazard kind (frame 0), 2x. Left: draft, unbacked. Right: final, plates.</p>
+<div class="row two"><div class="col"><h3>Before (draft round)</h3><a href="row27_before_2x.png"><img src="row27_before_2x.png" alt="row27_before_2x.png"></a></div><div class="col"><h3>After (final)</h3><a href="row27_after_2x.png"><img src="row27_after_2x.png" alt="row27_after_2x.png"></a></div></div>
+<div class="row two"><div class="col"><h3>Before (draft round)</h3><a href="row27_before_1x.png"><img src="row27_before_1x.png" alt="row27_before_1x.png"></a></div><div class="col"><h3>After (final)</h3><a href="row27_after_1x.png"><img src="row27_after_1x.png" alt="row27_after_1x.png"></a></div></div>
+<p class="cost">Worst row 27 cell over 192 backdrops: -5 before (dusk, fire), 182 after (dusk, fire, U (white)). Worst unbacked cell on rows 0 and 1: 39 (storm, L (pink)); 18 of 402 such cells are under 70.</p><p class="weak">Weak point: the plates hide 8 px of hazard along the bottom row, columns 1 to 37. Rows 0 and 1 stay unbacked, so the pink PLAYER 1 label over the storm sky is the weakest text on screen. Cabinet overscan for rows 0, 1 and 27 and the outer columns is not checked.</p>
+<h2>Final mock-ups</h2><p class="weak">Weak point: backdrops are earlier draft renders, the results score values are placeholders, the name entry letters are only 8 px tall, and the GIFs are reduced to 255 colours.</p>
+<h3>Title screen</h3><div class="row">
+<div class="col"><h3>Clear night</h3><a href="title_moon_3x.png"><img src="title_moon_3x.png" alt="title_moon_3x.png"></a><a href="title_moon_1x.png"><img src="title_moon_1x.png" alt="title_moon_1x.png"></a></div>
+<div class="col"><h3>Ember dusk</h3><a href="title_dusk_3x.png"><img src="title_dusk_3x.png" alt="title_dusk_3x.png"></a><a href="title_dusk_1x.png"><img src="title_dusk_1x.png" alt="title_dusk_1x.png"></a></div>
+<div class="col"><h3>Storm</h3><a href="title_storm_3x.png"><img src="title_storm_3x.png" alt="title_storm_3x.png"></a><a href="title_storm_1x.png"><img src="title_storm_1x.png" alt="title_storm_1x.png"></a></div>
+</div>
+<h3>Match HUD, one player</h3><div class="row">
+<div class="col"><h3>Clear night</h3><a href="hud1p_moon_3x.png"><img src="hud1p_moon_3x.png" alt="hud1p_moon_3x.png"></a><a href="hud1p_moon_1x.png"><img src="hud1p_moon_1x.png" alt="hud1p_moon_1x.png"></a></div>
+<div class="col"><h3>Ember dusk</h3><a href="hud1p_dusk_3x.png"><img src="hud1p_dusk_3x.png" alt="hud1p_dusk_3x.png"></a><a href="hud1p_dusk_1x.png"><img src="hud1p_dusk_1x.png" alt="hud1p_dusk_1x.png"></a></div>
+<div class="col"><h3>Storm</h3><a href="hud1p_storm_3x.png"><img src="hud1p_storm_3x.png" alt="hud1p_storm_3x.png"></a><a href="hud1p_storm_1x.png"><img src="hud1p_storm_1x.png" alt="hud1p_storm_1x.png"></a></div>
+</div>
+<h3>Match HUD, two players</h3><div class="row">
+<div class="col"><h3>Clear night</h3><a href="hud2p_moon_3x.png"><img src="hud2p_moon_3x.png" alt="hud2p_moon_3x.png"></a><a href="hud2p_moon_1x.png"><img src="hud2p_moon_1x.png" alt="hud2p_moon_1x.png"></a></div>
+<div class="col"><h3>Ember dusk</h3><a href="hud2p_dusk_3x.png"><img src="hud2p_dusk_3x.png" alt="hud2p_dusk_3x.png"></a><a href="hud2p_dusk_1x.png"><img src="hud2p_dusk_1x.png" alt="hud2p_dusk_1x.png"></a></div>
+<div class="col"><h3>Storm</h3><a href="hud2p_storm_3x.png"><img src="hud2p_storm_3x.png" alt="hud2p_storm_3x.png"></a><a href="hud2p_storm_1x.png"><img src="hud2p_storm_1x.png" alt="hud2p_storm_1x.png"></a></div>
+</div>
+<h3>Round results</h3><div class="row">
+<div class="col"><h3>Clear night</h3><a href="results_moon_3x.png"><img src="results_moon_3x.png" alt="results_moon_3x.png"></a><a href="results_moon_1x.png"><img src="results_moon_1x.png" alt="results_moon_1x.png"></a></div>
+<div class="col"><h3>Ember dusk</h3><a href="results_dusk_3x.png"><img src="results_dusk_3x.png" alt="results_dusk_3x.png"></a><a href="results_dusk_1x.png"><img src="results_dusk_1x.png" alt="results_dusk_1x.png"></a></div>
+<div class="col"><h3>Storm</h3><a href="results_storm_3x.png"><img src="results_storm_3x.png" alt="results_storm_3x.png"></a><a href="results_storm_1x.png"><img src="results_storm_1x.png" alt="results_storm_1x.png"></a></div>
+</div>
+<h3>High score name entry</h3><div class="row">
+<div class="col"><h3>Clear night</h3><a href="entry_moon_3x.png"><img src="entry_moon_3x.png" alt="entry_moon_3x.png"></a><a href="entry_moon_1x.png"><img src="entry_moon_1x.png" alt="entry_moon_1x.png"></a></div>
+<div class="col"><h3>Ember dusk</h3><a href="entry_dusk_3x.png"><img src="entry_dusk_3x.png" alt="entry_dusk_3x.png"></a><a href="entry_dusk_1x.png"><img src="entry_dusk_1x.png" alt="entry_dusk_1x.png"></a></div>
+<div class="col"><h3>Storm</h3><a href="entry_storm_3x.png"><img src="entry_storm_3x.png" alt="entry_storm_3x.png"></a><a href="entry_storm_1x.png"><img src="entry_storm_1x.png" alt="entry_storm_1x.png"></a></div>
+</div>
+<p>Fix layer alone (two players), 1x:</p><a href="hud_layer_1x.png"><img src="hud_layer_1x.png" alt="hud_layer_1x.png"></a>
+</body></html>

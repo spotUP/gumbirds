@@ -1,0 +1,54 @@
+ROUND CLEAR BANNER, SECOND FINAL (full size panel from frame 0), 10 November 2026 (written by draw_round_clear_banner_final2.py)
+
+cost: new tiles 1 (pop burst, sheet index 75); new palettes 0; palettes used 5 (white, pink, lime, gold, dim); distinct tiles used 43; banner cells 176 (22 x 8).
+cell writes per frame, split draw (specified): frame 0 = 56 (outline), frame 1 = 60, frame 2 = 60; peak 60; after frame 2 at most 14 (p2_round02).
+cell writes per frame, single draw (alternative): frame 0 = 176, then the same as the split draw from frame 3 on.
+
+PANEL SIZE CHECK (measured on the rendered frames, not on the cell table):
+  method: bounding box of all pixels where the composed 320 x 224 frame differs from its backdrop, on each of the 120 frames.
+  runs: 36 (6 cases x 3 sky moods x split and single draw) x 120 frames = 4320 frames measured.
+  result: PASS. Box x 72..247, y 80..143 (176 x 64 px = cols 9..30, rows 10..17) on every frame; distinct boxes found: 1.
+  panel cells present, split draw: frame 0 = 56 (outline), frame 1 = 116, frames 2..119 = 176. Single draw: 176 on all frames.
+
+centring (screen is 320 px, centre between x 159 and 160). Left = first ink column, right margin = 319 - last ink column.
+ink = every pixel that is not plate; face = glyph face without its 1 px drop shadow (icon: body colours).
+  panel: 22 cells, left margin 72 px, right margin 72 px
+  case            line        cells  first col  ink margins L/R   face margins L/R
+  p1_round02      headline     20     10         80 /  83          80 /  84
+  p1_round02      winner       16     12         98 /  96          98 /  97
+  p1_round02      round         8     16        128 / 128         128 / 129
+  p2_round02      headline     20     10         80 /  83          80 /  84
+  p2_round02      winner       16     12         98 /  96          98 /  97
+  p2_round02      round         8     16        128 / 128         128 / 129
+  cpu_round02     headline     20     10         80 /  83          80 /  84
+  cpu_round02     winner       16     12         98 /  96          98 /  97
+  cpu_round02     round         8     16        128 / 128         128 / 129
+  draw_round02    headline     20     10         80 /  83          80 /  84
+  draw_round02    winner       12     14        112 / 112         112 / 113
+  draw_round02    round         8     16        128 / 128         128 / 129
+  p1_round12      headline     20     10         80 /  83          80 /  84
+  p1_round12      winner       16     12         98 /  96          98 /  97
+  p1_round12      round         8     16        128 / 128         128 / 129
+  p1_matchover    headline     20     10         80 /  83          80 /  84
+  p1_matchover    winner       16     12         98 /  96          98 /  97
+  p1_matchover    match over   10     15        120 / 120         120 / 121
+  Every line has an even cell count, so every cell box is centred exactly. Ink differs from the box only by glyph shape:
+  the face of a Gumdrop letter is 7 px wide with a 1 px shadow on the right, and the last headline glyph (!) and the digit 1 are narrow.
+
+contrast (0..255 luminance gap, text cell face against the brightest quarter of its surroundings; under 90 is hard to read at 1x)
+  dusk  worst text cell 119  (draw_round02 frame 60 cell 20,13 tile b:V palette dim)
+        winner line by palette, worst cell: pink 195, lime 201, white 212, dim 119; MATCH OVER gold 206
+  moon  worst text cell 119  (draw_round02 frame 60 cell 20,13 tile b:V palette dim)
+        winner line by palette, worst cell: pink 195, lime 201, white 212, dim 119; MATCH OVER gold 206
+  storm worst text cell 119  (draw_round02 frame 60 cell 20,13 tile b:V palette dim)
+        winner line by palette, worst cell: pink 195, lime 201, white 212, dim 119; MATCH OVER gold 206
+  All text sits on the navy plate inside its own tile, so the text numbers do not depend on the sky.
+  The waiting marks (dim dots and dashes) are not text and are not in these numbers; they are meant to be faint.
+
+notes:
+  backdrop dusk: HUD round digit 3 at cell 26,27 changed to 1
+  backdrop moon: HUD round digit 3 at cell 26,27 changed to 1
+  backdrop storm: HUD round digit 3 at cell 26,27 changed to 1
+  Round 12 and MATCH OVER pictures keep the HUD mock-up at ROUND 1 (the mock-up has one round digit).
+  Backdrops are HUD mock-ups (copied from 2026-11-10-hud-title-final), not MAME screenshots.
+  GIF: game frames 0, 1, 2 at 20, 20, 30 ms (real 16.7, 16.7, 33.3), then one picture per 4 game frames at 70 ms (real 66.7).

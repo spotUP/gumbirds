@@ -1,0 +1,50 @@
+Stadium background draft 2026-11-18. All counts below come from the tile sets the script collected while it drew every
+frame of every GIF (USED), mirrored twins merged (tile H flip is free on Neo Geo).
+
+dry moods (dusk, moon):
+  struct all    19 unique 16 x 16 tiles
+  struct total  19
+  near   cheer  32 unique 16 x 16 tiles
+  near   idle   13 unique 16 x 16 tiles
+  near   wave   31 unique 16 x 16 tiles
+  near   win    33 unique 16 x 16 tiles
+  near   total  35
+  far    cheer  57 unique 16 x 16 tiles
+  far    idle   39 unique 16 x 16 tiles
+  far    wave   57 unique 16 x 16 tiles
+  far    win    56 unique 16 x 16 tiles
+  far    total  57
+  stands total (structure + near crowd + far crowd, all animations): 110; plus towers 4 (two 32 x 16 pieces)
+
+storm moods (storm, with umbrellas):
+  struct all    19 unique 16 x 16 tiles
+  struct total  19
+  near   cheer  35 unique 16 x 16 tiles
+  near   idle   14 unique 16 x 16 tiles
+  near   wave   34 unique 16 x 16 tiles
+  near   win    36 unique 16 x 16 tiles
+  near   total  38
+  far    cheer 138 unique 16 x 16 tiles
+  far    idle   96 unique 16 x 16 tiles
+  far    wave  138 unique 16 x 16 tiles
+  far    win    89 unique 16 x 16 tiles
+  far    total 138
+  stands total (structure + near crowd + far crowd, all animations): 194; plus towers 4 (two 32 x 16 pieces)
+
+all three moods in one ROM (storm set adds only the umbrella tiles): 194 stand tiles + 4 tower + 1 rain + 4 confetti
+new tiles outside the stands: sky 0 (rows 0..63 of the stage sky sheets), turf 0 (fling field turf), cones 9 per mood (48 x 48 x 2, moon and storm)
+idle as hardware auto-animation, dry: near 22 distinct 8-frame sequences = 176 ROM tile slots, far 27 = 216 slots
+idle as hardware auto-animation, storm: near 22 distinct 8-frame sequences = 176 ROM tile slots, far 32 = 256 slots
+animated cells on the 336 px planes: near 50 bird cells of 63, far 36 crowd tiles of 42 (132 far birds)
+
+palettes on screen per mood: near crowd 6 (3 plumage x 2 teams), far crowd 6 (same, hazed), structure near 2 + far 2, turf 1, cone 1, rain 1
+luminance steps of the dither pairs (near / far plane), brief asks 28 or more:
+  dusk  Ka 32 / 48  ab 38 / 32  bc 42 / 32  cd 59 / 48  tT 74 / 65
+  moon  Ka 33 / 38  ab 33 / 32  bc 47 / 38  cd 78 / 57  tT 85 / 63
+  storm Ka 31 / 37  ab 37 / 32  bc 54 / 40  cd 73 / 62  tT 71 / 62
+
+sprites per scanline (limit 96), stadium planes only, before players, gum and event gear:
+  lines   0..31   sky 20 + far 21 (4 if the towers are their own sprites) + cones 14 (moon, storm) + rain 11 (storm) = 41 / 55 / 66
+  lines  32..95   sky 20 (to line 63) + far 21 + rain 11 + confetti up to 12 = 53 / 53 / 64
+  lines  96..159  near 21 + rain 11 + confetti up to 12 = 33 / 33 / 44
+  lines 160..223  turf 21 + rain 11 = 21 / 21 / 32

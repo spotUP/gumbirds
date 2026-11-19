@@ -1,0 +1,62 @@
+Gumbirds islands, draft round 1: numbers (script output)
+box: width x 32 px; standing line at row 8 (stage y); rows 0..7 above the line, 8..15 collision body, 16..31 underside
+stage widths (src/core/stage.c): 80, 80, 112, 80, 80, 96, 56, 56; 16 px strips: 5, 5, 7, 5, 5, 6, 4, 4 = 41 sprites in all
+animation: 8 frames, shown at 110 ms a frame in the GIFs
+
+sprites per scanline, platforms only (same for all three options; gameplay reserve SB_GAMEPLAY_PER_LINE = 24):
+  every island two tiles tall (box rows 0..31 = stage y-8 .. y+23): worst line 17 sprites, lines 156..163
+    (the y 140 island, 7 strips, overlaps the two y 164 islands, 10 strips, because 164 - 140 = 24 < 32)
+  centre island (y 140) one tile tall, others two: worst line 10, lines 96..187
+  every island one tile tall (no underside, rows 8..23 only): worst line 10, lines 104..179
+  8 two-column Sootlings on one line are 16 sprites: 16 + 17 = 33 of 24 in the layout as it is, 16 + 10 = 26 with the centre island thin or moved 8 px up
+
+=== A  Roof chunk (roof)
+palettes: 1 on screen (15 colours + transparent), 3 in ROM as mood swaps of the same tiles; role order 1..15: k s1 s2 s3 s4 s5 b1 b2 b3 b4 b5 i1 i2 g1 g2
+colours used: 15 of 15
+unique 16x16 tiles, all four stage widths (56, 80, 96, 112), all 8 frames: 41 without flips, 41 with flips; frame 0 alone: 14
+  of these the 56 px islands (3.5 tiles, right cap off the tile grid) cost 17 tiles; widths 80, 96, 112 alone: 24
+palette moon RGB: k=(16,8,33) s1=(49,41,82) s2=(90,82,123) s3=(148,140,165) s4=(206,198,198) s5=(255,247,222) b1=(57,16,49) b2=(99,33,57) b3=(156,57,57) b4=(206,99,66) b5=(247,156,99) i1=(41,49,74) i2=(123,140,165) g1=(255,165,41) g2=(255,247,165)
+palette moon luminance: k=13 s1=48 s2=89 s3=145 s4=200 s5=246 b1=32 b2=55 b3=86 b4=127 b5=176 i1=49 i2=137 g1=177 g2=240
+palette dusk RGB: k=(24,8,33) s1=(66,33,74) s2=(123,66,90) s3=(189,115,107) s4=(247,181,132) s5=(255,247,206) b1=(16,33,66) b2=(24,66,99) b3=(41,115,132) b4=(82,165,156) b5=(165,222,189) i1=(33,33,66) i2=(132,132,156) g1=(255,222,90) g2=(255,255,214)
+palette dusk luminance: k=15 s1=47 s2=85 s3=136 s4=195 s5=244 b1=31 b2=57 b3=94 b4=139 b5=201 i1=36 i2=134 g1=216 g2=250
+palette storm RGB: k=(8,16,24) s1=(33,49,66) s2=(74,99,115) s3=(132,156,165) s4=(198,214,214) s5=(255,255,247) b1=(49,24,33) b2=(99,57,49) b3=(156,99,57) b4=(206,148,82) b5=(247,206,132) i1=(33,41,49) i2=(115,132,140) g1=(255,148,41) g2=(255,239,156)
+palette storm luminance: k=14 s1=46 s2=93 s3=149 s4=209 s5=254 b1=32 b2=68 b3=111 b4=157 b5=209 i1=39 i2=127 g1=167 g2=234
+dither: none (stone, brick and iron only)
+contrast moon: standing line against the backdrop above it: mean 172, p10 117, under 24: 0%; lower edge against the backdrop below: mean 56, p10 12, under 24: 26%
+contrast dusk: standing line against the backdrop above it: mean 157, p10 97, under 24: 1%; lower edge against the backdrop below: mean 64, p10 13, under 24: 21%
+contrast storm: standing line against the backdrop above it: mean 178, p10 116, under 24: 1%; lower edge against the backdrop below: mean 57, p10 11, under 24: 25%
+
+=== B  Garden slab (garden)
+palettes: 1 on screen (15 colours + transparent), 3 in ROM as mood swaps of the same tiles; role order 1..15: k d1 d2 d3 d4 t1 t2 g1 g2 g3 g4 g5 f1 f2 rt
+colours used: 15 of 15
+unique 16x16 tiles, all four stage widths (56, 80, 96, 112), all 8 frames: 72 without flips, 72 with flips; frame 0 alone: 13
+  of these the 56 px islands (3.5 tiles, right cap off the tile grid) cost 28 tiles; widths 80, 96, 112 alone: 44
+palette moon RGB: k=(8,16,33) d1=(33,16,41) d2=(82,41,57) d3=(132,74,66) d4=(189,123,90) t1=(140,140,173) t2=(222,222,239) g1=(8,57,66) g2=(16,99,74) g3=(49,148,66) g4=(132,206,74) g5=(222,247,132) f1=(255,198,74) f2=(255,255,214) rt=(214,173,132)
+palette moon luminance: k=15 d1=23 d2=55 d3=90 d4=138 t1=143 t2=223 g1=43 g2=71 g3=109 g4=168 g5=226 f1=200 f2=250 rt=180
+palette dusk RGB: k=(16,8,33) d1=(24,8,41) d2=(74,33,74) d3=(123,66,82) d4=(181,115,99) t1=(165,132,148) t2=(247,222,206) g1=(16,57,57) g2=(33,99,57) g3=(90,148,49) g4=(173,206,66) g5=(247,247,140) f1=(132,222,231) f2=(239,255,255) rt=(231,181,132)
+palette dusk luminance: k=13 d1=16 d2=49 d3=84 d4=132 t1=143 t2=227 g1=44 g2=74 g3=119 g4=180 g5=234 f1=196 f2=250 rt=190
+palette storm RGB: k=(8,16,24) d1=(24,16,41) d2=(66,57,74) d3=(107,90,90) d4=(156,140,123) t1=(140,156,173) t2=(231,239,247) g1=(8,49,57) g2=(24,90,82) g3=(57,140,99) g4=(132,198,132) g5=(214,247,198) f1=(255,214,90) f2=(255,255,222) rt=(198,181,156)
+palette storm luminance: k=14 d1=21 d2=61 d3=95 d4=142 t1=153 t2=237 g1=37 g2=69 g3=110 g4=170 g5=231 f1=212 f2=251 rt=183
+dither pair d3/d4 luminance step: moon 48, dusk 48, storm 47 (rule: at least 28)
+dither pair d2/d3 luminance step: moon 35, dusk 34, storm 33 (rule: at least 28)
+dither pair d1/d2 luminance step: moon 31, dusk 33, storm 40 (rule: at least 28)
+contrast moon: standing line against the backdrop above it: mean 155, p10 106, under 24: 1%; lower edge against the backdrop below: mean 61, p10 10, under 24: 27%
+contrast dusk: standing line against the backdrop above it: mean 151, p10 96, under 24: 1%; lower edge against the backdrop below: mean 72, p10 13, under 24: 23%
+contrast storm: standing line against the backdrop above it: mean 158, p10 103, under 24: 1%; lower edge against the backdrop below: mean 63, p10 11, under 24: 27%
+
+=== C  Airship deck (deck)
+palettes: 1 on screen (15 colours + transparent), 3 in ROM as mood swaps of the same tiles; role order 1..15: k m1 m2 m3 m4 m5 m6 y1 y2 y3 c1 c2 c3 r1 r2
+colours used: 15 of 15
+unique 16x16 tiles, all four stage widths (56, 80, 96, 112), all 8 frames: 43 without flips, 43 with flips; frame 0 alone: 15
+  of these the 56 px islands (3.5 tiles, right cap off the tile grid) cost 18 tiles; widths 80, 96, 112 alone: 25
+palette moon RGB: k=(8,8,24) m1=(24,24,49) m2=(49,57,90) m3=(90,107,140) m4=(140,165,189) m5=(198,222,231) m6=(255,255,255) y1=(156,82,24) y2=(247,173,24) y3=(255,231,107) c1=(16,82,99) c2=(33,165,173) c3=(140,247,231) r1=(99,49,49) r2=(181,99,57)
+palette moon luminance: k=9 m1=26 m2=58 m3=105 m4=160 m5=215 m6=255 y1=97 y2=178 y3=224 c1=64 c2=126 c3=213 r1=63 r2=118
+palette dusk RGB: k=(16,8,33) m1=(16,24,57) m2=(33,57,90) m3=(57,107,132) m4=(107,165,165) m5=(181,222,206) m6=(255,255,239) y1=(132,82,99) y2=(255,222,165) y3=(255,247,206) c1=(16,74,107) c2=(24,156,189) c3=(156,247,255) r1=(107,41,33) r2=(206,107,49)
+palette dusk luminance: k=13 m1=25 m2=53 m3=94 m4=147 m5=207 m6=253 y1=98 y2=225 y3=244 c1=60 c2=120 c3=220 r1=59 r2=129
+palette storm RGB: k=(8,8,16) m1=(24,24,33) m2=(57,57,74) m3=(107,107,115) m4=(165,165,165) m5=(222,222,214) m6=(255,255,255) y1=(140,41,24) y2=(247,115,24) y3=(255,198,90) c1=(16,82,99) c2=(41,173,181) c3=(165,255,239) r1=(99,57,41) r2=(181,115,66)
+palette storm luminance: k=8 m1=25 m2=58 m3=107 m4=165 m5=221 m6=255 y1=68 y2=144 y3=202 c1=64 c2=134 c3=226 r1=67 r2=129
+dither pair r1/r2 luminance step: moon 54, dusk 70, storm 61 (rule: at least 28)
+contrast moon: standing line against the backdrop above it: mean 185, p10 134, under 24: 0%; lower edge against the backdrop below: mean 69, p10 16, under 24: 21%
+contrast dusk: standing line against the backdrop above it: mean 169, p10 113, under 24: 0%; lower edge against the backdrop below: mean 76, p10 13, under 24: 18%
+contrast storm: standing line against the backdrop above it: mean 183, p10 128, under 24: 0%; lower edge against the backdrop below: mean 73, p10 17, under 24: 20%
+

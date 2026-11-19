@@ -1,0 +1,49 @@
+Gum Trip kill strips (draft). Measured by draw_kill_strip.py from the painted course and the cut tile set.
+Course: 3 chunks of 192 px (576 x 224). Per chunk (ceiling first window row, floor first band row): (3, 11), (4, 9), (2, 10) in 16 px tile rows.
+Joins: x 192: floor up 2 rows (32 px), ceiling down 1 row; x 384: ceiling up 2 rows, floor down 1 row.
+Unique tiles: 16 x 16, horizontal and vertical flips count as the same tile (LSPC tile flip bits).
+ROM tile cost: static tile 1; animated tile 8 (LSPC 3-bit auto-animation, 8 consecutive tiles) or 4 when it loops every 4 frames (2-bit auto-animation bit in the sprite tile map).
+Mock-up camera x 32 (join 192 at screen x 160), sky tone #161428.
+
+A  Shard ridge
+Palette: 15 of 15 colours used, plus transparent: 1=#080010 2=#180821 3=#4a2152 4=#7b4273 5=#bd739c 6=#39185a 7=#7b4ab5 8=#4a0821 9=#940831 10=#d62139 11=#ff5a4a 12=#ffa573 13=#fff7de 14=#291031 15=#5a1839
+Unique tiles (flips merged) 15: 15 static + 0 animated (0 of them 4-frame); ROM tile cost 15. Without flip merging 18.
+By role (rim if used anywhere on a flat edge, static/animated): fill 1/0; rim 8/0; step 6/0
+Horizontal period: 64 px (4 tile columns); course repeats exactly every 64 px on the flat chunk: True; every 32 px: False.
+Seam at the period (columns 63|64 and 127|128, floor rim row + ceiling rim row): 4 and 2 px differ; mean of the other neighbouring column pairs inside tiles 13.8 and 13.3; at tile edges 5.0 and 4.0.
+Mock-up rebuilt from the tile set equals the painted course: True.
+Opaque pixels in the window: 0 (hurt line = window edge; 0 px decoration past it).
+Ceiling: redrawn (painted with the same light from the upper left; shards hang, crust underside dark)
+Step down = drawn separately (lit from the upper left).
+Dither pairs (luma step): #180821/#4a2152 35, #4a2152/#7b4273 38
+Static, no animation.
+
+B  Live rail
+Palette: 13 of 15 colours used, plus transparent: 1=#080810 2=#182131 3=#31425a 4=#5a738c 5=#a5b5ce 6=#eff7ff 7=#6b3908 8=#f7ad18 9=#083931 10=#298c4a 11=#8cf739 12=#f7ffc6 13=#212942
+Unique tiles (flips merged) 7: 1 static + 6 animated (2 of them 4-frame); ROM tile cost 41. Without flip merging 18.
+By role (rim if used anywhere on a flat edge, static/animated): fill 1/0; rim 0/2; step 0/4
+Horizontal period: 64 px (4 tile columns); course repeats exactly every 64 px on the flat chunk: True; every 32 px: False.
+Seam at the period (columns 63|64 and 127|128, floor rim row + ceiling rim row): 0 and 0 px differ; mean of the other neighbouring column pairs inside tiles 6.5 and 6.5; at tile edges 1.0 and 1.0.
+Mock-up rebuilt from the tile set equals the painted course: True.
+Opaque pixels in the window: 0 (hurt line = window edge; 0 px decoration past it).
+Ceiling: vertical flip of the floor tiles (no extra tiles; steel lit from below on the ceiling)
+Step down = horizontal flip of the step-up tiles (mirror coordinates).
+Dither pairs (luma step): #298c4a/sky 80
+Frames 8, 4 ticks per frame (15.0 per second), loop 32 ticks = 0.53 s. GIF 70 ms per frame.
+Loop seam (frame 7 -> 0) 5594 px changed; other neighbouring frames mean 5054, largest 5610.
+Arc: forced damped string, ends pinned at the studs, 40 substeps per frame, 30 loops to steady state; state drift over the recorded loop 0.000, 0.000, 0.000 (string units, before scaling); plus per-frame crackle jitter.
+
+C  Boiling gum
+Palette: 10 of 15 colours used, plus transparent: 1=#180021 2=#390839 3=#73186b 4=#b5297b 5=#ef4a8c 6=#ff8c9c 7=#ffd6c6 8=#fff7f7 9=#4a187b 10=#ffb552
+Unique tiles (flips merged) 7: 1 static + 6 animated (2 of them 4-frame); ROM tile cost 41. Without flip merging 18.
+By role (rim if used anywhere on a flat edge, static/animated): fill 1/0; rim 0/2; step 0/4
+Horizontal period: 64 px (4 tile columns); course repeats exactly every 64 px on the flat chunk: True; every 32 px: False.
+Seam at the period (columns 63|64 and 127|128, floor rim row + ceiling rim row): 0 and 0 px differ; mean of the other neighbouring column pairs inside tiles 9.7 and 9.7; at tile edges 6.0 and 6.0.
+Mock-up rebuilt from the tile set equals the painted course: True.
+Opaque pixels in the window: 0 (hurt line = window edge; 0 px decoration past it).
+Ceiling: vertical flip of the floor tiles (no extra tiles; bubbles bulge downward like forming drips)
+Step down = horizontal flip of the step-up tiles (mirror coordinates).
+Dither pairs (luma step): #ff8c9c/#ef4a8c 45, #ef4a8c/#b5297b 39, #b5297b/#73186b 32, #73186b/#390839 32, #73186b/#b5297b 32
+Frames 8, 5 ticks per frame (12.0 per second), loop 40 ticks = 0.67 s. GIF 80 ms per frame.
+Loop seam (frame 7 -> 0) 3128 px changed; other neighbouring frames mean 2834, largest 3214.
+Surface: damped wave on a 32 px mirror cell (reflecting ends), driven by 3 bubble pops per loop, 30 substeps per frame, 60 loops to steady state; drift 0.0000.

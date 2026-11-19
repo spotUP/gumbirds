@@ -1,0 +1,32 @@
+<!doctype html><meta charset=utf-8><title>Gumbirds: leaking gum bubble, hole drafts</title>
+<style>body{background:#1b2030;color:#e6e9f2;font:15px/1.5 system-ui,sans-serif;margin:24px;max-width:1500px}img{image-rendering:pixelated;display:block;margin:6px 0 14px;border:1px solid #3a4260;max-width:100%}h1{font-size:24px}h2{font-size:19px;border-top:2px solid #ff52b5;padding-top:14px;margin-top:34px}.r{display:flex;gap:18px;flex-wrap:wrap}.r div{flex:0 0 auto}b{color:#ffa5de}</style>
+<h1>Leaking gum bubble, round 2: a hole (2026-11-17)</h1>
+<p>No patch. The damage is a hole the air hisses out of. Draft only. Every clip: <b>healthy bubble left, holed bubble right</b>. The hole is one extra 16 x 16 sprite on the unchanged bubble, gum palette only; it follows the bubble rim on every wobble frame; the holed bubble wobbles at double speed. Puffs carry a dark purple edge so they read on the bright dusk sky.</p>
+<h2>In game, all three palettes</h2><p>Columns: healthy, D, E, F. Rows: player, player 2, computer. Flat draft background and dusk sky, 3x then 1x.</p>
+<div class=r><div><img src=compare_flat_3x.png></div><div><img src=compare_dusk_3x.png></div></div>
+<div class=r><div><img src=compare_flat_1x.png></div><div><img src=compare_dusk_1x.png></div></div>
+<h2>D: round puncture, rolled lip, steady hiss + sputter</h2><p>Frames: <b>12</b> (3 game frames each, loop 0.60 s). Extra tile cost: <b>12 tiles</b> (1 tile per frame, 12 unique) and 1 extra sprite per holed bubble. Gum palette entries used: 1 2 5 6 9 a b c.</p>
+<div class=r>
+<div>Player<img src=D_p1_4x.gif></div>
+<div>Player 2<img src=D_p2_4x.gif></div>
+<div>Computer<img src=D_cpu_4x.gif></div>
+<div>Player on dusk sky<img src=D_dusk_4x.gif></div>
+</div>Frame sheet (level 10 bubble + hole), 4x and 1x<img src=D_frames_4x.png><img src=D_frames_1x.png>Hole tiles alone, 6x and 1x<img src=D_tiles_6x.png><img src=D_tiles_1x.png>
+<h2>E: jagged split, lip flutters, air in gusts</h2><p>Frames: <b>8</b> (3 game frames each, loop 0.40 s). Extra tile cost: <b>8 tiles</b> (1 tile per frame, 8 unique) and 1 extra sprite per holed bubble. Gum palette entries used: 1 2 5 6 9 a b c.</p>
+<div class=r>
+<div>Player<img src=E_p1_4x.gif></div>
+<div>Player 2<img src=E_p2_4x.gif></div>
+<div>Computer<img src=E_cpu_4x.gif></div>
+<div>Player on dusk sky<img src=E_dusk_4x.gif></div>
+</div>Frame sheet (level 10 bubble + hole), 4x and 1x<img src=E_frames_4x.png><img src=E_frames_1x.png>Hole tiles alone, 6x and 1x<img src=E_tiles_6x.png><img src=E_tiles_1x.png>
+<h2>F: puncture with a torn gum tongue whipping in the hiss</h2><p>Frames: <b>6</b> (3 game frames each, loop 0.30 s). Extra tile cost: <b>6 tiles</b> (1 tile per frame, 6 unique) and 1 extra sprite per holed bubble. Gum palette entries used: 1 2 5 6 9 a b c.</p>
+<div class=r>
+<div>Player<img src=F_p1_4x.gif></div>
+<div>Player 2<img src=F_p2_4x.gif></div>
+<div>Computer<img src=F_cpu_4x.gif></div>
+<div>Player on dusk sky<img src=F_dusk_4x.gif></div>
+</div>Frame sheet (level 10 bubble + hole), 4x and 1x<img src=F_frames_4x.png><img src=F_frames_1x.png>Hole tiles alone, 6x and 1x<img src=F_tiles_6x.png><img src=F_tiles_1x.png>
+<h2>Puff edge on the dusk sky</h2><p>Top row: plain white puffs (round 1). Bottom row: with the dark purple edge (used everywhere on this page). D, E, F at two moments each.</p><img src=outline_dusk_3x.png>
+<h2>Other bubble sizes</h2><p>The same hole tiles on bubble levels 5, 7, 10, 12, 16. Rows: D, E, F.</p><img src=compare_sizes_4x.png>
+<h2>For comparison: a true see-through hole baked into the bubble</h2><p>Healthy, D (overlay sprite, dark inside), baked (sky shows through). Baked cost: a second copy of every bubble frame = <b>276 tiles</b>, static hole, against 12 tiles for D.</p>
+<div class=r><div><img src=baked_dusk_4x.png></div><div><img src=baked_flat_4x.png></div><div><img src=baked_dusk_1x.png></div></div>

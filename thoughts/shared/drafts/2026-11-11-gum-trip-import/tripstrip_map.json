@@ -1,0 +1,1331 @@
+{
+ "note": "tile index = animation order in tripstrip_sheet.json; hflip/vflip are the LSPC tile flip bits used in the draft",
+ "chunks_ceiling_floor_tile_rows": [
+  [
+   3,
+   11
+  ],
+  [
+   4,
+   9
+  ],
+  [
+   2,
+   10
+  ]
+ ],
+ "tile_roles": {
+  "t0_fill": [
+   "fill"
+  ],
+  "t1_rim_step": [
+   "rim",
+   "step"
+  ],
+  "t2_rim": [
+   "rim"
+  ],
+  "t3_step": [
+   "step"
+  ],
+  "t4_step": [
+   "step"
+  ],
+  "t5_step": [
+   "step"
+  ],
+  "t6_step": [
+   "step"
+  ]
+ },
+ "frames_per_tile": [
+  1,
+  8,
+  8,
+  4,
+  8,
+  8,
+  4
+ ],
+ "draft_course_map": {
+  "0,0": {
+   "tile": 0,
+   "hflip": 1,
+   "vflip": 1
+  },
+  "0,1": {
+   "tile": 0,
+   "hflip": 0,
+   "vflip": 1
+  },
+  "0,2": {
+   "tile": 0,
+   "hflip": 1,
+   "vflip": 1
+  },
+  "0,3": {
+   "tile": 0,
+   "hflip": 0,
+   "vflip": 1
+  },
+  "0,4": {
+   "tile": 0,
+   "hflip": 1,
+   "vflip": 1
+  },
+  "0,5": {
+   "tile": 0,
+   "hflip": 0,
+   "vflip": 1
+  },
+  "0,6": {
+   "tile": 0,
+   "hflip": 1,
+   "vflip": 1
+  },
+  "0,7": {
+   "tile": 0,
+   "hflip": 0,
+   "vflip": 1
+  },
+  "0,8": {
+   "tile": 0,
+   "hflip": 1,
+   "vflip": 1
+  },
+  "0,9": {
+   "tile": 0,
+   "hflip": 0,
+   "vflip": 1
+  },
+  "0,10": {
+   "tile": 0,
+   "hflip": 1,
+   "vflip": 1
+  },
+  "0,11": {
+   "tile": 0,
+   "hflip": 0,
+   "vflip": 1
+  },
+  "0,12": {
+   "tile": 0,
+   "hflip": 1,
+   "vflip": 1
+  },
+  "0,13": {
+   "tile": 0,
+   "hflip": 0,
+   "vflip": 1
+  },
+  "0,14": {
+   "tile": 0,
+   "hflip": 1,
+   "vflip": 1
+  },
+  "0,15": {
+   "tile": 0,
+   "hflip": 0,
+   "vflip": 1
+  },
+  "0,16": {
+   "tile": 0,
+   "hflip": 1,
+   "vflip": 1
+  },
+  "0,17": {
+   "tile": 0,
+   "hflip": 0,
+   "vflip": 1
+  },
+  "0,18": {
+   "tile": 0,
+   "hflip": 1,
+   "vflip": 1
+  },
+  "0,19": {
+   "tile": 0,
+   "hflip": 0,
+   "vflip": 1
+  },
+  "0,20": {
+   "tile": 0,
+   "hflip": 1,
+   "vflip": 1
+  },
+  "0,21": {
+   "tile": 0,
+   "hflip": 0,
+   "vflip": 1
+  },
+  "0,22": {
+   "tile": 0,
+   "hflip": 1,
+   "vflip": 1
+  },
+  "0,23": {
+   "tile": 0,
+   "hflip": 0,
+   "vflip": 1
+  },
+  "0,24": {
+   "tile": 0,
+   "hflip": 1,
+   "vflip": 1
+  },
+  "0,25": {
+   "tile": 0,
+   "hflip": 0,
+   "vflip": 1
+  },
+  "0,26": {
+   "tile": 0,
+   "hflip": 1,
+   "vflip": 1
+  },
+  "0,27": {
+   "tile": 0,
+   "hflip": 0,
+   "vflip": 1
+  },
+  "0,28": {
+   "tile": 0,
+   "hflip": 1,
+   "vflip": 1
+  },
+  "0,29": {
+   "tile": 0,
+   "hflip": 0,
+   "vflip": 1
+  },
+  "0,30": {
+   "tile": 0,
+   "hflip": 1,
+   "vflip": 1
+  },
+  "0,31": {
+   "tile": 0,
+   "hflip": 0,
+   "vflip": 1
+  },
+  "0,32": {
+   "tile": 0,
+   "hflip": 1,
+   "vflip": 1
+  },
+  "0,33": {
+   "tile": 0,
+   "hflip": 0,
+   "vflip": 1
+  },
+  "0,34": {
+   "tile": 0,
+   "hflip": 1,
+   "vflip": 1
+  },
+  "0,35": {
+   "tile": 0,
+   "hflip": 0,
+   "vflip": 1
+  },
+  "1,0": {
+   "tile": 0,
+   "hflip": 1,
+   "vflip": 1
+  },
+  "1,1": {
+   "tile": 0,
+   "hflip": 0,
+   "vflip": 1
+  },
+  "1,2": {
+   "tile": 0,
+   "hflip": 1,
+   "vflip": 1
+  },
+  "1,3": {
+   "tile": 0,
+   "hflip": 0,
+   "vflip": 1
+  },
+  "1,4": {
+   "tile": 0,
+   "hflip": 1,
+   "vflip": 1
+  },
+  "1,5": {
+   "tile": 0,
+   "hflip": 0,
+   "vflip": 1
+  },
+  "1,6": {
+   "tile": 0,
+   "hflip": 1,
+   "vflip": 1
+  },
+  "1,7": {
+   "tile": 0,
+   "hflip": 0,
+   "vflip": 1
+  },
+  "1,8": {
+   "tile": 0,
+   "hflip": 1,
+   "vflip": 1
+  },
+  "1,9": {
+   "tile": 0,
+   "hflip": 0,
+   "vflip": 1
+  },
+  "1,10": {
+   "tile": 0,
+   "hflip": 1,
+   "vflip": 1
+  },
+  "1,11": {
+   "tile": 0,
+   "hflip": 0,
+   "vflip": 1
+  },
+  "1,12": {
+   "tile": 0,
+   "hflip": 1,
+   "vflip": 1
+  },
+  "1,13": {
+   "tile": 0,
+   "hflip": 0,
+   "vflip": 1
+  },
+  "1,14": {
+   "tile": 0,
+   "hflip": 1,
+   "vflip": 1
+  },
+  "1,15": {
+   "tile": 0,
+   "hflip": 0,
+   "vflip": 1
+  },
+  "1,16": {
+   "tile": 0,
+   "hflip": 1,
+   "vflip": 1
+  },
+  "1,17": {
+   "tile": 0,
+   "hflip": 0,
+   "vflip": 1
+  },
+  "1,18": {
+   "tile": 0,
+   "hflip": 1,
+   "vflip": 1
+  },
+  "1,19": {
+   "tile": 0,
+   "hflip": 0,
+   "vflip": 1
+  },
+  "1,20": {
+   "tile": 0,
+   "hflip": 1,
+   "vflip": 1
+  },
+  "1,21": {
+   "tile": 0,
+   "hflip": 0,
+   "vflip": 1
+  },
+  "1,22": {
+   "tile": 0,
+   "hflip": 1,
+   "vflip": 1
+  },
+  "1,23": {
+   "tile": 0,
+   "hflip": 0,
+   "vflip": 1
+  },
+  "1,24": {
+   "tile": 1,
+   "hflip": 0,
+   "vflip": 1
+  },
+  "1,25": {
+   "tile": 2,
+   "hflip": 1,
+   "vflip": 1
+  },
+  "1,26": {
+   "tile": 2,
+   "hflip": 0,
+   "vflip": 1
+  },
+  "1,27": {
+   "tile": 1,
+   "hflip": 1,
+   "vflip": 1
+  },
+  "1,28": {
+   "tile": 1,
+   "hflip": 0,
+   "vflip": 1
+  },
+  "1,29": {
+   "tile": 2,
+   "hflip": 1,
+   "vflip": 1
+  },
+  "1,30": {
+   "tile": 2,
+   "hflip": 0,
+   "vflip": 1
+  },
+  "1,31": {
+   "tile": 1,
+   "hflip": 1,
+   "vflip": 1
+  },
+  "1,32": {
+   "tile": 1,
+   "hflip": 0,
+   "vflip": 1
+  },
+  "1,33": {
+   "tile": 2,
+   "hflip": 1,
+   "vflip": 1
+  },
+  "1,34": {
+   "tile": 2,
+   "hflip": 0,
+   "vflip": 1
+  },
+  "1,35": {
+   "tile": 1,
+   "hflip": 1,
+   "vflip": 1
+  },
+  "2,0": {
+   "tile": 1,
+   "hflip": 0,
+   "vflip": 1
+  },
+  "2,1": {
+   "tile": 2,
+   "hflip": 1,
+   "vflip": 1
+  },
+  "2,2": {
+   "tile": 2,
+   "hflip": 0,
+   "vflip": 1
+  },
+  "2,3": {
+   "tile": 1,
+   "hflip": 1,
+   "vflip": 1
+  },
+  "2,4": {
+   "tile": 1,
+   "hflip": 0,
+   "vflip": 1
+  },
+  "2,5": {
+   "tile": 2,
+   "hflip": 1,
+   "vflip": 1
+  },
+  "2,6": {
+   "tile": 2,
+   "hflip": 0,
+   "vflip": 1
+  },
+  "2,7": {
+   "tile": 1,
+   "hflip": 1,
+   "vflip": 1
+  },
+  "2,8": {
+   "tile": 1,
+   "hflip": 0,
+   "vflip": 1
+  },
+  "2,9": {
+   "tile": 2,
+   "hflip": 1,
+   "vflip": 1
+  },
+  "2,10": {
+   "tile": 2,
+   "hflip": 0,
+   "vflip": 1
+  },
+  "2,11": {
+   "tile": 1,
+   "hflip": 1,
+   "vflip": 1
+  },
+  "2,12": {
+   "tile": 0,
+   "hflip": 1,
+   "vflip": 1
+  },
+  "2,13": {
+   "tile": 0,
+   "hflip": 0,
+   "vflip": 1
+  },
+  "2,14": {
+   "tile": 0,
+   "hflip": 1,
+   "vflip": 1
+  },
+  "2,15": {
+   "tile": 0,
+   "hflip": 0,
+   "vflip": 1
+  },
+  "2,16": {
+   "tile": 0,
+   "hflip": 1,
+   "vflip": 1
+  },
+  "2,17": {
+   "tile": 0,
+   "hflip": 0,
+   "vflip": 1
+  },
+  "2,18": {
+   "tile": 0,
+   "hflip": 1,
+   "vflip": 1
+  },
+  "2,19": {
+   "tile": 0,
+   "hflip": 0,
+   "vflip": 1
+  },
+  "2,20": {
+   "tile": 0,
+   "hflip": 1,
+   "vflip": 1
+  },
+  "2,21": {
+   "tile": 0,
+   "hflip": 0,
+   "vflip": 1
+  },
+  "2,22": {
+   "tile": 0,
+   "hflip": 1,
+   "vflip": 1
+  },
+  "2,23": {
+   "tile": 3,
+   "hflip": 1,
+   "vflip": 1
+  },
+  "3,12": {
+   "tile": 4,
+   "hflip": 0,
+   "vflip": 1
+  },
+  "3,13": {
+   "tile": 2,
+   "hflip": 1,
+   "vflip": 1
+  },
+  "3,14": {
+   "tile": 2,
+   "hflip": 0,
+   "vflip": 1
+  },
+  "3,15": {
+   "tile": 1,
+   "hflip": 1,
+   "vflip": 1
+  },
+  "3,16": {
+   "tile": 1,
+   "hflip": 0,
+   "vflip": 1
+  },
+  "3,17": {
+   "tile": 2,
+   "hflip": 1,
+   "vflip": 1
+  },
+  "3,18": {
+   "tile": 2,
+   "hflip": 0,
+   "vflip": 1
+  },
+  "3,19": {
+   "tile": 1,
+   "hflip": 1,
+   "vflip": 1
+  },
+  "3,20": {
+   "tile": 1,
+   "hflip": 0,
+   "vflip": 1
+  },
+  "3,21": {
+   "tile": 2,
+   "hflip": 1,
+   "vflip": 1
+  },
+  "3,22": {
+   "tile": 2,
+   "hflip": 0,
+   "vflip": 1
+  },
+  "3,23": {
+   "tile": 4,
+   "hflip": 1,
+   "vflip": 1
+  },
+  "9,12": {
+   "tile": 5,
+   "hflip": 0,
+   "vflip": 0
+  },
+  "9,13": {
+   "tile": 2,
+   "hflip": 1,
+   "vflip": 0
+  },
+  "9,14": {
+   "tile": 2,
+   "hflip": 0,
+   "vflip": 0
+  },
+  "9,15": {
+   "tile": 1,
+   "hflip": 1,
+   "vflip": 0
+  },
+  "9,16": {
+   "tile": 1,
+   "hflip": 0,
+   "vflip": 0
+  },
+  "9,17": {
+   "tile": 2,
+   "hflip": 1,
+   "vflip": 0
+  },
+  "9,18": {
+   "tile": 2,
+   "hflip": 0,
+   "vflip": 0
+  },
+  "9,19": {
+   "tile": 1,
+   "hflip": 1,
+   "vflip": 0
+  },
+  "9,20": {
+   "tile": 1,
+   "hflip": 0,
+   "vflip": 0
+  },
+  "9,21": {
+   "tile": 2,
+   "hflip": 1,
+   "vflip": 0
+  },
+  "9,22": {
+   "tile": 2,
+   "hflip": 0,
+   "vflip": 0
+  },
+  "9,23": {
+   "tile": 5,
+   "hflip": 1,
+   "vflip": 0
+  },
+  "10,12": {
+   "tile": 6,
+   "hflip": 0,
+   "vflip": 1
+  },
+  "10,13": {
+   "tile": 0,
+   "hflip": 0,
+   "vflip": 0
+  },
+  "10,14": {
+   "tile": 0,
+   "hflip": 1,
+   "vflip": 0
+  },
+  "10,15": {
+   "tile": 0,
+   "hflip": 0,
+   "vflip": 0
+  },
+  "10,16": {
+   "tile": 0,
+   "hflip": 1,
+   "vflip": 0
+  },
+  "10,17": {
+   "tile": 0,
+   "hflip": 0,
+   "vflip": 0
+  },
+  "10,18": {
+   "tile": 0,
+   "hflip": 1,
+   "vflip": 0
+  },
+  "10,19": {
+   "tile": 0,
+   "hflip": 0,
+   "vflip": 0
+  },
+  "10,20": {
+   "tile": 0,
+   "hflip": 1,
+   "vflip": 0
+  },
+  "10,21": {
+   "tile": 0,
+   "hflip": 0,
+   "vflip": 0
+  },
+  "10,22": {
+   "tile": 0,
+   "hflip": 1,
+   "vflip": 0
+  },
+  "10,23": {
+   "tile": 0,
+   "hflip": 0,
+   "vflip": 0
+  },
+  "10,24": {
+   "tile": 1,
+   "hflip": 0,
+   "vflip": 0
+  },
+  "10,25": {
+   "tile": 2,
+   "hflip": 1,
+   "vflip": 0
+  },
+  "10,26": {
+   "tile": 2,
+   "hflip": 0,
+   "vflip": 0
+  },
+  "10,27": {
+   "tile": 1,
+   "hflip": 1,
+   "vflip": 0
+  },
+  "10,28": {
+   "tile": 1,
+   "hflip": 0,
+   "vflip": 0
+  },
+  "10,29": {
+   "tile": 2,
+   "hflip": 1,
+   "vflip": 0
+  },
+  "10,30": {
+   "tile": 2,
+   "hflip": 0,
+   "vflip": 0
+  },
+  "10,31": {
+   "tile": 1,
+   "hflip": 1,
+   "vflip": 0
+  },
+  "10,32": {
+   "tile": 1,
+   "hflip": 0,
+   "vflip": 0
+  },
+  "10,33": {
+   "tile": 2,
+   "hflip": 1,
+   "vflip": 0
+  },
+  "10,34": {
+   "tile": 2,
+   "hflip": 0,
+   "vflip": 0
+  },
+  "10,35": {
+   "tile": 1,
+   "hflip": 1,
+   "vflip": 0
+  },
+  "11,0": {
+   "tile": 1,
+   "hflip": 0,
+   "vflip": 0
+  },
+  "11,1": {
+   "tile": 2,
+   "hflip": 1,
+   "vflip": 0
+  },
+  "11,2": {
+   "tile": 2,
+   "hflip": 0,
+   "vflip": 0
+  },
+  "11,3": {
+   "tile": 1,
+   "hflip": 1,
+   "vflip": 0
+  },
+  "11,4": {
+   "tile": 1,
+   "hflip": 0,
+   "vflip": 0
+  },
+  "11,5": {
+   "tile": 2,
+   "hflip": 1,
+   "vflip": 0
+  },
+  "11,6": {
+   "tile": 2,
+   "hflip": 0,
+   "vflip": 0
+  },
+  "11,7": {
+   "tile": 1,
+   "hflip": 1,
+   "vflip": 0
+  },
+  "11,8": {
+   "tile": 1,
+   "hflip": 0,
+   "vflip": 0
+  },
+  "11,9": {
+   "tile": 2,
+   "hflip": 1,
+   "vflip": 0
+  },
+  "11,10": {
+   "tile": 2,
+   "hflip": 0,
+   "vflip": 0
+  },
+  "11,11": {
+   "tile": 1,
+   "hflip": 1,
+   "vflip": 0
+  },
+  "11,12": {
+   "tile": 0,
+   "hflip": 1,
+   "vflip": 0
+  },
+  "11,13": {
+   "tile": 0,
+   "hflip": 0,
+   "vflip": 0
+  },
+  "11,14": {
+   "tile": 0,
+   "hflip": 1,
+   "vflip": 0
+  },
+  "11,15": {
+   "tile": 0,
+   "hflip": 0,
+   "vflip": 0
+  },
+  "11,16": {
+   "tile": 0,
+   "hflip": 1,
+   "vflip": 0
+  },
+  "11,17": {
+   "tile": 0,
+   "hflip": 0,
+   "vflip": 0
+  },
+  "11,18": {
+   "tile": 0,
+   "hflip": 1,
+   "vflip": 0
+  },
+  "11,19": {
+   "tile": 0,
+   "hflip": 0,
+   "vflip": 0
+  },
+  "11,20": {
+   "tile": 0,
+   "hflip": 1,
+   "vflip": 0
+  },
+  "11,21": {
+   "tile": 0,
+   "hflip": 0,
+   "vflip": 0
+  },
+  "11,22": {
+   "tile": 0,
+   "hflip": 1,
+   "vflip": 0
+  },
+  "11,23": {
+   "tile": 0,
+   "hflip": 0,
+   "vflip": 0
+  },
+  "11,24": {
+   "tile": 0,
+   "hflip": 1,
+   "vflip": 0
+  },
+  "11,25": {
+   "tile": 0,
+   "hflip": 0,
+   "vflip": 0
+  },
+  "11,26": {
+   "tile": 0,
+   "hflip": 1,
+   "vflip": 0
+  },
+  "11,27": {
+   "tile": 0,
+   "hflip": 0,
+   "vflip": 0
+  },
+  "11,28": {
+   "tile": 0,
+   "hflip": 1,
+   "vflip": 0
+  },
+  "11,29": {
+   "tile": 0,
+   "hflip": 0,
+   "vflip": 0
+  },
+  "11,30": {
+   "tile": 0,
+   "hflip": 1,
+   "vflip": 0
+  },
+  "11,31": {
+   "tile": 0,
+   "hflip": 0,
+   "vflip": 0
+  },
+  "11,32": {
+   "tile": 0,
+   "hflip": 1,
+   "vflip": 0
+  },
+  "11,33": {
+   "tile": 0,
+   "hflip": 0,
+   "vflip": 0
+  },
+  "11,34": {
+   "tile": 0,
+   "hflip": 1,
+   "vflip": 0
+  },
+  "11,35": {
+   "tile": 0,
+   "hflip": 0,
+   "vflip": 0
+  },
+  "12,0": {
+   "tile": 0,
+   "hflip": 1,
+   "vflip": 0
+  },
+  "12,1": {
+   "tile": 0,
+   "hflip": 0,
+   "vflip": 0
+  },
+  "12,2": {
+   "tile": 0,
+   "hflip": 1,
+   "vflip": 0
+  },
+  "12,3": {
+   "tile": 0,
+   "hflip": 0,
+   "vflip": 0
+  },
+  "12,4": {
+   "tile": 0,
+   "hflip": 1,
+   "vflip": 0
+  },
+  "12,5": {
+   "tile": 0,
+   "hflip": 0,
+   "vflip": 0
+  },
+  "12,6": {
+   "tile": 0,
+   "hflip": 1,
+   "vflip": 0
+  },
+  "12,7": {
+   "tile": 0,
+   "hflip": 0,
+   "vflip": 0
+  },
+  "12,8": {
+   "tile": 0,
+   "hflip": 1,
+   "vflip": 0
+  },
+  "12,9": {
+   "tile": 0,
+   "hflip": 0,
+   "vflip": 0
+  },
+  "12,10": {
+   "tile": 0,
+   "hflip": 1,
+   "vflip": 0
+  },
+  "12,11": {
+   "tile": 0,
+   "hflip": 0,
+   "vflip": 0
+  },
+  "12,12": {
+   "tile": 0,
+   "hflip": 1,
+   "vflip": 0
+  },
+  "12,13": {
+   "tile": 0,
+   "hflip": 0,
+   "vflip": 0
+  },
+  "12,14": {
+   "tile": 0,
+   "hflip": 1,
+   "vflip": 0
+  },
+  "12,15": {
+   "tile": 0,
+   "hflip": 0,
+   "vflip": 0
+  },
+  "12,16": {
+   "tile": 0,
+   "hflip": 1,
+   "vflip": 0
+  },
+  "12,17": {
+   "tile": 0,
+   "hflip": 0,
+   "vflip": 0
+  },
+  "12,18": {
+   "tile": 0,
+   "hflip": 1,
+   "vflip": 0
+  },
+  "12,19": {
+   "tile": 0,
+   "hflip": 0,
+   "vflip": 0
+  },
+  "12,20": {
+   "tile": 0,
+   "hflip": 1,
+   "vflip": 0
+  },
+  "12,21": {
+   "tile": 0,
+   "hflip": 0,
+   "vflip": 0
+  },
+  "12,22": {
+   "tile": 0,
+   "hflip": 1,
+   "vflip": 0
+  },
+  "12,23": {
+   "tile": 0,
+   "hflip": 0,
+   "vflip": 0
+  },
+  "12,24": {
+   "tile": 0,
+   "hflip": 1,
+   "vflip": 0
+  },
+  "12,25": {
+   "tile": 0,
+   "hflip": 0,
+   "vflip": 0
+  },
+  "12,26": {
+   "tile": 0,
+   "hflip": 1,
+   "vflip": 0
+  },
+  "12,27": {
+   "tile": 0,
+   "hflip": 0,
+   "vflip": 0
+  },
+  "12,28": {
+   "tile": 0,
+   "hflip": 1,
+   "vflip": 0
+  },
+  "12,29": {
+   "tile": 0,
+   "hflip": 0,
+   "vflip": 0
+  },
+  "12,30": {
+   "tile": 0,
+   "hflip": 1,
+   "vflip": 0
+  },
+  "12,31": {
+   "tile": 0,
+   "hflip": 0,
+   "vflip": 0
+  },
+  "12,32": {
+   "tile": 0,
+   "hflip": 1,
+   "vflip": 0
+  },
+  "12,33": {
+   "tile": 0,
+   "hflip": 0,
+   "vflip": 0
+  },
+  "12,34": {
+   "tile": 0,
+   "hflip": 1,
+   "vflip": 0
+  },
+  "12,35": {
+   "tile": 0,
+   "hflip": 0,
+   "vflip": 0
+  },
+  "13,0": {
+   "tile": 0,
+   "hflip": 1,
+   "vflip": 0
+  },
+  "13,1": {
+   "tile": 0,
+   "hflip": 0,
+   "vflip": 0
+  },
+  "13,2": {
+   "tile": 0,
+   "hflip": 1,
+   "vflip": 0
+  },
+  "13,3": {
+   "tile": 0,
+   "hflip": 0,
+   "vflip": 0
+  },
+  "13,4": {
+   "tile": 0,
+   "hflip": 1,
+   "vflip": 0
+  },
+  "13,5": {
+   "tile": 0,
+   "hflip": 0,
+   "vflip": 0
+  },
+  "13,6": {
+   "tile": 0,
+   "hflip": 1,
+   "vflip": 0
+  },
+  "13,7": {
+   "tile": 0,
+   "hflip": 0,
+   "vflip": 0
+  },
+  "13,8": {
+   "tile": 0,
+   "hflip": 1,
+   "vflip": 0
+  },
+  "13,9": {
+   "tile": 0,
+   "hflip": 0,
+   "vflip": 0
+  },
+  "13,10": {
+   "tile": 0,
+   "hflip": 1,
+   "vflip": 0
+  },
+  "13,11": {
+   "tile": 0,
+   "hflip": 0,
+   "vflip": 0
+  },
+  "13,12": {
+   "tile": 0,
+   "hflip": 1,
+   "vflip": 0
+  },
+  "13,13": {
+   "tile": 0,
+   "hflip": 0,
+   "vflip": 0
+  },
+  "13,14": {
+   "tile": 0,
+   "hflip": 1,
+   "vflip": 0
+  },
+  "13,15": {
+   "tile": 0,
+   "hflip": 0,
+   "vflip": 0
+  },
+  "13,16": {
+   "tile": 0,
+   "hflip": 1,
+   "vflip": 0
+  },
+  "13,17": {
+   "tile": 0,
+   "hflip": 0,
+   "vflip": 0
+  },
+  "13,18": {
+   "tile": 0,
+   "hflip": 1,
+   "vflip": 0
+  },
+  "13,19": {
+   "tile": 0,
+   "hflip": 0,
+   "vflip": 0
+  },
+  "13,20": {
+   "tile": 0,
+   "hflip": 1,
+   "vflip": 0
+  },
+  "13,21": {
+   "tile": 0,
+   "hflip": 0,
+   "vflip": 0
+  },
+  "13,22": {
+   "tile": 0,
+   "hflip": 1,
+   "vflip": 0
+  },
+  "13,23": {
+   "tile": 0,
+   "hflip": 0,
+   "vflip": 0
+  },
+  "13,24": {
+   "tile": 0,
+   "hflip": 1,
+   "vflip": 0
+  },
+  "13,25": {
+   "tile": 0,
+   "hflip": 0,
+   "vflip": 0
+  },
+  "13,26": {
+   "tile": 0,
+   "hflip": 1,
+   "vflip": 0
+  },
+  "13,27": {
+   "tile": 0,
+   "hflip": 0,
+   "vflip": 0
+  },
+  "13,28": {
+   "tile": 0,
+   "hflip": 1,
+   "vflip": 0
+  },
+  "13,29": {
+   "tile": 0,
+   "hflip": 0,
+   "vflip": 0
+  },
+  "13,30": {
+   "tile": 0,
+   "hflip": 1,
+   "vflip": 0
+  },
+  "13,31": {
+   "tile": 0,
+   "hflip": 0,
+   "vflip": 0
+  },
+  "13,32": {
+   "tile": 0,
+   "hflip": 1,
+   "vflip": 0
+  },
+  "13,33": {
+   "tile": 0,
+   "hflip": 0,
+   "vflip": 0
+  },
+  "13,34": {
+   "tile": 0,
+   "hflip": 1,
+   "vflip": 0
+  },
+  "13,35": {
+   "tile": 0,
+   "hflip": 0,
+   "vflip": 0
+  }
+ },
+ "rim_gap": {
+  "floor": {
+   "min": 0,
+   "max": 4,
+   "mean": 2.25,
+   "samples": 3840
+  },
+  "ceiling": {
+   "min": 0,
+   "max": 4,
+   "mean": 2.25,
+   "samples": 3840
+  }
+ },
+ "y_offset_rule": {
+  "floor_sprite_y": "win_bottom - 0",
+  "ceiling_sprite_bottom": "win_top + 0",
+  "why": "hurt when flier bottom >= win_bottom (floor) or flier top <= win_top-1 (ceiling), src/core/trip_hit.c:44; shifting by the minimum gap puts the highest art row on the hurt line, no art enters the window"
+ }
+}

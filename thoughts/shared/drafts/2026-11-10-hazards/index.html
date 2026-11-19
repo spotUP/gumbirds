@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Roofline hazard drafts 2026-11-10</title>
+<style>
+  body { background: #14161c; color: #e6e8ee; font-family: -apple-system, "Helvetica Neue", Arial, sans-serif; margin: 24px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  h2 { font-size: 18px; margin: 32px 0 8px; border-bottom: 1px solid #343846; padding-bottom: 6px; }
+  p { color: #a9aebc; margin: 4px 0 12px; max-width: 900px; }
+  img { image-rendering: pixelated; display: block; max-width: 100%; border: 1px solid #343846; margin-bottom: 12px; }
+  .pair { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; }
+</style>
+</head>
+<body>
+<h1>Roofline hazard drafts</h1>
+<p>Four options for the deadly strip at the screen bottom. Each is a seamless 32x32 tile, 4 looping frames, at most 15 colours.</p>
+
+<h2>All four, tile sheet (4x)</h2>
+<img src="hazards_sheet_4x.png" alt="Hazard tile sheet">
+
+<h2>A Spikes</h2>
+<p>Glint runs along the tips. Weak point: thin at 1x, dark side blends into the buildings.</p>
+<div class="pair"><img src="scene_A_3x.png" alt="Spikes in scene"><img src="anim_A_4x.gif" alt="Spikes animation"></div>
+
+<h2>B Fire</h2>
+<p>Flame tongues, sparks, glowing coal cracks. Strongest contrast. No glow on the buildings yet.</p>
+<div class="pair"><img src="scene_B_3x.png" alt="Fire in scene"><img src="anim_B_4x.gif" alt="Fire animation"></div>
+
+<h2>C Water</h2>
+<p>Rolling foam wave plus a lurker sprite (fin, glowing eyes). Matches the design doc. Weak point: crest repeats every 32 px.</p>
+<div class="pair"><img src="scene_C_3x.png" alt="Water in scene"><img src="anim_C_4x.gif" alt="Water animation"></div>
+
+<h2>D Lava</h2>
+<p>Bubbles swell and pop, crust rafts, pulsing streaks. Weak point: surface busy, band edges look mechanical.</p>
+<div class="pair"><img src="scene_D_3x.png" alt="Lava in scene"><img src="anim_D_4x.gif" alt="Lava animation"></div>
+</body>
+</html>

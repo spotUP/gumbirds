@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sootling Walk Drafts</title>
+<style>
+  :root { --bg: #1c1c20; --panel: #26262b; --text: #d8d8dc; --muted: #9a9aa2; --line: #3a3a42; }
+  body { margin: 0; padding: 16px; background: var(--bg); color: var(--text); font: 15px/1.45 system-ui, sans-serif; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  h2 { font-size: 17px; margin: 0 0 8px; }
+  p, li { color: var(--muted); max-width: 70ch; }
+  .row { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px; }
+  .card h3 { font-size: 14px; margin: 12px 0 6px; color: var(--text); font-weight: 600; }
+  img { image-rendering: pixelated; image-rendering: crisp-edges; display: block; max-width: 100%; }
+  section { margin: 24px 0; }
+</style>
+</head>
+<body>
+<h1>Sootling walk cycle drafts</h1>
+<p>All frames 24 x 32, facing right, existing palette indices only. Strips and GIFs at 4x. Walk speed 1.4 px per frame (60 fps ticks). Move GIFs show one GIF frame per tick at 20 ms, so they run at 0.83x real speed.</p>
+
+<section>
+<h2>Current idle (comparison)</h2>
+<div class="row">
+  <div class="card"><h3>Player</h3><img src="idle_current_player.png" width="96" alt="current idle player"></div>
+  <div class="card"><h3>Rival</h3><img src="idle_current_rival.png" width="96" alt="current idle rival"></div>
+</div>
+</section>
+
+<section>
+<h2>Walk variants</h2>
+<div class="row">
+  <div class="card">
+    <h2>A - 6 frames, hold 2</h2>
+    <p>Cycle 12 ticks, stride 16.8 px (8.4 px per step). Grounded waddle, 1 px bob, quiff and gum wad lag one frame.</p>
+    <h3>Player strip</h3><img src="walk_A_player.png" width="576" alt="A player">
+    <h3>Rival strip</h3><img src="walk_A_rival.png" width="576" alt="A rival">
+    <h3>In place</h3><img src="walk_A_4x.gif" alt="A in place">
+    <h3>Moving over ground</h3><img src="walk_A_move_4x.gif" alt="A moving">
+  </div>
+  <div class="card">
+    <h2>B - 8 frames, holds 2,1,2,1,2,1,2,1</h2>
+    <p>Cycle 12 ticks, stride 16.8 px. Contact, down, pass, up for both feet; wing swings opposite the near foot.</p>
+    <h3>Player strip</h3><img src="walk_B_player.png" width="768" alt="B player">
+    <h3>Rival strip</h3><img src="walk_B_rival.png" width="768" alt="B rival">
+    <h3>In place</h3><img src="walk_B_4x.gif" alt="B in place">
+    <h3>Moving over ground</h3><img src="walk_B_move_4x.gif" alt="B moving">
+  </div>
+  <div class="card">
+    <h2>C - 8 frames, hold 2</h2>
+    <p>Cycle 16 ticks, stride 22.4 px (11.2 px per step). Bouncy hop-walk with drawn squash on contact and stretch on push-off; feet planted only on contact and push frames.</p>
+    <h3>Player strip</h3><img src="walk_C_player.png" width="768" alt="C player">
+    <h3>Rival strip</h3><img src="walk_C_rival.png" width="768" alt="C rival">
+    <h3>In place</h3><img src="walk_C_4x.gif" alt="C in place">
+    <h3>Moving over ground</h3><img src="walk_C_move_4x.gif" alt="C moving">
+  </div>
+</div>
+</section>
+
+<section>
+<h2>Extras (not part of the walk)</h2>
+<div class="row">
+  <div class="card">
+    <h2>Landing - 2 frames, holds 6, 8</h2>
+    <h3>Player</h3><img src="extra_land_player.png" width="192" alt="land player">
+    <h3>Rival</h3><img src="extra_land_rival.png" width="192" alt="land rival">
+    <h3>Animated</h3><img src="extra_land_4x.gif" alt="land animated">
+  </div>
+  <div class="card">
+    <h2>Idle breathing - 4 frames, holds 24, 10, 14, 10</h2>
+    <h3>Player</h3><img src="extra_breathe_player.png" width="384" alt="breathe player">
+    <h3>Rival</h3><img src="extra_breathe_rival.png" width="384" alt="breathe rival">
+    <h3>Animated</h3><img src="extra_breathe_4x.gif" alt="breathe animated">
+  </div>
+</div>
+</section>
+
+<section>
+<h2>With gum</h2>
+<p>The game shows frame 0 of the flap clip on the ground while gum is carried (two bubbles: flap with two bubbles; one bubble: flap with one bubble), so the approved walk C, landing and breathing get one version per gum state. No gum is the gumless drafts above. The bubble is the sheet's own grid, letters and outline; it trails the body by one frame, squashes one row the frame after a touchdown, trails the walk by one pixel and sways (the pair rocks one row per step). No gum wad at the beak while gum is carried, as in the flap frames. GIFs run at game speed (walk 3 ticks per frame, landing 9 and 12, breathing 36, 15, 21, 15; the landing GIF pauses 0.7 s before repeating). Player left, rival right in each GIF. Generator: <code>draw_walk_gum.py</code>, numbers: <a href="measure_gum.txt" style="color:var(--text)">measure_gum.txt</a>, full sheet: <a href="walk_gum_sheet_draft.png" style="color:var(--text)">walk_gum_sheet_draft.png</a>.</p>
+<div class="row">
+  <div class="card">
+    <h2>Walk C, two bubbles</h2>
+    <h3>Player strip</h3><img src="gum_walk_C_gum2_player.png" width="768" alt="walk C two bubbles player">
+    <h3>Rival strip</h3><img src="gum_walk_C_gum2_rival.png" width="768" alt="walk C two bubbles rival">
+    <div class="row">
+      <div><h3>In place</h3><img src="gum_walk_C_gum2_4x.gif" alt="walk C two bubbles in place"></div>
+      <div><h3>Moving over ground</h3><img src="gum_walk_C_gum2_move_4x.gif" alt="walk C two bubbles moving"></div>
+    </div>
+  </div>
+  <div class="card">
+    <h2>Walk C, one bubble</h2>
+    <h3>Player strip</h3><img src="gum_walk_C_gum1_player.png" width="768" alt="walk C one bubble player">
+    <h3>Rival strip</h3><img src="gum_walk_C_gum1_rival.png" width="768" alt="walk C one bubble rival">
+    <div class="row">
+      <div><h3>In place</h3><img src="gum_walk_C_gum1_4x.gif" alt="walk C one bubble in place"></div>
+      <div><h3>Moving over ground</h3><img src="gum_walk_C_gum1_move_4x.gif" alt="walk C one bubble moving"></div>
+    </div>
+  </div>
+</div>
+<div class="row" style="margin-top:16px">
+  <div class="card">
+    <h2>Landing, two bubbles</h2>
+    <div class="row">
+      <div><h3>Player</h3><img src="gum_land_gum2_player.png" width="192" alt="landing two bubbles player">
+      <h3>Rival</h3><img src="gum_land_gum2_rival.png" width="192" alt="landing two bubbles rival"></div>
+      <div><h3>Animated</h3><img src="gum_land_gum2_4x.gif" alt="landing two bubbles animated"></div>
+    </div>
+  </div>
+  <div class="card">
+    <h2>Landing, one bubble</h2>
+    <div class="row">
+      <div><h3>Player</h3><img src="gum_land_gum1_player.png" width="192" alt="landing one bubble player">
+      <h3>Rival</h3><img src="gum_land_gum1_rival.png" width="192" alt="landing one bubble rival"></div>
+      <div><h3>Animated</h3><img src="gum_land_gum1_4x.gif" alt="landing one bubble animated"></div>
+    </div>
+  </div>
+  <div class="card">
+    <h2>Idle breathing, two bubbles</h2>
+    <div class="row">
+      <div><h3>Player</h3><img src="gum_breathe_gum2_player.png" width="384" alt="breathing two bubbles player">
+      <h3>Rival</h3><img src="gum_breathe_gum2_rival.png" width="384" alt="breathing two bubbles rival"></div>
+      <div><h3>Animated</h3><img src="gum_breathe_gum2_4x.gif" alt="breathing two bubbles animated"></div>
+    </div>
+  </div>
+  <div class="card">
+    <h2>Idle breathing, one bubble</h2>
+    <div class="row">
+      <div><h3>Player</h3><img src="gum_breathe_gum1_player.png" width="384" alt="breathing one bubble player">
+      <h3>Rival</h3><img src="gum_breathe_gum1_rival.png" width="384" alt="breathing one bubble rival"></div>
+      <div><h3>Animated</h3><img src="gum_breathe_gum1_4x.gif" alt="breathing one bubble animated"></div>
+    </div>
+  </div>
+</div>
+<h3>Cost</h3>
+<p>44 new 16 x 16 C-ROM tiles for all six gum clips together (two bubbles 28, one bubble 24, overlap shared), after deduplication against the current sheet and the gumless drafts. Rival reuses the player tiles.</p>
+<h3>Doubts (with gum)</h3>
+<ul>
+  <li>Walk at 3 ticks per frame makes the cycle 24 ticks: at 1.4 px per tick the stride is 33.6 px, but walk C was drawn for 22.4 px (2 ticks per frame), so planted feet slide visibly in the moving GIFs. Either keep 2 ticks or redraw the foot columns.</li>
+  <li>The bubble top touches row 0 (frame edge) in 10 frames; nothing is cut off, but there is no spare row above.</li>
+  <li>One bubble, walk frames 1 and 5: the squashed bubble sits right on the tuft and the string disappears; it may read as the bubble resting on the head.</li>
+  <li>The squashed pair (walk frames 1 and 5, landing frame 1) reads slightly as a dumbbell.</li>
+  <li>While the body is up (walk frames 1, 2, 5, 6) the slack string hides behind the tuft, so the link between bird and gum vanishes for a few ticks.</li>
+  <li>At 1x the one-row tilt and one-pixel sway are barely visible; the dip and squash read. Bubble never overlaps the beak or wing: the knot sits on the brow, at most 4 bubble pixels go behind the tuft.</li>
+</ul>
+</section>
+
+<section>
+<h2>Doubts</h2>
+<ul>
+  <li>Legs are 1 to 3 px long under a 16 px ball, so any step is small. At 1.4 px per frame the cadence must be fast (A and B: 5 cycles per second).</li>
+  <li>A and B planted feet slide 0.4 px per frame-start against the ground; C slides 0.2 px. Inside a 2-tick hold the planted foot rides along up to 2.8 px, which is normal for sprite walks but visible on a still ground line.</li>
+  <li>The back-swung wing (orange spike behind the body) can read as a second beak on some frames.</li>
+  <li>C's hop may clash with the flap-to-float verb if a grounded walk should read clearly different from flying.</li>
+  <li>Breathing frames use the stretch body; the change is 1 px and may be too subtle at real size.</li>
+</ul>
+<h2>Recommendation</h2>
+<p>C. Air time covers distance, so only two planted frames must match ground speed; cadence is slower (16 ticks); squash and stretch suit a floaty bird. B is the smoother grounded alternative. A is the cheapest in tiles.</p>
+<p>Full sheet of all frames: <a href="walk_sheet_draft.png" style="color:var(--text)">walk_sheet_draft.png</a>. Per-frame measurements: <a href="measure.txt" style="color:var(--text)">measure.txt</a>.</p>
+</section>
+</body>
+</html>

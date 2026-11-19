@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Gumbirds: smaller Sootling drafts</title>
+<style>
+  body { background: #14151b; color: #d8dbe6; font-family: -apple-system, "Helvetica Neue", Arial, sans-serif; margin: 24px; line-height: 1.45; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  h2 { font-size: 17px; margin: 36px 0 6px; color: #ffffff; border-top: 1px solid #333747; padding-top: 18px; }
+  p { max-width: 980px; margin: 6px 0 12px; color: #b4b9cc; }
+  img { image-rendering: pixelated; image-rendering: crisp-edges; display: block; margin: 8px 0; max-width: none; }
+  .row { display: flex; gap: 24px; flex-wrap: wrap; align-items: flex-end; }
+  figure { margin: 0 0 12px; }
+  figcaption { font-size: 13px; color: #9aa0b8; }
+  .scroll { overflow-x: auto; }
+  pre { background: #1c1e28; padding: 12px; font-size: 12px; overflow-x: auto; color: #c8cde0; }
+  strong { color: #ffffff; }
+</style>
+</head>
+<body>
+<h1>Gumbirds: smaller Sootling drafts</h1>
+<p>Draft for one decision: <strong>smaller Sootlings</strong> or <strong>a bigger world</strong>. Nothing in the game was changed.
+Everything marked 1x is the size the cabinet shows; judge there first.</p>
+
+<h2>One screen of the arena, three Sootling sizes (1x, true cabinet size)</h2>
+<p>Same camera (x 32), same islands (stage table now), same four fliers at the same spots: player flapping between the right islands,
+a rival standing on the middle island, a rival on one gum low over the water, a rival standing on the right island.
+Left: now 32 x 48. Middle: 24 x 32. Right: 20 x 28.</p>
+<div class="scroll"><img src="mock_side_by_side_1x.png" alt="three mock-ups at 1x"></div>
+
+<h2>The same three screens at 3x</h2>
+<div class="scroll">
+<figure><img src="mock_now_3x.png" alt="now"><figcaption>Now, 32 x 48. A standing Sootling under the island above it has 8 px of air.</figcaption></figure>
+<figure><img src="mock_24_3x.png" alt="24x32"><figcaption>24 x 32. Same islands, 24 px of air in the tightest spot.</figcaption></figure>
+<figure><img src="mock_20_3x.png" alt="20x28"><figcaption>20 x 28. 28 px of air; the fliers start to read as dots with bubbles.</figcaption></figure>
+</div>
+
+<h2>Flap cycle: now beside 24 x 32 (3x)</h2>
+<p>Left pair is the player, right pair the rival. The current clip has 8 drawn frames; the small one here has only 3 key frames (up, glide, down), so it is choppier than a finished clip would be.</p>
+<img src="anim_flap_now_vs_24x32_3x.gif" alt="flap cycle">
+
+<h2>Same poses at the three sizes</h2>
+<p>Idle, flap up, flap down, fall without gum. First now, then 24 x 32, then 20 x 28.</p>
+<div class="scroll">
+<figure><img src="compare_sizes_1x.png" alt="sizes 1x"><figcaption>1x</figcaption></figure>
+<figure><img src="compare_sizes_5x.png" alt="sizes 5x"><figcaption>5x</figcaption></figure>
+</div>
+
+<h2>24 x 32: ten key frames, player and rival palette</h2>
+<p>Left to right: idle, flap up, flap down, glide, fall without gum, walk 1, walk 2, one-gum float, pop reaction, landing.
+Shown on a dark ground and on a night-sky tone. Redrawn by hand on the pixel grid with the 15 colours of the current sheet; not a scaled copy.</p>
+<div class="scroll">
+<figure><img src="small_24x32_contact_1x.png" alt="24x32 1x"><figcaption>1x</figcaption></figure>
+<figure><img src="small_24x32_contact_6x.png" alt="24x32 6x"><figcaption>6x</figcaption></figure>
+</div>
+
+<h2>20 x 28: four key frames (where detail breaks)</h2>
+<p>Idle, flap up, flap down, fall without gum. Eyes are 3 x 3 with a one-pixel pupil, so the Sootling can no longer look in a direction; the gum lobes are 7 px.</p>
+<div class="scroll">
+<figure><img src="small_20x28_contact_1x.png" alt="20x28 1x"><figcaption>1x</figcaption></figure>
+<figure><img src="small_20x28_contact_6x.png" alt="20x28 6x"><figcaption>6x</figcaption></figure>
+</div>
+
+<h2>Numbers</h2>
+<p>Full text in numbers.txt. Short version:</p>
+<pre>
+size    frame   fur body   body width / screen width   frame height / world height   frames stacked in the 180 px world
+now     32x48   22 x 19    6.9 %                       26.7 %                        3.75
+24x32   24x32   14 x 14    4.4 %                       17.8 %                        5.62
+20x28   20x28   11 x  9    3.4 %                       15.6 %                        6.43
+
+Tiles for 63 frames: now 378 slots (294 unique measured); 24x32 252 slots (about 196 unique);
+20x28 also 252 slots (about 196): 20 px still needs two sprite strips and 28 px two tile rows.
+20 x 28 saves nothing over 24 x 32 on the hardware. Sprites per flier stay at 2 strips at every size.
+</pre>
+<p>Design choices on this page: plain dark slate page, system sans-serif text, square-cornered images, no decoration.</p>
+</body>
+</html>

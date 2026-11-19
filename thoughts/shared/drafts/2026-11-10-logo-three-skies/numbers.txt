@@ -1,0 +1,46 @@
+logo frame opaque widths over 10 frames: [303, 303, 303, 303, 303, 303, 303, 303, 303, 303]; widest frame 0
+== moon
+  logo outline colour (most common on the outer ring) (8, 8, 24), 474 of 884 edge pixels
+  darkest logo colour (8, 8, 24), lightest (255, 255, 255)
+  edge pixels 884, edge/sky pairs 1236
+  contrast edge vs sky outside: mean 3.00, min 1.01 (per pair), mean per edge pixel 3.01
+  edge pixels under 1.5: 11.7%  under 1.2: 4.6%
+  sky colour that collides most: (38, 37, 98) (71 pairs under 1.5; of 189 such pairs)
+  (widest animation frame)
+== moon_wide
+  logo outline colour (most common on the outer ring) (8, 8, 24), 455 of 853 edge pixels
+  darkest logo colour (8, 8, 24), lightest (255, 231, 189)
+  edge pixels 853, edge/sky pairs 1188
+  contrast edge vs sky outside: mean 3.10, min 1.01 (per pair), mean per edge pixel 3.11
+  edge pixels under 1.5: 10.1%  under 1.2: 4.7%
+  sky colour that collides most: (38, 37, 98) (39 pairs under 1.5; of 154 such pairs)
+== dusk
+  logo outline colour (most common on the outer ring) (8, 8, 24), 474 of 884 edge pixels
+  darkest logo colour (8, 8, 24), lightest (255, 255, 255)
+  edge pixels 884, edge/sky pairs 1236
+  contrast edge vs sky outside: mean 3.77, min 1.01 (per pair), mean per edge pixel 3.77
+  edge pixels under 1.5: 3.2%  under 1.2: 1.0%
+  sky colour that collides most: (70, 24, 84) (11 pairs under 1.5; of 50 such pairs)
+  (widest animation frame)
+== dusk_wide
+  logo outline colour (most common on the outer ring) (8, 8, 24), 455 of 853 edge pixels
+  darkest logo colour (8, 8, 24), lightest (255, 231, 189)
+  edge pixels 853, edge/sky pairs 1188
+  contrast edge vs sky outside: mean 3.85, min 1.01 (per pair), mean per edge pixel 3.84
+  edge pixels under 1.5: 3.2%  under 1.2: 1.1%
+  sky colour that collides most: (70, 24, 84) (11 pairs under 1.5; of 47 such pairs)
+== storm
+  logo outline colour (most common on the outer ring) (8, 8, 24), 474 of 884 edge pixels
+  darkest logo colour (8, 8, 24), lightest (255, 255, 255)
+  edge pixels 884, edge/sky pairs 1236
+  contrast edge vs sky outside: mean 3.03, min 1.01 (per pair), mean per edge pixel 3.03
+  edge pixels under 1.5: 17.9%  under 1.2: 3.6%
+  sky colour that collides most: (28, 41, 56) (103 pairs under 1.5; of 276 such pairs)
+  (widest animation frame)
+== storm_wide
+  logo outline colour (most common on the outer ring) (8, 8, 24), 455 of 853 edge pixels
+  darkest logo colour (8, 8, 24), lightest (255, 231, 189)
+  edge pixels 853, edge/sky pairs 1188
+  contrast edge vs sky outside: mean 3.11, min 1.01 (per pair), mean per edge pixel 3.11
+  edge pixels under 1.5: 16.5%  under 1.2: 3.6%
+  sky colour that collides most: (28, 41, 56) (74 pairs under 1.5; of 244 such pairs)

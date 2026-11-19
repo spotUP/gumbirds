@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Gum Trip kill strips</title>
+<style>
+body { background: #14171c; color: #d9dde3; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  margin: 0; padding: 24px 32px 64px; line-height: 1.45; }
+h1 { font-size: 24px; margin: 0 0 4px; }
+h2 { font-size: 19px; margin: 0 0 4px; color: #8fd3ff; }
+.row { display: flex; gap: 32px; flex-wrap: wrap; align-items: flex-start; }
+.var { border-top: 1px solid #2c323b; padding: 16px 0; max-width: 980px; }
+p { margin: 2px 0 8px; max-width: 960px; }
+figure { margin: 0 0 14px; }
+figure.wide { overflow-x: auto; }
+figcaption { font-size: 13px; color: #98a1ad; margin-top: 4px; }
+img { image-rendering: pixelated; display: block; }
+.side img { width: 640px; height: 448px; }
+</style></head><body>
+<h1>Gum Trip kill strips: three drafts</h1>
+<p>Drafts only, nothing here is wired into the game. Hurt line = window edge; no pixel of any variant lies in the window. Numbers: <a href="numbers.txt" style="color:#8fd3ff">numbers.txt</a>.</p>
+<h2>Side by side</h2>
+<div class="row side">
+<figure><img src="mock_a_2x.png" alt="A"><figcaption>A. Shard ridge</figcaption></figure>
+<figure><img src="mock_b_2x.png" alt="B"><figcaption>B. Live rail</figcaption></figure>
+<figure><img src="mock_c_2x.png" alt="C"><figcaption>C. Boiling gum</figcaption></figure>
+</div>
+<section class="var"><h2>A. Shard ridge</h2>
+<p>15 unique tiles (0 animated), ROM tile cost 15. Ceiling: redrawn (painted with the same light from the upper left; shards hang, crust underside dark)</p>
+<figure><img src="mock_a_2x.png" width="640" height="448" alt="A mock-up"><figcaption>Mock-up 320 x 224, two times size: ceiling band, floor band, join at x 160</figcaption></figure>
+<p class="note">Static rim, no animation.</p>
+<figure class="wide"><img src="parts_a_3x.png" alt="A parts"><figcaption>Parts, three times size: flat rim (two 64 px periods), floor step up, floor step down, ceiling step down, ceiling step up</figcaption></figure>
+<figure class="wide"><img src="sheet_a_4x.png" alt="A tile sheet"><figcaption>Unique tiles, four times size; animated tiles show their 8 frames downwards</figcaption></figure>
+</section>
+<section class="var"><h2>B. Live rail</h2>
+<p>7 unique tiles (6 animated), ROM tile cost 41. Ceiling: vertical flip of the floor tiles (no extra tiles; steel lit from below on the ceiling)</p>
+<figure><img src="mock_b_2x.png" width="640" height="448" alt="B mock-up"><figcaption>Mock-up 320 x 224, two times size: ceiling band, floor band, join at x 160</figcaption></figure>
+<figure><img src="anim_b_3x.gif" width="960" height="672" alt="B animated, scrolling"><figcaption>Animated, scrolling 1 px per tick, three times size</figcaption></figure>
+<figure class="wide"><img src="parts_b_3x.png" alt="B parts"><figcaption>Parts, three times size: flat rim (two 64 px periods), floor step up, floor step down, ceiling step down, ceiling step up</figcaption></figure>
+<figure class="wide"><img src="sheet_b_4x.png" alt="B tile sheet"><figcaption>Unique tiles, four times size; animated tiles show their 8 frames downwards</figcaption></figure>
+</section>
+<section class="var"><h2>C. Boiling gum</h2>
+<p>7 unique tiles (6 animated), ROM tile cost 41. Ceiling: vertical flip of the floor tiles (no extra tiles; bubbles bulge downward like forming drips)</p>
+<figure><img src="mock_c_2x.png" width="640" height="448" alt="C mock-up"><figcaption>Mock-up 320 x 224, two times size: ceiling band, floor band, join at x 160</figcaption></figure>
+<figure><img src="anim_c_3x.gif" width="960" height="672" alt="C animated, scrolling"><figcaption>Animated, scrolling 1 px per tick, three times size</figcaption></figure>
+<figure class="wide"><img src="parts_c_3x.png" alt="C parts"><figcaption>Parts, three times size: flat rim (two 64 px periods), floor step up, floor step down, ceiling step down, ceiling step up</figcaption></figure>
+<figure class="wide"><img src="sheet_c_4x.png" alt="C tile sheet"><figcaption>Unique tiles, four times size; animated tiles show their 8 frames downwards</figcaption></figure>
+</section>
+</body></html>

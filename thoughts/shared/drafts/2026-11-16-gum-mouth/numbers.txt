@@ -1,0 +1,28 @@
+take A: 17 bird frames (24x32, 4 tiles each as imported today) = 68 tiles; 33 unique 16x16 tiles after dedupe
+  fly: 7 frames
+  flap: 4 frames
+  turn: 3 frames
+  blowup: 6 frames
+  distress stage 1: +1 frames = +4 tiles (2 unique 16x16)
+  distress stage 2: +2 frames = +8 tiles (1 unique 16x16); sweat sprite 2 cells = 1 tile shared by all stages
+  distress stage 3: +3 frames = +12 tiles (6 unique 16x16)
+  gum neck sprite: 3 cells of 16x16 (straight, lean 1, lean 2; mirrored by flip) + V for two gums = 4 tiles
+take B: 16 bird frames (24x32, 4 tiles each as imported today) = 64 tiles; 38 unique 16x16 tiles after dedupe
+  fly: 7 frames
+  flap: 4 frames
+  turn: 0 frames
+  blowup: 6 frames
+  distress stage 1: +1 frames = +4 tiles (2 unique 16x16)
+  distress stage 2: +2 frames = +8 tiles (2 unique 16x16); sweat sprite 2 cells = 1 tile shared by all stages
+  distress stage 3: +3 frames = +12 tiles (7 unique 16x16)
+  gum neck sprite: 3 cells of 16x16 (straight, lean 1, lean 2; mirrored by flip) + V for two gums = 4 tiles
+take C: 17 bird frames (24x32, 4 tiles each as imported today) = 68 tiles; 33 unique 16x16 tiles after dedupe
+  fly: 7 frames
+  flap: 4 frames
+  turn: 3 frames
+  blowup: 6 frames
+  distress stage 1: +1 frames = +4 tiles (2 unique 16x16)
+  distress stage 2: +2 frames = +8 tiles (1 unique 16x16); sweat sprite 2 cells = 1 tile shared by all stages
+  distress stage 3: +3 frames = +12 tiles (6 unique 16x16)
+  gum neck sprite: 3 cells of 16x16 (long 11 px: straight, lean 1, lean 2; mirrored by flip) + V for two gums = 4 tiles
+current sheet for reference: flap2 8 + flap1 8 + inflate 14 = 30 frames = 120 tiles that these takes would replace

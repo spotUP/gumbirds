@@ -1,0 +1,27 @@
+A B    re-run of the original simulation (3 loops, residual 0.0e+00) rendered through the accepted pipeline: pixel-identical to hazards-final frames_fire_1x.png
+C      simulation on 192 px, A and B pinned: 3 loops, loop residual 0.0e+00 (frame 15 -> frame 0 is the same time step as any other)
+A B    rows 0 and 1 of frames_fire_abc_1x.png are pixel-identical to hazards-final frames_fire_1x.png (asserted)
+palette  A B uses 11 colours, C uses 11, A B C uses 11; C adds no colour (asserted)
+C      dither px 2107 (14.2% of opaque)  pair step median 33.4  p10 32.7   (rule: at least 28; A B: 4208 px, 13.4%, 33.4, 31.5)
+tiles  C raw 128 unique 115 | A B raw 256 unique 230 | A B C raw 384 unique 343
+fire   gap between the two tallest tongues, A B, 128 px wrapped (reference):   min 2  per frame 8 9 2 4 7 11 8 2 10 9 3 5 8 8 3 4  | tallest 23 23 21 21 21 22 22 19 23 23 21 21 21 21 21 22
+fire   gap between the two tallest tongues, A B C, 192 px wrapped:             min 2  per frame 6 7 2 4 6 4 4 2 9 9 3 5 3 3 3 4  | tallest 23 23 21 21 21 22 22 19 23 23 21 21 21 21 21 22
+fire   gap between the two tallest tongues, A B C, hard shapes of C:           min 2  per frame 6 7 2 4 6 4 4 2 9 9 3 5 3 3 3 4  | tallest 23 23 21 21 21 22 22 19 23 23 21 21 21 21 21 22
+fire   gap between the two tallest tongues, C alone, 64 px wrapped:            min 0  per frame 6 1 8 2 5 6 6 10 6 0 0 8 12 12 9 7  | tallest 17 16 16 12 15 18 18 17 14 12 10 14 18 18 16 16
+fire   A B C: tile that holds the tallest tongue, per frame: B B B A A A A B B B B A A A A B | second: C C A B C C C C C A A B C C B A
+fire   tallest hot tongue inside C, per frame: 17 16 16 12 15 18 18 17 14 12 10 14 18 18 16 16
+seam   silhouette jump per frame  A|B (accepted): 1 1 1 1 1 2 1 2 0 2 1 1 0 0 0 1
+seam   silhouette jump per frame  B|A (accepted, A B row): 2 1 3 9 3 3 1 0 0 1 0 0 1 0 0 1
+seam   silhouette jump per frame  B|C (new): 2 1 3 9 3 3 1 0 0 1 0 0 1 0 0 1
+seam   silhouette jump per frame  C|A (new): 2 1 3 9 3 3 1 0 0 1 0 0 1 0 0 1
+seam   for scale, jump between any two neighbouring columns of the A B C row: median 1  p90 2  p99 7  max 13
+loop   A changed px per step (last = frame 15 -> 0): 377 279 233 264 349 297 375 309 265 244 295 355 391 383 403 389 | mean 326, 15->0 389
+loop   B changed px per step (last = frame 15 -> 0): 253 275 371 328 291 279 285 318 250 298 318 293 224 253 232 275 | mean 284, 15->0 275
+loop   C changed px per step (last = frame 15 -> 0): 326 301 272 227 260 278 195 182 239 236 211 192 156 221 229 344 | mean 242, 15->0 344
+like   best pixel agreement of C (flame rows) with A or B over all 64 x shifts and 16 frame shifts: 74.4% (tile B, shift 56, frames 12); A against B, same frame, best shift: 68.5%
+like   left 8 px of C against left 8 px of A, same frame: 79.1% equal pixels
+like   right 8 px of C against right 8 px of B, same frame: 98.6% equal pixels
+embers C has 10 (A B: 20); ember-frames not drawn because the ember left tile C: 0
+C      sources (local x, width, puffs, phase, strength, pulse): (13, 4.4, 3, 0.70, 0.56, 0.36) (25, 2.7, 2, 0.18, 0.48, 0.42) (42, 4.8, 3, 0.52, 0.60, 0.30) (58, 2.9, 2, 0.45, 0.48, 0.40)
+C      minor leaders (source, on, off, strength, width, pulse): (9, 0.12, 0.37, 0.8, 5.4, 0.14) (11, 0.62, 0.87, 0.82, 5.6, 0.12)
+RULES  gap >= 2 on A B C: PASS (min 2) | dither p10 >= 28: PASS | palette: PASS | A B identical: PASS  => PASS

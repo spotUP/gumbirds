@@ -1,0 +1,13 @@
+strip C: 10 colours used (indices [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]), all on the 5-bit grid
+strip C: 7 unique tiles, frames per tile [1, 8, 8, 4, 8, 8, 4], ROM tiles with mixed 4/8 groups = 41, all 8-frame = 49
+strip C tile names: ['t0_fill', 't1_rim_step', 't2_rim', 't3_step', 't4_step', 't5_step', 't6_step']
+strip C rim gap floor (rows of empty before first art row, flat columns, all frames): min 0 max 4 mean 2.25
+strip C rim gap ceiling (rows of empty before first art row, flat columns, all frames): min 0 max 4 mean 2.25
+hazards: sheet 1152x128, anims {'cloud': 24, 'vent': 16, 'coal': 24}, palettes {'storm': 15, 'hot_metal': 15}, hitboxes {'cloud': {'x': 7, 'y': 8, 'w': 36, 'h': 25}, 'vent': {'x': 8, 'y': 5, 'w': 17, 'h': 17}, 'coal': {'x': 5, 'y': 11, 'w': 16, 'h': 15}}
+pickup A: union 13 colours (limit 15), 13 off the 5-bit grid, snapped below
+pickup A: after 5-bit snap 13 colours, max channel delta 4
+pickup A: sheet 384x56, idle 16 x 24x24, collect 8 x 32x32 (collect ticks unverified, draft numbers.txt says 8 in plan, check)
+meter: 13 tiles 8x8, indices used [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15], colours not in white palette: []
+rival A Hornet: 15 colours, off-grid in draft 14, max channel delta after snap 4, duplicates after snap 0
+rival B Bone: 15 colours, off-grid in draft 15, max channel delta after snap 4, duplicates after snap 0
+rival C Bruiser: 15 colours, off-grid in draft 15, max channel delta after snap 4, duplicates after snap 0

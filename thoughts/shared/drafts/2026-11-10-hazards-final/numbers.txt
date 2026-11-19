@@ -1,0 +1,27 @@
+spikes colours 15 of 15  tiles raw 128 unique  47  dither px     0 ( 0.0% of opaque)  pair step median   0.0  p10   0.0   identical to hazards-v4/frames_A_1x.png
+water  colours 13 of 15  tiles raw 128 unique 100  dither px  2986 (14.8% of opaque)  pair step median  41.8  p10  41.8   pattern chk, full band; before (V2 dashes, half band) 2424 px
+water  lurker sprite (own 8 colour palette, unchanged from round 3 V2): dither px 771 per loop  pair step median 41.4  p10 41.4
+water  zoom window x 56 y 192 (frame 2)
+lava   colours 14 of 15  tiles raw 256 unique 256  dither px  9350 (20.5% of opaque)  pair step median  31.4  p10  30.8   crust anchor grid
+lava   cast light (3 colours in the city palette): dither px 13048 per loop  pair step median 33.7  p10 33.7
+fire   colours 11 of 15  tiles raw 256 unique 230  dither px  4208 (13.4% of opaque)  pair step median  33.4  p10  31.5   extent H
+fire   gap between the two tallest tongues, shapes (hard):       min 2  per frame 8 9 2 4 7 11 8 2 10 9 3 5 9 8 3 4  | tallest 23 23 21 21 21 22 22 19 23 23 21 21 21 21 21 22
+fire   gap between the two tallest tongues, as drawn (dithered): min 2  per frame 8 9 2 4 7 11 8 2 10 9 3 5 8 8 3 4  | tallest 23 23 21 21 21 22 22 19 23 23 21 21 21 21 21 22
+fire   gap between the two tallest tongues, v6 sheet:            min 2  per frame 8 9 2 4 7 11 8 2 10 9 3 5 9 8 3 4  | tallest 23 23 21 21 21 22 22 19 23 23 21 21 21 21 21 22
+fire   versus the v6 sheet (hard, before dither): 57 px changed in 16 frames, 3 of them silhouette
+fire   fix: f03 remnant removed, 1 px at x 84 y 11 (tile B)
+fire   fix: f05 white island -> yellow, 23 px at x 9..11 y 14..24
+fire   fix: f08 white island -> yellow, 5 px at x 85..86 y 21..23
+fire   fix: f09 white island -> yellow, 7 px at x 39..40 y 20..23
+fire   fix: f11 remnant removed, 1 px at x 41 y 2 (tile A)
+fire   fix: f12 remnant removed, 1 px at x 86 y 9 (tile B)
+fire   fix: f14 white island -> yellow, 19 px at x 36..39 y 12..18
+fire   ramp steps M D r O y Y w: 31.5 34.5 33.4 34.4 31.3 33.3
+fire   cast light (same 3 colours as lava): dither px 13111 per loop  pair step median 33.7  p10 33.7
+fire   zoom window x 192 y 192 (frame 2)
+
+palette spikes o(12,10,26) D(30,34,84) d(58,66,128) m(112,130,192) l(172,192,232) h(228,240,255) w(255,255,255) a(64,224,255) y(250,200,44) Y(198,108,28) g(74,68,112) R(255,62,54) r(104,22,44) s(255,150,60) A(112,92,255)
+palette water  o(4,4,26) n(28,44,120) u*(30,44,128) b(28,102,188) B(50,154,224) T(76,214,216) c(150,244,250) f(214,250,255) w(255,255,255) p(46,28,74) P(112,96,156) q(188,180,220) W(70,206,120) x(18,112,98)
+palette lava   o(18,4,18) k(74,24,42) K(128,52,54) Q(196,112,84) H(246,190,140) V(88,54,100) G(184,60,30) m(36,0,44) P(110,12,58) D(184,32,36) r(232,62,28) O(250,116,24) y(255,186,48) Y(255,246,184)
+palette fire   o(30,6,24) c(56,20,44) C(104,44,60) a(176,104,92) S*(40,26,62) s*(86,54,92) M(120,12,70) D(196,32,44) r(240,70,36) O(252,122,30) y(255,176,46) Y(255,222,84) w(255,252,222)
+(* = palette slot not used by the tile frames)

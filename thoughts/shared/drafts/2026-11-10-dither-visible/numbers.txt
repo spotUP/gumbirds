@@ -1,0 +1,26 @@
+sky    H-old  dither px  10396  step median  11.2  p10  11.0  colours 5  tiles 224 of 280
+sky    V1     dither px   7370  step median  29.8  p10  29.4  colours 4  tiles 205 of 280   ramp steps 30 29 30
+sky    V2     dither px   9525  step median  43.0  p10  42.6  colours 3  tiles 187 of 280   ramp steps 43 43
+sky    zoom window x 88 y 120
+spikes H-old  dither px   3636 (16.1% of opaque)  step median  58.9  p10  32.2  colours 15  tiles  47 of 128   ramp steps steel 32 61 59 48
+spikes V1     dither px   3636 (16.1% of opaque)  step median  58.9  p10  36.2  colours 15  tiles  47 of 128   ramp steps steel 36 61 59 48
+spikes V2     dither px   3636 (16.1% of opaque)  step median  60.4  p10  43.9  colours 15  tiles  47 of 128   ramp steps steel 46 63 60 44
+spikes zoom window x 32 y 192
+water  H-old  dither px   4046 (20.0% of opaque)  step median  18.9  p10  18.7  colours 14  tiles 101 of 128   ramp steps water 20 19 19 39 37 43; rock 69 79
+water  V1     dither px   2836 (14.0% of opaque)  step median  30.8  p10  30.8  colours 14  tiles  99 of 128   ramp steps water 31 31 31 30 32 33; rock 69 79
+water  V1     lurker sprite: dither px   770 per loop  step median  61.9  p10  30.8
+water  V2     dither px   2424 (12.0% of opaque)  step median  41.8  p10  41.8  colours 13  tiles  99 of 128   ramp steps water 41 42 41 42 44; rock 69 79
+water  V2     lurker sprite: dither px   770 per loop  step median  41.4  p10  41.4
+water  zoom window x 112 y 192
+lava   H-old  dither px  14890 (32.7% of opaque)  step median  21.2  p10  15.0  colours 14  tiles 256 of 256   ramp steps melt 15 21 39 52 50 43; crust 20 32 70 67
+lava   V1     dither px   9350 (20.5% of opaque)  step median  31.4  p10  30.8  colours 14  tiles 256 of 256   ramp steps melt 31 31 31 37 45 51; crust 31 34 59 67
+lava   V1     cast light: dither px 13048 per loop  step median  33.7  p10  33.7
+lava   V1     crust anchor grid : changes on still art  108, blinks   16 per loop
+lava   V1     crust anchor surf : changes on still art   93, blinks   18 per loop
+lava   V1     crust anchor plate: changes on still art  285, blinks  102 per loop
+lava   V2     dither px   8340 (18.3% of opaque)  step median  41.8  p10  41.5  colours 13  tiles 256 of 256   ramp steps melt 42 41 45 48 50; crust 39 42 52 68
+lava   V2     cast light: dither px 13048 per loop  step median  42.8  p10  42.8
+lava   V2     crust anchor grid : changes on still art  108, blinks   16 per loop
+lava   V2     crust anchor surf : changes on still art   93, blinks   18 per loop
+lava   V2     crust anchor plate: changes on still art  285, blinks  102 per loop
+lava   zoom window x 68 y 192

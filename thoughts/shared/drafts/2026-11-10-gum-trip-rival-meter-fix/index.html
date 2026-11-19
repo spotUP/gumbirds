@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Gum Trip: rival and meter fix round</title>
+<style>
+body{background:#1b1c1f;color:#d9dce3;font-family:-apple-system,"Helvetica Neue",Arial,sans-serif;margin:28px 36px;line-height:1.45}
+h1{font-size:24px;margin:0 0 6px;color:#fff}
+h2{font-size:18px;margin:38px 0 8px;color:#fff;border-bottom:1px solid #3a3d45;padding-bottom:6px}
+p{max-width:900px;margin:8px 0}
+figure{margin:14px 0 22px}
+img{image-rendering:pixelated;display:block;border:1px solid #3a3d45;max-width:100%}
+figcaption{font-size:14px;color:#aab0bd;margin-top:6px;max-width:900px}
+table{border-collapse:collapse;font-size:14px;margin:10px 0 18px}
+td,th{border:1px solid #3a3d45;padding:4px 10px;text-align:right}
+td:first-child,th:first-child,td:nth-child(2),th:nth-child(2){text-align:left}
+th{background:#26282d;color:#fff;font-weight:600}
+.row{display:flex;flex-wrap:wrap;gap:18px}
+</style></head><body>
+<h1>Gum Trip: rival and meter fix round</h1>
+<p>Three fixes on the accepted drafts: brows on every Bruiser frame, palette contrast for Hornet and Bruiser,
+a half mark on the gum tube. All numbers are in numbers.txt; reasoning and doubts are in README.md.</p>
+
+<h2>1. Rival C Bruiser: brows in all 63 frames</h2>
+<p>24 frames redrawn: 22 had no brows, 2 had one brow slanted the wrong way. The other 39 frames are
+pixel-identical to the accepted brow frames. Read back from the sheet: the near-eye brow is complete in 63 of 63
+frames; the far-eye brow is dark or behind the gum bubble in 63 of 63. Largest brow move between neighbouring frames
+of a clip: 1 px.</p>
+<figure><img src="compare_brows_heads_6x.png" alt=""><figcaption>Head close-ups at 6x, old on top, new below. Frames 0 (open), 16 (wide), 17 (squint), 19 (lower squint), 20 (shut), 22 (shut, bubble in front), 24 (squint, bubble over the far eye), 26 (old: one brow, wrong slant), 52 (fall). Old uses the old palette, new the new one.</figcaption></figure>
+<figure><img src="compare_brows_3x.png" alt=""><figcaption>The 24 redrawn frames at 3x, whole frame. In each block the upper bird is old, the lower bird is new. Frames: 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 29, 30, 31, 32, 33, 34, 35, 36, 38, 39, 43, 44, 45, 49.</figcaption></figure>
+<figure><img src="rival_c_sheet_1x.png" alt=""><figcaption>Bruiser sheet at 1x, 63 frames of 32x48, 8 per row, new palette. Magenta is transparent. 156 new unique 16x16 tiles, 177 tile references differ from the shared Sootling frames.</figcaption></figure>
+<div class="row"><figure><img src="rival_c_dusk_3x.gif" alt=""><figcaption>Bruiser on dusk, 3x. Left to right: idle, flap (two lobes), flap (one lobe), pop (two lobes), pop (one lobe), inflate, fall. The idle clip is a single frame.</figcaption></figure><figure><img src="rival_c_moon_3x.gif" alt=""><figcaption>Bruiser on moon, same clips.</figcaption></figure><figure><img src="rival_c_storm_3x.gif" alt=""><figcaption>Bruiser on storm, same clips.</figcaption></figure></div>
+
+<h2>2. Contrast, palette only</h2>
+<p>Old row on top, new row below. Order in each row: player 1, A Hornet, B Bone, C Bruiser, computer flier.</p>
+<div class="row"><figure><img src="compare_palette_dusk_3x.png" alt=""><figcaption>Dusk.</figcaption></figure><figure><img src="compare_palette_moon_3x.png" alt=""><figcaption>Moon.</figcaption></figure><figure><img src="compare_palette_storm_3x.png" alt=""><figcaption>Storm.</figcaption></figure></div>
+<div class="row"><figure><img src="rivals_flap_dusk_3x.gif" alt=""><figcaption>New palettes flapping, dusk.</figcaption></figure><figure><img src="rivals_flap_moon_3x.gif" alt=""><figcaption>New palettes flapping, moon.</figcaption></figure><figure><img src="rivals_flap_storm_3x.gif" alt=""><figcaption>New palettes flapping, storm.</figcaption></figure></div>
+<figure><img src="lineup_new_squint_3x.png" alt=""><figcaption>New palettes on a squint frame (frame 17), dusk, moon, storm from top to bottom.</figcaption></figure>
+<table><tr><th>Rival</th><th>Mood</th><th>Body contrast old</th><th>new</th><th>Outline contrast old</th><th>new</th>
+<th>Colour distance to sky old</th><th>new</th></tr><tr><td>A Hornet</td><td>dusk</td><td>1.54</td><td>2.22</td><td>2.81</td><td>2.81</td><td>37</td><td>70</td></tr><tr><td>A Hornet</td><td>moon</td><td>1.22</td><td>2.80</td><td>2.23</td><td>2.23</td><td>31</td><td>102</td></tr><tr><td>A Hornet</td><td>storm</td><td>1.15</td><td>2.97</td><td>2.10</td><td>2.10</td><td>18</td><td>69</td></tr><tr><td>B Bone</td><td>dusk</td><td>1.95</td><td>2.05</td><td>2.75</td><td>2.74</td><td>41</td><td>42</td></tr><tr><td>B Bone</td><td>moon</td><td>2.46</td><td>2.59</td><td>2.18</td><td>2.17</td><td>35</td><td>36</td></tr><tr><td>B Bone</td><td>storm</td><td>2.61</td><td>2.75</td><td>2.05</td><td>2.05</td><td>35</td><td>36</td></tr><tr><td>C Bruiser</td><td>dusk</td><td>1.50</td><td>2.11</td><td>2.75</td><td>2.74</td><td>47</td><td>52</td></tr><tr><td>C Bruiser</td><td>moon</td><td>1.19</td><td>2.66</td><td>2.18</td><td>2.17</td><td>18</td><td>40</td></tr><tr><td>C Bruiser</td><td>storm</td><td>1.12</td><td>2.82</td><td>2.05</td><td>2.05</td><td>61</td><td>77</td></tr></table>
+<p>Contrast is the luminance ratio against the median sky pixel of scene rows 16 to 95 (1.00 is none). Sky medians:
+dusk (148, 55, 92), moon (76, 60, 142), storm (53, 72, 85).</p>
+<table><tr><th>Rival</th><th>Against</th><th>Body distance old (weighted mean)</th><th>new</th>
+<th>Mid tone old</th><th>new</th></tr><tr><td>A Hornet</td><td>player 1</td><td>23.4</td><td>74.3</td><td>22</td><td>97</td></tr><tr><td>A Hornet</td><td>computer</td><td>37.1</td><td>47.9</td><td>34</td><td>63</td></tr><tr><td>B Bone</td><td>player 1</td><td>27.5</td><td>28.7</td><td>31</td><td>32</td></tr><tr><td>B Bone</td><td>computer</td><td>47.2</td><td>48.3</td><td>47</td><td>48</td></tr><tr><td>C Bruiser</td><td>player 1</td><td>41.3</td><td>49.8</td><td>32</td><td>53</td></tr><tr><td>C Bruiser</td><td>computer</td><td>58.4</td><td>63.8</td><td>56</td><td>66</td></tr></table>
+
+<h2>3. Meter A: gum tube with half mark</h2>
+<p>5 fix cells in a row (icon plus four tube cells), 13 unique tiles, 11 colours, all from the HUD font palette
+(slots 1, 4, 5, 6, 7, 8, 9, 10, 11, 13, 15). Eight fill steps and empty; the gold bar sits on the seam between tube cells 2 and 3.</p>
+<div class="row"><figure><img src="meter_named_states_6x.png" alt=""><figcaption>At 6x, top to bottom: full, 3/4, in-between (5 of 8), half, 1/4, empty. At 1/4 and below the fill and the icon turn red.</figcaption></figure><figure><img src="meter_tiles_6x.png" alt=""><figcaption>The unique 8x8 tiles at 6x. Magenta is transparent.</figcaption></figure></div>
+<figure><img src="meter_states_3x.png" alt=""><figcaption>All nine states in the HUD at 3x, steps 8 down to 0, under the PLAYER 1 tag on the storm mood.</figcaption></figure>
+<figure><img src="compare_meter_3x.png" alt=""><figcaption>Old tube (left) and new tube (right) at steps 8, 4 and 0.</figcaption></figure>
+<figure><img src="rival_a_sheet_1x.png" alt=""><figcaption>For reference: Hornet sheet at 1x with the new palette (frames unchanged). rival_b_sheet_1x.png holds Bone the same way.</figcaption></figure>
+</body></html>

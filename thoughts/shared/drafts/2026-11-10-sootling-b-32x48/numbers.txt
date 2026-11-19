@@ -1,0 +1,53 @@
+Sootling 32 x 48 with gum design B: numbers (script output)
+frame box 32 x 48 (2 sprite columns x 3 tile rows), feet row 47, hit box columns 14..17 (4 px, centred, unchanged physics)
+palette index order 1..15: o 1 2 3 4 r e f g A B C D E w   (0 = transparent, magenta 255,0,255 in the sheets)
+palette player: o=080818(10) 1=18184a(30) 2=294284(66) 3=5294b5(132) 4=9cded6(201) r=e7ffef(246) e=7b1842(58) f=e75a29(127) g=ffc65a(203) A=5a0873(45) B=b529a5(97) C=ff52b5(145) D=ffa5de(198) E=ffdef7(235) w=ffffff(255)
+palette cpu   : o=100818(12) 1=391831(37) 2=732939(65) 3=b55a39(113) 4=e79c63(172) r=ffefb5(237) e=103963(50) f=1894b5(115) g=7befde(202) A=083931(41) B=108c4a(95) C=52d64a(159) D=adf77b(211) E=e7ffc6(241) w=ffffff(255)
+palette swap player (pink gum) -> computer (lime gum): same tiles, indices that change colour: 1 2 3 4 5 6 7 8 9 10 11 12 13 14; gum = indices 10..14, soot fur = 2..6, ember = 7..9, keyline = 1; index 15 (white) is the same
+backdrop luminance, play area lines 16..175 (p5 / median / p95): moon 21 / 72 / 152  storm 25 / 67 / 168  dusk 26 / 87 / 176
+hazard strip median luminance (lines 192..223): moon 68  storm 70  dusk 59
+flat contrast player keyline (gum and soot) (lum  10) against median backdrop: moon 62  storm 58  dusk 77   against hazard: moon 58  storm 61  dusk 50
+flat contrast player gum deep line          (lum  45) against median backdrop: moon 27  storm 23  dusk 42   against hazard: moon 24  storm 26  dusk 15
+flat contrast player gum mid                (lum 145) against median backdrop: moon 73  storm 77  dusk 58   against hazard: moon 77  storm 74  dusk 85
+flat contrast player gum light              (lum 198) against median backdrop: moon 126  storm 131  dusk 111   against hazard: moon 130  storm 128  dusk 139
+flat contrast cpu    keyline (gum and soot) (lum  12) against median backdrop: moon 60  storm 56  dusk 75   against hazard: moon 56  storm 58  dusk 48
+flat contrast cpu    gum deep line          (lum  41) against median backdrop: moon 31  storm 26  dusk 46   against hazard: moon 27  storm 29  dusk 18
+flat contrast cpu    gum mid                (lum 159) against median backdrop: moon 86  storm 91  dusk 72   against hazard: moon 90  storm 88  dusk 99
+flat contrast cpu    gum light              (lum 211) against median backdrop: moon 139  storm 143  dusk 124   against hazard: moon 142  storm 140  dusk 151
+player pink against the 8 main dusk colours, smallest RGB distance: gum mid 108 (previous round 86), gum light 131 (previous round 99)
+== take A: Pilot: goggle on the eye, visor cap, candy gum
+  frames: build set 7 (glide2 up2 down2 glide1 up1 glide0 fall); extended flap2 8, flap1 8, pop2 12, pop1 12, inflate 16, fall 6 + glide0 = 63
+  colours used 15 of 15 (unused: none)
+  16 x 16 tiles, build set: 38 non-empty of 42, 36 unique, 36 unique with flips allowed
+  16 x 16 tiles, extended set: 344 non-empty of 378, 302 unique, 301 unique with flips allowed (both palettes share them)
+  checker dither pixels over the extended set: 300; pairs (count, smaller luminance step of the two palettes): 1/2 4 step 28, 2/3 123 step 48, 4/o 6 step 160, B/C 8 step 48, C/D 158 step 52, D/w 1 step 44
+  minimum dither step: 28.2 (rule: at least 28)
+  droplets cut by the frame box: 0; frames where the membrane touches the box edge (columns 0, 31 or row 0): 0
+  gum outline contrast player (edge pixel against the backdrop pixel beside it, luminance step): dusk mean 84 p10 30 under24 6%  moon mean 68 p10 17 under24 15%  storm mean 66 p10 19 under24 13%
+  gum outline contrast player over the hazard strip: dusk mean 59 p10 14  moon mean 65 p10 16  storm mean 93 p10 17
+  gum outline contrast cpu    (edge pixel against the backdrop pixel beside it, luminance step): dusk mean 81 p10 28 under24 8%  moon mean 66 p10 14 under24 16%  storm mean 64 p10 16 under24 14%
+  gum outline contrast cpu    over the hazard strip: dusk mean 57 p10 11  moon mean 63 p10 14  storm mean 91 p10 14
+== take B: Bright eyes: big eyes, goggles pushed up on the cap, glass gum
+  frames: build set 7 (glide2 up2 down2 glide1 up1 glide0 fall); extended flap2 8, flap1 8, pop2 12, pop1 12, inflate 16, fall 6 + glide0 = 63
+  colours used 15 of 15 (unused: none)
+  16 x 16 tiles, build set: 38 non-empty of 42, 36 unique, 36 unique with flips allowed
+  16 x 16 tiles, extended set: 344 non-empty of 378, 305 unique, 305 unique with flips allowed (both palettes share them)
+  checker dither pixels over the extended set: 231; pairs (count, smaller luminance step of the two palettes): 2/3 87 step 48, 3/4 52 step 58, 4/o 28 step 160, B/o 1 step 83, C/D 58 step 52, D/w 2 step 44, f/o 3 step 102
+  minimum dither step: 44.3 (rule: at least 28)
+  droplets cut by the frame box: 0; frames where the membrane touches the box edge (columns 0, 31 or row 0): 0
+  gum outline contrast player (edge pixel against the backdrop pixel beside it, luminance step): dusk mean 85 p10 16 under24 13%  moon mean 88 p10 18 under24 13%  storm mean 87 p10 17 under24 15%
+  gum outline contrast player over the hazard strip: dusk mean 83 p10 14  moon mean 78 p10 19  storm mean 94 p10 8
+  gum outline contrast cpu    (edge pixel against the backdrop pixel beside it, luminance step): dusk mean 92 p10 17 under24 13%  moon mean 95 p10 16 under24 13%  storm mean 94 p10 16 under24 13%
+  gum outline contrast cpu    over the hazard strip: dusk mean 89 p10 11  moon mean 83 p10 15  storm mean 97 p10 14
+== take C: Fuzzball: glowing ember eyes, small tilted cap with bobble, thin-film gum
+  frames: build set 7 (glide2 up2 down2 glide1 up1 glide0 fall); extended flap2 8, flap1 8, pop2 12, pop1 12, inflate 16, fall 6 + glide0 = 63
+  colours used 15 of 15 (unused: none)
+  16 x 16 tiles, build set: 38 non-empty of 42, 36 unique, 36 unique with flips allowed
+  16 x 16 tiles, extended set: 344 non-empty of 378, 304 unique, 304 unique with flips allowed (both palettes share them)
+  checker dither pixels over the extended set: 552; pairs (count, smaller luminance step of the two palettes): 1/2 49 step 28, 2/3 91 step 48, 2/o 6 step 53, 3/4 17 step 58, B/C 1 step 48, C/D 246 step 52, D/E 141 step 31, D/w 1 step 44
+  minimum dither step: 28.2 (rule: at least 28)
+  droplets cut by the frame box: 0; frames where the membrane touches the box edge (columns 0, 31 or row 0): 0
+  gum outline contrast player (edge pixel against the backdrop pixel beside it, luminance step): dusk mean 84 p10 30 under24 6%  moon mean 68 p10 17 under24 15%  storm mean 66 p10 19 under24 13%
+  gum outline contrast player over the hazard strip: dusk mean 59 p10 14  moon mean 65 p10 16  storm mean 93 p10 17
+  gum outline contrast cpu    (edge pixel against the backdrop pixel beside it, luminance step): dusk mean 81 p10 28 under24 8%  moon mean 66 p10 14 under24 16%  storm mean 64 p10 16 under24 14%
+  gum outline contrast cpu    over the hazard strip: dusk mean 57 p10 11  moon mean 63 p10 14  storm mean 91 p10 14

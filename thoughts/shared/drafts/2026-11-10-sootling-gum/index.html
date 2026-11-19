@@ -1,0 +1,73 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>Sootling with gum bubbles, drafts</title><style>
+body{background:#16181e;color:#d4d7de;font-family:Helvetica,Arial,sans-serif;margin:24px;line-height:1.45}h1{font-size:22px}h2{font-size:18px;margin-top:36px;border-top:1px solid #333842;padding-top:18px}h3{font-size:15px;margin:18px 0 6px}img{image-rendering:pixelated;image-rendering:crisp-edges;display:block;max-width:100%}.row{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start}.cell{background:#1d2028;padding:10px;border:1px solid #2c303a}.cell p{margin:6px 0 0;font-size:13px;color:#a9aebb;max-width:420px}ul{margin:6px 0;padding-left:20px;font-size:14px}pre{background:#1d2028;padding:12px;font-size:12px;overflow-x:auto;color:#b9bdc9}p{max-width:980px;font-size:14px}
+</style></head><body><h1>Sootling redraw with bubble gum bubbles (drafts, three bubble designs)</h1>
+<p>View at 100 percent browser zoom. Drafts only, nothing here is game data. The Sootling body is the same in all three designs; only the bubbles differ. Left flier in each animation is the player palette, right is the computer palette (same tiles). Backdrops are the accepted backgrounds-final renders with placeholder islands.</p>
+<h2>Side by side: flap with two bubbles, flap with one, pop, last pop, respawn</h2><div class="row">
+<div class="cell"><h3>A: Twin bubbles on gum strands</h3>
+<div class="row"><img src="A_anim_flap2_4x.gif" width="208" height="160" alt="A flap2"><img src="A_anim_flap1_4x.gif" width="208" height="160" alt="A flap1"></div>
+<div class="row" style="margin-top:8px"><img src="A_anim_pop2_4x.gif" width="208" height="160" alt="A pop2"><img src="A_anim_pop1_4x.gif" width="208" height="160" alt="A pop1"></div>
+<div class="row" style="margin-top:8px"><img src="A_anim_inflate_4x.gif" width="208" height="160" alt="A inflate"><img src="A_anim_fall_4x.gif" width="208" height="160" alt="A fall"></div>
+<p>Two separate bubbles side by side above the head, each on a chewed gum strand that runs to the lips. Closest to the old balloon silhouette. One pops: the other swings to the middle.</p><p>Weak points:</p><ul><li>Each bubble is only 8 px wide, so the membrane has room for three shades and one gloss tick; the mesh window is 2 to 3 pixels.</li><li>The strands are 1 px lines: over bright windows and over the dusk sun they nearly vanish.</li><li>The two bubbles fill the whole 16 px box; any sideways wobble over 0.5 px is clipped by the box edge.</li></ul></div>
+<div class="cell"><h3>B: Double-lobed bubble from the mouth</h3>
+<div class="row"><img src="B_anim_flap2_4x.gif" width="208" height="160" alt="B flap2"><img src="B_anim_flap1_4x.gif" width="208" height="160" alt="B flap1"></div>
+<div class="row" style="margin-top:8px"><img src="B_anim_pop2_4x.gif" width="208" height="160" alt="B pop2"><img src="B_anim_pop1_4x.gif" width="208" height="160" alt="B pop1"></div>
+<div class="row" style="margin-top:8px"><img src="B_anim_inflate_4x.gif" width="208" height="160" alt="B inflate"><img src="B_anim_fall_4x.gif" width="208" height="160" alt="B fall"></div>
+<p>One membrane with two lobes and a crease, blown straight from the lips on a short neck. One lobe pops: the rest pulls round into a single bubble.</p><p>Weak points:</p><ul><li>The crease between the lobes is 2 to 3 dithered pixels; at 1x on a CRT it can read as one wide oval instead of two lobes.</li><li>One lobe popping while the other survives is not how a real double bubble behaves; it is a rule read-out, not physics.</li><li>The membrane touches the head tufts, so the Sootling silhouette and the bubble merge more than in A.</li></ul></div>
+<div class="cell"><h3>C: Stacked bubble (big one with a small one on top)</h3>
+<div class="row"><img src="C_anim_flap2_4x.gif" width="208" height="160" alt="C flap2"><img src="C_anim_flap1_4x.gif" width="208" height="160" alt="C flap1"></div>
+<div class="row" style="margin-top:8px"><img src="C_anim_pop2_4x.gif" width="208" height="160" alt="C pop2"><img src="C_anim_pop1_4x.gif" width="208" height="160" alt="C pop1"></div>
+<div class="row" style="margin-top:8px"><img src="C_anim_inflate_4x.gif" width="208" height="160" alt="C inflate"><img src="C_anim_fall_4x.gif" width="208" height="160" alt="C fall"></div>
+<p>A big bubble from the lips with a second, smaller bubble budded on top. The top one pops first. Tallest shape; count reads by height, not by width.</p><p>Weak points:</p><ul><li>Bubble count reads by height (snowman against ball), which is weaker than the side-by-side count when fliers overlap.</li><li>The big bubble is the same size with one or two bubbles; only the small top one changes.</li><li>Uses rows 1..19: the tallest shape, it hides the most backdrop and reaches the top of the box when it stretches.</li></ul></div>
+</div><p>The fall animation and the Sootling body are identical in all three designs. The current sheet has no walk or stand state, so none was drawn; standing on an island uses the glide frame.</p>
+<h2>In motion over the moon backdrop (3x)</h2><div class="row">
+<div class="cell"><img src="A_anim_scene_3x.gif" width="480" height="336" alt="scene animation A"><p>A. Top row: flap with two, flap with one, pop, respawn. Bottom row: last pop, fall, flap with two, flap with one.</p></div>
+<div class="cell"><img src="B_anim_scene_3x.gif" width="480" height="336" alt="scene animation B"><p>B. Top row: flap with two, flap with one, pop, respawn. Bottom row: last pop, fall, flap with two, flap with one.</p></div>
+<div class="cell"><img src="C_anim_scene_3x.gif" width="480" height="336" alt="scene animation C"><p>C. Top row: flap with two, flap with one, pop, respawn. Bottom row: last pop, fall, flap with two, flap with one.</p></div>
+</div>
+<h2>Scene, Clear night (3x)</h2>
+<h3>A: Twin bubbles on gum strands</h3><img src="A_scene_moon_3x.png" width="960" height="672" alt="scene A moon">
+<h3>B: Double-lobed bubble from the mouth</h3><img src="B_scene_moon_3x.png" width="960" height="672" alt="scene B moon">
+<h3>C: Stacked bubble (big one with a small one on top)</h3><img src="C_scene_moon_3x.png" width="960" height="672" alt="scene C moon">
+<h2>Scene, Storm (3x)</h2>
+<h3>A: Twin bubbles on gum strands</h3><img src="A_scene_storm_3x.png" width="960" height="672" alt="scene A storm">
+<h3>B: Double-lobed bubble from the mouth</h3><img src="B_scene_storm_3x.png" width="960" height="672" alt="scene B storm">
+<h3>C: Stacked bubble (big one with a small one on top)</h3><img src="C_scene_storm_3x.png" width="960" height="672" alt="scene C storm">
+<h2>Scene, Ember dusk (3x)</h2>
+<h3>A: Twin bubbles on gum strands</h3><img src="A_scene_dusk_3x.png" width="960" height="672" alt="scene A dusk">
+<h3>B: Double-lobed bubble from the mouth</h3><img src="B_scene_dusk_3x.png" width="960" height="672" alt="scene B dusk">
+<h3>C: Stacked bubble (big one with a small one on top)</h3><img src="C_scene_dusk_3x.png" width="960" height="672" alt="scene C dusk">
+<h2>Sheets</h2><p>Build layout (7 frames: glide with two, flap up, flap down, glide with one, flap up with one, no bubble, fall; top row player, bottom row computer) and the extended sheet (rows: flap with two 8, flap with one 8, pop 12, last pop 12, respawn 16, fall 6; player block then computer block).</p>
+<h3>A</h3><div class="row"><div class="cell"><img src="A_sheet_4x.png" alt="sheet A"><p>Build layout, 4x</p></div></div><div class="cell" style="margin-top:10px"><img src="A_ext_4x.png" alt="extended A"><p>Extended sheet, 4x</p></div>
+<h3>B</h3><div class="row"><div class="cell"><img src="B_sheet_4x.png" alt="sheet B"><p>Build layout, 4x</p></div></div><div class="cell" style="margin-top:10px"><img src="B_ext_4x.png" alt="extended B"><p>Extended sheet, 4x</p></div>
+<h3>C</h3><div class="row"><div class="cell"><img src="C_sheet_4x.png" alt="sheet C"><p>Build layout, 4x</p></div></div><div class="cell" style="margin-top:10px"><img src="C_ext_4x.png" alt="extended C"><p>Extended sheet, 4x</p></div>
+<h2>Numbers</h2><pre>Sootling with gum bubbles: numbers (script output)
+frame box 16 x 32, feet row 31, hit box columns 6..9; one palette of 15 colours + transparent per flier
+palette player: o=080818(10) 1=21214a(38) 2=314a7b(72) 3=5a94b5(134) 4=9cded6(201) r=e7ffef(246) e=7b1842(58) f=e75a29(127) g=ffc65a(203) A=5a084a(40) B=ad2984(91) C=ef5aa5(143) D=ff9cbd(189) E=ffd6de(227) w=ffffff(255)
+palette cpu   : o=100818(12) 1=391831(37) 2=732939(65) 3=b55a39(113) 4=e79c63(172) r=ffefb5(237) e=103963(50) f=1894b5(115) g=7befde(202) A=083939(42) B=188c52(99) C=52ce52(155) D=adf77b(211) E=e7ffc6(241) w=ffffff(255)
+dither pair steps player: 1/2 34.4  2/3 62.3  B/C 52.3  minimum 34.4
+dither pair steps cpu   : 1/2 28.2  2/3 48.5  B/C 56.1  minimum 28.2
+backdrop luminance, play area lines 16..175 (p5 / median / p95): moon 21 / 72 / 152  storm 25 / 67 / 168  dusk 26 / 87 / 176
+hazard strip median luminance (lines 192..223): moon 68  storm 70  dusk 59
+contrast player soot outline (lum  10) against median backdrop: moon 62  storm 58  dusk 77   against hazard: moon 58  storm 61  dusk 50
+contrast player gum outline  (lum  40) against median backdrop: moon 32  storm 28  dusk 47   against hazard: moon 28  storm 31  dusk 20
+contrast player lit fur      (lum 201) against median backdrop: moon 129  storm 134  dusk 114   against hazard: moon 133  storm 131  dusk 141
+contrast player gum light    (lum 189) against median backdrop: moon 117  storm 122  dusk 102   against hazard: moon 121  storm 119  dusk 129
+contrast cpu    soot outline (lum  12) against median backdrop: moon 60  storm 56  dusk 75   against hazard: moon 56  storm 58  dusk 48
+contrast cpu    gum outline  (lum  42) against median backdrop: moon 30  storm 25  dusk 45   against hazard: moon 26  storm 28  dusk 18
+contrast cpu    lit fur      (lum 172) against median backdrop: moon 100  storm 104  dusk 85   against hazard: moon 104  storm 101  dusk 112
+contrast cpu    gum light    (lum 211) against median backdrop: moon 139  storm 143  dusk 124   against hazard: moon 142  storm 140  dusk 151
+== variant A: Twin bubbles on gum strands
+  frames: legacy sheet 7; extended flap2 8, flap1 8, pop2 12, pop1 12, inflate 16, fall 6 = 62
+  colours used 14 of 15 (unused: e)
+  16 x 16 tiles: legacy sheet 13 non-empty, 13 unique; extended set 117 non-empty, 115 unique (both palettes share them)
+  checker dither pixels over the extended set: 162; pairs 1/2 126, 4/o 12, A/C 8, A/D 1, f/o 15
+== variant B: Double-lobed bubble from the mouth
+  frames: legacy sheet 7; extended flap2 8, flap1 8, pop2 12, pop1 12, inflate 16, fall 6 = 62
+  colours used 14 of 15 (unused: e)
+  16 x 16 tiles: legacy sheet 13 non-empty, 13 unique; extended set 117 non-empty, 115 unique (both palettes share them)
+  checker dither pixels over the extended set: 158; pairs 1/2 126, 4/o 12, A/C 4, C/D 1, f/o 15
+== variant C: Stacked bubble (big one with a small one on top)
+  frames: legacy sheet 7; extended flap2 8, flap1 8, pop2 12, pop1 12, inflate 16, fall 6 = 62
+  colours used 14 of 15 (unused: e)
+  16 x 16 tiles: legacy sheet 13 non-empty, 13 unique; extended set 117 non-empty, 116 unique (both palettes share them)
+  checker dither pixels over the extended set: 163; pairs 1/2 126, 4/o 12, A/C 9, A/D 1, f/o 15</pre></body></html>

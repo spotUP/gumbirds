@@ -1,0 +1,22 @@
+<!doctype html><meta charset="utf-8"><title>Trip cave v3: eased slopes</title>
+<style>body{background:#16121f;color:#ddd;font:15px/1.5 system-ui,sans-serif;margin:24px;max-width:1100px}
+img{image-rendering:pixelated;display:block;margin:8px 0 20px;max-width:100%}h2{margin-top:36px;font-size:18px}
+.g{width:960px}.row{display:flex;gap:16px;flex-wrap:wrap}.row img{height:200px;width:auto}pre{white-space:pre-wrap;background:#221b30;padding:12px}</style>
+<h1>Gum Trip cave v3: organic eased slopes (take 1 slate roof, F1 floor)</h1>
+<p>Curve S16 chains 4:1, 2:1, 4:1 (16 px rise over 48 px). Curve S32 chains 2:1, 1:1, 2:1 (32 px rise over 48 px). Both are mirrored for the other direction.</p>
+<h2>v3 mock, 320x224 at 3x (three camera positions)</h2>
+<img src="mock_a_3x.png"><img src="mock_b_3x.png"><img src="mock_c_3x.png">
+<h2>v2 take 1 mock for comparison (straight ramps, flat backdrop)</h2>
+<img src="v2_take1_mock_3x.png">
+<h2>Scroll, 44.4 px/s, lip animates (two parts, 1x files shown at 3x)</h2>
+<img class="g" src="scroll_1.gif"><img class="g" src="scroll_2.gif">
+<h2>Curves in place, 5x</h2><img src="closeup_5x.png">
+<h2>v3 tiles 1x and 3x</h2>
+<p>Row 1: rim A (v2), rim B (new), two solo rim tiles (new), fill (v2). Row 2: roof S16, roof S32 and their mirrors, then the flat floor rim and fill (shipped). Row 3: floor S16, floor S32 and their mirrors.</p>
+<img src="tiles_1x.png"><img src="tiles_3x.png">
+<h2>Floor curve lip, 8 frames, 3x</h2><img src="floor_anim_frames_3x.png">
+<h2>GIF frames, 2x</h2><img src="gif_frame_28_2x.png"><img src="gif_frame_124_2x.png"><img src="gif_frame_268_2x.png">
+<h2>References (shipped sheets)</h2>
+<div class="row"><img src="../2026-11-15-trip-cave-v2/ref_tripstrip_sheet_3x.png"><img src="../2026-11-15-trip-cave-v2/ref_island_sheet_3x.png"><img src="../2026-11-15-trip-cave-v2/ref_island_garden_sheet_3x.png"><img src="../2026-11-15-trip-cave-v2/ref_island_deck_sheet_3x.png"><img src="../2026-11-15-trip-cave-v2/ref_hazard_sheet_3x.png"><img src="../2026-11-15-trip-cave-v2/ref_gum_sheet_3x.png"><img src="../2026-11-15-trip-cave-v2/ref_sootling_sheet_3x.png"><img src="../2026-11-15-trip-cave-v2/ref_dusk_sheet_3x.png"></div>
+<h2>Numbers</h2><pre id="n">See numbers.txt and heights.json in this folder.</pre>
+<script>fetch('numbers.txt').then(r=>r.text()).then(t=>{document.getElementById('n').textContent=t}).catch(()=>{})</script>

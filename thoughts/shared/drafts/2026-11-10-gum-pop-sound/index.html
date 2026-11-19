@@ -1,0 +1,37 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>Gumbirds gum pop sound drafts</title>
+<style>body{background:#16181c;color:#d8dce2;font-family:system-ui,sans-serif;margin:0;padding:32px;max-width:900px}
+h1{font-size:22px;font-weight:600}p.n{color:#9aa1ab}
+.row{border-top:1px solid #2c3037;padding:16px 0;display:grid;grid-template-columns:1fr;gap:8px}
+.row h2{font-size:16px;margin:0}.row .d{color:#b8bec7}.row .m{color:#8a919b;font-size:13px}
+button{background:#2b3a52;color:#e8ecf2;border:1px solid #3d5070;border-radius:4px;padding:6px 12px;font:inherit;cursor:pointer;margin-right:8px}
+button:hover{background:#34476a}audio{vertical-align:middle;margin-right:12px}</style></head><body>
+<h1>Gumbirds gum pop sound drafts</h1>
+<p class="n">Synthesized from scratch, 18500 Hz mono 16 bit. Nobody has listened to these yet; the numbers only prove length, level and spectrum.</p>
+<div class="row"><h2>1. Dry snap</h2><div class="d">High-passed noise burst, very fast decay. Clean and short, good for bursts.</div><div>
+<audio id="a0" controls preload="auto" src="pop_1_dry_snap.wav"></audio>
+<button onclick="p(0)">Play this sound</button><button onclick="p3(0)">Play 3 times fast</button></div>
+<div class="m">Duration 90.0 ms, peak -3.00 dBFS, RMS -19.59 dBFS, spectral centroid first 20 ms 4669 Hz, tail 4754 Hz</div></div>
+<div class="row"><h2>2. Wet smack</h2><div class="d">Noise crack over a falling 420 to 140 Hz body.</div><div>
+<audio id="a1" controls preload="auto" src="pop_2_wet_smack.wav"></audio>
+<button onclick="p(1)">Play this sound</button><button onclick="p3(1)">Play 3 times fast</button></div>
+<div class="m">Duration 170.0 ms, peak -3.00 dBFS, RMS -15.80 dBFS, spectral centroid first 20 ms 2435 Hz, tail 491 Hz</div></div>
+<div class="row"><h2>3. Rubbery pock</h2><div class="d">Sine pitch drop 900 to 180 Hz with a tiny noise attack.</div><div>
+<audio id="a2" controls preload="auto" src="pop_3_rubbery_pock.wav"></audio>
+<button onclick="p(2)">Play this sound</button><button onclick="p3(2)">Play 3 times fast</button></div>
+<div class="m">Duration 150.0 ms, peak -3.00 dBFS, RMS -16.11 dBFS, spectral centroid first 20 ms 1262 Hz, tail 202 Hz</div></div>
+<div class="row"><h2>4. Double pop</h2><div class="d">Rising stretch, then two transients 50 ms apart.</div><div>
+<audio id="a3" controls preload="auto" src="pop_4_double_pop.wav"></audio>
+<button onclick="p(3)">Play this sound</button><button onclick="p3(3)">Play 3 times fast</button></div>
+<div class="m">Duration 240.0 ms, peak -3.00 dBFS, RMS -20.65 dBFS, spectral centroid first 20 ms 97 Hz, tail 4099 Hz</div></div>
+<div class="row"><h2>5. Bright cartoon pop</h2><div class="d">Rising chirp cut off by a snap and a short ring.</div><div>
+<audio id="a4" controls preload="auto" src="pop_5_bright_cartoon.wav"></audio>
+<button onclick="p(4)">Play this sound</button><button onclick="p3(4)">Play 3 times fast</button></div>
+<div class="m">Duration 160.0 ms, peak -3.00 dBFS, RMS -16.48 dBFS, spectral centroid first 20 ms 236 Hz, tail 4593 Hz</div></div>
+<div class="row"><h2>6. Soft thick bubble</h2><div class="d">Low-passed thump with a small splat tail.</div><div>
+<audio id="a5" controls preload="auto" src="pop_6_soft_bubble.wav"></audio>
+<button onclick="p(5)">Play this sound</button><button onclick="p3(5)">Play 3 times fast</button></div>
+<div class="m">Duration 220.0 ms, peak -3.00 dBFS, RMS -16.99 dBFS, spectral centroid first 20 ms 1612 Hz, tail 521 Hz</div></div>
+<script>
+function p(i){var a=document.getElementById("a"+i);a.currentTime=0;a.play();}
+function p3(i){var s=document.getElementById("a"+i).src;[0,110,220].forEach(function(t){setTimeout(function(){var x=new Audio(s);x.play();},t);});}
+</script></body></html>

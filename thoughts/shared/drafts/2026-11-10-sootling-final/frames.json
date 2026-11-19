@@ -1,0 +1,319 @@
+{
+ "sheet": "sootling_final_sheet_1x.png",
+ "frame_w": 32,
+ "frame_h": 48,
+ "sheet_cols": 8,
+ "sheet_rows": 8,
+ "grid_order": "row-major: frame n sits at column n % 8, row n // 8; slot 63 is empty",
+ "transparent": [
+  255,
+  0,
+  255
+ ],
+ "feet_row": 47,
+ "hit_box_columns": [
+  14,
+  17
+ ],
+ "tick_hz": 60,
+ "palette_index_keys": {
+  "1": "o",
+  "2": "1",
+  "3": "2",
+  "4": "3",
+  "5": "4",
+  "6": "r",
+  "7": "e",
+  "8": "f",
+  "9": "g",
+  "10": "A",
+  "11": "B",
+  "12": "C",
+  "13": "D",
+  "14": "E",
+  "15": "w"
+ },
+ "palette_player": [
+  [
+   8,
+   8,
+   24
+  ],
+  [
+   24,
+   24,
+   74
+  ],
+  [
+   41,
+   66,
+   132
+  ],
+  [
+   82,
+   148,
+   181
+  ],
+  [
+   156,
+   222,
+   214
+  ],
+  [
+   231,
+   255,
+   239
+  ],
+  [
+   123,
+   24,
+   66
+  ],
+  [
+   231,
+   90,
+   41
+  ],
+  [
+   255,
+   198,
+   90
+  ],
+  [
+   107,
+   16,
+   132
+  ],
+  [
+   181,
+   41,
+   165
+  ],
+  [
+   255,
+   82,
+   181
+  ],
+  [
+   255,
+   165,
+   222
+  ],
+  [
+   255,
+   222,
+   247
+  ],
+  [
+   255,
+   255,
+   255
+  ]
+ ],
+ "palette_cpu": [
+  [
+   16,
+   8,
+   24
+  ],
+  [
+   57,
+   24,
+   49
+  ],
+  [
+   115,
+   41,
+   57
+  ],
+  [
+   181,
+   90,
+   57
+  ],
+  [
+   231,
+   156,
+   99
+  ],
+  [
+   255,
+   239,
+   181
+  ],
+  [
+   16,
+   66,
+   107
+  ],
+  [
+   24,
+   148,
+   181
+  ],
+  [
+   123,
+   239,
+   222
+  ],
+  [
+   8,
+   82,
+   66
+  ],
+  [
+   16,
+   140,
+   74
+  ],
+  [
+   82,
+   214,
+   74
+  ],
+  [
+   173,
+   247,
+   123
+  ],
+  [
+   231,
+   255,
+   198
+  ],
+  [
+   255,
+   255,
+   255
+  ]
+ ],
+ "palette_note": "index 0 = transparent; lists hold indices 1..15; every channel is a 5-bit value expanded to 8 bits ((v5 << 3) | (v5 >> 2))",
+ "animations": [
+  {
+   "name": "flap2",
+   "label": "flap, two lobes",
+   "first": 0,
+   "count": 8,
+   "ticks": [
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4
+   ],
+   "loop": true
+  },
+  {
+   "name": "flap1",
+   "label": "flap, one lobe",
+   "first": 8,
+   "count": 8,
+   "ticks": [
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4
+   ],
+   "loop": true
+  },
+  {
+   "name": "pop2",
+   "label": "first pop, pull-round into one bubble",
+   "first": 16,
+   "count": 12,
+   "ticks": [
+    3,
+    3,
+    3,
+    4,
+    4,
+    5,
+    5,
+    5,
+    5,
+    6,
+    6,
+    6
+   ],
+   "loop": false
+  },
+  {
+   "name": "pop1",
+   "label": "last pop",
+   "first": 28,
+   "count": 10,
+   "ticks": [
+    3,
+    3,
+    3,
+    4,
+    4,
+    5,
+    5,
+    5,
+    6,
+    6
+   ],
+   "loop": false
+  },
+  {
+   "name": "inflate",
+   "label": "respawn blow-up",
+   "first": 38,
+   "count": 14,
+   "ticks": [
+    5,
+    5,
+    5,
+    5,
+    5,
+    5,
+    5,
+    5,
+    5,
+    5,
+    5,
+    5,
+    5,
+    5
+   ],
+   "loop": false
+  },
+  {
+   "name": "fall",
+   "label": "fall",
+   "first": 52,
+   "count": 10,
+   "ticks": [
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    4
+   ],
+   "loop": true
+  },
+  {
+   "name": "idle",
+   "label": "no gum, standing (single frame)",
+   "first": 62,
+   "count": 1,
+   "ticks": [
+    60
+   ],
+   "loop": true
+  }
+ ]
+}

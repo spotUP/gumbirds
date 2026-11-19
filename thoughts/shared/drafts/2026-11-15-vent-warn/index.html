@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>Vent warning drafts</title>
+<style>
+body{background:#14182c;color:#dfe4f2;font-family:system-ui,sans-serif;margin:24px;max-width:1100px}
+h1{font-size:22px} h2{font-size:18px;margin:28px 0 4px;color:#ffb060}
+p{margin:4px 0 10px;line-height:1.45} .cost{color:#9fd0ff}
+img{image-rendering:pixelated;display:block;margin:8px 0;border:1px solid #39406a}
+.row{display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap}
+</style></head><body>
+<h1>Vent warning drafts (2026-11-15)</h1>
+<p>Each animation: left = the vent as it is in the game now, right = the variant. Full 336-tick loop (5.6 s) at game speed:
+idle, warning (ticks 144 to 215, 1.2 s), burst (216 to 255), cool-down. Shown at 3x. Sheets at 4x (1x files beside them).</p>
+<p>All three share the same shake table and the same red glow (5 colours of a vent-only palette line stepped by hand through 8 heat steps).</p>
+<img src="stills_4x.png" alt="stills" style="max-width:100%">
+<p>Stills at warning tick 30, 56, 70: A, A, A, B, B, B, C, C, C.</p>
+
+<h2>A: shake plus red glow</h2>
+<p class="cost">Cost per vent: 0 new tiles, 0 extra sprites. Palette: 5 words on a step frame (10 step frames in the warning, 4 in the cool-down), 0 on every other frame; budget is 112. One new palette line (16 words once at stage load).</p>
+<div class="row"><img src="vent_warn_A_3x.gif" alt="A"><img src="sheet_A_4x.png" alt="A sheet" height="240"></div>
+
+<h2>B: boil bubbles plus shake plus glow</h2>
+<p class="cost">Cost per vent: 10 new tiles in total (shared by all vents), 1 extra sprite per vent during the warning only (2 on a two-vent stage). Palette: same 5 words on a step frame.</p>
+<p>Bubbles swell, stretch, pop into droplets that arc and fall; the loop speeds up from 6 to 3 ticks per frame as the vent heats. Bubble colours are the spark's own blues.</p>
+<div class="row"><img src="vent_warn_B_3x.gif" alt="B"><img src="sheet_B_4x.png" alt="B sheet" height="240"></div>
+
+<h2>C: ember spits that mark the danger height, plus shake plus glow</h2>
+<p class="cost">Cost per vent: 6 new tiles in total (shared), 1 extra sprite per vent during the warning only. Palette: same 5 words on a step frame.</p>
+<p>Three embers are thrown up the plume path, each higher (16, 28, 48 px), with gravity; the third tops out at the full plume height on the tick the burst starts. It shows where the sparks will go, not only that the vent is about to fire.</p>
+<div class="row"><img src="vent_warn_C_3x.gif" alt="C"><img src="sheet_C_4x.png" alt="C sheet" height="240"></div>
+</body></html>

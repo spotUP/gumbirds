@@ -1,0 +1,44 @@
+== mood moon: Clear night, moon (hazard water, 100 ms per hazard step in the GIF)
+  sky           palettes 1 (colours [10]; 10 distinct)  unique tiles  172  animated tile positions  12  loop frames 4  |  dither px  18703  median lum step  37.2  min  29.4
+  far           palettes 1 (colours [10]; 10 distinct)  unique tiles   94  animated tile positions  11  loop frames 8  |  dither px   7571  median lum step  33.4  min  33.4
+  midA          palettes 2 (colours [15, 12]; 18 distinct)  unique tiles  171  animated tile positions  29  loop frames 8  |  dither px   7979  median lum step  52.3  min  31.1
+  midB          palettes 2 (colours [15, 14]; 20 distinct)  unique tiles  174  animated tile positions  30  loop frames 8  |  dither px   7054  median lum step  44.9  min  30.0
+  near          palettes 2 (colours [15, 15]; 22 distinct)  unique tiles  226  animated tile positions  28  loop frames 8  |  dither px  12173  median lum step  72.1  min  30.4
+  clouds front  palettes 1 (colours [4]; 4 distinct)  unique tiles   45  animated tile positions  11  loop frames 4  |  dither px   1224  median lum step  33.5  min  33.5
+  clouds back   palettes 1 (colours [4]; 4 distinct)  unique tiles   32  animated tile positions   9  loop frames 4  |  dither px    249  median lum step  33.5  min  33.5
+  airship       palettes 1 (colours [9]; 9 distinct)  unique tiles   11  animated tile positions   2  loop frames 5  |  dither px    486  median lum step  39.3  min  39.3
+  near plane lit palettes: 3 extra copies of each near palette that reaches rows 128..223 (levels 1..3, set per 16 px column and tile row);
+  near dither numbers above are measured with the level 2 palette; in the neutral palette the glow dither is invisible by design.
+  totals: 11 palettes (+ lit copies), 925 unique tiles, 132 animated tile positions
+  scenery sprites per scanline (hazard strip and gameplay not counted): worst 63 of 66 at lines 64..127
+  play area (lines 16..191) background luminance: p5 3  median 45  p95 149; share darker than 24 (flier body is 11): 19.4%; share brighter than 150 (bubble is 196): 4.7%
+  gif: 80 frames, 112 colours, 2.03 MB, decode check on 4 frames: equal
+== mood storm: Storm, rain and search beams (hazard spikes, 70 ms per hazard step in the GIF)
+  sky           palettes 1 (colours [6]; 6 distinct)  unique tiles  146  animated tile positions   0  loop frames 1  |  dither px  16762  median lum step  58.0  min  35.1
+  far           palettes 1 (colours [10]; 10 distinct)  unique tiles   94  animated tile positions  11  loop frames 8  |  dither px   7571  median lum step  44.1  min  44.1
+  midA          palettes 2 (colours [15, 12]; 18 distinct)  unique tiles  171  animated tile positions  29  loop frames 8  |  dither px   7979  median lum step  59.8  min  32.9
+  midB          palettes 2 (colours [15, 14]; 20 distinct)  unique tiles  174  animated tile positions  30  loop frames 8  |  dither px   7054  median lum step  49.1  min  30.5
+  near          palettes 3 (colours [15, 15, 3]; 22 distinct)  unique tiles  226  animated tile positions  28  loop frames 8  |  dither px  12173  median lum step  94.8  min  30.4
+  beams         palettes 1 (colours [1]; 1 distinct)  unique tiles   86  animated tile positions  22  loop frames 5  |  dither px      0  median lum step   0.0  min   0.0
+  rain          palettes 1 (colours [2])  unique tiles 8 (1 tile x 8 frames)  17 sprites (3 full columns, 7 split around lines 80..159), at most 10 per line; checker mesh, not counted as dither
+  near plane lit palettes: 3 extra copies of each near palette that reaches rows 128..223 (levels 1..3, set per 16 px column and tile row);
+  near dither numbers above are measured with the level 2 palette; in the neutral palette the glow dither is invisible by design.
+  totals: 11 palettes (+ lit copies), 905 unique tiles, 120 animated tile positions
+  scenery sprites per scanline (hazard strip and gameplay not counted): worst 66 of 66 at lines 112..127
+  play area (lines 16..191) background luminance: p5 3  median 47  p95 180; share darker than 24 (flier body is 11): 24.2%; share brighter than 150 (bubble is 196): 7.1%
+  gif: 64 frames, 182 colours, 2.82 MB, decode check on 4 frames: equal
+== mood dusk: Ember dusk, low sun (hazard lava, 130 ms per hazard step in the GIF)
+  sky           palettes 1 (colours [10]; 10 distinct)  unique tiles  158  animated tile positions   7  loop frames 4  |  dither px  19134  median lum step  62.4  min  30.3
+  far           palettes 1 (colours [10]; 10 distinct)  unique tiles   94  animated tile positions  11  loop frames 8  |  dither px   7571  median lum step  58.5  min  58.5
+  midA          palettes 2 (colours [15, 12]; 18 distinct)  unique tiles  171  animated tile positions  29  loop frames 8  |  dither px   7979  median lum step  76.4  min  32.9
+  midB          palettes 2 (colours [15, 15]; 20 distinct)  unique tiles  174  animated tile positions  30  loop frames 8  |  dither px   7054  median lum step  59.6  min  30.7
+  near          palettes 2 (colours [15, 15]; 22 distinct)  unique tiles  226  animated tile positions  28  loop frames 8  |  dither px  12173  median lum step  78.3  min  28.3
+  clouds front  palettes 1 (colours [4]; 4 distinct)  unique tiles   45  animated tile positions  11  loop frames 4  |  dither px   1224  median lum step  44.5  min  44.5
+  clouds back   palettes 1 (colours [4]; 4 distinct)  unique tiles   32  animated tile positions   9  loop frames 4  |  dither px    249  median lum step  44.5  min  44.5
+  airship       palettes 1 (colours [9]; 9 distinct)  unique tiles   11  animated tile positions   2  loop frames 5  |  dither px    486  median lum step  35.4  min  35.4
+  near plane lit palettes: 3 extra copies of each near palette that reaches rows 128..223 (levels 1..3, set per 16 px column and tile row);
+  near dither numbers above are measured with the level 2 palette; in the neutral palette the glow dither is invisible by design.
+  totals: 11 palettes (+ lit copies), 911 unique tiles, 127 animated tile positions
+  scenery sprites per scanline (hazard strip and gameplay not counted): worst 63 of 66 at lines 64..127
+  play area (lines 16..191) background luminance: p5 8  median 66  p95 189; share darker than 24 (flier body is 11): 8.5%; share brighter than 150 (bubble is 196): 14.7%
+  gif: 80 frames, 114 colours, 2.13 MB, decode check on 4 frames: equal

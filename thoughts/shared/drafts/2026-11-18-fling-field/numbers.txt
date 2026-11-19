@@ -1,0 +1,23 @@
+Gum Fling field draft 2026-11-18, second pass (first pass: old/numbers.txt)
+floor: turf top y 160, 4 tile rows to 224 (first Trip chunk win_bottom 160, flat floor strip rows)
+turf: 4 columns of 16 x 64 px in a hand order of 32 (512 px), 16 unique tiles, roles used 12 of 15, 3 mood palettes (swap only);
+  light side per mood by tile H flip: dusk right, moon right, storm right
+puff: 6 frames of 32 x 32, 15 unique non-empty tiles, turf palette, roles used 6
+gear (chalk, pole, boards): 26 unique tiles (14 number faces 10..150 M without 50), 3 mood palettes (swap only), 15 colours each
+total: 57 unique tiles, 2 palettes on screen (turf + gear of the mood); 6 palettes in ROM (3 turf + 3 gear)
+turf roles used: a b c d e f g h k m t u w y
+gear roles used: C D G K L M N O R T U W Y n r
+
+sprite budget (Neo Geo: 96 sprites per scanline, 381 sprites)
+field sprites: turf 21 (20 + 1 scroll, 4 tiles, lines 160..223); markers 12 worst case (336 px / 30 px pitch; board + post + line
+  chained in one sprite of 6 tiles from line 131, the 50 M mark 7 tiles from line 115); puff 2 (2 tiles, lines 131..162)
+others counted: bird 4 (hero body 2 + parachute 2), aim pointer and dots 10 (FLING_ARC_COUNT, all assumed on one line)
+background: per 16 lines, trimmed count from 2026-11-10-backgrounds-final/numbers.txt (near plane still drawn behind the turf)
+  dusk  per 16 lines, all of the above: 34 45 53 57 71 66 64 81 86 69 77 67 67 67  worst 86 of 96 (lines 128..143)
+  moon  per 16 lines, all of the above: 34 45 49 53 71 66 64 81 86 69 77 67 67 67  worst 86 of 96 (lines 128..143)
+  storm per 16 lines, all of the above: 48 47 46 51 60 63 66 83 88 77 85 75 75 75  worst 88 of 96 (lines 128..143)
+  cutting the near plane columns at line 160 (hidden by the turf) frees up to 20 more on lines 160..223
+slots (src/sprite_slots.h, gum-games worktree): the field has no islands, hazard strip, Trip strips or pickups.
+  turf + markers = 33, behind the fliers: ISLAND_SPRITE 120..160 (41 slots, 8 spare; pool 161.. and hero 257.. draw in front)
+  puff 2, in front of the bird: TRIP_STRIP range 333..366 (44 - FLING_ARC_COUNT 10 = 34 free), hidden while aiming
+  also unused on the field: HAZARD_SPRITE 261..308 (48), TRIP_PICKUP 367..376 (10), 118..119 (2)

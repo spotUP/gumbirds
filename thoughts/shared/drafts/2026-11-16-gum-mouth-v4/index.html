@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>Gumbirds gum-mouth bird v4</title>
+<style>
+body{background:#1b2238;color:#e8ecf5;font-family:system-ui,sans-serif;margin:24px;line-height:1.45}
+h1{font-size:22px} h2{color:#ffd166;font-size:17px;margin-top:32px;border-bottom:1px solid #3a4468;padding-bottom:4px}
+img{image-rendering:pixelated;background:#2a3355;max-width:100%}
+.row{display:flex;flex-wrap:wrap;gap:20px;align-items:flex-end}
+figure{margin:0} figcaption{font-size:13px;color:#aab3cf;margin-top:4px}
+p{max-width:860px}
+</style></head><body>
+<h1>Gumbirds gum-mouth bird, draft v4 (fix pass on v3)</h1>
+<p>Draft only. Every frame is a hand-typed grid in frames_B.txt; the script only assembles, mirrors, palette-maps and packs.
+24 typed frames, 59 unique 16x16 tiles (v3: 21 frames, 50 tiles).</p>
+
+<h2>v3 and v4 beside the in-game Sootling</h2>
+<p>The first two cells of each sheet are the Sootling now in the game.</p>
+<div class="row"><figure><img src="../2026-11-16-gum-mouth-v3/B_compare_ingame_6x.png" alt="v3"><figcaption>v3</figcaption></figure><figure><img src="B_compare_ingame_6x.png" alt="v4"><figcaption>v4</figcaption></figure></div>
+
+<h2>Fix 1 and 4: bigger wings, flap arc, wings visible during the puff</h2>
+<p>Order: f1 f2 f3 f4 (upstroke), d1 d2 (downstroke), blast, puff, rest. During puff and blast the wings sit low, under the cheeks.</p>
+<div class="row"><figure><img src="B_wing_arc_4x.png" alt="v4 wing arc, 4x"><figcaption>v4 wing arc, 4x</figcaption></figure></div>
+<div class="row"><figure><img src="../2026-11-16-gum-mouth-v3/B_flap_4x.gif" alt="v3 flap"><figcaption>v3 flap</figcaption></figure><figure><img src="B_flap_4x.gif" alt="v4 flap"><figcaption>v4 flap</figcaption></figure></div>
+
+<h2>Fix 2 and 3: feet trail the swing together, R2 top rounded</h2>
+<p>Settle now has two extra frames where the body is centred and the feet still lag to the side the body left.</p>
+<div class="row"><figure><img src="../2026-11-16-gum-mouth-v3/B_settle_right_4x.gif" alt="v3 settle from right"><figcaption>v3 settle from right</figcaption></figure><figure><img src="B_settle_right_4x.gif" alt="v4 settle from right"><figcaption>v4 settle from right</figcaption></figure></div>
+<div class="row"><figure><img src="../2026-11-16-gum-mouth-v3/B_settle_left_4x.gif" alt="v3 settle from left"><figcaption>v3 settle from left</figcaption></figure><figure><img src="B_settle_left_4x.gif" alt="v4 settle from left"><figcaption>v4 settle from left</figcaption></figure></div>
+<div class="row"><figure><img src="../2026-11-16-gum-mouth-v3/B_fly_4x.gif" alt="v3 fly"><figcaption>v3 fly</figcaption></figure><figure><img src="B_fly_4x.gif" alt="v4 fly"><figcaption>v4 fly</figcaption></figure></div>
+
+<h2>Dangling feet: v2 next to v4</h2>
+<p>v4 legs are short (3 rows as v2) with one row of drooping toes; body is the round v3 body.</p>
+<div class="row"><figure><img src="../2026-11-16-gum-mouth-v2/B_compare_ingame_6x.png" alt="v2 feet"><figcaption>v2 feet</figcaption></figure><figure><img src="B_compare_ingame_6x.png" alt="v4 feet"><figcaption>v4 feet</figcaption></figure></div>
+<div class="row"><figure><img src="../2026-11-16-gum-mouth-v2/B_settle_right_4x.gif" alt="v2 settle"><figcaption>v2 settle</figcaption></figure><figure><img src="B_settle_right_4x.gif" alt="v4 settle"><figcaption>v4 settle</figcaption></figure></div>
+
+<h2>Fix 5: pupils, choose one</h2>
+<p>Left: pupils up at the gum (used in the main set). Right: alternate idle frame with pupils forward (gallery only).</p>
+<div class="row"><figure><img src="B_pupils_choice_6x.png" alt="rest (pupils up) and rest_fwd (pupils forward), 6x"><figcaption>rest (pupils up) and rest_fwd (pupils forward), 6x</figcaption></figure></div>
+
+<h2>Palettes: CPU and player 2</h2>
+<div class="row"><figure><img src="B_pal_cpu_6x.png" alt="CPU palette, 6x"><figcaption>CPU palette, 6x</figcaption></figure><figure><img src="B_pal_p2_6x.png" alt="Player 2 palette, 6x"><figcaption>Player 2 palette, 6x</figcaption></figure></div>
+<div class="row"><figure><img src="B_fly_cpu_4x.gif" alt="fly, CPU"><figcaption>fly, CPU</figcaption></figure><figure><img src="B_fly_p2_4x.gif" alt="fly, player 2"><figcaption>fly, player 2</figcaption></figure><figure><img src="B_fly_mirrored_4x.gif" alt="fly, mirrored"><figcaption>fly, mirrored</figcaption></figure></div>
+
+<h2>Idle, landing, distress</h2>
+<div class="row"><figure><img src="../2026-11-16-gum-mouth-v3/B_idle_4x.gif" alt="v3 idle"><figcaption>v3 idle</figcaption></figure><figure><img src="B_idle_4x.gif" alt="v4 idle"><figcaption>v4 idle</figcaption></figure></div>
+<div class="row"><figure><img src="../2026-11-16-gum-mouth-v3/B_landing_4x.gif" alt="v3 landing"><figcaption>v3 landing</figcaption></figure><figure><img src="B_landing_4x.gif" alt="v4 landing"><figcaption>v4 landing</figcaption></figure></div>
+<div class="row"><figure><img src="B_distress_stages_6x.png" alt="distress stages 1 to 3 (palette swap of the cheek ramp)"><figcaption>distress stages 1 to 3 (palette swap of the cheek ramp)</figcaption></figure></div>
+<div class="row"><figure><img src="B_distress1_4x.gif" alt="distress 1"><figcaption>distress 1</figcaption></figure><figure><img src="B_distress2_4x.gif" alt="distress 2"><figcaption>distress 2</figcaption></figure><figure><img src="B_distress3_4x.gif" alt="distress 3 (6 tiles)"><figcaption>distress 3 (6 tiles)</figcaption></figure></div>
+
+<h2>All v4 frames</h2>
+<div class="row"><figure><img src="B_all_frames_4x.png" alt="all 24 frames, 4x"><figcaption>all 24 frames, 4x</figcaption></figure></div>
+</body></html>

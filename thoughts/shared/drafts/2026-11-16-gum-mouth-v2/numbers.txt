@@ -1,0 +1,15 @@
+Gum-mouth v2, front hang (one take). Sprite box 24 x 32 = 4 tiles of 16 x 16 per frame.
+typed frames: 16   unique 16x16 tiles, all frames: 50 (upper bound if no sharing: 64)
+mirrored facing (h-flip): 0 extra tiles
+distress stage 1-3 colour: palette swap of 3 entries (cheek ramp), 0 extra tiles
+
+idle         frames used: 3  unique tiles: 8    (in puff rest)
+fly          frames used: 6  unique tiles: 18   (L1 L1p R1 R1p in rest)
+settle       frames used: 5  unique tiles: 20   (L1 L2 R1 R2 rest)
+flap         frames used: 4  unique tiles: 14   (blast puff rest up)
+landing      frames used: 4  unique tiles: 14   (rest stand_blast stand_in stand_puff)
+distress1    frames used: 3  unique tiles: 8    (in puff rest)
+distress2    frames used: 3  unique tiles: 8    (in puff strain)
+distress3    frames used: 2  unique tiles: 8    (burst strain)
+
+cheek ramp per stage (palette entries 9 a b): {0: [(165, 41, 57), (231, 90, 74), (255, 156, 123)], 1: [(181, 24, 33), (247, 57, 41), (255, 123, 90)], 2: [(156, 8, 24), (231, 33, 24), (255, 99, 66)], 3: [(132, 0, 41), (214, 16, 33), (255, 74, 57)]}

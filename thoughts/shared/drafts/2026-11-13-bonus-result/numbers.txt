@@ -1,0 +1,6 @@
+look a mid: fix cells 600, sprite tiles 11
+look a perfect: fix cells 600, sprite tiles 20
+look b mid: fix cells 0, sprite tiles 112
+look b perfect: fix cells 0, sprite tiles 163
+look c mid: fix cells 70, sprite tiles 12
+look c perfect: fix cells 252, sprite tiles 20

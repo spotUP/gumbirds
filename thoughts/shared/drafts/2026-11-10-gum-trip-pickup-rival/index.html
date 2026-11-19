@@ -1,0 +1,60 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>Gum Trip: pickup, rival, meter drafts</title>
+<style>
+body{background:#17181b;color:#d6d8dc;font-family:-apple-system,"Helvetica Neue",Arial,sans-serif;margin:0;padding:28px 36px;line-height:1.45}
+h1{font-size:24px;margin:0 0 4px;color:#fff}h2{font-size:20px;margin:40px 0 10px;color:#fff;border-bottom:1px solid #34363c;padding-bottom:6px}
+h3{font-size:16px;margin:26px 0 8px;color:#f0f0f2}
+img{image-rendering:pixelated;display:block;background:#000}
+figure{display:inline-block;margin:0 16px 16px 0;vertical-align:top}figcaption{font-size:13px;color:#9a9da5;margin-top:5px;max-width:420px}
+p{max-width:980px;margin:6px 0}p.n{font-size:13px;color:#b4b7be}
+.card{background:#1f2125;border:1px solid #2e3036;border-radius:4px;padding:14px 18px;margin:0 0 18px}
+</style></head><body>
+<h1>Gum Trip: pickup, rival and gum meter drafts</h1>
+<p>Three pickup candidates, three rival Sootling variants and two gum meter variants, for a pick. All sprites are shown at
+3x unless a caption says otherwise. Details, ranking and doubts are in README.md; all numbers are in numbers.txt.</p>
+<h2>Pickup</h2>
+<div class="card"><h3>A. Wrapped gum drop (24x24)</h3>
+<figure><img src="pickup_a_anim_3x.gif" alt="In play on the storm sky with the player 1 Sootling for scale: two idle loops, then the collect effect"><figcaption>In play on the storm sky with the player 1 Sootling for scale: two idle loops, then the collect effect</figcaption></figure>
+<figure><img src="pickup_a_sheet_3x.png" alt="Idle loop, 16 frames (1x sheet: pickup_a_sheet_1x.png)"><figcaption>Idle loop, 16 frames (1x sheet: pickup_a_sheet_1x.png)</figcaption></figure>
+<figure><img src="pickup_a_collect_sheet_3x.png" alt="Collect effect, 8 frames of 32x32 (1x sheet: pickup_a_collect_sheet_1x.png)"><figcaption>Collect effect, 8 frames of 32x32 (1x sheet: pickup_a_collect_sheet_1x.png)</figcaption></figure>
+<p class='n'>pickup A (Wrapped gum drop): size 24x24; frames 16 idle + 8 collect (collect is 32x32); colours 13 (idle 13); 16 px sprite columns 2 idle, 2 collect; worst sprites per scanline added 4 (two pickups level on screen, one of them popping: 2 + 2); unique 16x16 tiles 64 idle + 32 collect = 96; bob offsets px per frame (applied by position, not drawn in the tile) [-2, -1, 0, 1, 3, 3, 3, 2, 1, 0, -1, -1, -2, -2, -2, -2]</p><p class='n'>palette A: (16,80,112) (24,8,40) (32,152,176) (104,16,88) (120,224,216) (144,96,184) (176,32,120) (208,184,232) (224,248,240) (240,72,152) (248,144,192) (248,216,232) (248,248,248)</p></div>
+<div class="card"><h3>B. Spinning gumball (16x16)</h3>
+<figure><img src="pickup_b_anim_3x.gif" alt="In play on the storm sky with the player 1 Sootling for scale: two idle loops, then the collect effect"><figcaption>In play on the storm sky with the player 1 Sootling for scale: two idle loops, then the collect effect</figcaption></figure>
+<figure><img src="pickup_b_sheet_3x.png" alt="Idle loop, 16 frames (1x sheet: pickup_b_sheet_1x.png)"><figcaption>Idle loop, 16 frames (1x sheet: pickup_b_sheet_1x.png)</figcaption></figure>
+<figure><img src="pickup_b_collect_sheet_3x.png" alt="Collect effect, 8 frames of 32x32 (1x sheet: pickup_b_collect_sheet_1x.png)"><figcaption>Collect effect, 8 frames of 32x32 (1x sheet: pickup_b_collect_sheet_1x.png)</figcaption></figure>
+<p class='n'>pickup B (Spinning gumball): size 16x16; frames 16 idle + 8 collect (collect is 32x32); colours 12 (idle 12); 16 px sprite columns 1 idle, 2 collect; worst sprites per scanline added 3 (two pickups level on screen, one of them popping: 1 + 2); unique 16x16 tiles 16 idle + 32 collect = 48; bob offsets px per frame (applied by position, not drawn in the tile) [-2, -1, 0, 1, 3, 3, 3, 2, 1, 0, -1, -1, -2, -2, -2, -2]</p><p class='n'>palette B: (16,8,40) (16,48,120) (24,104,200) (56,168,240) (120,16,96) (128,136,200) (144,224,248) (208,40,136) (216,224,248) (248,96,168) (248,176,216) (248,248,248)</p></div>
+<div class="card"><h3>C. Twirling gum stick (24x24)</h3>
+<figure><img src="pickup_c_anim_3x.gif" alt="In play on the storm sky with the player 1 Sootling for scale: two idle loops, then the collect effect"><figcaption>In play on the storm sky with the player 1 Sootling for scale: two idle loops, then the collect effect</figcaption></figure>
+<figure><img src="pickup_c_sheet_3x.png" alt="Idle loop, 16 frames (1x sheet: pickup_c_sheet_1x.png)"><figcaption>Idle loop, 16 frames (1x sheet: pickup_c_sheet_1x.png)</figcaption></figure>
+<figure><img src="pickup_c_collect_sheet_3x.png" alt="Collect effect, 8 frames of 32x32 (1x sheet: pickup_c_collect_sheet_1x.png)"><figcaption>Collect effect, 8 frames of 32x32 (1x sheet: pickup_c_collect_sheet_1x.png)</figcaption></figure>
+<p class='n'>pickup C (Twirling gum stick): size 24x24; frames 16 idle + 8 collect (collect is 32x32); colours 11 (idle 11); 16 px sprite columns 2 idle, 2 collect; worst sprites per scanline added 4 (two pickups level on screen, one of them popping: 2 + 2); unique 16x16 tiles 63 idle + 24 collect = 87; bob offsets px per frame (applied by position, not drawn in the tile) [-2, -1, 0, 1, 3, 3, 3, 2, 1, 0, -1, -1, -2, -2, -2, -2]</p><p class='n'>palette C: (24,8,40) (40,48,128) (72,112,200) (112,16,88) (136,192,240) (192,40,128) (224,248,248) (248,96,168) (248,168,208) (248,224,232) (248,248,248)</p></div>
+<h2>Rival</h2><p>Left to right in every still: player 1, the rival, player 2 (the computer palette of the arena).</p>
+<div class="card"><h3>All five at 1x and 3x</h3>
+<figure><img src="rival_lineup_1x.png" alt="1x: player 1, rival A, rival B, rival C, player 2 on storm, moon, dusk"><figcaption>1x: player 1, rival A, rival B, rival C, player 2 on storm, moon, dusk</figcaption></figure>
+<figure><img src="rival_lineup_3x.png" alt="The same line-up at 3x"><figcaption>The same line-up at 3x</figcaption></figure>
+<figure><img src="rival_flap_storm_3x.gif" alt="Flap loop on storm, same order"><figcaption>Flap loop on storm, same order</figcaption></figure></div>
+<div class="card"><h3>A. Hornet</h3><p>Palette swap only: charcoal fur, yellow eyes and rim, red beak, amber gum</p>
+<figure><img src="rival_a_storm_3x.png" alt="Storm"><figcaption>Storm</figcaption></figure>
+<figure><img src="rival_a_moon_3x.png" alt="Moon"><figcaption>Moon</figcaption></figure>
+<figure><img src="rival_a_dusk_3x.png" alt="Dusk"><figcaption>Dusk</figcaption></figure>
+<p class='n'>rival A (Hornet): palette swap only: charcoal fur, yellow eyes and rim, red beak, amber gum; frames 63 (shared with the players); colours 15; 16 px sprite columns 2; worst sprites per scanline added 4 (two rivals level, same as two computer fliers in the arena); 0 frames changed, 0 new tiles</p><p class='n'>palette A index 1..15: (8,8,16) (32,24,48) (64,56,88) (112,104,136) (176,176,200) (248,232,64) (96,8,24) (216,32,40) (248,136,72) (112,48,0) (184,96,0) (240,168,16) (248,224,96) (248,248,200) (248,248,248)</p></div>
+<div class="card"><h3>B. Bone</h3><p>Palette swap only: pale bone fur, red eyes and rim, dark beak, violet gum</p>
+<figure><img src="rival_b_storm_3x.png" alt="Storm"><figcaption>Storm</figcaption></figure>
+<figure><img src="rival_b_moon_3x.png" alt="Moon"><figcaption>Moon</figcaption></figure>
+<figure><img src="rival_b_dusk_3x.png" alt="Dusk"><figcaption>Dusk</figcaption></figure>
+<p class='n'>rival B (Bone): palette swap only: pale bone fur, red eyes and rim, dark beak, violet gum; frames 63 (shared with the players); colours 15; 16 px sprite columns 2; worst sprites per scanline added 4 (two rivals level, same as two computer fliers in the arena); 0 frames changed, 0 new tiles</p><p class='n'>palette B index 1..15: (16,8,32) (72,56,112) (136,128,176) (200,200,224) (240,240,248) (248,56,56) (24,16,48) (64,56,104) (144,136,184) (48,16,96) (96,40,168) (144,88,232) (192,160,248) (232,224,248) (248,248,248)</p></div>
+<div class="card"><h3>C. Bruiser</h3><p>Palette swap plus angry brows (tile change): purple fur, pale yellow eyes, scarlet gum</p>
+<figure><img src="rival_c_storm_3x.png" alt="Storm"><figcaption>Storm</figcaption></figure>
+<figure><img src="rival_c_moon_3x.png" alt="Moon"><figcaption>Moon</figcaption></figure>
+<figure><img src="rival_c_dusk_3x.png" alt="Dusk"><figcaption>Dusk</figcaption></figure>
+<figure><img src="rival_c_brows_6x.png" alt="Head at 6x: accepted eyes (left), with brows (right)"><figcaption>Head at 6x: accepted eyes (left), with brows (right)</figcaption></figure>
+<p class='n'>rival C (Bruiser): palette swap plus angry brows (tile change): purple fur, pale yellow eyes, scarlet gum; frames 63 (shared with the players); colours 15; 16 px sprite columns 2; worst sprites per scanline added 4 (two rivals level, same as two computer fliers in the arena); tile change: 41 of 63 frames differ, 123 tile references differ, 111 new unique 16x16 tiles</p><p class='n'>palette C index 1..15: (16,8,32) (40,16,72) (88,32,136) (152,64,184) (216,136,232) (248,248,160) (16,56,40) (40,160,88) (160,240,120) (96,0,24) (168,16,32) (232,48,40) (248,136,88) (248,216,176) (248,248,248)</p><p class='n'>for reference, player 1 palette snapped to multiples of 8: (8,8,24) (24,24,72) (40,64,128) (80,144,176) (152,216,208) (224,248,232) (120,24,64) (224,88,40) (248,192,88) (104,16,128) (176,40,160) (248,80,176) (248,160,216) (248,216,240) (248,248,248)</p><p class='n'>for reference, player 2 / computer palette snapped: (16,8,24) (56,24,48) (112,40,56) (176,88,56) (224,152,96) (248,232,176) (16,64,104) (24,144,176) (120,232,216) (8,80,64) (16,136,72) (80,208,72) (168,240,120) (224,248,192) (248,248,248)</p></div>
+<h2>Meter</h2><p>Shown in the player 1 corner tag on the storm sky, in place of the three life dots: full (8) at the top down to empty at the bottom. At 2 steps or fewer the meter switches to a second, orange palette on the same tiles.</p>
+<div class="card"><h3>A. Gum tube: icon and eight segments</h3>
+<figure><img src="meter_tube_3x.png" alt="Nine states at 3x"><figcaption>Nine states at 3x</figcaption></figure>
+<figure><img src="meter_tube_tiles_6x.png" alt="Unique 8x8 tiles at 6x"><figcaption>Unique 8x8 tiles at 6x</figcaption></figure>
+<p class='n'>meter tube: fix layer cells 5 (8x8); unique tiles 4; colours 8 per palette (second palette for the low warning at 2 steps or fewer: orange, same tiles; 11 colours over both); 9 states shown (8 fill steps and empty); sprites 0</p></div>
+<div class="card"><h3>B. Four double lobes: each lobe is one step</h3>
+<figure><img src="meter_lobes_3x.png" alt="Nine states at 3x"><figcaption>Nine states at 3x</figcaption></figure>
+<figure><img src="meter_lobes_tiles_6x.png" alt="Unique 8x8 tiles at 6x"><figcaption>Unique 8x8 tiles at 6x</figcaption></figure>
+<p class='n'>meter lobes: fix layer cells 4 (8x8); unique tiles 3; colours 7 per palette (second palette for the low warning at 2 steps or fewer: orange, same tiles; 10 colours over both); 9 states shown (8 fill steps and empty); sprites 0</p></div>
+</body></html>

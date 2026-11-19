@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Gum Trip moving hazard: three candidates</title>
+<style>
+body { background:#17181c; color:#d6d8de; font-family:Helvetica,Arial,sans-serif; margin:0; padding:32px 40px 80px; line-height:1.5; }
+h1 { font-size:26px; margin:0 0 8px; color:#f2f3f6; }
+h2 { font-size:21px; margin:0 0 6px; color:#f2f3f6; }
+section { border-top:1px solid #34363e; margin-top:36px; padding-top:28px; }
+img { image-rendering:pixelated; display:block; background:#0c0d10; border:1px solid #34363e; max-width:none; }
+figure { margin:14px 24px 14px 0; overflow-x:auto; }
+figcaption { font-size:13px; color:#9a9da8; margin-top:6px; max-width:640px; }
+.row { display:flex; flex-wrap:wrap; align-items:flex-start; }
+ul { padding-left:20px; font-size:15px; max-width:900px; }
+p { max-width:900px; margin:0 0 6px; }
+</style></head><body>
+<h1>Gum Trip moving hazard: three candidates</h1>
+<p>Pick one. All three loop in 16 frames, hold to 15 colours, and fit a pool object (at most 3 sprite columns). View at 100 percent browser zoom. Ranking and doubts are in README.md.</p>
+<section>
+<h2>Skip-rope squall</h2>
+<p>A knot of violet storm vapour. A lightning arc is pinned to its two flanks and swings round it like a skipping rope: behind, under, in front, over.</p>
+<div class="row">
+<figure><img src="anim_a_3x.gif" width="480" height="288" alt="Skip-rope squall over the storm sky, 3x"><figcaption>3x, storm sky, Sootling for scale</figcaption></figure>
+<figure><img src="path_a_1x.gif" width="640" height="448" alt="Skip-rope squall path on the 320 x 224 screen"><figcaption>Path on the 320 x 224 screen, shown 2x. Pale dots: the way it travels on screen while the world scrolls left at 1 px per frame. Red bands: kill strips.</figcaption></figure>
+</div>
+<figure><img src="sheet_a_1x.png" width="1536" height="96" alt="Skip-rope squall sheet"><figcaption>Sheet, shown 2x (file is 1x, 16 frames in a row, magenta key)</figcaption></figure>
+<ul><li>Frame size 48 x 48 px, 16 frames per loop, 4 ticks per frame (15 per second)</li><li>Colours 12 plus key</li><li>Sprite columns 3 (pool object width 48 px)</li><li>Worst sprites per scanline added by one instance 3</li><li>Tiles raw 144, unique 139</li><li>Opaque bounding box over all frames x 0..47, y 9..36</li><li>Hit box proposal x 6..41, y 10..35 (36 x 26): vapour body and the inner sweep of the arc; the outer 4 px of the arc do not hurt</li><li>Path world drift 0.25 px/frame left (1.25 on screen), sine weave 46 px amplitude, period 200 frames; on screen for 314 frames</li><li>Loop seam of the simulation (largest position difference between the last two periods) 0.0008 px</li></ul>
+</section><section>
+<h2>Flue spinner</h2>
+<p>A turbine roof vent torn off its flue. The slots still glow furnace-hot, saw fins flick out at the rim as it spins, a loose chain trails in the wind.</p>
+<div class="row">
+<figure><img src="anim_b_3x.gif" width="480" height="288" alt="Flue spinner over the storm sky, 3x"><figcaption>3x, storm sky, Sootling for scale</figcaption></figure>
+<figure><img src="path_b_1x.gif" width="640" height="448" alt="Flue spinner path on the 320 x 224 screen"><figcaption>Path on the 320 x 224 screen, shown 2x. Pale dots: the way it travels on screen while the world scrolls left at 1 px per frame. Red bands: kill strips.</figcaption></figure>
+</div>
+<figure><img src="sheet_b_1x.png" width="1024" height="96" alt="Flue spinner sheet"><figcaption>Sheet, shown 2x (file is 1x, 16 frames in a row, magenta key)</figcaption></figure>
+<ul><li>Frame size 32 x 48 px, 16 frames per loop, 4 ticks per frame (15 per second)</li><li>Colours 12 plus key</li><li>Sprite columns 2 (pool object width 32 px)</li><li>Worst sprites per scanline added by one instance 2</li><li>Tiles raw 96, unique 96</li><li>Opaque bounding box over all frames x 0..31, y 0..47</li><li>Hit box proposal x 6..25, y 5..24 (20 x 20): the globe; collar and chain do not hurt</li><li>Path world 0.9 px/frame left (1.9 on screen), gravity 0.05, gust kick to -2.7 px/frame at y 150: skipping hops 73 px high, about 108 frames apart; on screen for 206 frames</li><li>Loop seam of the simulation (largest position difference between the last two periods) 0.0000 px</li></ul>
+</section><section>
+<h2>Cinder flock</h2>
+<p>A tumbling lump of chimney coal, white-hot on the windward side, with a ring of embers caught in its wake.</p>
+<div class="row">
+<figure><img src="anim_c_3x.gif" width="480" height="288" alt="Cinder flock over the storm sky, 3x"><figcaption>3x, storm sky, Sootling for scale</figcaption></figure>
+<figure><img src="path_c_1x.gif" width="640" height="448" alt="Cinder flock path on the 320 x 224 screen"><figcaption>Path on the 320 x 224 screen, shown 2x. Pale dots: the way it travels on screen while the world scrolls left at 1 px per frame. Red bands: kill strips.</figcaption></figure>
+</div>
+<figure><img src="sheet_c_1x.png" width="1024" height="64" alt="Cinder flock sheet"><figcaption>Sheet, shown 2x (file is 1x, 16 frames in a row, magenta key)</figcaption></figure>
+<ul><li>Frame size 32 x 32 px, 16 frames per loop, 4 ticks per frame (15 per second)</li><li>Colours 10 plus key</li><li>Sprite columns 2 (pool object width 32 px)</li><li>Worst sprites per scanline added by one instance 2</li><li>Tiles raw 64, unique 64</li><li>Opaque bounding box over all frames x 0..31, y 6..27</li><li>Hit box proposal x 8..23, y 9..22 (16 x 14): the coal and its inner ring; outer embers and trails do not hurt</li><li>Path rises off the floor strip on a thermal: world 0.4 px/frame left (1.4 on screen), 140 px climb with ease in and out, 9 px sway; on screen for 280 frames</li><li>Loop seam of the simulation (largest position difference between the last two periods) 0.0000 px</li></ul>
+</section>
+</body></html>

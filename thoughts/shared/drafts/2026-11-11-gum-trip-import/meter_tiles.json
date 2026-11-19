@@ -1,0 +1,34 @@
+{
+ "fix_palette": "white",
+ "tiles": [
+  "meter_0",
+  "meter_1",
+  "meter_2",
+  "meter_3",
+  "meter_4",
+  "meter_5",
+  "meter_6",
+  "meter_7",
+  "meter_8",
+  "meter_9",
+  "meter_10",
+  "meter_11",
+  "meter_12"
+ ],
+ "tile_count": 13,
+ "target_fix_sheet_slots": "157..169 (free per assets/font/fix_font.json: 157 names, sheet 192 slots)",
+ "colour_not_in_white_palette": [],
+ "used_indices": [
+  4,
+  5,
+  6,
+  7,
+  8,
+  9,
+  10,
+  11,
+  12,
+  13,
+  15
+ ]
+}

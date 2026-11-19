@@ -1,0 +1,51 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Gumbirds islands, final sheets</title><style>
+body{background:#14161c;color:#d8dbe2;font-family:Helvetica,Arial,sans-serif;margin:28px;line-height:1.45}
+h1{font-size:24px;margin:0 0 6px}h2{font-size:19px;margin:34px 0 8px;color:#fff;border-bottom:2px solid #3a4152;padding-bottom:4px}
+h3{font-size:14px;margin:16px 0 6px;color:#aab2c5}img{image-rendering:pixelated;display:block;margin:6px 0 14px;border:1px solid #2b303c}
+p{max-width:900px;margin:6px 0}.weak{border-left:4px solid #c8553d;padding:6px 10px;background:#1d2029;max-width:880px}
+table{border-collapse:collapse;margin:8px 0}td,th{border:1px solid #333a49;padding:4px 10px;text-align:right}th{background:#1d2029}
+.diff{color:#ffb454;font-weight:bold}</style></head><body>
+<h1>Gumbirds islands, final sheets and layout proposal</h1>
+<p>Three looks, one per mood. Every image is drawn at 1x and enlarged without smoothing. The standing line is sheet row 4; the collision height is that row. Numbers: numbers.txt.</p>
+<h2>A roof chunk (moon night)</h2>
+<p>Tiles: thin 7, tall 14, both 21 static; with animation 33. Animation: 8 distinct frames, 4 extra tiles thin, 8 extra tiles tall. Lower edge under 24 luminance steps from the backdrop: 5.0% in the proposed layout, 3.7% in a sweep of the play area.</p>
+<p class="weak">Weak point: The thin variant shows only one brick course, so the torn underside and the lanterns shrink to a few pixels; the brick body is still close in value to the lit city windows behind it.</p>
+<h3>All widths, tall and thin, 3x</h3><img src="preview_roof_1x.png" width="792" height="420" alt="">
+<h3>Animation, 3x</h3><img src="anim_roof_3x.gif" alt="">
+<h3>Proposed layout in the 384 px arena, 2x</h3><img src="scene_moon_384_2x.png" alt="">
+<h3>Proposed layout, 1x</h3><img src="scene_moon_384_1x.png" alt="">
+<h3>Sheet (magenta is transparent), 3x</h3><img src="sheet_roof_1x.png" width="336" height="576" alt="">
+<h3>Unique tiles with all animation frames, 2x</h3><img src="tiles_roof_1x.png" width="512" alt="">
+<h2>B garden slab (ember dusk)</h2>
+<p>Tiles: thin 7, tall 14, both 21 static; with animation 37. Animation: 8 distinct frames, 2 extra tiles thin, 14 extra tiles tall. Lower edge under 24 luminance steps from the backdrop: 7.6% in the proposed layout, 7.1% in a sweep of the play area.</p>
+<p class="weak">Weak point: The soil is dark and sits near the dusk skyline in value, so the island reads mostly through its turf line and orange rim; the vines of the thin variant move in only 3 distinct frames.</p>
+<h3>All widths, tall and thin, 3x</h3><img src="preview_garden_1x.png" width="792" height="420" alt="">
+<h3>Animation, 3x</h3><img src="anim_garden_3x.gif" alt="">
+<h3>Proposed layout in the 384 px arena, 2x</h3><img src="scene_dusk_384_2x.png" alt="">
+<h3>Proposed layout, 1x</h3><img src="scene_dusk_384_1x.png" alt="">
+<h3>Sheet (magenta is transparent), 3x</h3><img src="sheet_garden_1x.png" width="336" height="576" alt="">
+<h3>Unique tiles with all animation frames, 2x</h3><img src="tiles_garden_1x.png" width="512" alt="">
+<h2>C airship deck (storm)</h2>
+<p>Tiles: thin 7, tall 14, both 21 static; with animation 49. Animation: 8 distinct frames, 14 extra tiles thin, 14 extra tiles tall. Lower edge under 24 luminance steps from the backdrop: 6.1% in the proposed layout, 4.8% in a sweep of the play area.</p>
+<p class="weak">Weak point: The rotors are still thin two-pixel blades and read as antennae at 1x; the hull is a plain trapezoid and one palette entry (y1) is unused.</p>
+<h3>All widths, tall and thin, 3x</h3><img src="preview_deck_1x.png" width="792" height="420" alt="">
+<h3>Animation, 3x</h3><img src="anim_deck_3x.gif" alt="">
+<h3>Proposed layout in the 384 px arena, 2x</h3><img src="scene_storm_384_2x.png" alt="">
+<h3>Proposed layout, 1x</h3><img src="scene_storm_384_1x.png" alt="">
+<h3>Sheet (magenta is transparent), 3x</h3><img src="sheet_deck_1x.png" width="336" height="576" alt="">
+<h3>Unique tiles with all animation frames, 2x</h3><img src="tiles_deck_1x.png" width="512" alt="">
+<h2>Layout proposal</h2><p>Values in orange differ from the stage table in src/core/stage.c. They are a proposal, not a decision.</p>
+<table><tr><th>x</th><th>y</th><th>width</th><th>tiles tall</th><th>sprite lines</th><th>table x</th><th>table y</th><th>table width</th></tr>
+<tr><td>0</td><td class="diff">148</td><td>80</td><td>1</td><td>144..159</td><td>0</td><td>164</td><td>80</td></tr>
+<tr><td>304</td><td>164</td><td>80</td><td>1</td><td>160..175</td><td>304</td><td>164</td><td>80</td></tr>
+<tr><td>136</td><td class="diff">128</td><td>112</td><td>1</td><td>124..139</td><td>136</td><td>140</td><td>112</td></tr>
+<tr><td>32</td><td class="diff">92</td><td>80</td><td>1</td><td>88..103</td><td>32</td><td>104</td><td>80</td></tr>
+<tr><td>280</td><td class="diff">108</td><td>80</td><td>1</td><td>104..119</td><td>280</td><td>104</td><td>80</td></tr>
+<tr><td>144</td><td class="diff">68</td><td>96</td><td>1</td><td>64..79</td><td>144</td><td>72</td><td>96</td></tr>
+<tr><td>0</td><td class="diff">36</td><td class="diff">64</td><td>1</td><td>32..47</td><td>0</td><td>40</td><td>56</td></tr>
+<tr><td class="diff">320</td><td class="diff">52</td><td class="diff">64</td><td>1</td><td>48..63</td><td>328</td><td>40</td><td>56</td></tr>
+</table><table><tr><th>layout</th><th>worst line, strips</th><th>worst lines</th><th>lines shared by two or more islands</th></tr>
+<tr><td>stage table today, all tall</td><td>17</td><td>160..167</td><td>36..67, 100..131, 160..191</td></tr>
+<tr><td>stage table today, all thin</td><td>10</td><td>100..115, 160..175</td><td>36..51, 100..115, 160..175</td></tr>
+<tr><td>proposal</td><td>7</td><td>124..139</td><td>none</td></tr>
+</table></body></html>

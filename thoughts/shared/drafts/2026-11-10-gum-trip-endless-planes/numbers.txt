@@ -1,0 +1,83 @@
+Gum Trip endless planes (T-B4b step 1). Ring = arena plane at its arena width with a redrawn join.
+Seam measure 1 (all rings): rows in which the last column differs from the first column (the pair that touches at the
+  wrap), next to the same count for every interior neighbour pair of the plane (how many interior pairs are at least
+  as different, median, largest). A join at a house edge is as different as the other house edges, never 0.
+Seam measure 2 (far, midA, midB): the skyline is drawn 64 px past the ring end; count of those 64 pixel columns, over
+  all 8 animation frames, that differ from columns 0..63 of the ring. 0 = the picture continues across the join
+  exactly as it continues anywhere else.
+
+== ring art (role indices, the same for the three moods; a mood is a palette set)
+  far   loop 336 px (21 columns, k  4/16, repeats every 1344.0 px of scroll = 22.4 s at 1.0 px/frame)
+        unique 16x16 tiles  95 (arena plane  94; 2 not in the arena set, 1 arena tiles no longer used)
+        seam 1: join differs in 3 of 80 rows (arena plane before: 5); 250 of 335 interior pairs differ in at least as many rows; interior median 6, largest 57
+        seam 2: 0 of 64 columns differ
+        columns that differ from the arena plane (any of 8 frames): 0, 335
+  midA  loop 352 px (22 columns, k  8/16, repeats every  704.0 px of scroll = 11.7 s at 1.0 px/frame)
+        unique 16x16 tiles 149 (arena plane 146; 15 not in the arena set, 12 arena tiles no longer used)
+        seam 1: join differs in 39 of 64 rows (arena plane before: 41); 39 of 351 interior pairs differ in at least as many rows; interior median 11, largest 53
+        seam 2: 0 of 64 columns differ
+        columns that differ from the arena plane (any of 8 frames): 0, 335..351
+  midB  loop 368 px (23 columns, k 12/16, repeats every  490.7 px of scroll =  8.2 s at 1.0 px/frame)
+        unique 16x16 tiles 184 (arena plane 179; 14 not in the arena set, 9 arena tiles no longer used)
+        seam 1: join differs in 44 of 64 rows (arena plane before: 60); 16 of 367 interior pairs differ in at least as many rows; interior median 9, largest 54
+        seam 2: 0 of 64 columns differ
+        columns that differ from the arena plane (any of 8 frames): 0, 335..367
+  near  loop 384 px (24 columns, k 16/16, repeats every  384.0 px of scroll =  6.4 s at 1.0 px/frame)
+        unique 16x16 tiles 266 (arena plane 266; 17 not in the arena set, 17 arena tiles no longer used)
+        seam 1: join differs in 61 of 96 rows (arena plane before: 65); 41 of 383 interior pairs differ in at least as many rows; interior median 12, largest 81
+        seam 2: not measured (drawn on a wrapping canvas, see README)
+        columns that differ from the arena plane (any of 8 frames): 332..342, 347..357, 362..383
+  totals for far, midA, midB, near: ring 694 unique tiles, arena 685; 48 ring tiles are not in the arena set
+  ROM figure: the study gives none ("ROM tile budget not read"); the build plan says ROM space is not the limit.
+    If the arena adopts the ring planes (its two ends change slightly), the cost is +9 tiles.
+    If the trip keeps its own copy of the four planes next to the arena planes, the cost is +48 tiles (only the tiles not shared).
+
+== mood moon: Clear night, moon
+  sky          still plane 320 px, k 0, not a ring (never crosses a join); unique tiles 165; palettes 1, colours [11] (11 distinct)
+  far          loop 336 px; unique tiles  95; palettes 1, colours [10] (10 distinct); seam 1: 3 of 80 rows (before 5); seam 2: 0 of 64 columns
+  midA         loop 352 px; unique tiles 149; palettes 3, colours [15, 15, 8] (19 distinct); seam 1: 39 of 64 rows (before 41); seam 2: 0 of 64 columns
+  midB         loop 368 px; unique tiles 184; palettes 3, colours [15, 15, 7] (21 distinct); seam 1: 44 of 64 rows (before 60); seam 2: 0 of 64 columns
+  near         loop 384 px; unique tiles 266; palettes 3, colours [15, 15, 11] (26 distinct); seam 1: 61 of 96 rows (before 65); seam 2: n/a
+  cloudsfront  loop 320 px (accepted strip, unchanged, k 2/16); unique tiles  45; palettes 1, colours [4]; seam 1: 0 of 32 rows, opaque pixels in the two end columns: 0
+  cloudsback   loop 160 px (accepted strip, unchanged, k 1/16); unique tiles  32; palettes 1, colours [4]; seam 1: 0 of 32 rows, opaque pixels in the two end columns: 0
+  airship      screen-space object, drifts right to left at 0.1 px/frame, not a ring (accepted art, unchanged)
+  scenery sprites per 16 lines, ring-valid trim: 20 20 20 25 35 49 62 63 65 47 47 24 24 24
+    worst 65 at lines 128..143; with the gameplay reserve 24: 89 of 90 (SB_LIMIT), hardware limit 96. Study: 65 and 89.
+    lines 192..223 with the 24 hazard strip sprites and the reserve: 72
+    empty-row trim only (no occlusion trim): worst 83 at lines 112..127 (study: 82)
+    not counted: stars, sky objects, clouds, airship, beams, rain, moving hazards (2 or 3 sprites each)
+  gif: 192 frames of 50 ms = 9.6 s, 576 px of scroll, 105 colours, 12.1 MB
+
+== mood storm: Storm, rain and search beams
+  sky          still plane 320 px, k 0, not a ring (never crosses a join); unique tiles 153; palettes 1, colours [9] (9 distinct)
+  far          loop 336 px; unique tiles  95; palettes 1, colours [10] (10 distinct); seam 1: 3 of 80 rows (before 5); seam 2: 0 of 64 columns
+  midA         loop 352 px; unique tiles 149; palettes 3, colours [15, 15, 8] (19 distinct); seam 1: 39 of 64 rows (before 41); seam 2: 0 of 64 columns
+  midB         loop 368 px; unique tiles 184; palettes 3, colours [15, 15, 6] (21 distinct); seam 1: 44 of 64 rows (before 60); seam 2: 0 of 64 columns
+  near         loop 384 px; unique tiles 266; palettes 3, colours [15, 15, 11] (26 distinct); seam 1: 61 of 96 rows (before 65); seam 2: n/a
+  beams, rain  screen-space, not rings (accepted art, unchanged)
+  scenery sprites per 16 lines, ring-valid trim: 20 20 20 25 35 49 62 63 65 47 47 24 24 24
+    worst 65 at lines 128..143; with the gameplay reserve 24: 89 of 90 (SB_LIMIT), hardware limit 96. Study: 65 and 89.
+    lines 192..223 with the 24 hazard strip sprites and the reserve: 72
+    empty-row trim only (no occlusion trim): worst 83 at lines 112..127 (study: 82)
+    not counted: stars, sky objects, clouds, airship, beams, rain, moving hazards (2 or 3 sprites each)
+  gif: 192 frames of 50 ms = 9.6 s, 576 px of scroll, 94 colours, 14.0 MB
+
+== mood dusk: Ember dusk, low sun
+  sky          still plane 320 px, k 0, not a ring (never crosses a join); unique tiles 156; palettes 1, colours [12] (12 distinct)
+  far          loop 336 px; unique tiles  95; palettes 1, colours [10] (10 distinct); seam 1: 3 of 80 rows (before 5); seam 2: 0 of 64 columns
+  midA         loop 352 px; unique tiles 149; palettes 3, colours [15, 15, 8] (19 distinct); seam 1: 39 of 64 rows (before 41); seam 2: 0 of 64 columns
+  midB         loop 368 px; unique tiles 184; palettes 3, colours [15, 15, 6] (21 distinct); seam 1: 44 of 64 rows (before 60); seam 2: 0 of 64 columns
+  near         loop 384 px; unique tiles 266; palettes 3, colours [15, 15, 11] (26 distinct); seam 1: 61 of 96 rows (before 65); seam 2: n/a
+  cloudsfront  loop 320 px (accepted strip, unchanged, k 2/16); unique tiles  45; palettes 1, colours [4]; seam 1: 0 of 32 rows, opaque pixels in the two end columns: 0
+  cloudsback   loop 160 px (accepted strip, unchanged, k 1/16); unique tiles  32; palettes 1, colours [4]; seam 1: 0 of 32 rows, opaque pixels in the two end columns: 0
+  airship      screen-space object, drifts right to left at 0.1 px/frame, not a ring (accepted art, unchanged)
+  scenery sprites per 16 lines, ring-valid trim: 20 20 20 25 35 49 62 63 65 47 47 24 24 24
+    worst 65 at lines 128..143; with the gameplay reserve 24: 89 of 90 (SB_LIMIT), hardware limit 96. Study: 65 and 89.
+    lines 192..223 with the 24 hazard strip sprites and the reserve: 72
+    empty-row trim only (no occlusion trim): worst 83 at lines 112..127 (study: 82)
+    not counted: stars, sky objects, clouds, airship, beams, rain, moving hazards (2 or 3 sprites each)
+  gif: 192 frames of 50 ms = 9.6 s, 576 px of scroll, 108 colours, 12.4 MB
+
+speeds in the GIFs, px per 60 Hz frame at the capped trip speed 1.0: sky 0, clouds back 0.0625, clouds front 0.125, far 0.25,
+  midA 0.5, midB 0.75, near 1.0, hazard strip 1.0 (one variant, period 64), airship 0.1 leftward in screen space.
+  GIF timing: 3 px of scroll per 50 ms frame (20 frames per second), so the speed is true and the motion is coarser than on hardware.

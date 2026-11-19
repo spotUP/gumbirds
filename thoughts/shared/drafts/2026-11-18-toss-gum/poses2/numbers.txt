@@ -1,0 +1,10 @@
+throw loop frames 15, catch loop frames 17, toss frames 39 (timing unchanged)
+widest wing run in px (X Y Z letters, wing rows), old -> new:
+  throw0   3 ->  6
+  throw1   5 ->  8
+  throw2   4 ->  6
+  throw3  10 -> 12
+  catch0   4 ->  6
+  catch1   4 ->  7
+  catch2  12 -> 16
+  catch3   3 ->  6

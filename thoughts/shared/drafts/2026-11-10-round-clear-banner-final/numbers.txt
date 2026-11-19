@@ -1,0 +1,43 @@
+ROUND CLEAR BANNER, FINAL (D and C combined), 10 November 2026 (written by draw_round_clear_banner_final.py)
+
+cost: new tiles 1 (pop burst, sheet index 75); new palettes 0; palettes used 5 (white, pink, lime, gold, dim); distinct tiles used 40;
+      fix cells written at most 176 (22 x 8); most cell writes in one frame 133 (frame 48), 66 at frame 0, at most 4 on frames 1 to 47, 9 per ROUND blink swap.
+
+centring (screen is 320 px, centre between x 159 and 160). Left = first ink column, right margin = 319 - last ink column.
+ink = every pixel that is not plate; face = glyph face without its 1 px drop shadow (icon: body colours).
+  panel: 22 cells, left margin 72 px, right margin 72 px
+  case            line      cells  first col  ink margins L/R   face margins L/R
+  p1_round02      headline   20     10         80 /  83          80 /  84
+  p1_round02      winner     16     12         98 /  96          98 /  97
+  p1_round02      round       8     16        128 / 128         128 / 129
+  p2_round02      headline   20     10         80 /  83          80 /  84
+  p2_round02      winner     16     12         98 /  96          98 /  97
+  p2_round02      round       8     16        128 / 128         128 / 129
+  cpu_round02     headline   20     10         80 /  83          80 /  84
+  cpu_round02     winner     16     12         98 /  96          98 /  97
+  cpu_round02     round       8     16        128 / 128         128 / 129
+  draw_round02    headline   20     10         80 /  83          80 /  84
+  draw_round02    winner     12     14        112 / 112         112 / 113
+  draw_round02    round       8     16        128 / 128         128 / 129
+  p1_round12      headline   20     10         80 /  83          80 /  84
+  p1_round12      winner     16     12         98 /  96          98 /  97
+  p1_round12      round       8     16        128 / 128         128 / 129
+  Every line has an even cell count, so every cell box is centred exactly. Ink differs from the box only by glyph shape:
+  the face of a Gumdrop letter is 7 px wide with a 1 px shadow on the right, and the last headline glyph (!) and the digit 1 are narrow.
+
+contrast (0..255 luminance gap, text cell face against the brightest quarter of its surroundings; under 90 is hard to read at 1x)
+  dusk  worst text cell 119  (draw_round02 frame 56 cell 20,13 tile b:V palette dim)
+        winner line by palette, worst cell: pink 195, lime 201, white 212, dim 119
+  moon  worst text cell 119  (draw_round02 frame 56 cell 20,13 tile b:V palette dim)
+        winner line by palette, worst cell: pink 195, lime 201, white 212, dim 119
+  storm worst text cell 119  (draw_round02 frame 56 cell 20,13 tile b:V palette dim)
+        winner line by palette, worst cell: pink 195, lime 201, white 212, dim 119
+  All text sits on the navy plate inside its own tile, so the text numbers do not depend on the sky.
+
+notes:
+  backdrop dusk: HUD round digit 3 at cell 26,27 changed to 1
+  backdrop moon: HUD round digit 3 at cell 26,27 changed to 1
+  backdrop storm: HUD round digit 3 at cell 26,27 changed to 1
+  Round 12 pictures keep the HUD mock-up at ROUND 1 (the mock-up has one round digit).
+  Backdrops are HUD mock-ups from 2026-11-10-hud-title-final, not MAME screenshots.
+  GIF: 30 frames of 70 ms, one per 4 game frames (real time 66.7 ms).

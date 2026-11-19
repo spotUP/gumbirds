@@ -1,0 +1,32 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Gumbirds logo: rim redraw</title><style>
+body{background:#1b1c1f;color:#d6d7da;font:15px/1.45 -apple-system,"Helvetica Neue",Arial,sans-serif;margin:0;padding:28px 32px}
+h1{font-size:24px;font-weight:600;margin:0 0 6px}h2{font-size:19px;font-weight:600;margin:38px 0 4px;color:#fff}
+p{max-width:980px;margin:6px 0;color:#a9abb1}
+.row{display:flex;gap:20px;overflow-x:auto;padding:10px 0 16px;align-items:flex-start}
+figure{margin:0;flex:0 0 auto;background:#24262a;border:1px solid #33363b;border-radius:4px}
+figure img{display:block;image-rendering:pixelated}
+figcaption{padding:10px 14px 12px;max-width:932px}figcaption b{color:#fff;font-weight:600}
+.sw{display:inline-block;width:14px;height:14px;border:1px solid #666;vertical-align:-2px;margin:0 4px 0 2px}
+</style></head><body>
+<h1>Gumbirds logo: rim redraw</h1>
+<p>The outer rim of the logo has its own palette entry now (index 11); letter counters and the lines between letters keep the dark line entry (index 8). No pixel moved and no gum colour changed. Per mood only two entries differ: rim and drop shadow. Each picture is the top 136 screen lines at 3x. Scroll a row sideways. Weak edge = share of outer logo pixels with contrast ratio under 1.5 against the sky next to them.</p>
+<p>Palette entries used: 11 of 15 (was 10). Unique 16x16 tiles with flips reused: 130 before, 130 after (body 123 to 123, free pieces 7 to 7).</p>
+<h2>Dusk</h2><p>Rim keeps the dark line colour, shadow unchanged: the redraw is the accepted logo, pixel for pixel (0 differing pixels).</p><div class="row">
+<figure><img src="accepted_dusk_3x.png" width="960" height="408" alt="dusk accepted logo"><figcaption><b>Accepted logo</b><br>Weak edge 3.2% (animation frames 2.9% to 4.1%). Mean contrast 3.77, lowest 1.01.</figcaption></figure>
+<figure><img src="title_dusk_3x.png" width="960" height="408" alt="dusk redraw still"><figcaption><b>Redraw, still</b><br>Rim <span class="sw" style="background:rgb(8,8,24)"></span>8,8,24. Shadow <span class="sw" style="background:rgb(24,8,49)"></span>24,8,49.<br>Weak edge 3.2% (animation frames 2.9% to 4.1%). Mean contrast 3.77, lowest 1.01.</figcaption></figure>
+<figure><img src="anim_dusk_3x.gif" width="960" height="408" alt="dusk redraw animation"><figcaption><b>Redraw, animation</b><br>10 frames, timing of the final folder (110 110 110 110 110 260 90 90 110 200 ms), free gum pieces included.</figcaption></figure>
+</div>
+<h2>Storm</h2><p>Rim takes the storm light, shadow goes black.</p><div class="row">
+<figure><img src="accepted_storm_3x.png" width="960" height="408" alt="storm accepted logo"><figcaption><b>Accepted logo</b><br>Weak edge 17.9% (animation frames 16.1% to 19.2%). Mean contrast 3.03, lowest 1.01.</figcaption></figure>
+<figure><img src="title_storm_3x.png" width="960" height="408" alt="storm redraw still"><figcaption><b>Redraw, still</b><br>Rim <span class="sw" style="background:rgb(160,200,184)"></span>160,200,184. Shadow <span class="sw" style="background:rgb(0,0,0)"></span>0,0,0.<br>Weak edge 5.2% (animation frames 4.6% to 6.2%). Mean contrast 4.54, lowest 1.02.</figcaption></figure>
+<figure><img src="anim_storm_3x.gif" width="960" height="408" alt="storm redraw animation"><figcaption><b>Redraw, animation</b><br>10 frames, timing of the final folder (110 110 110 110 110 260 90 90 110 200 ms), free gum pieces included.</figcaption></figure>
+</div>
+<h2>Moon</h2><p>Rim takes the moonlight, shadow goes blue-black.</p><div class="row">
+<figure><img src="accepted_moon_3x.png" width="960" height="408" alt="moon accepted logo"><figcaption><b>Accepted logo</b><br>Weak edge 11.7% (animation frames 9.9% to 14.3%). Mean contrast 3.00, lowest 1.01.</figcaption></figure>
+<figure><img src="title_moon_3x.png" width="960" height="408" alt="moon redraw still"><figcaption><b>Redraw, still</b><br>Rim <span class="sw" style="background:rgb(160,192,248)"></span>160,192,248. Shadow <span class="sw" style="background:rgb(0,0,16)"></span>0,0,16.<br>Weak edge 4.8% (animation frames 4.8% to 5.9%). Mean contrast 4.05, lowest 1.01.</figcaption></figure>
+<figure><img src="anim_moon_3x.gif" width="960" height="408" alt="moon redraw animation"><figcaption><b>Redraw, animation</b><br>10 frames, timing of the final folder (110 110 110 110 110 260 90 90 110 200 ms), free gum pieces included.</figcaption></figure>
+</div>
+<h2>Joins at 6x</h2><p>Still frame over storm and moon, left half above right half: where the lines between letters, the drip and the counters meet the rim.</p>
+<div class="row"><figure><img src="zoom_storm_6x.png" width="960" height="1152" alt="storm joins at 6x"></figure></div>
+<div class="row"><figure><img src="zoom_moon_6x.png" width="960" height="1152" alt="moon joins at 6x"></figure></div>
+</body></html>

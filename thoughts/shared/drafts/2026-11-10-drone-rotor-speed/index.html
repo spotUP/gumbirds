@@ -1,0 +1,42 @@
+<!doctype html><html lang='en'><head><meta charset='utf-8'><title>Drone rotor speed draft</title><style>
+body{background:#1b1c1f;color:#d9dadd;font:15px/1.45 -apple-system,'Helvetica Neue',Arial,sans-serif;margin:28px}
+h1{font-size:22px;margin:0 0 6px}h2{font-size:17px;margin:30px 0 10px;border-bottom:1px solid #3a3c42;padding-bottom:4px}
+p{max-width:920px;color:#b4b6bc;margin:6px 0}
+.row{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start}
+figure{margin:0;background:#25272b;border:1px solid #3a3c42;border-radius:3px;padding:10px;max-width:100%;overflow-x:auto}
+figcaption{margin-top:8px;font-size:13px;color:#c6c8cd;max-width:256px}
+.wide figcaption{max-width:none}
+img{image-rendering:pixelated;display:block}
+.sheet img{background:#16181d}
+</style></head><body>
+<h1>Drone rotor at hardware auto-animation speed</h1>
+<p>All pictures run at exact game timing (60 game frames per second) and are shown at 4 times size. Today the processor changes the rotor picture every 2 game frames. Hardware auto-animation shares one speed with the floating islands: a new picture every 7 game frames, about 8.6 per second. Question: which version still reads as a spinning rotor?</p>
+<p>In V2 and V3 only the rotor (top 5 pixel rows) is redrawn. Body, lamp, size and colours are unchanged. The lamp blinks slower at the hardware speed in V1, V2 and V3 (about twice per second instead of 7.5 times).</p>
+<h2>On plain dark sky</h2><div class='row'>
+<figure><img src="v0_plain.gif" width="256" height="160" alt="V0  today: 4 frames, new frame every 2 game frames (30 per second)"><figcaption>V0  today: 4 frames, new frame every 2 game frames (30 per second)</figcaption></figure>
+<figure><img src="v1_plain.gif" width="256" height="160" alt="V1  same 4 frames, new frame every 7 game frames (naive switch)"><figcaption>V1  same 4 frames, new frame every 7 game frames (naive switch)</figcaption></figure>
+<figure><img src="v2_plain.gif" width="256" height="160" alt="V2  4 redrawn blur frames, every 7 game frames"><figcaption>V2  4 redrawn blur frames, every 7 game frames</figcaption></figure>
+<figure><img src="v3_plain.gif" width="256" height="160" alt="V3  8 redrawn blur frames, every 7 game frames"><figcaption>V3  8 redrawn blur frames, every 7 game frames</figcaption></figure>
+</div>
+<h2>On the dusk background (crop)</h2><div class='row'>
+<figure><img src="v0_dusk.gif" width="256" height="160" alt="V0  today: 4 frames, new frame every 2 game frames (30 per second)"><figcaption>V0  today: 4 frames, new frame every 2 game frames (30 per second)</figcaption></figure>
+<figure><img src="v1_dusk.gif" width="256" height="160" alt="V1  same 4 frames, new frame every 7 game frames (naive switch)"><figcaption>V1  same 4 frames, new frame every 7 game frames (naive switch)</figcaption></figure>
+<figure><img src="v2_dusk.gif" width="256" height="160" alt="V2  4 redrawn blur frames, every 7 game frames"><figcaption>V2  4 redrawn blur frames, every 7 game frames</figcaption></figure>
+<figure><img src="v3_dusk.gif" width="256" height="160" alt="V3  8 redrawn blur frames, every 7 game frames"><figcaption>V3  8 redrawn blur frames, every 7 game frames</figcaption></figure>
+</div>
+<h2>If the global speed were changed to 4 game frames (15 per second)</h2><div class='row'>
+<figure><img src="v2_t4_plain.gif" width="256" height="160" alt="V2 at 4 game frames (only if the global speed changes; islands would move 1.75 times faster)"><figcaption>V2 at 4 game frames (only if the global speed changes; islands would move 1.75 times faster)</figcaption></figure>
+<figure><img src="v3_t4_plain.gif" width="256" height="160" alt="V3 at 4 game frames (only if the global speed changes; islands would move 1.75 times faster)"><figcaption>V3 at 4 game frames (only if the global speed changes; islands would move 1.75 times faster)</figcaption></figure>
+<figure><img src="v2_t4_dusk.gif" width="256" height="160" alt="V2 at 4 game frames (only if the global speed changes; islands would move 1.75 times faster)"><figcaption>V2 at 4 game frames (only if the global speed changes; islands would move 1.75 times faster)</figcaption></figure>
+<figure><img src="v3_t4_dusk.gif" width="256" height="160" alt="V3 at 4 game frames (only if the global speed changes; islands would move 1.75 times faster)"><figcaption>V3 at 4 game frames (only if the global speed changes; islands would move 1.75 times faster)</figcaption></figure>
+</div>
+<h2>Bot obstacle</h2><div class='row'>
+<figure><img src="bot_today_plain.gif" width="256" height="160" alt="Bot today: 2 frames, every 8 game frames"><figcaption>Bot today: 2 frames, every 8 game frames</figcaption></figure>
+<figure><img src="bot_t7_plain.gif" width="256" height="160" alt="Bot as a 4-frame group A B A B, every 7 game frames"><figcaption>Bot as a 4-frame group A B A B, every 7 game frames</figcaption></figure>
+<figure><img src="bot_t28_plain.gif" width="256" height="160" alt="Bot as the study's 8-frame group A A A A B B B B at 7 game frames (28 per picture)"><figcaption>Bot as the study's 8-frame group A A A A B B B B at 7 game frames (28 per picture)</figcaption></figure>
+</div>
+<h2>Frame sheets at 8 times size</h2><div class='sheet wide'>
+<figure><img src="sheet_v0_v1_1x.png" width="944" height="160" alt="V0 and V1: today's 4 frames (rotor wide, narrow, wide, narrow; lamp on, on, off, off)"><figcaption>V0 and V1: today's 4 frames (rotor wide, narrow, wide, narrow; lamp on, on, off, off)</figcaption></figure>
+<p></p><figure><img src="sheet_v2_1x.png" width="944" height="160" alt="V2: 4 blur frames (bright streak: tips, right, centre, left)"><figcaption>V2: 4 blur frames (bright streak: tips, right, centre, left)</figcaption></figure>
+<p></p><figure><img src="sheet_v3_1x.png" width="1904" height="160" alt="V3: 8 blur frames (same sweep in half steps)"><figcaption>V3: 8 blur frames (same sweep in half steps)</figcaption></figure>
+</div><p>Tile counts and palette use: numbers.txt in this folder.</p></body></html>

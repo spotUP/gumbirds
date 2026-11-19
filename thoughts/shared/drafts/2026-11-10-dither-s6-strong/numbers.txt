@@ -1,0 +1,19 @@
+sky ramp: S0/S6 3 colours, M/H 5 colours; whole scene mock 35 -> 37 colours (M), 37 (H)
+A spikes S0 unique tiles  47 of 128 raw, colours used 15 of 15, dither px      0 (0.0% of opaque), px changed per step 150-405, wrap 162
+A spikes S6 unique tiles  47 of 128 raw, colours used 15 of 15, dither px    120 (0.5% of opaque), px changed per step 153-409, wrap 165
+A spikes M  unique tiles  47 of 128 raw, colours used 15 of 15, dither px   1156 (5.1% of opaque), px changed per step 169-430, wrap 181
+A spikes H  unique tiles  47 of 128 raw, colours used 15 of 15, dither px   3636 (16.1% of opaque), px changed per step 211-473, wrap 223
+C water  S0 unique tiles  99 of 128 raw, colours used 14 of 14, dither px      0 (0.0% of opaque), px changed per step 372-529, wrap 379
+C water  S6 unique tiles 100 of 128 raw, colours used 14 of 14, dither px   1502 (7.4% of opaque), px changed per step 372-520, wrap 393
+C water  M  unique tiles  99 of 128 raw, colours used 14 of 14, dither px   2836 (14.0% of opaque), px changed per step 363-540, wrap 395
+C water  H  unique tiles 101 of 128 raw, colours used 14 of 14, dither px   4046 (20.0% of opaque), px changed per step 371-529, wrap 396
+crust anchor M grid : dither px per loop  9350, changes on still art   108, blinks    16
+crust anchor M plate: dither px per loop  9358, changes on still art   285, blinks   102
+crust anchor M surf : dither px per loop  9342, changes on still art    93, blinks    18
+crust anchor H grid : dither px per loop 14890, changes on still art   206, blinks    36
+crust anchor H plate: dither px per loop 14906, changes on still art  1034, blinks   380
+crust anchor H surf : dither px per loop 14933, changes on still art   192, blinks    25
+D lava   S0 unique tiles 256 of 256 raw, colours used 14 of 14, dither px      0 (0.0% of opaque), px changed per step 627-894, wrap 739
+D lava   S6 unique tiles 256 of 256 raw, colours used 14 of 14, dither px   8082 (17.7% of opaque), px changed per step 665-934, wrap 798
+D lava   M  unique tiles 256 of 256 raw, colours used 14 of 14, dither px   9350 (20.5% of opaque), px changed per step 687-935, wrap 811
+D lava   H  unique tiles 256 of 256 raw, colours used 14 of 14, dither px  14890 (32.7% of opaque), px changed per step 664-889, wrap 782

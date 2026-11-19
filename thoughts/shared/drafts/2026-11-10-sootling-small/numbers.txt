@@ -1,0 +1,33 @@
+Small Sootling drafts, numbers measured by draw_small.py
+Screen 320 x 224, world 384 x 180 (water line y 180, hazard strip drawn at y 192).
+
+size      frame    fur body (idle, measured)   body w / screen w   frame h / world h   frames stacked in world   fur h / world h
+now       32x48    22 wide x 19 tall             6.9% (14.5 fit)     26.7%              3.75                       10.6%
+24x32     24x32    14 wide x 14 tall             4.4% (22.9 fit)     17.8%              5.62                        7.8%
+20x28     20x28    11 wide x  9 tall             3.4% (29.1 fit)     15.6%              6.43                        5.0%
+
+Tiles (16 x 16 Neo Geo tiles, 63 frames, one palette; the rival reuses the tiles):
+  now   32x48: 2 strips x 3 tiles = 6 per frame, 378 slots; measured on the real sheet: 341 non-empty, 294 unique
+  24x32      : 2 strips x 2 tiles = 4 per frame, 252 slots; estimate 196 unique (real unique count x 4/6)
+  20x28      : 2 strips x 2 tiles = 4 per frame, 252 slots; estimate 196 unique. Same as 24x32: 20 px still needs
+               two 16 px strips and 28 px still needs two tile rows. 20x28 saves no tiles and no sprites over 24x32.
+  drafts only: 24x32 39 non-empty / 29 unique in 10 frames; 20x28 14 / 14 in 4 frames
+  Sprites per flier: 2 strips at every size (per-scanline load is unchanged); only the height drops 3 -> 2 tiles.
+
+Headroom, stage table now: closest stacked standing lines are 56 px apart (islands at y 52 and 108).
+  now 48 px frame leaves 8 px; 24x32 leaves 24 px; 20x28 leaves 28 px.
+
+Detail lost against the 32x48 sheet:
+  eyes      now about 6x7 px each with a 2x3 pupil and a shaded lower lid; 24x32: 3x4 with a 1x2 pupil,
+            one shade pixel; 20x28: 2x3 with a 1 px pupil, expressions reduce to open / looking down.
+  brows     now a separate brow line that tilts; 24x32: gone, the eye box top edge stands in; lids only as a
+            flat bar (landing). 20x28: none.
+  fur       now 5 shades in dithered clusters with a rim; 24x32: 5 shades, clusters of 2-4 px, no dither;
+            20x28: 5 entries used but only about 3 read (light cap, mid, dark belly).
+  tufts     now 2 tufts of 3-4 px with light tips; 24x32: 2 tufts of 2 px; 20x28: 1-2 px bumps.
+  wing      now a 9 px lozenge with 3 shades; 24x32: 4-5 px, yellow / orange / 1 px red; 20x28: 3 px, 2 shades.
+  beak      now 3 shades; 24x32 and 20x28: 2x2 px, yellow / orange / red.
+  feet      now 3 px toes with shadow; 24x32: leg pixel + 3 px foot; 20x28: leg pixel + 2 px foot.
+  gum       now each lobe about 12 px with 5 shades + sparkle; 24x32: 9 px lobes, 5 shades + 1 white pixel;
+            20x28: 7 px lobes, 4 shades read, the pinch between lobes is 1 px.
+  string    now 2 px with outline; 24x32 and 20x28: 1 px light + 1 px dark, no outline.

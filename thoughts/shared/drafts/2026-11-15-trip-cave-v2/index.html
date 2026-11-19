@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Trip Cave v2</title>
+<style>
+:root{--bg:#14161c;--panel:#1d2029;--line:#333847;--text:#e6e8ee;--dim:#9aa1b2;--accent:#ff8c9c}
+body{margin:0;padding:24px 16px 64px;background:var(--bg);color:var(--text);font:15px/1.5 system-ui,sans-serif}
+main{max-width:1280px;margin:0 auto}
+h1{font-size:26px;margin:0 0 4px}h2{font-size:20px;margin:40px 0 8px;border-bottom:1px solid var(--line);padding-bottom:6px}
+h3{font-size:14px;margin:16px 0 6px;color:var(--dim);font-weight:600}
+p{margin:6px 0;max-width:80ch}.dim{color:var(--dim)}
+img{image-rendering:pixelated;display:block;max-width:100%;height:auto;background:#000;border:1px solid var(--line)}
+.row{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:12px}
+.refs img{max-height:340px;width:auto}
+</style></head><body><main>
+<h1>Gum Trip cave, redraw v2</h1>
+<p>Every tile is typed by hand as char-map rows in <code>cave_art.py</code>. <code>build_cave.py</code> only joins, mirrors, palette-maps, packs, scales and counts. Mock backdrop is a flat placeholder colour. Numbers: <a style="color:var(--accent)" href="numbers.txt">numbers.txt</a>.</p>
+
+<h2>Current game graphics (references, 3x)</h2>
+<div class="row refs">
+<div class="card"><h3>Tripstrip (gum floor)</h3><img src="ref_tripstrip_sheet_3x.png" alt="tripstrip sheet"></div>
+<div class="card"><h3>Island</h3><img src="ref_island_sheet_3x.png" alt="island sheet"></div>
+<div class="card"><h3>Island garden</h3><img src="ref_island_garden_sheet_3x.png" alt="island garden sheet"></div>
+<div class="card"><h3>Island deck</h3><img src="ref_island_deck_sheet_3x.png" alt="island deck sheet"></div>
+<div class="card"><h3>Hazard</h3><img src="ref_hazard_sheet_3x.png" alt="hazard sheet"></div>
+<div class="card"><h3>Gum</h3><img src="ref_gum_sheet_3x.png" alt="gum sheet"></div>
+<div class="card"><h3>Sootling</h3><img src="ref_sootling_sheet_3x.png" alt="sootling sheet"></div>
+<div class="card"><h3>Dusk</h3><img src="ref_dusk_sheet_3x.png" alt="dusk sheet"></div>
+</div>
+
+<h2>Take 1: slate boulders</h2>
+<p class="dim">12 tiles (rim 4, fill 4, ramp 4), 10 colours, static. Nothing hangs. Cyan bounce light on the underside.</p>
+<div class="row"><div class="card"><h3>Tiles 1x</h3><img src="take1_tiles_1x.png" alt=""></div><div class="card"><h3>Tiles 3x</h3><img src="take1_tiles_3x.png" alt=""></div></div>
+<div class="row"><div class="card"><h3>Mock 320x224 (seed 6), 3x</h3><img src="take1_mock_3x.png" alt=""></div><div class="card"><h3>Scroll, 45 px/s, 2x</h3><img src="take1_scroll_2x.gif" alt=""></div></div>
+
+<h2>Take 2: warm rock, blunt stalactites</h2>
+<p class="dim">15 tiles (rim 4, fill 4, ramp 4, hang 3), 10 colours, static. Horizontal strata, lit underside, three stalactites of at most 8 px.</p>
+<div class="row"><div class="card"><h3>Tiles 1x</h3><img src="take2_tiles_1x.png" alt=""></div><div class="card"><h3>Tiles 3x</h3><img src="take2_tiles_3x.png" alt=""></div></div>
+<div class="row"><div class="card"><h3>Mock 320x224 (seed 6), 3x</h3><img src="take2_mock_3x.png" alt=""></div><div class="card"><h3>Scroll, 45 px/s, 2x</h3><img src="take2_scroll_2x.gif" alt=""></div></div>
+
+<h2>Take 3: mossy rock, vines</h2>
+<p class="dim">16 tiles (rim 4, fill 4, ramp 4, hang 4), 12 colours, static. Moss fringe on the underside, four vine tiles of at most 8 px, two with glow buds.</p>
+<div class="row"><div class="card"><h3>Tiles 1x</h3><img src="take3_tiles_1x.png" alt=""></div><div class="card"><h3>Tiles 3x</h3><img src="take3_tiles_3x.png" alt=""></div></div>
+<div class="row"><div class="card"><h3>Mock 320x224 (seed 6), 3x</h3><img src="take3_mock_3x.png" alt=""></div><div class="card"><h3>Scroll, 45 px/s, 2x</h3><img src="take3_scroll_2x.gif" alt=""></div></div>
+
+<h2>Floor F1 and its 2:1 ramp</h2>
+<p class="dim">Gum palette unchanged. Straight 2 px bright lip. Ramp: 4 tiles static (recommended), up to 32 if it animates with the 8 rim frames.</p>
+<div class="row"><div class="card"><h3>1x</h3><img src="floor_f1_1x.png" alt=""></div><div class="card"><h3>3x</h3><img src="floor_f1_3x.png" alt=""></div></div>
+</main></body></html>

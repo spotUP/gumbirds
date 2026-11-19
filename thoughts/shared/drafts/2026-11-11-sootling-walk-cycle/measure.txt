@@ -1,0 +1,65 @@
+Sootling walk drafts, measured by draw_walk.py. Frame 24 x 32, col 0 left, row 0 top.
+Idle frame (sheet frame 62) reproduced pixel-exact from the reused parts: head top row 11, feet row 31,
+fur cols 5..18. No gum bubble in idle (it carries the gum wad at the beak), so no bubble in any walk
+frame; every frame carries the wad. Limits checked: head top >= 10, feet bottom 31 on contact frames
+and >= 29 otherwise, fur covers cols 10..13 (collision band) in every frame, palette = sheet indices.
+feet row = lowest foot pixel; head = topmost pixel (tuft); body cols = fur colours a..e; colours = palette
+entries used. Ground speed 1.4 px per game frame; tick = 1/60 s.
+
+A: 6-frame grounded waddle, 6 frames, holds 2 2 2 2 2 2 game frames (cycle 12 ticks = 0.200 s)
+  stride 1.4 x 12 = 16.8 px per cycle, 8.4 px per step
+  frame 0: feet row 31, head top row 11, body cols 5..18 (rows 12..28), eyes top row 18, colours 14
+  frame 1: feet row 31, head top row 11, body cols 5..18 (rows 12..27), eyes top row 17, colours 14
+  frame 2: feet row 31, head top row 10, body cols 5..18 (rows 11..27), eyes top row 17, colours 14
+  frame 3: feet row 31, head top row 11, body cols 5..18 (rows 12..28), eyes top row 18, colours 14
+  frame 4: feet row 31, head top row 11, body cols 5..18 (rows 12..27), eyes top row 17, colours 14
+  frame 5: feet row 31, head top row 10, body cols 5..18 (rows 11..27), eyes top row 17, colours 14
+    far foot planted frames 3 4 5 0, cols 15 12 9 7, world x drift max 0.4 px
+    near foot planted frames 0 1 2 3, cols 15 12 9 7, world x drift max 0.4 px
+  (within a hold the planted foot rides along with the sprite, up to 2.8 px, then snaps back; drift above is frame start to frame start)
+  tiles (player; rival reuses them): 8x8 36 unique, 26 not in the current sheet; 16x16 (frame at x 0 in 32 x 32) 15 unique, 12 not in the current sheet
+
+B: 8-frame full walk, 8 frames, holds 2 1 2 1 2 1 2 1 game frames (cycle 12 ticks = 0.200 s)
+  stride 1.4 x 12 = 16.8 px per cycle, 8.4 px per step
+  frame 0: feet row 31, head top row 11, body cols 5..18 (rows 12..28), eyes top row 18, colours 14
+  frame 1: feet row 31, head top row 12, body cols 4..19 (rows 13..28), eyes top row 19, colours 14
+  frame 2: feet row 31, head top row 11, body cols 5..18 (rows 12..27), eyes top row 17, colours 14
+  frame 3: feet row 31, head top row 10, body cols 5..18 (rows 11..27), eyes top row 17, colours 14
+  frame 4: feet row 31, head top row 11, body cols 5..18 (rows 12..28), eyes top row 18, colours 14
+  frame 5: feet row 31, head top row 12, body cols 4..19 (rows 13..28), eyes top row 19, colours 14
+  frame 6: feet row 31, head top row 11, body cols 5..18 (rows 12..27), eyes top row 17, colours 14
+  frame 7: feet row 31, head top row 10, body cols 5..18 (rows 11..27), eyes top row 17, colours 14
+    far foot planted frames 4 5 6 7 0, cols 15 12 11 8 7, world x drift max 0.4 px
+    near foot planted frames 0 1 2 3 4, cols 15 12 11 8 7, world x drift max 0.4 px
+  (within a hold the planted foot rides along with the sprite, up to 2.8 px, then snaps back; drift above is frame start to frame start)
+  tiles (player; rival reuses them): 8x8 47 unique, 38 not in the current sheet; 16x16 (frame at x 0 in 32 x 32) 19 unique, 16 not in the current sheet
+
+C: 8-frame hop-walk, 8 frames, holds 2 2 2 2 2 2 2 2 game frames (cycle 16 ticks = 0.267 s)
+  stride 1.4 x 16 = 22.4 px per cycle, 11.2 px per step
+  frame 0: feet row 31, head top row 12, body cols 4..19 (rows 13..28), eyes top row 19, colours 14
+  frame 1: feet row 31, head top row 10, body cols 7..19 (rows 11..27), eyes top row 16, colours 14
+  frame 2: feet row 29, head top row 10, body cols 6..19 (rows 11..26), eyes top row 16, colours 14
+  frame 3: feet row 30, head top row 10, body cols 5..18 (rows 11..27), eyes top row 17, colours 14
+  frame 4: feet row 31, head top row 12, body cols 4..19 (rows 13..28), eyes top row 19, colours 14
+  frame 5: feet row 31, head top row 10, body cols 7..19 (rows 11..27), eyes top row 16, colours 14
+  frame 6: feet row 29, head top row 10, body cols 6..19 (rows 11..26), eyes top row 16, colours 14
+  frame 7: feet row 30, head top row 10, body cols 5..18 (rows 11..27), eyes top row 17, colours 14
+    far foot planted frames 4 5, cols 15 12, world x drift max 0.2 px
+    near foot planted frames 0 1, cols 15 12, world x drift max 0.2 px
+  (within a hold the planted foot rides along with the sprite, up to 2.8 px, then snaps back; drift above is frame start to frame start)
+  tiles (player; rival reuses them): 8x8 40 unique, 33 not in the current sheet; 16x16 (frame at x 0 in 32 x 32) 21 unique, 19 not in the current sheet
+
+land: landing pair (then idle), 2 frames, holds 6 8 game frames (cycle 14 ticks = 0.233 s)
+  frame 0: feet row 31, head top row 12, body cols 4..19 (rows 13..28), eyes top row 19, colours 14
+  frame 1: feet row 31, head top row 12, body cols 5..18 (rows 13..28), eyes top row 18, colours 14
+  tiles (player; rival reuses them): 8x8 16 unique, 14 not in the current sheet; 16x16 (frame at x 0 in 32 x 32) 7 unique, 6 not in the current sheet
+
+breathe: idle breathing loop, 4 frames, holds 24 10 14 10 game frames (cycle 58 ticks = 0.967 s)
+  frame 0: feet row 31, head top row 11, body cols 5..18 (rows 12..28), eyes top row 18, colours 14
+  frame 1: feet row 31, head top row 10, body cols 6..18 (rows 11..28), eyes top row 17, colours 14
+  frame 2: feet row 31, head top row 10, body cols 6..18 (rows 11..28), eyes top row 17, colours 14
+  frame 3: feet row 31, head top row 12, body cols 5..18 (rows 13..28), eyes top row 18, colours 14
+  tiles (player; rival reuses them): 8x8 26 unique, 14 not in the current sheet; 16x16 (frame at x 0 in 32 x 32) 12 unique, 7 not in the current sheet
+
+walk_sheet_draft.png: 192 x 320, rows top to bottom: A player, A rival, B player, B rival, C player, C rival, land player, land rival, breathe player, breathe rival
+current sheet tile pool: 8x8 283 unique, 16x16 149 unique (player frames)

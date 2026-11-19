@@ -1,0 +1,36 @@
+LOGOS
+
+A stretched gum   : sprites. layer 304x128, 7 colours in 1 sprite palette, 79 unique 16x16 tiles for the still, 155 over the 10 animation frames, at most 19 sprites on a scanline (hardware limit 96, title has no gameplay sprites except two Sootlings = 4 more).
+B enamel sign     : fix tiles. 204 cells used, 174 unique 8x8 tiles, 15 colours in 1 fix palette, 0 sprites. Bulb chase = rotating 3 palette entries, 0 extra tiles.
+C floating letters: sprites. 8 units of 32x64 (2 strips each) = 16 sprites, 16 on a scanline at most; 58 unique 16x16 tiles for the still, 92 if the bubble sway is drawn as tiles (the bob itself is sprite y, 0 tiles); palettes: soot letters 9 colours, pink gum 8, lime gum 8 (3 sprite palettes; the gum ones are the Sootling gum ramps).
+
+palette gum (logo A, bubbles) : 107,16,132 181,41,165 255,82,181 255,165,222 255,222,247 255,255,255 33,8,66 8,8,24
+palette lime gum              : 8,82,66 16,140,74 82,214,74 173,247,123 231,255,198 255,255,255 8,33,49 8,8,24
+palette enamel sign           : 8,49,66 16,90,99 49,140,132 8,33,49 255,239,198 222,181,132 255,255,255 222,57,41 132,24,41 148,82,41 82,41,33 255,239,123 231,148,49 115,57,41 8,8,24
+palette soot letters          : 8,8,24 24,24,74 41,66,132 82,148,181 156,222,214 231,255,239 123,24,66 231,90,41 255,198,90
+
+FONTS
+
+font A Gumdrop    : 49 fix tiles (26 letters, 10 digits, 10 punctuation, 3 icons) + 20 tiles for the 8x16 digits = 69
+font B Signwriter : 49 fix tiles (same set); it has no tall digits of its own
+fix palettes      : 1 per text colour (white, pink, lime, gold, dim = 5 of the 16), 15 colours each: 4 face shades, 1 shadow, 10 fixed icon colours
+
+palette text white : 255,255,255 222,231,255 165,181,239 107,115,198 16,8,41 132,16,49 231,49,66 255,148,148 181,41,165 255,82,181 255,165,222 255,255,255 24,24,74 82,148,181 255,198,90
+palette text pink  : 255,239,247 255,181,222 255,115,189 214,57,148 41,8,41 132,16,49 231,49,66 255,148,148 181,41,165 255,82,181 255,165,222 255,255,255 24,24,74 82,148,181 255,198,90
+palette text lime  : 247,255,222 189,247,132 107,222,82 33,156,74 8,33,33 132,16,49 231,49,66 255,148,148 16,140,74 82,214,74 173,247,123 255,255,255 24,24,74 82,148,181 255,198,90
+palette text gold  : 255,255,214 255,231,115 255,181,49 214,107,24 49,16,16 132,16,49 231,49,66 255,148,148 181,41,165 255,82,181 255,165,222 255,255,255 24,24,74 82,148,181 255,198,90
+palette text dim   : 156,165,206 123,132,181 90,99,148 66,66,115 16,8,41 132,16,49 231,49,66 255,148,148 181,41,165 255,82,181 255,165,222 255,255,255 24,24,74 82,148,181 255,198,90
+
+HUD
+
+Layout 1, Roof strip, font A, moon : unbacked text rows (27,); worst cell gap 178 luminance (face minus backdrop mean), 0 cells under 70
+Layout 1, Roof strip, font A, dusk : unbacked text rows (27,); worst cell gap 156 luminance (face minus backdrop mean), 0 cells under 70
+Layout 1, Roof strip, font A, storm: unbacked text rows (27,); worst cell gap 177 luminance (face minus backdrop mean), 0 cells under 70
+Layout 1, Roof strip: 105 fix cells drawn, covers 24 of 224 scanlines of backdrop; the band is opaque: either 20 sprites of one dark 16x16 tile on lines 0..15 behind the glyphs, or a second copy of the font with a filled background (+49 tiles)
+Layout 2, Corner tags, font A, moon : unbacked text rows (0, 1, 27); worst cell gap 173 luminance (face minus backdrop mean), 0 cells under 70
+Layout 2, Corner tags, font A, dusk : unbacked text rows (0, 1, 27); worst cell gap 152 luminance (face minus backdrop mean), 0 cells under 70
+Layout 2, Corner tags, font A, storm: unbacked text rows (0, 1, 27); worst cell gap 138 luminance (face minus backdrop mean), 0 cells under 70
+Layout 2, Corner tags: 72 fix cells drawn, covers 24 of 224 scanlines of backdrop; no band, glyph shadow only
+
+results and name entry panels: fix tiles, 9 frame tiles + 3 fill tiles, drawn in the white text palette slots; score values on the results screen are placeholders (the design fixes "points for stomps and wins", no values).
+fix layer facts used: 8x8 tiles, 40x28 visible cells, 15 colours + transparent per palette, in front of all sprites, no flip, no scaling, no scroll. Play ceiling is y = 16, so fix rows 0 and 1 cover no play area.
