@@ -18,13 +18,19 @@ static u8 g_last_level[2];   /* level of the previous frame */
 static int g_pop_t[2] = { -1, -1 };  /* frames since the pop started, -1 = none */
 static u8 g_pop_anim[2];
 static int g_key[2] = { -1, -1 };    /* anim << 8 | frame loaded into the slots, -1 = none (hidden) */
+static u8 g_hidden[2];               /* the slots' SCB3 words are already 0 (set by hide, cleared by the first draw): hide() is then a no-op */
+static int g_placed[2][3] = { { -1 }, { -1 } }; /* frame key, left, top of the last gfx_sprite_place; key -1 = none (the words must be written) */
 static u16 slot_of(int pl) { return (u16)(pl ? GUM_P2_SPRITE : GUM_SPRITE); }
 
 void gum_load_palettes(void) {
+    g_hidden[0] = g_hidden[1] = 0; g_placed[0][0] = g_placed[1][0] = -1; /* VRAM may have been reset: write everything again */
     for (u8 i = 0; i < 16; i++) gfx_pal((u16)(GUM_PAL_SLOT * 16 + i), gum_palettes[0][i]);
 }
 
 static void hide(int pl) {
+    g_placed[pl][0] = -1;
+    if (g_hidden[pl]) return;
+    g_hidden[pl] = 1;
     for (int c = 0; c < GUM_COUNT; c++) gfx_word((u16)(ADDR_SCB3 + slot_of(pl) + c), 0);
     g_key[pl] = -1;
 }
@@ -44,13 +50,19 @@ void gum_step(int pl, int active, uint16_t gum, uint32_t frame, int drawn, uint8
     if (!drawn || !gum_view_draws(g_pop_t[pl] >= 0, level, o.show)) { hide(pl); return; }
     const GumFrame *f = &gum_frames[gum_anims[anim].first_frame + sheet];
     int key = (anim << 8) | sheet;
+    g_hidden[pl] = 0;
     if (key != g_key[pl]) {
+        g_placed[pl][0] = -1;
         gfx_sprite_strips(slot_of(pl), f->tiles_w, f->tiles_h, &gum_tile_index[f->tile_offset], GUM_TILE_BASE, (u16)((GUM_PAL_SLOT + f->palette) << 8));
         if (f->tiles_w < GUM_COUNT) gfx_word((u16)(ADDR_SCB3 + slot_of(pl) + f->tiles_w), 0); /* ends the chain: no stale second column */
         g_key[pl] = key; g_gum_loads += (u16)(pl == 0);
     }
     /* The bubble hangs on the bird's string: o.dy puts its bottom edge on the string top, o.dx its string column on the bird's. */
-    gfx_sprite_place(slot_of(pl), f->tiles_w, f->tiles_h, cx - f->tiles_w * 8 + o.dx, top - f->tiles_h * 16 + o.dy);
+    int left = cx - f->tiles_w * 8 + o.dx, y = top - f->tiles_h * 16 + o.dy;
+    if (g_placed[pl][0] != key || g_placed[pl][1] != left || g_placed[pl][2] != y) { /* same words as the last frame: gfx_word would drop them all */
+        gfx_sprite_place(slot_of(pl), f->tiles_w, f->tiles_h, left, y);
+        g_placed[pl][0] = key; g_placed[pl][1] = left; g_placed[pl][2] = y;
+    }
     g_gum_draws += (u16)(pl == 0);
 }
 

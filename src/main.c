@@ -3024,7 +3024,8 @@ static void game_loop(void) {
             countdown_step(view.state == FLOW_PLAYING && view.game ? ggcd_word(view.game->cd_t) : GGCD_WORD_NONE);
             toss_bubble_step(view.state == FLOW_PLAYING ? view.game : 0);   /* Toss Gum is GAME_MODE_GUM, not arena: the function checks gg_toss itself */
             fling_arc_step(world && view.state == FLOW_PLAYING && !view.card ? view.game : 0);
-            gum_step(1, race || (arena && view.game->players == 2), race ? race_gum(view.game, 1) : (uint16_t)(human_bubble_level(view.game, 1) * (GUM_MAX / GUM_VIEW_LEVELS)), view.game->frame, g_gum_pose[1].drawn, g_gum_pose[1].frame, g_gum_pose[1].flip, g_gum_pose[1].cx, g_gum_pose[1].top, world && human_leaks(view.game, 1));
+            { u8 g1 = race || (arena && view.game->players == 2); /* inactive: gum_step ignores every other argument, so they are not computed */
+                gum_step(1, g1, !g1 ? 0 : race ? race_gum(view.game, 1) : (uint16_t)(human_bubble_level(view.game, 1) * (GUM_MAX / GUM_VIEW_LEVELS)), view.game->frame, g_gum_pose[1].drawn, g_gum_pose[1].frame, g_gum_pose[1].flip, g_gum_pose[1].cx, g_gum_pose[1].top, g1 && world && human_leaks(view.game, 1)); }
             {   /* the splash starts from the same crossing that plays the splosh sound; it keeps running through Game Over */
                 const SoundEvents *se = sound_events();
                 const Game *sg = view.game;   /* Gum Trip: its own floor death starts the gum splat (the splosh edge needs a water or lava kind) */
