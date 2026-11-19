@@ -345,22 +345,13 @@ static void twist_draw(Game *g)
 }
 
 static void roost_pick(Game *g);
-static void match_start(Game *g)
+/* Part 1 of match_start: the stage (layout, look, mood, elements) in arcade, the round's layout and mood in the arena. */
+static void match_world(Game *g)
 {
-    int arcade = g->mode == GAME_MODE_ARCADE;
-    int rank = arcade ? arc_rank_for(g->arc.stage, g->arc.loops) : 1;
-    int ai_rank = rank;
-    int h;
-    int n = CPU_START_COUNT + (int)g->matches_won;
-    int i;
-    if (n > CPU_MAX) {
-        n = CPU_MAX;
-    }
-    if (arcade) {
+    if (g->mode == GAME_MODE_ARCADE) {
         stage_select(arc_stage_layout(g->arc.stage));
         stage_set_level(world_get(world_of_stage(g->arc.stage))->look); /* arcade: the stage block's world (world.h) */
         g->mood = world_get(world_of_stage(g->arc.stage))->mood;
-        n = stage_rival_count(); /* the layout's own rival count (ROT3b) */
         arc_elements_init(&g->elems, g->arc.stage - 1);
     } else {
         if (g->rounds) {
@@ -368,6 +359,20 @@ static void match_start(Game *g)
             stage_set_level((int)g->matches_won);
         }
         game_next_mood(g); /* arena: each part varies on its own (world.h) */
+    }
+}
+
+/* Part 2 of match_start: twist, the computer fliers, the party rules. Needs match_world done first (stage_rival_count, spawns). */
+static void match_rivals(Game *g)
+{
+    int arcade = g->mode == GAME_MODE_ARCADE;
+    int rank = arcade ? arc_rank_for(g->arc.stage, g->arc.loops) : 1;
+    int ai_rank = rank;
+    int h;
+    int n = arcade ? stage_rival_count() : CPU_START_COUNT + (int)g->matches_won; /* arcade: the layout's own rival count (ROT3b) */
+    int i;
+    if (n > CPU_MAX) {
+        n = CPU_MAX;
     }
     if (g->party_rule == PARTY_ROUND) {
         twist_draw(g);
@@ -396,6 +401,12 @@ static void match_start(Game *g)
         roost_pick(g);
         g->ai[0].hold = 1; /* the first computer flier contests the island; the others fight as usual */
     }
+}
+
+static void match_start(Game *g)
+{
+    match_world(g);
+    match_rivals(g);
     if (g->rounds) {
         g->round_start = RS_ROUND; /* round 1 and every round after the pan: ROUND nn, GO!, all frozen */
         g->round_start_timer = 0;
@@ -797,7 +808,15 @@ static int round_phase_step(Game *g, uint8_t skip)
             int n = human_xs(g, humans);
             if (camera_arrived(&g->camera, humans, n)) {
                 g->round_end = RE_NONE;
-                match_start(g);
+                if (g->mode == GAME_MODE_ARCADE) {
+                    /* Arcade: the banner starts on this frame as before, the build is spread over the next two frozen banner frames
+                     * (match_world, then match_rivals): one frame doing all of it plus the first draw of a new stage overran the vblank. */
+                    g->round_start = RS_ROUND;
+                    g->round_start_timer = 0;
+                    g->match_step = 1;
+                } else {
+                    match_start(g);
+                }
             }
         }
         camera_follow(g);
@@ -805,6 +824,8 @@ static int round_phase_step(Game *g, uint8_t skip)
     }
     if (g->round_start != RS_NONE) {
         g->frame++;
+        if (g->match_step == 1) { match_world(g); g->match_step = 2; }
+        else if (g->match_step == 2) { match_rivals(g); g->match_step = 0; }
         g->round_start_timer++;
         if (g->round_start == RS_ROUND && g->party_rule != PARTY_NONE && skip) g->round_start_timer = PARTY_ROUND_START_TEXT_FRAMES; /* A or Start skips the party hold */
         if (g->round_start == RS_ROUND && g->round_start_timer >= (g->party_rule != PARTY_NONE ? PARTY_ROUND_START_TEXT_FRAMES : ROUND_START_TEXT_FRAMES)) {

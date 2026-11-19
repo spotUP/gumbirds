@@ -124,6 +124,7 @@ typedef struct {
     uint32_t stomps;     /* balloons popped by stomps, any flier */
     uint32_t matches_won;
     uint8_t rounds;      /* 1 = real arena game: round end hold/pan and round start freeze run. flow start_game sets it; the demo and direct game_step_arena callers keep 0 (immediate rematch, no freeze) */
+    uint8_t match_step;  /* arcade pan end: 1 = match_world still due, 2 = match_rivals still due (frozen banner frames), 0 = built */
     uint8_t round_end;   /* RoundEnd */
     uint16_t round_timer;/* frames left in RE_HOLD */
     uint8_t round_start; /* RoundStart */

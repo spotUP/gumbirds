@@ -172,6 +172,13 @@ local function report()
   return true
 end
 local walk_wait = 0
+local rs_addr, ph_prev = tonumber(os.getenv("BRAWL_RS_ADDR") or "", 16), nil
+local function note_phase() -- ARC_PH: frame of every (round_end, round_start, hero visible) change, to compare the play-start frame between builds
+  if not rs_addr then return end
+  local re, rs, vis = mem:read_u16(rs_addr), mem:read_u16(rs_addr + 4), mem:read_u16(rs_addr + 6)
+  local key = re * 100 + rs * 10 + vis
+  if key ~= ph_prev then ph_prev = key; print(string.format("ARC_PH frame %d stage %d round_end %d round_start %d visible %d", n, g(O_STAGE), re, rs, vis)) end
+end
 local function state() return string.format("flow=%d mode=%d stage=%d arc=%d lives=%d lstate=%d", b(O_FLOW), b(O_MODE), g(O_STAGE), g(O_ASTATE), g(O_LIVES), g(O_LSTATE)) end
 
 emu.register_frame_done(function()
@@ -179,6 +186,7 @@ emu.register_frame_done(function()
   if n > ((walk or cont_out) and 40000 or 9000) then finish(false, "watchdog in phase " .. phase .. ": " .. state()) return end
   local playing = b(O_FLOW) == K.playing
   if playing and fc_line > logic_max then logic_max = fc_line end
+  if playing then note_phase() end
   if playing and phase ~= "boot" and phase ~= "start" then note_frame(g(O_STAGE), g(O_ASTATE), g(O_LSTATE), fc_line) end
   if (walk or bonus_run) and phase ~= "boot" and phase ~= "start" and phase ~= "stage1" and phase ~= "walk_clear" then mem:write_u32(flow_addr + O_LIVES, K.lives) end
   if phase == "boot" then
