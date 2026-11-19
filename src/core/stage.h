@@ -50,6 +50,8 @@ int32_t stage_floor_y(int32_t x16, int32_t feet16);
  */
 /* Most solids stage_solids_near can return for one position (the platforms are few and spread out). */
 #define STAGE_SOLIDS_MAX 8
+/* Reach of the solid list beyond the flier box, px: a flier moves less than this per frame (also used to cull gum posts in game.c). */
+#define STAGE_SOLID_REACH_PX 8
 int stage_solids_near(int32_t x16, FlierSolid *out, int max);
 
 /*

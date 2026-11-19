@@ -698,12 +698,26 @@ static const ArcPost arc_posts[] = {
 /* Appends the posts of the current layout as solid boxes (copy nearest x16); returns the new count. */
 static int add_post_solids(int32_t x16, FlierSolid *so, int n)
 {
+    static int cached_layout = -1;
+    static unsigned first, last;   /* arc_posts is grouped by layout: the posts of the cached layout are [first, last) */
     unsigned i;
     int layout = stage_layout_index();
-    for (i = 0; i < sizeof(arc_posts) / sizeof(arc_posts[0]); i++) {
+    int xpx = (int)(x16 >> 16);
+    if (layout != cached_layout) {
+        cached_layout = layout;
+        first = last = 0;
+        for (i = 0; i < sizeof(arc_posts) / sizeof(arc_posts[0]); i++) {
+            if (arc_posts[i].layout != layout) continue;
+            if (first == last) first = i;
+            last = i + 1;
+        }
+    }
+    for (i = first; i < last; i++) {
         const ArcPost *p = &arc_posts[i];
         const StagePlatform *pl;
-        if (p->layout != layout) continue;
+        int d;
+        d = (int)arena_fold(xpx - (p->x + ARC_POST_W / 2), arena_ring); /* same cull as stage_solids_near: a post out of reach cannot be hit */
+        if ((d < 0 ? -d : d) >= ARC_POST_W / 2 + FLIER_SOLID_MAX_HALF_W + STAGE_SOLID_REACH_PX + 2) continue;
         pl = &stage_platforms[p->plat];
         so[n].x16 = arena_near_x(x16, FL_PX(p->x + ARC_POST_W / 2)) - FL_PX(ARC_POST_W / 2);
         so[n].y16 = FL_PX(p->up ? pl->y - p->len : pl->y + STAGE_PLATFORM_H);

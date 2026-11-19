@@ -145,7 +145,7 @@ int32_t stage_floor_y(int32_t x16, int32_t feet16) {
 
 /* Reach of the solid list beyond the flier box: a flier moves a few pixels per frame, so a platform whose copy is this much
  * farther away than touching cannot be hit this frame. */
-#define SOLID_REACH_PX 8
+#define SOLID_REACH_PX STAGE_SOLID_REACH_PX
 
 /* A flier that steers out from under a platform keeps going until its box is this far past the edge. */
 #define OVERHEAD_CLEAR_PX 4
