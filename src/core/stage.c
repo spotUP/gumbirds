@@ -1,6 +1,7 @@
 #include "stage.h"
 #include "flier.h"
 #include "arena.h"
+#include <string.h>
 
 /* Layouts (x, y top, w, h) from thoughts/spot/drafts/2026-11-12-arcade-layouts/gen3.py, islands and rival spawns only, imported like R01: the player
  * start stays FLIER_START (island 0), rivals are the first `rivals` ground spawns of each layout (3 to STAGE_SPAWN_COUNT, own values, none on an island top above y 68 except old ones), spawn y = platform top - 6 (box half height 5.5: the
@@ -118,14 +119,20 @@ static void plat_build(void) {
         plat_n++;
     }
     col_ring = arena_ring;
-    for (int x = 0; x < ARENA_W; x++) plat_cols[x] = 0;
+    memset(plat_cols, 0, sizeof plat_cols);
     for (int i = 0; i < plat_n; i++) {
         int r = plat_tab[i].half + FLIER_SOLID_MAX_HALF_W + SOLID_REACH_PX + 2;
         int x = plat_tab[i].cx - r + 1;
+        int left = 2 * r - 1;
+        uint8_t bit = (uint8_t)(1u << i);
         while (x < 0) x += (int)col_ring;
-        for (int k = 2 * r - 1; k > 0; k--) {
-            if (x >= col_ring) x -= (int)col_ring;
-            plat_cols[x++] |= (uint8_t)(1u << i);
+        if (x >= col_ring) x -= (int)col_ring;
+        while (left > 0) { /* contiguous runs up to the seam, no per-column wrap compare */
+            int run = (int)col_ring - x;
+            if (run > left) run = left;
+            left -= run;
+            for (uint8_t *c = plat_cols + x, *e = c + run; c < e; c++) *c |= bit;
+            x = 0;
         }
     }
 }

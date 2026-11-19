@@ -47,6 +47,11 @@ tail -n 1 "$OUT/test_obj_pool.log"; grep FAIL "$OUT/test_obj_pool.log" | head -n
 $CC -o "$OUT/test_flier" "$HERE/test_flier.c" $SRC -lm >"$OUT/build.log" 2>&1 || { echo "[ERROR] flier build failed"; tail -n 20 "$OUT/build.log"; exit 1; }
 nice -n 19 "$OUT/test_flier" >"$OUT/test_flier.log" 2>&1 || fail=1
 tail -n 1 "$OUT/test_flier.log"; grep FAIL "$OUT/test_flier.log" | head -n 10
+SRC_NO_STAGE=$(echo "$SRC" | sed "s# $ROOT/src/core/stage.c##")
+$CC -o "$OUT/test_plat_cols" "$HERE/test_plat_cols.c" $SRC_NO_STAGE -lm >"$OUT/build.log" 2>&1 || { echo "[ERROR] plat_cols build failed"; tail -n 20 "$OUT/build.log"; exit 1; }
+nice -n 19 "$OUT/test_plat_cols" >"$OUT/test_plat_cols.log" 2>&1 || fail=1
+tail -n 1 "$OUT/test_plat_cols.log"; grep FAIL "$OUT/test_plat_cols.log" | head -n 10
+
 $CC -o "$OUT/test_stage" "$HERE/test_stage.c" $SRC -lm >"$OUT/build.log" 2>&1 || { echo "[ERROR] stage build failed"; tail -n 20 "$OUT/build.log"; exit 1; }
 nice -n 19 "$OUT/test_stage" >"$OUT/test_stage.log" 2>&1 || fail=1
 tail -n 1 "$OUT/test_stage.log"; grep FAIL "$OUT/test_stage.log" | head -n 10
