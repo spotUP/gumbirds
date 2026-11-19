@@ -24,7 +24,8 @@ local K = { playing = L[15], arcade = L[16], play = L[17], clear = L[18], life_p
   clear_frames = L[22], cont_frames = L[23], gone = L[24], isl = L[25], isl_n = L[26], game_over = L[27], life_end = L[28],
   isl_tile = L[29], isl_tiles = L[30], isl_pal = L[31], bonus = L[33],
   fix_blank = L[37], res_glass = L[38], res_wheel = L[39], res_ticket = L[40], res_crank = L[41] }
-local O_NLIVE, O_BTIMER, BONUS_LIVE_MAX, O_RES = L[32], L[34], L[35], L[36]
+local O_NLIVE, O_BTIMER, BONUS_LIVE_MAX, O_RES, O_RNG = L[32], L[34], L[35], L[36], L[42]
+local WALK_SEED = 0x2545f491 -- ARCADE_WALK: game rng pinned every frame between stages, so a stage's rival/AI sequence no longer depends on how earlier stages ran (overrun frames shift it)
 -- result screen cost: latest logic end, most sprites on one line (all slots, shared counter), frame dumps when RESULT_DUMP is set
 local res_logic, res_line, res_dump = 0, 0, os.getenv("RESULT_DUMP")
 local res_over, res_over_list = 0, {} -- result frames at or past 224 (first 12 listed in the failure)
@@ -222,10 +223,12 @@ emu.register_frame_done(function()
       finish(ok, ok and ("walk done at stage " .. g(O_STAGE)) or why)
     elseif walk_wait >= limit then phase = "walk_clear" end
   elseif phase == "walk_clear" then
+    mem:write_u32(flow_addr + O_RNG, WALK_SEED)
     local st = g(O_STAGE)
     for i = 0, b(O_NCPU) - 1 do mem:write_u8(flow_addr + O_C0STATE + i * SZ_FLIER, K.gone) end
     if g(O_ASTATE) == K.clear then phase = "walk_wait_next"; clear_frames = 0 end
   elseif phase == "walk_wait_next" then
+    mem:write_u32(flow_addr + O_RNG, WALK_SEED)
     -- the bonus result screen holds until a press (847d0d9): tap A while it shows
     abtn:set_value(b(O_RES) == 1 and (n % 8) < 2 and 1 or 0)
     if g(O_ASTATE) == K.play then abtn:set_value(0); phase = "walk"; walk_wait = 0; print(string.format("ARC_PROG stage %d at frame %d", g(O_STAGE), n)) end
