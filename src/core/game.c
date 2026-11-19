@@ -369,9 +369,9 @@ static void match_rivals(Game *g)
     int rank = arcade ? arc_rank_for(g->arc.stage, g->arc.loops) : 1;
     int ai_rank = rank;
     int h;
-    int n = arcade ? stage_rival_count() : CPU_START_COUNT + (int)g->matches_won; /* arcade: the layout's own rival count (ROT3b) */
+    int n = arcade ? stage_rival_count() : CPU_START_COUNT + (int)g->matches_won; /* arcade: the layout's own rival count (ROT3b), not capped */
     int i;
-    if (n > CPU_MAX) {
+    if (!arcade && n > CPU_MAX) {
         n = CPU_MAX;
     }
     if (g->party_rule == PARTY_ROUND) {
