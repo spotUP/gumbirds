@@ -1803,12 +1803,14 @@ static void draw_pop_drop(const GgPop *p) {
 #define PD_BIRD_SLOT PD_SPRITE
 #define PD_PLAT_SLOT (PD_SPRITE + 2)                 /* 4 platforms x 5 pieces */
 #define PD_GUM_SLOT (PD_PLAT_SLOT + PD_PLATS * 5)    /* 3 gums x 2 columns */
-#define PD_SHIELD_SLOT (PD_GUM_SLOT + PD_GUMS * 2)   /* 2 columns */
-#define PD_SPRITE_END (PD_SHIELD_SLOT + 2)
+#define PD_SHIELD_SLOT (PD_GUM_SLOT + PD_GUMS * 2)   /* 4 columns: the pop frames are 64 px wide */
+#define PD_RAG_SLOT (PD_SHIELD_SLOT + 4)             /* 1 column: the burst gum skin, on top of the bird */
+#define PD_SPRITE_END (PD_RAG_SLOT + 1)
 _Static_assert(PD_SPRITE_END <= 367, "Pop Drop slots overlap the Trip pickup slots");
 static u8 g_pd_on;
 static uint32_t g_pd_shown, g_pd_new; /* bit (slot - PD_SPRITE): drawn last frame / this frame */
-_Static_assert(PD_SPRITE_END - PD_SPRITE <= 32, "Pop Drop slot mask is 32 bits");
+static u8 g_pd_rag_shown, g_pd_rag_new; /* the rag slot sits past the 32-bit mask (no 64-bit shifts on the 68k build) */
+_Static_assert(PD_RAG_SLOT - PD_SPRITE <= 32, "Pop Drop slot mask is 32 bits");
 
 static const PopdropFrame *pd_frame(u8 anim, u16 n) {
     const PopdropAnim *a = &popdrop_anims[anim];
@@ -1824,12 +1826,13 @@ static void pd_piece(u16 slot, const PopdropFrame *f, int wx, int top, int flip,
         gfx_sprite_strips((u16)(slot + c), 1, f->tiles_h, t + (flip ? f->tiles_w - 1 - c : c) * f->tiles_h, POPDROP_TILE_BASE,
                           (u16)(((POPDROP_PAL_SLOT + pal) << 8) | (flip ? 1 : 0)));
     gfx_sprite_place(slot, f->tiles_w, f->tiles_h, sx, top);
-    g_pd_new |= ((1UL << f->tiles_w) - 1) << (slot - PD_SPRITE);
+    if (slot == PD_RAG_SLOT) g_pd_rag_new = 1;
+    else g_pd_new |= ((1UL << f->tiles_w) - 1) << (slot - PD_SPRITE);
 }
 
 static void pop_hide(void) {
     for (u16 s = PD_SPRITE; s < PD_SPRITE_END; s++) obs_hide_slot(s);
-    g_pd_shown = 0;
+    g_pd_shown = 0; g_pd_rag_shown = 0;
 }
 
 static void pop_show_pieces(const Game *g);
@@ -1837,8 +1840,10 @@ static void pop_show_pieces(const Game *g);
 static void pop_show(const Game *g) {
     if (!g_pd_on) pop_hide(); /* entry: the shared slots may hold another view's sprites */
     g_pd_on = 1;
-    g_pd_new = 0;
+    g_pd_new = 0; g_pd_rag_new = 0;
     pop_show_pieces(g);
+    if (g_pd_rag_shown && !g_pd_rag_new) obs_hide_slot(PD_RAG_SLOT);
+    g_pd_rag_shown = g_pd_rag_new;
     uint32_t gone = g_pd_shown & ~g_pd_new;
     for (u16 s = PD_SPRITE; gone; s++, gone >>= 1)
         if (gone & 1) obs_hide_slot(s);
@@ -1876,6 +1881,12 @@ static void pop_show_pieces(const Game *g) {
     pd_piece(PD_BIRD_SLOT, pd_frame(anim, (u16)(g->frame >> 3)), bx, PD_BIRD_Y - 16, p->flip, 0);
     if (p->shield) pd_piece(PD_SHIELD_SLOT, pd_frame(POPDROP_ANIM_SHIELD, (u16)(g->frame >> 4)), bx, PD_BIRD_Y - 16, 0, 2);
     else if (p->pop_t) pd_piece(PD_SHIELD_SLOT, pd_frame(POPDROP_ANIM_POP, (u16)(p->pop_t >> 3)), bx, PD_BIRD_Y - 16, 0, 2);
+    /* The burst gum skin (draft 2026-11-18 freefall): four flutter frames on the upper beak, 11 px into the 24 px art (pad 4) and
+     * 12 px above it; the limp frame lies past the splat's right edge. Mirrored with the bird; hidden inside an intact shield. */
+    if (p->phase == PD_CRASH)
+        pd_piece(PD_RAG_SLOT, pd_frame(POPDROP_ANIM_RAG, 4), p->flip ? bx - 15 : bx + 31, PD_BIRD_Y - 16, p->flip, 0);
+    else if (!p->shield)
+        pd_piece(PD_RAG_SLOT, pd_frame(POPDROP_ANIM_RAG, (u16)((g->frame >> 2) & 3)), p->flip ? bx + 1 : bx + 15, PD_BIRD_Y - 28, p->flip, 0);
 }
 
 /* Bubble Gather on the fix layer: caught of 20 and seconds left; hidden while the result screen covers the fix layer. */

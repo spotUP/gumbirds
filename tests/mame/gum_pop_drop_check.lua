@@ -3,6 +3,7 @@
 --   P2. the bird falls (depth grows); a platform is parked on the bird each frame, so three hits follow (one per stun) and the third is the crash;
 --   P0. the GET SET / GO! countdown runs (cd_t counts up from 0) and its first glyph column (slot 309, ARC_ELEM_SPRITE) is on screen while it does;
 --   P4. the summer sky is up: sky head (slot 1) 14 rows, cloud head (slot 21) 1 row and its SCB3 word changes as the platforms scroll, plane slot 72 hidden;
+--   P5. the burst gum skin (rag, slot 355 PD_RAG_SLOT in src/main.c) is on screen while the bird falls: SCB3 height 2 tiles (rag_seen);
 --   P3. the run ends: the result shows, A leaves it, the flow reaches GAME_OVER, the record equals the fall score.
 -- Env: BRAWL_FLOW_ADDR (hex), BRAWL_BLOW_LAYOUT (gum_pop_drop_probe.c output), BRAWL_RESULT.
 local flow_addr = tonumber(os.getenv("BRAWL_FLOW_ADDR"), 16)
@@ -49,6 +50,11 @@ if not (coin and start1 and up and abtn and cbtn and pick) then finish(false, "m
 local n, phase, t0, hud, cd_shown, maxhits = 0, "boot", 0, false, 0, 0
 local sky_ok, cloud_vals, cloud_n = false, {}, 0
 local CD_SLOT = 309 -- ARC_ELEM_SPRITE (src/sprite_slots.h)
+-- P5: count fall frames with the rag column up (owner report 2026-11-20: the broken gum never showed)
+local RAG_SLOT, rag_n = 355, 0 -- PD_RAG_SLOT (src/main.c)
+local function rag_seen(falling)
+  if falling and ((fix[0x8200 + RAG_SLOT] or 0) & 0x3f) == 2 then rag_n = rag_n + 1 end
+end
 emu.register_frame_done(function()
   n = n + 1
   if n > 17000 then finish(false, string.format("watchdog in phase %s: phase %d hits %d maxhits %d state %d", phase, b(O.phase), b(O.hits), maxhits, b(O.state))) return end
@@ -76,6 +82,7 @@ emu.register_frame_done(function()
       mem:write_u16(flow_addr + O.plat, (bx - 24) & 0xffff); mem:write_u16(flow_addr + O.plat + 2, 72)
       mem:write_u8(flow_addr + O.plat + 5, 1); mem:write_u8(flow_addr + O.plat + 6, 1); mem:write_u8(flow_addr + O.plat + 7, 0)
     end
+    rag_seen(b(O.phase) == K.fall)
     if b(O.hits) > maxhits then maxhits = b(O.hits) end
     if n - t0 > 6000 then finish(false, "run never reached the result") end
   elseif phase == "result" then
@@ -86,6 +93,7 @@ emu.register_frame_done(function()
       if not hud then finish(false, "HUD row never lit") return end
       if not sky_ok then finish(false, "Pop Drop sky never up (slot 1 14 rows, slot 21 1 row, slot 72 hidden)") return end
       if cloud_n < 20 then finish(false, string.format("cloud head SCB3 took %d values, want >= 20 (clouds must scroll)", cloud_n)) return end
+      if rag_n < 30 then finish(false, string.format("rag (slot %d) up %d fall frames, want >= 30", RAG_SLOT, rag_n)) return end
       if maxhits ~= 3 then finish(false, string.format("hits %d, want 3 (the crash)", maxhits)) return end
       if depth == 0 or pscore < depth then finish(false, string.format("depth %d score %d", depth, pscore)) return end
       if rec ~= pscore then finish(false, string.format("record %d, fall score %d", rec, pscore)) return end
