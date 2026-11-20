@@ -86,7 +86,7 @@ int main(void)
     }
     CHECK(p.b[0].gums == (uint16_t)PD_SHIELD_EVERY && p.b[0].shield == 1 && p.b[0].shield_count == 0);
 
-    /* gum trail: 5 gums per gap, every gum clear of every platform, a follower never hits at full speed or on the ramp; each gum counts */
+    /* gum trail: 1 gum per gap, every gum clear of every platform, a follower never hits at full speed or on the ramp; each gum counts */
     {
         int seed, spawned = 0, live_max = 0, unclear = 0;
         for (seed = 1; seed <= 24; seed++) {
@@ -112,6 +112,20 @@ int main(void)
     gp_init(&p, h, 11); gp_add_p2(&p, &h[0], &h[1]);
     for (i = 0; i < 1500; i++) gp_step(&p, h, follow(&p, h, 0), follow(&p, h, 1));
     CHECK(p.b[0].gums > 20 && p.b[1].gums > 20);
+
+    /* a bird with no input is hit on aimed rows: 3 hits crash it before the pool, 1P and 2P (both birds idle), over several seeds */
+    {
+        int seed, k;
+        for (seed = 1; seed <= 12; seed++) {
+            gp_init(&p, h, (uint32_t)seed);
+            for (i = 0; i < 4000 && p.phase == PD_FALL; i++) gp_step(&p, h, 0, 0);
+            CHECK(p.b[0].hits == 3 && p.b[0].crash && p.phase == PD_CRASH && p.depth < PD_POOL_DEPTH);
+            gp_init(&p, h, (uint32_t)seed); gp_add_p2(&p, &h[0], &h[1]);
+            for (i = 0; i < 4000 && p.phase == PD_FALL; i++) gp_step(&p, h, 0, 0);
+            for (k = 0; k < 2; k++) CHECK(p.b[k].hits == 3 && p.b[k].crash);
+            CHECK(p.phase == PD_CRASH && p.depth < PD_POOL_DEPTH);
+        }
+    }
 
     /* three hits crash; the attempt ends with the score, then the result, then done */
     gp_init(&p, h, 7);

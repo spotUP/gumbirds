@@ -48,9 +48,9 @@ static int16_t wrap_px(int x) { return (int16_t)(x < 0 ? x + ARENA_W : x >= AREN
 /* A new platform row at PD_SPAWN_Y and the gum trail into it. The trail's new gap point is the last one moved sideways by at most
  * 1 px per frame the bird takes to fall from the last row to this one (reachable at any speed), and the platform's centre is drawn
  * anywhere on the ring that keeps its hit box PD_TRAIL_CLEAR px off the whole trail segment. */
-static void spawn(GgPop *p)
+static void spawn(GgPop *p, const Flier *hero)
 {
-    int i, j, low = 0, y0, m, sh, lo, hi, c, half;
+    int i, j, low = 0, y0, m, sh, lo, hi, c, half, aim = 0;
     PdPlat *q = 0;
     for (i = 0; i < PD_PLATS; i++) if (p->plat[i].live && p->plat[i].y > low) low = p->plat[i].y;
     if (low > PD_SPAWN_Y - 72) return;           /* the lowest platform has not cleared the gap yet */
@@ -65,8 +65,27 @@ static void spawn(GgPop *p)
     lo = sh < 0 ? p->trail_x + sh : p->trail_x; hi = sh < 0 ? p->trail_x : p->trail_x + sh;
     half = plat_w(q) / 2;
     c = half + PD_BIRD_HALF_W + PD_TRAIL_CLEAR;  /* centre distance that keeps the bird box clear */
-    c = hi + c + (int)rng_range(&p->rng, (uint32_t)(ARENA_W - 2 * c - (hi - lo) + 1));
-    q->x = wrap_px(wrap_px(c - half));           /* c - half < 2 * ARENA_W */
+    {   /* aimed row (about half): the platform's near edge overlaps a bird's box by PD_AIM_OVERLAP px on the side away from the new gap point,
+         * so a bird that does not steer is hit. Edge-on placement needs only |gap - bird| >= 16 + overlap, so the shift never has to exceed
+         * the PD_STEER reach of the fall (2.5 px per frame): PD_TRAIL_SHIFT_MAX stays 48 and the width is not capped. No reachable shift: normal row. */
+        uint32_t r = rng_range(&p->rng, 4);      /* bit 0: aimed row, bit 1: first sign, always drawn so the layout stays deterministic */
+        int bi = p->seq.players > 1 ? (int)rng_range(&p->rng, 2) : 0, reach = (PD_SPAWN_Y - y0) * 16 / p->spd * 5 / 2, s, d = 0, bx;
+        if (p->b[bi].crash) bi ^= 1;             /* aim at a live bird */
+        bx = hero[bi].x >> 16;
+        if (reach > PD_TRAIL_SHIFT_MAX) reach = PD_TRAIL_SHIFT_MAX;
+        for (s = 0; (r & 1) && s < 2 && !aim; s++) {
+            int t = (r >> 1 ^ (uint32_t)s) & 1 ? reach : -reach;
+            d = arena_dx(p->trail_x + t, bx);
+            if (d >= 16 + PD_AIM_OVERLAP || d <= -(16 + PD_AIM_OVERLAP)) { aim = 1; sh = t; }
+        }
+        if (aim) {
+            c = bx + (d > 0 ? -1 : 1) * (half + PD_BIRD_HALF_W - PD_AIM_OVERLAP);
+            q->x = wrap_px(wrap_px(c - half + ARENA_W));
+        } else {
+            c = hi + c + (int)rng_range(&p->rng, (uint32_t)(ARENA_W - 2 * c - (hi - lo) + 1));
+            q->x = wrap_px(wrap_px(c - half));   /* c - half < 2 * ARENA_W */
+        }
+    }
     q->y = PD_SPAWN_Y; q->live = 1; q->hit = 0;
     for (i = 0, j = 1; i < PD_GUMS && j <= PD_TRAIL_GUMS; i++) {
         PdGum *g = &p->gum[i];
@@ -268,7 +287,7 @@ static void fall_step(GgPop *p, Flier *hero, uint8_t in1, uint8_t in2)
         b->score = (uint16_t)(p->depth + b->gums);
     }
     if (p->phase == PD_FALL && p->pool_y <= PD_BIRD_Y + PD_BIRD_HALF_H) pool_land(p, n);
-    if (p->phase == PD_FALL) { spawn(p); spawn_faller(p); }
+    if (p->phase == PD_FALL) { spawn(p, hero); spawn_faller(p); }
 }
 
 int gp_step(GgPop *p, Flier *hero, uint8_t in1, uint8_t in2)

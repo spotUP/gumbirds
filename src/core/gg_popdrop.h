@@ -31,13 +31,14 @@
 #define PD_STEER_ACC 16384            /* 0.25 px per frame per frame */
 #define PD_STUN 30u                   /* 0.5 s without steering after a hit */
 #define PD_HITS_MAX 3u                /* the third hit is the crash */
-#define PD_SHIELD_EVERY 25u           /* 5 trail gums per gap: a shield about every 5 gaps followed (10 gave one every 2 gaps) */
+#define PD_SHIELD_EVERY 5u            /* 1 trail gum per gap: a shield about every 5 gaps followed */
 #define PD_CRASH_FRAMES 90u
 #define PD_RESULT_FRAMES 150u
 #define PD_PLATS 4
 #define PD_GUMS 20                    /* trail gums live at once: 256 px of live y / 14.4 px spacing = 18 at most */
-#define PD_TRAIL_GUMS 5               /* gums per gap, from the last row's gap point down to the new row's */
+#define PD_TRAIL_GUMS 1               /* gums per gap: one, at the new row's gap point (owner pick 2026-11-20: way too many gums) */
 #define PD_TRAIL_SHIFT_MAX 48         /* trail sideways move per gap, px (also capped at 1 px per frame of fall, 40 % of PD_STEER) */
+#define PD_AIM_OVERLAP 4              /* aimed row: px the platform edge reaches into a bird's hit box (owner pick 2026-11-20: aim about half the rows) */
 #define PD_TRAIL_CLEAR 16             /* px between the trail and a platform's hit box edge, room for the follower's lag */
 #define PD_SPAWN_Y 240                /* a platform enters below the 224 px screen */
 #define PD_PLAT_H 16
