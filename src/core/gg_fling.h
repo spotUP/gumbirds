@@ -17,9 +17,9 @@
 #define GF_DEG_MAX 75u
 #define GF_FLAP_PRESS 10u               /* flap charge added per A / B press in flight */
 #define GF_FLAP_DRAIN 1u                /* flap charge lost per frame, so only frantic mashing builds it */
-#define GF_FLAP_MAX 120u
+#define GF_FLAP_MAX 60u
 #define GF_FLAP_THRESH 30u              /* no lift at or below this charge */
-#define GF_FLAP_LIFT 5                  /* 16.16 vy gained per frame per charge step above the threshold */
+#define GF_FLAP_LIFT 60                 /* 16.16 vy gained per frame per charge step above the threshold (tuned: 10 presses/s +13 percent, 15/s +19) */
 /* Speed (owner 2026-11-20: "slow motion"): every launch speed is k = 1.5 times the old one and gravity k^2 (old 1350 -> 3038),
  * so the paths are the same curves flown in 1/1.5 of the time: same range (v^2/g), best-angle full-power flight about 137 frames, about 205 before.
  * The old vx cap of 2 px per frame was copied from CAM_MAX_STEP_PX, but the fling scroll is camera_scroll (no easing, no cap) and the
