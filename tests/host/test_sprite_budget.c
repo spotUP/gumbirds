@@ -213,6 +213,13 @@ static void test_arcade_elements(void) {
 #define T_PD_PUFF_SLOT (T_PD_RAG2_SLOT + 1)
 #define T_PD_PUFF2_SLOT (T_PD_PUFF_SLOT + 3)
 #define T_PD_END (T_PD_PUFF2_SLOT + 3)
+/* pool finish slots (src/main.c PD_BACK..): gags 2 x 5, fans + cards 2 x 3 x 3, flop 2 x 2, pool strips 20, ladder 1, splash 2 x 6 */
+#define T_PD_GAG_SLOT POOL_SPRITE_BASE
+#define T_PD_FAN_SLOT (T_PD_GAG_SLOT + 10)
+#define T_PD_FLOP_SLOT (T_PD_FAN_SLOT + 18)
+#define T_PD_POOLS_SLOT (T_PD_FLOP_SLOT + 4)
+#define T_PD_LADDER_SLOT (T_PD_POOLS_SLOT + 20)
+#define T_PD_SPL_SLOT (T_PD_LADDER_SLOT + 1)
 
 static int anim_max_cols(int anim) {
     int m = 0;
@@ -241,6 +248,8 @@ static void test_popdrop_slots(void) {
         { "shield", T_PD_SHIELD_SLOT, 4 }, { "rag", T_PD_RAG_SLOT, 1 },
         { "bird2", T_PD_BIRD2_SLOT, 2 }, { "shield2", T_PD_SHIELD2_SLOT, 4 }, { "rag2", T_PD_RAG2_SLOT, 1 },
         { "puff", T_PD_PUFF_SLOT, 3 }, { "puff2", T_PD_PUFF2_SLOT, 3 },
+        { "gags", T_PD_GAG_SLOT, 10 }, { "fans", T_PD_FAN_SLOT, 18 }, { "flop", T_PD_FLOP_SLOT, 4 },
+        { "pool strips", T_PD_POOLS_SLOT, 20 }, { "ladder", T_PD_LADDER_SLOT, 1 }, { "splash", T_PD_SPL_SLOT, 12 },
     };
     int n = (int)(sizeof r / sizeof r[0]);
     printf("pop drop slots: sky 1..20, clouds %d..%d, trail gums %d..%d, sprites %d..%d (Trip pickups from %d)\n",
@@ -261,9 +270,23 @@ static void test_popdrop_slots(void) {
     for (int k = 0; k < 6; k++) CHECK(popdrop_frames[popdrop_anims[POPDROP_ANIM_PLAT].first_frame + k].tiles_w == 1);
     CHECK(anim_max_cols(POPDROP_ANIM_SHIELD) <= 4 && anim_max_cols(POPDROP_ANIM_POP) <= 4);
     CHECK(anim_max_cols(POPDROP_ANIM_RAG) <= 1 && anim_max_cols(POPDROP_ANIM_PUFF) <= 3);
+    /* pool finish anims (batch 2; the pool surface, water and edge frames are 2 tile columns drawn as 2 alternating strips) are not 2-column birds; each fits the slots its draw layer gives it */
+    struct { int anim; int cols; const char *name; } fit[] = {
+        { POPDROP_ANIM_TUBBIRD, 2, "gag bird" }, { POPDROP_ANIM_TUB, 3, "gag tub" }, { POPDROP_ANIM_CHAIR, 5, "gag chair" },
+        { POPDROP_ANIM_SNAIL, 5, "gag snail" }, { POPDROP_ANIM_FAN, 2, "fan" }, { POPDROP_ANIM_CARD, 1, "card" },
+        { POPDROP_ANIM_FLOP, 2, "flop" }, { POPDROP_ANIM_SURF, 2, "pool surface" }, { POPDROP_ANIM_WATER, 2, "pool water" },
+        { POPDROP_ANIM_EDGE, 2, "pool edge" }, { POPDROP_ANIM_LADDER, 1, "ladder" },
+        { POPDROP_ANIM_SPLASH_S, 6, "splash small" }, { POPDROP_ANIM_SPLASH_M, 6, "splash medium" }, { POPDROP_ANIM_SPLASH_L, 6, "splash large" },
+    };
+    for (int i = 0; i < (int)(sizeof fit / sizeof fit[0]); i++) {
+        int w = anim_max_cols(fit[i].anim);
+        CHECK(w <= fit[i].cols);
+        if (w > fit[i].cols) printf("%s anim %d is %d columns wide, slot gives %d\n", fit[i].name, fit[i].anim, w, fit[i].cols);
+    }
     for (int a = 0; a < POPDROP_ANIM_COUNT; a++) {
-        int bird = a != POPDROP_ANIM_RAG && a != POPDROP_ANIM_FX && a != POPDROP_ANIM_PLAT && a != POPDROP_ANIM_SHIELD && a != POPDROP_ANIM_POP && a != POPDROP_ANIM_PUFF;
-        if (bird) { CHECK(anim_max_cols(a) <= 2); if (anim_max_cols(a) > 2) printf("bird anim %d is %d columns wide, slot gives 2\n", a, anim_max_cols(a)); }
+        int other = a == POPDROP_ANIM_RAG || a == POPDROP_ANIM_FX || a == POPDROP_ANIM_PLAT || a == POPDROP_ANIM_SHIELD || a == POPDROP_ANIM_POP || a == POPDROP_ANIM_PUFF;
+        for (int i = 0; i < (int)(sizeof fit / sizeof fit[0]); i++) if (fit[i].anim == a) other = 1;
+        if (!other) { CHECK(anim_max_cols(a) <= 2); if (anim_max_cols(a) > 2) printf("bird anim %d is %d columns wide, slot gives 2\n", a, anim_max_cols(a)); }
     }
 }
 
