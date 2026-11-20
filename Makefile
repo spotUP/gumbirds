@@ -1293,7 +1293,7 @@ test-logo: cart bios
 	cat $$T/result.txt; \
 	if grep -q '^PASS' $$T/result.txt; then rm -rf $$T; echo "[OK] make test-logo passed"; else echo "[FAIL] make test-logo, log kept in $$T"; exit 1; fi
 
-.PHONY: run test test-mood test-arcade test-arcade-walk test-arcade-bonus test-crom test-srom test-debug-header test-camera test-sprite-peak test-left-column test-flier test-small-sootling test-reach test-vblank test-scroll test-slots test-hazard test-hazard-kill test-soft-reset test-ring test-solid test-trip test-score test-sound test-unibios test-coop test-arena-join test-party test-party-toss test-party-roost test-party-name test-gum-big-blow test-gum-visible test-gum-burst-racetest-gum-burst-race-2p test-gum-bubble-gather-fail test-gum-flap-dash test-gum-bubble-gather test-gum-pop-drop test-gum-pop-drop-2p test-gum-fling test-logo
+.PHONY: run test test-mood test-arcade test-arcade-walk test-arcade-bonus test-crom test-srom test-debug-header test-camera test-sprite-peak test-left-column test-flier test-small-sootling test-reach test-vblank test-scroll test-slots test-hazard test-hazard-kill test-soft-reset test-ring test-solid test-trip test-score test-sound test-unibios test-coop test-arena-join test-party test-party-toss test-party-roost test-party-name test-gum-big-blow test-gum-visible test-gum-burst-race test-gum-burst-race-2p test-gum-bubble-gather-fail test-gum-flap-dash test-gum-bubble-gather test-gum-pop-drop test-gum-pop-drop-2p test-gum-fling test-logo
 
 # Header dependencies from -MMD (build/**/*.d): a changed header rebuilds every object that includes it.
 -include $(shell find $(BUILDDIR) -name '*.d' 2>/dev/null)
