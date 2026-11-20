@@ -1537,8 +1537,27 @@ static void put_number(char *out, u32 v, int width);
 /* GET SET / GO! (gg_countdown.h): the glyph frames of the word, centred, in the arcade stage element slots (no Gum Games event draws those).
  * word = GGCD_WORD_*; GGCD_WORD_NONE parks them. Tiles are rewritten only when the word changes. */
 #define COUNTDOWN_Y 72 /* top of the words, screen px */
-static u8 g_cd_word;
-static void countdown_step(u8 word) {
+#define COUNTDOWN_POP_STEP_FRAMES 3 /* frames per pop-in step (draft anim_A2_go: 50 ms) */
+static u8 g_cd_word, g_cd_cols, g_cd_step = 0xff;
+static u8 g_cd_rows[ARC_ELEM_COUNT];
+static int g_cd_x[ARC_ELEM_COUNT];
+/* Pop-in of the draft (draw_countdown_a2.py): sprite shrink in sixteenths and a y offset, both words; the last step holds. */
+static void countdown_place(u8 step) {
+    static const u8 shrink[] = {4, 8, 12, 16, 16, 16, 16, 16};
+    static const int8_t dy[] = {0, 0, 0, 0, -4, -2, 1, 0};
+    u8 s = shrink[step];
+    u16 s2[ARC_ELEM_COUNT], s3[ARC_ELEM_COUNT], s4[ARC_ELEM_COUNT];
+    for (u8 c = 0; c < g_cd_cols; c++) {
+        int hpx = g_cd_rows[c] * 16;
+        s2[c] = (u16)(((s - 1) << 8) | (s * 16 - 1));
+        s3[c] = gfx_scb3_word(g_cd_rows[c], COUNTDOWN_Y + (hpx - hpx * s / 16) / 2 + dy[step]);
+        s4[c] = gfx_scb4_word(160 + (g_cd_x[c] - 160) * s / 16);
+    }
+    gfx_scb_run((u16)(ADDR_SCB2 + ARC_ELEM_SPRITE), 1, s2, g_cd_cols);
+    gfx_scb_run((u16)(ADDR_SCB3 + ARC_ELEM_SPRITE), 1, s3, g_cd_cols);
+    gfx_scb_run((u16)(ADDR_SCB4 + ARC_ELEM_SPRITE), 1, s4, g_cd_cols);
+}
+static void countdown_step(u8 word, u16 t) {
     static const u16 gx[] = COUNTDOWN_TABLE_GETSET_X, ox[] = COUNTDOWN_TABLE_GO_X;
     static const u16 gw[] = COUNTDOWN_TABLE_GETSET_W, ow[] = COUNTDOWN_TABLE_GO_W;
     if (word != g_cd_word) {
@@ -1547,23 +1566,27 @@ static void countdown_step(u8 word) {
             const u16 *xs = word == GGCD_WORD_GO ? ox : gx, *ws = word == GGCD_WORD_GO ? ow : gw;
             u8 n = countdown_anims[anim].frame_count, pal = word == GGCD_WORD_GO ? COUNTDOWN_HOT_PAL_SLOT : COUNTDOWN_PAL_SLOT;
             int left = (320 - (xs[n - 1] + ws[n - 1])) / 2, col = 0;
-            u16 s3[COUNTDOWN_MAX_COLUMNS * 6], s4[COUNTDOWN_MAX_COLUMNS * 6];
             for (u8 k = 0; k < n; k++) {
                 const CountdownFrame *f = &countdown_frames[countdown_anims[anim].first_frame + k];
                 for (u8 c = 0; c < f->tiles_w; c++, col++) {
                     gfx_sprite_strips((u16)(ARC_ELEM_SPRITE + col), 1, f->tiles_h, &countdown_tile_index[f->tile_offset + c * f->tiles_h], COUNTDOWN_TILE_BASE, (u16)(pal << 8));
-                    s3[col] = gfx_scb3_word(f->tiles_h, COUNTDOWN_Y);
-                    s4[col] = gfx_scb4_word(left + xs[k] + c * 16);
+                    g_cd_rows[col] = f->tiles_h;
+                    g_cd_x[col] = left + xs[k] + c * 16;
                 }
             }
-            gfx_sprite_unchained(ARC_ELEM_SPRITE, (u8)col); /* every glyph column has its own x */
-            gfx_scb_run((u16)(ADDR_SCB3 + ARC_ELEM_SPRITE), 1, s3, (u8)col);
-            gfx_scb_run((u16)(ADDR_SCB4 + ARC_ELEM_SPRITE), 1, s4, (u8)col);
+            g_cd_cols = (u8)col;
+            gfx_sprite_unchained(ARC_ELEM_SPRITE, g_cd_cols); /* every glyph column has its own x */
             for (int c = col; c < ARC_ELEM_COUNT; c++) obs_hide_slot((u16)(ARC_ELEM_SPRITE + c));
         } else {
             for (int c = 0; c < ARC_ELEM_COUNT; c++) obs_hide_slot((u16)(ARC_ELEM_SPRITE + c));
         }
         g_cd_word = word;
+        g_cd_step = 0xff;
+    }
+    if (word) {
+        u16 tw = word == GGCD_WORD_GO ? t - GGCD_SET_FRAMES - 1 : t - 1;
+        u8 step = tw / COUNTDOWN_POP_STEP_FRAMES > 7 ? 7 : (u8)(tw / COUNTDOWN_POP_STEP_FRAMES);
+        if (step != g_cd_step) { countdown_place(step); g_cd_step = step; }
     }
 }
 
@@ -3254,7 +3277,7 @@ static void game_loop(void) {
             gum_step(0, arena || race || blow || (trip && game_trip_ready(view.game)), trip ? view.game->trip.gum : (race ? race_gum(view.game, 0) : blow ? blow_gum(view.game) : arena ? (uint16_t)(human_bubble_level(view.game, 0) * (GUM_MAX / GUM_VIEW_LEVELS)) : GUM_MAX), (trip || arena || race || blow) ? view.game->frame : 0, g_gum_pose[0].drawn, g_gum_pose[0].frame, g_gum_pose[0].flip, g_gum_pose[0].cx, g_gum_pose[0].top, world && human_leaks(view.game, 0));
             roost_marker_step(arena && view.state == FLOW_PLAYING ? view.game : 0);
             card_scene_step(view.state == FLOW_PLAYING && view.card, view.card_t);
-            countdown_step(view.state == FLOW_PLAYING && view.game ? ggcd_word(view.game->cd_t) : GGCD_WORD_NONE);
+            { u8 on = view.state == FLOW_PLAYING && view.game; countdown_step(on ? ggcd_word(view.game->cd_t) : GGCD_WORD_NONE, on ? view.game->cd_t : 0); }
             toss_bubble_step(view.state == FLOW_PLAYING ? view.game : 0);   /* Toss Gum is GAME_MODE_GUM, not arena: the function checks gg_toss itself */
             fling_arc_step(world && view.state == FLOW_PLAYING && !view.card ? view.game : 0);
             { u8 g1 = race || (arena && view.game->players == 2); /* inactive: gum_step ignores every other argument, so they are not computed */

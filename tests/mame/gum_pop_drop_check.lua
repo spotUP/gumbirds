@@ -60,6 +60,7 @@ if not (coin and start1 and up and abtn and cbtn and pick) then finish(false, "m
 
 local n, phase, t0, hud, cd_shown, maxhits = 0, "boot", 0, false, 0, 0
 local pip_heart, pip_last, pip_t, pip_ok, pip_fall = 0, -1, 0, 0, 0
+local cd_pop, cd_pop_n = {}, 0
 local saved_msg
 local sky_ok, cloud_vals, cloud_n = false, {}, 0
 local peak, peak_line, us_play, us_restore, snap, left_n = 0, 0, 0, 0, nil, nil
@@ -114,6 +115,10 @@ emu.register_frame_done(function()
     end
     local cd = mem:read_u16(flow_addr + O.cdt)   -- uint16_t; the word shows for cd_t 1..90 (gg_countdown.h): SCB3 height > 0, full size SCB2
     if cd >= 1 and cd <= 90 and ((fix[0x8200 + CD_SLOT] or 0) & 0x3f) > 0 and (fix[0x8000 + CD_SLOT] or 0) == 0x0fff then cd_shown = cd_shown + 1 end
+    if cd >= 1 and cd <= 30 then   -- pop-in (draft anim_A2_go): the first glyph column's SCB2 shrink and SCB3 y change over the first frames
+      local k = string.format("%x/%x", fix[0x8000 + CD_SLOT] or 0, fix[0x8200 + CD_SLOT] or 0)
+      if not cd_pop[k] then cd_pop[k] = true; cd_pop_n = cd_pop_n + 1 end
+    end
     if b(O.res) == 1 or b(O.state) == K.over then phase = "result"; t0 = n; cbtn:set_value(0) return end
     if POOL then pool_seen(cnt) end
     if POOL and b(O.phase) == K.fall then   -- no platform in the way; start the fall 150 px above the pool
@@ -148,6 +153,7 @@ emu.register_frame_done(function()
       if peak > SB_LIMIT then finish(false, string.format("sprites per line %d on line %d, limit %d", peak, peak_line, SB_LIMIT)) return end
       if us_play > FLUSH_LIMIT then finish(false, string.format("flush %d us in play, limit %d", us_play, FLUSH_LIMIT)) return end
       if cd_shown < 60 then finish(false, string.format("countdown word on screen %d frames, want >= 60", cd_shown)) return end
+      if cd_pop_n < 6 then finish(false, string.format("countdown pop-in: first column SCB2/SCB3 took %d values over cd_t 1..30, want >= 6", cd_pop_n)) return end
       if not hud then finish(false, "HUD row never lit") return end
       if not sky_ok then finish(false, "Pop Drop sky never up (slot 1 14 rows, slot 21 1 row, slot 72 hidden)") return end
       if cloud_n < 20 then finish(false, string.format("cloud head SCB3 took %d values, want >= 20 (clouds must scroll)", cloud_n)) return end
