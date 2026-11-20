@@ -25,7 +25,7 @@ _Static_assert(FLFIELD_PUFF_SPRITE + FLFIELD_PUFF_COUNT <= SPRITE_SLOT_END, "fie
 
 static const char k_seq[] = "PRQSQPSRPQRSRPSQSRQPRSPQSQRPQSPR"; /* TURF_SEQ in tools/draw_fling_field.py: the column letters repeat every 32 */
 
-static u8 g_on, g_vis, g_ready, g_mood, g_prev, g_mload, g_flut, g_puff_t;
+static u8 g_on, g_vis, g_ready, g_mood, g_prev, g_mload, g_flut, g_puff_t, g_mvis;
 static u16 g_tick;
 static u8 g_type[COLS];           /* turf frame loaded in the slot, 0xFF = none */
 static u16 g_t3[COLS], g_t4[COLS], g_mw[MARKS], g_m3[MARKS], g_m4[MARKS], g_p3[FLFIELD_PUFF_COUNT], g_p4[FLFIELD_PUFF_COUNT];
@@ -117,8 +117,11 @@ void fling_field_step(const GgFling *f, u8 mood, int on, int show, int markers) 
     if (g_vis) {
         gfx_scb_run((u16)(ADDR_SCB3 + FLFIELD_TURF_SPRITE), 1, g_t3, COLS);
         gfx_scb_run((u16)(ADDR_SCB4 + FLFIELD_TURF_SPRITE), 1, g_t4, COLS);
-        gfx_scb_run((u16)(ADDR_SCB3 + FLFIELD_MARKER_SPRITE), 1, g_m3, MARKS);
-        gfx_scb_run((u16)(ADDR_SCB4 + FLFIELD_MARKER_SPRITE), 1, g_m4, MARKS);
+        if (markers || g_mvis) {   /* without markers the slots are left alone after one hiding frame: Tug Gum draws its strand there */
+            gfx_scb_run((u16)(ADDR_SCB3 + FLFIELD_MARKER_SPRITE), 1, g_m3, MARKS);
+            gfx_scb_run((u16)(ADDR_SCB4 + FLFIELD_MARKER_SPRITE), 1, g_m4, MARKS);
+        }
+        g_mvis = (u8)(markers != 0);
         gfx_scb_run((u16)(ADDR_SCB3 + FLFIELD_PUFF_SPRITE), 1, g_p3, FLFIELD_PUFF_COUNT);
         gfx_scb_run((u16)(ADDR_SCB4 + FLFIELD_PUFF_SPRITE), 1, g_p4, FLFIELD_PUFF_COUNT);
     }

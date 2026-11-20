@@ -134,6 +134,11 @@ static void soot_load_palettes(void) {
         for (int i = 0; i < 16; i++)
             gfx_pal((SOOT_PAL_SLOT + p) * 16 + i, sootling_palettes[p][i]);
     for (int i = 0; i < 16; i++) gfx_pal(SOOT_P2_PAL_SLOT * 16 + i, sootling_extra_palettes[0][i]);
+    for (int i = 0; i < 16; i++) {   /* Tug Gum: pose palette per seat (the partners take the darker team shade), then the strand */
+        gfx_pal(TUGPOSE_PAL_SLOT * 16 + i, tugpose_palettes[0][i]);
+        for (int p = 0; p < TUGPOSE_EXTRA_PALETTE_COUNT; p++) gfx_pal((TUGPOSE_PAL_SLOT + 1 + p) * 16 + i, tugpose_extra_palettes[p][i]);
+        gfx_pal((TUGPOSE_PAL_SLOT + 4) * 16 + i, tugpose_palettes[1][i]);
+    }
     for (int i = 0; i < 16; i++) {   /* Toss Gum: pose palette per seat, then the violet standing body */
         gfx_pal(TOSSPOSE_PAL_SLOT * 16 + i, tosspose_palettes[0][i]);
         for (int p = 0; p < TOSSPOSE_EXTRA_PALETTE_COUNT; p++) gfx_pal((TOSSPOSE_PAL_SLOT + 1 + p) * 16 + i, tosspose_extra_palettes[p][i]);
@@ -248,6 +253,8 @@ static void chute_place(u16 slot, u8 anim, u8 n, int flip, int left, int top) {
     gfx_sprite_place(slot, f->tiles_w, f->tiles_h, left, top);
 }
 
+/* Toss Gum and Tug Gum seat their birds: screen space, pose cells in place of the body, no arena gum. */
+static u8 seated(const Game *g) { return g->gg_toss || g->gg_tug; }
 /* Toss Gum pose (tools/make_toss_sheet.py): one 32x32 cell in the body's own two sprite columns, left edge = the body sprite left, top = feet - 32.
  * The birds on the right and front seats (2, 3) face left. Palette = TOSSPOSE_PAL_SLOT + seat. */
 static void tosspose_strips(u16 slot, u8 pose, u8 seat) {
@@ -257,6 +264,15 @@ static void tosspose_strips(u16 slot, u8 pose, u8 seat) {
     u16 attr = (u16)((TOSSPOSE_PAL_SLOT + seat) << 8 | (flip ? SOOT_FLIP : 0));
     for (u8 c = 0; c < f->tiles_w; c++)
         gfx_sprite_strips((u16)(slot + c), 1, f->tiles_h, tiles + (flip ? f->tiles_w - 1 - c : c) * f->tiles_h, TOSSPOSE_TILE_BASE, attr);
+}
+/* Tug Gum pose (tools/make_tug_sheet.py): the same cell rules as the toss pose. Palette = TUGPOSE_PAL_SLOT + seat. */
+static void tugpose_strips(u16 slot, u8 pose, u8 seat) {
+    const TugposeFrame *f = &tugpose_frames[pose];
+    const u16 *tiles = &tugpose_tile_index[f->tile_offset];
+    int flip = seat >= 2;
+    u16 attr = (u16)((TUGPOSE_PAL_SLOT + seat) << 8 | (flip ? SOOT_FLIP : 0));
+    for (u8 c = 0; c < f->tiles_w; c++)
+        gfx_sprite_strips((u16)(slot + c), 1, f->tiles_h, tiles + (flip ? f->tiles_w - 1 - c : c) * f->tiles_h, TUGPOSE_TILE_BASE, attr);
 }
 _Static_assert(SOOT_COLUMNS == 2, "a toss pose is two columns wide and draws in the body columns");
 static const u8 g_toss_ax[GT_POSE_COUNT] = TOSSPOSE_TABLE_ANCHOR_X, g_toss_ay[GT_POSE_COUNT] = TOSSPOSE_TABLE_ANCHOR_Y;
@@ -268,6 +284,10 @@ static void toss_wing_mark(u8 seat, u8 pose, int left, int top) {
 }
 /* Pool body code for a flier in Toss Gum: seat << 4 | pose + 1 (low nibble 0 = standing body), 0 outside Toss Gum and for a bird on no seat. */
 static u8 toss_pose_code(const Game *g, const Flier *fl) {
+    if (g->gg_tug) {   /* bit 6 = Tug Gum cell */
+        for (u8 s = 0; s < GTG_SEATS; s++) if (game_tug_flier(g, s) == fl) return (u8)(0x40 | s << 4 | (gg_tug_pose(&g->tug, s) + 1));
+        return 0;
+    }
     if (!g->gg_toss) return 0;
     for (u8 s = 0; s < GT_SEATS; s++) if (game_toss_flier(g, s) == fl) return (u8)(s << 4 | (gg_toss_pose(&g->toss, s) + 1));
     return 0;
@@ -301,11 +321,11 @@ static void hero_show(const Game *g, int cam_px) {
         if (d >= 0) { hero_hide(); slot = (u16)(DEAD_BODY_SPRITE + d * DEAD_BODY_COLUMNS); }
     } else dead_release(DEAD_OWNER_HERO(0));
     g_gum_pose[0].drawn = 1;
-    int pose = g->gg_toss ? gg_toss_pose(&g->toss, 0) : -1;   /* player 1 stands on seat 0 */
+    int pose = g->gg_toss ? gg_toss_pose(&g->toss, 0) : g->gg_tug ? gg_tug_pose(&g->tug, 0) : -1;   /* player 1 stands on seat 0 */
     if (pose >= 0) {
-        tosspose_strips(slot, (u8)pose, 0);
+        if (g->gg_tug) tugpose_strips(slot, (u8)pose, 0); else tosspose_strips(slot, (u8)pose, 0);
         gfx_sprite_place(slot, SOOT_COLUMNS, 2, left, feet - 32);
-        toss_wing_mark(0, (u8)pose, left, feet - 32);
+        if (!g->gg_tug) toss_wing_mark(0, (u8)pose, left, feet - 32);
     } else {
         soot_strips(slot, f, tiles, flip, attr);
         gfx_sprite_place(slot, SOOT_COLUMNS, f->tiles_h, left, top);
@@ -758,7 +778,7 @@ static void pool_sync_cpus(const Game *g) {
         if (arc_pump_in_window(&g->pump[i]) && c->state == FLIER_ALIVE) p->type = flier_pump_frame(&k_clips, arc_pump_progress(&g->pump[i])); /* sitting rival: pump frame */
         if (flip) p->flags |= POOL_F_FLIP; else p->flags &= (u8)~POOL_F_FLIP;
         /* toss birds stand in screen space (game_flier_cam_px 0), like their bubble and the hero */
-        if (g->gg_toss) p->flags |= POOL_F_SCREEN; else p->flags &= (u8)~POOL_F_SCREEN;
+        if (seated(g)) p->flags |= POOL_F_SCREEN; else p->flags &= (u8)~POOL_F_SCREEN;
         p->anim = toss_pose_code(g, c);
         p->x = c->x;
         p->y = feet;
@@ -766,8 +786,8 @@ static void pool_sync_cpus(const Game *g) {
         chute_obj_sync(g, i, c->state == FLIER_PARACHUTE, flip, c, feet);
         u8 lvl = pump_level(&g->pump[i], c->state == FLIER_ALIVE);
         g_sync_ticks = 2;
-        gum_obj_sync(&g_gum_obj[i], !g->gg_toss, g, p, gum_view_leaks_balloons(c->balloons), lvl, flier_gum_burst(c));   /* Toss Gum has its own bubble: no arena gum on the birds */
-        leak_obj_sync(&g_leak_obj[i], &g_gum_obj[i], !g->gg_toss && gum_view_leaks_balloons(c->balloons), g, p, lvl);
+        gum_obj_sync(&g_gum_obj[i], !seated(g), g, p, gum_view_leaks_balloons(c->balloons), lvl, flier_gum_burst(c));   /* Toss Gum has its own bubble: no arena gum on the birds */
+        leak_obj_sync(&g_leak_obj[i], &g_gum_obj[i], !seated(g) && gum_view_leaks_balloons(c->balloons), g, p, lvl);
         g_sync_ticks = 1;
     }
 }
@@ -805,7 +825,7 @@ static void pool_sync_p2(const Game *g) {
     b->type = flier_anim_step(&g_hero_anim[1], fl, &k_clips, &flip);
     if (arc_pump_in_window(&g->hpump[1]) && fl->state == FLIER_ALIVE) b->type = flier_pump_frame(&k_clips, arc_pump_progress(&g->hpump[1]));
     if (flip) b->flags |= POOL_F_FLIP; else b->flags &= (u8)~POOL_F_FLIP;
-    if (g->gg_toss) b->flags |= POOL_F_SCREEN; else b->flags &= (u8)~POOL_F_SCREEN;   /* screen space, see pool_sync_cpus */
+    if (seated(g)) b->flags |= POOL_F_SCREEN; else b->flags &= (u8)~POOL_F_SCREEN;   /* screen space, see pool_sync_cpus */
     b->anim = toss_pose_code(g, fl);
     b->x = fl->x; b->y = feet;
     if (flier_view_visible(fl, g->frame)) b->flags &= (u8)~POOL_F_BLINK; else b->flags |= POOL_F_BLINK;
@@ -859,7 +879,7 @@ static u8 human_bubble_level(const Game *g, int pl) { return flier_gum_burst(&g-
 /* Burst Race bubble of side s: the pump size on the same 1..16 levels (at least 1, so the bubble shows from the first frame); gum_step takes it as a gum value; 0 once this side won the heat: gum_step plays the pop. */
 static uint16_t race_gum(const Game *g, int s) { if (gg_race_bursts(&g->race, s)) return 0; uint16_t v = (uint16_t)(g->race.size[s] * (GUM_MAX / GG_BLOW_MAX)); return v ? v : 1; }
 /* Big Blow is GAME_MODE_GUM with no other event flag. */
-static int is_big_blow(const Game *g) { return g->mode == GAME_MODE_GUM && !(g->gg_race || g->gg_pop || g->gg_dash || g->gg_gather || g->gg_fling || g->gg_toss); }
+static int is_big_blow(const Game *g) { return g->mode == GAME_MODE_GUM && !(g->gg_race || g->gg_pop || g->gg_dash || g->gg_gather || g->gg_fling || g->gg_toss || g->gg_tug); }
 static uint16_t blow_gum(const Game *g) { if (g->blow.phase == GG_BLOW_BURST || (g->blow.phase >= GG_BLOW_RESULT && g->blow.burst)) return 0;   /* burst stays set into the next attempt: only the burst and its result screen count */ uint16_t v = (uint16_t)(g->blow.size * (GUM_MAX / GG_BLOW_MAX)); return v ? v : 1; }
 static void human_leak_sync(const Game *g) {
     for (int pl = 0; pl < HUMANS; pl++) {
@@ -1027,17 +1047,17 @@ static void pool_show_hero(PoolObj *p, u8 i, u16 *scb3) {
     if (!camera_visible(x, SOOT_COLUMNS * 16)) { pool_hide_run(i); return; }
     const u16 *tiles = &sootling_tile_index[f->tile_offset];
     u8 key = (u8)(p->type + 1 + (flip ? 128 : 0)); /* frame and mirror state the strips hold; the computer palette only, so the clip frame is unique */
-    u8 seat = p->anim >> 4;   /* Toss Gum seat (toss_pose_code) */
+    u8 seat = (p->anim >> 4) & 3;   /* seat (toss_pose_code); bit 6 = Tug Gum cell */
     if (g_pool_pose[i] != p->anim) { g_pool_pose[i] = p->anim; g_pool_drawn[i] = 0; }
     if (p->anim & 15) {
         if (!g_pool_drawn[i]) {
-            tosspose_strips(slot, (u8)((p->anim & 15) - 1), seat);
+            if (p->anim & 0x40) tugpose_strips(slot, (u8)((p->anim & 15) - 1), seat); else tosspose_strips(slot, (u8)((p->anim & 15) - 1), seat);
             if (g_pool_cols[i] != SOOT_COLUMNS) { gfx_sprite_chain(slot, SOOT_COLUMNS); g_pool_cols[i] = SOOT_COLUMNS; }
             g_pool_drawn[i] = 0xFF;
         }
         scb3[i] = gfx_scb3_word(2, obj_pool_px(p->y) - 32);
         g_pool_scb4[i] = gfx_scb4_word(x);
-        toss_wing_mark(seat, (u8)((p->anim & 15) - 1), x, obj_pool_px(p->y) - 32);
+        if (!(p->anim & 0x40)) toss_wing_mark(seat, (u8)((p->anim & 15) - 1), x, obj_pool_px(p->y) - 32);
         return;
     }
     if (g_pool_drawn[i] != key) {
@@ -1562,12 +1582,12 @@ static u8 g_bg_paused; /* this frame the entry hold skipped flow_step: the frame
  * island tiles (trip_strip_step ready 0, island_trip_preload), so the reveal frame only places and shows them. */
 /* Stadium stands: Big Blow, Burst Race and Gum Fling (stadium_hw.c); never the intro cards or the other events. */
 static u8 stadium_on(const Game *g) {
-    return g->mode == GAME_MODE_GUM && !g->gg_gather && !g->gg_pop && !g->gg_dash && !g->gg_toss;
+    return g->mode == GAME_MODE_GUM && !g->gg_gather && !g->gg_pop && !g->gg_dash && !seated(g);
 }
 static u8 cap99(uint32_t v) { return v > 99u ? 99u : (u8)v; }
 static u8 g_trip_islands_loaded;
 /* The Gum Fling grass field also hosts Toss Gum: one gate for both. The field reads the Fling state only for the flight scroll and landing puff; Toss Gum passes an idle one. */
-static u8 ground_field(const Game *g) { return g && (g->gg_fling || g->gg_toss); }
+static u8 ground_field(const Game *g) { return g && (g->gg_fling || g->gg_toss || g->gg_tug); }
 static u8 pop_field(const Game *g) { return g && g->gg_pop; }
 static const GgFling g_idle_fling;   /* all zero: wind-up phase, no scroll */
 static u8 bg_pending(void) {
@@ -1690,6 +1710,77 @@ static void draw_burst_race(const GgRace *r) {
 }
 
 
+/* Tug Gum strand (tools/make_tug_sheet.py): hand-pixeled 16x16 pieces in the field marker slots (Tug Gum loads no markers), behind the birds.
+ * Slots 0..16 left to right: end, 7 run pieces, knot, the 7 run pieces mirrored, end. Slot 17 is the right half of the snap.
+ * The strand moves with the knot; the birds stay on their seats. */
+#define TUG_STRAND_SPRITE FLFIELD_MARKER_SPRITE
+#define TUG_STRAND_COUNT 18
+#define TUG_STRAND_TOP 186
+_Static_assert(TUG_STRAND_SPRITE + TUG_STRAND_COUNT <= ISLAND_SPRITE + ISLAND_COUNT, "the strand overruns the island slots");
+volatile s16 g_tug_knot_x;   /* test probe (tests/mame/party_tug_check.lua): knot centre as drawn, 0 = no strand */
+static void tug_strand_step(const Game *g) {
+    static const u8 run[3][7] = {   /* end towards knot: slack, taut, stretched to a hair */
+        { TUGPOSE_PIECE_THICK, TUGPOSE_PIECE_THICK, TUGPOSE_PIECE_THICK, TUGPOSE_PIECE_THICK, TUGPOSE_PIECE_THICK, TUGPOSE_PIECE_TAPER, TUGPOSE_PIECE_THIN },
+        { TUGPOSE_PIECE_THICK, TUGPOSE_PIECE_THICK, TUGPOSE_PIECE_THIN, TUGPOSE_PIECE_THIN, TUGPOSE_PIECE_THIN, TUGPOSE_PIECE_THIN, TUGPOSE_PIECE_HAIR },
+        { TUGPOSE_PIECE_THICK, TUGPOSE_PIECE_THIN, TUGPOSE_PIECE_THIN, TUGPOSE_PIECE_HAIR, TUGPOSE_PIECE_HAIR, TUGPOSE_PIECE_HAIR, TUGPOSE_PIECE_HAIR },
+    };
+    static u8 up, key = 0xFF;
+    static s16 at;
+    u16 s3[TUG_STRAND_COUNT], s4[TUG_STRAND_COUNT];
+    if (!g || !g->gg_tug) {
+        if (up) { for (u8 i = 0; i < TUG_STRAND_COUNT; i++) s3[i] = 0; gfx_scb_run((u16)(ADDR_SCB3 + TUG_STRAND_SPRITE), 1, s3, TUG_STRAND_COUNT); }
+        up = 0; key = 0xFF; g_tug_knot_x = 0;
+        return;
+    }
+    const GgTug *t = &g->tug;
+    int q = t->knot < 0 ? -t->knot : t->knot;
+    /* snap: 1 and 2 = the two burst frames over the knot, 3 = two loose ends */
+    u8 snap = t->phase == GTG_PLAY ? 0 : t->phase == GTG_SNAP && t->t < 8 ? 1 : t->phase == GTG_SNAP && t->t < 16 ? 2 : 3;
+    u8 mode = snap == 3 ? 0 : snap || q >= 96 ? 2 : 1;
+    u8 storm = g->mood == GAME_MOOD_STORM;   /* thicker thin pieces: the strand was faint on the storm field */
+    u8 k = (u8)(mode | snap << 2 | storm << 4);
+    s16 dx = (s16)(t->knot / 4);
+    if (!up) gfx_sprite_unchained(TUG_STRAND_SPRITE, TUG_STRAND_COUNT);
+    if (up && k == key && dx == at) return;
+    for (u8 i = 0; i < TUG_STRAND_COUNT; i++) {
+        u8 m = i > 8 ? (u8)(16 - i) : i;   /* mirrored place: 0 end, 1..7 run, 8 knot */
+        u8 piece = m == 0 ? TUGPOSE_PIECE_END : m == 8 ? TUGPOSE_PIECE_KNOT : run[mode][m - 1];
+        u8 flip = i > 8, show = i < 17;
+        int x = 24 + 16 * i;
+        if (storm && piece >= TUGPOSE_PIECE_TAPER && piece <= TUGPOSE_PIECE_HAIR) piece = (u8)(piece + TUGPOSE_PIECE_TAPER_STORM - TUGPOSE_PIECE_TAPER);
+        if (snap == 3) {   /* loose ends on places 6 and 10, nothing between */
+            if (m == 6) piece = TUGPOSE_PIECE_SNAP2;
+            if (m > 6) show = 0;
+        } else if (snap) {   /* burst halves at 144 and 160; places 7 and 9 step aside under their same-piece neighbours */
+            if (i == 7) x = 128;
+            if (i == 9) x = 176;
+            if (i == 8 || i == 17) { piece = (u8)(TUGPOSE_PIECE_SNAP0 + snap - 1); x = i == 8 ? 144 : 160; flip = i == 17; show = 1; }
+        }
+        if ((!up || k != key) && show) {
+            const TugposeFrame *f = &tugpose_frames[tugpose_anims[TUGPOSE_ANIM_STRAND].first_frame + piece];
+            gfx_sprite_strips((u16)(TUG_STRAND_SPRITE + i), 1, 1, &tugpose_tile_index[f->tile_offset], TUGPOSE_TILE_BASE, (u16)((TUGPOSE_PAL_SLOT + 4) << 8 | (flip ? SOOT_FLIP : 0)));
+        }
+        s3[i] = show ? gfx_scb3_word(1, TUG_STRAND_TOP) : 0;
+        s4[i] = gfx_scb4_word(x + dx);
+    }
+    up = 1; key = k; at = dx; g_tug_knot_x = (s16)(160 + dx);
+    gfx_scb_run((u16)(ADDR_SCB3 + TUG_STRAND_SPRITE), 1, s3, TUG_STRAND_COUNT);
+    gfx_scb_run((u16)(ADDR_SCB4 + TUG_STRAND_SPRITE), 1, s4, TUG_STRAND_COUNT);
+}
+_Static_assert(TUGPOSE_PIECE_HAIR - TUGPOSE_PIECE_TAPER == TUGPOSE_PIECE_HAIR_STORM - TUGPOSE_PIECE_TAPER_STORM && TUGPOSE_PIECE_SNAP2 == TUGPOSE_PIECE_SNAP0 + 2, "strand piece order");
+/* Tug Gum on the fix layer: rounds won per team and a status line. */
+static void draw_tug(const Game *g) {
+    const GgTug *t = &g->tug;
+    u32 key = 0x40000000u | (u32)t->phase | (u32)t->wins[0] << 3 | (u32)t->wins[1] << 5 | (u32)t->humans << 7;
+    char won[] = "ROUNDS WON   LEFT 0   RIGHT 0 ";
+    if (key == g_blow_key) return;
+    g_blow_key = key;
+    won[18] = (char)('0' + t->wins[0]); won[28] = (char)('0' + t->wins[1]);
+    const char *msg = t->phase == GTG_PLAY ? "MASH A TO PULL   D LETS GO    " : t->phase == GTG_SNAP ? "SNAP!                         " :
+                      t->wins[0] > t->wins[1] ? "PLAYER 1 WINS                 " : t->humans == 2 ? "PLAYER 2 WINS                 " : "THE COMPUTER WINS             ";
+    text((u8)((40 - BLOW_TEXT_W) / 2), BLOW_TEXT_ROW + 4, PAL_TEXT, msg);   /* rows 5..7 are the HUD */
+    text((u8)((40 - BLOW_TEXT_W) / 2), BLOW_TEXT_ROW + 5, PAL_TEXT, won);
+}
 /* Toss Gum on the fix layer: A / B / C tags over the carrier's three targets (tile above each bird) and a status line. */
 static u8 g_toss_tag[GT_SEATS][2];   /* tile column and row of the tag shown for a seat, column 0 = none; reset with the fix layer */
 static void draw_toss(const Game *g) {
@@ -2120,7 +2211,7 @@ static void hero_and_mode(const FlowView *v) {
         }
         if (v->game->mode == GAME_MODE_TRIP) pool_sync_trip(v->game, game_trip_ready(v->game));
         pool_sync_cpus(v->game);
-        if (v->game->mode == GAME_MODE_ARCADE || v->game->mode == GAME_MODE_ARENA || v->game->gg_race || v->game->gg_toss) pool_sync_p2(v->game);
+        if (v->game->mode == GAME_MODE_ARCADE || v->game->mode == GAME_MODE_ARENA || v->game->gg_race || seated(v->game)) pool_sync_p2(v->game);
         if (v->game->mode == GAME_MODE_TRIP) pool_sync_rivals(v->game);
         human_leak_sync(v->game);
         if (g_pool_stress) pool_stress();
@@ -2642,7 +2733,7 @@ static void draw(const FlowView *v) {
         g_draw_state = -1; /* the title's highlighted table is gone (the mode list opened): clear its rows */
     }
     static u8 g_toss_up;   /* a restart into or out of Toss Gum inside FLOW_PLAYING (the P2 join) needs the fix layer cleared like a state change */
-    u8 toss_now = v->game && v->game->gg_toss;
+    u8 toss_now = v->game && seated(v->game);
     if (toss_now != g_toss_up) { g_toss_up = toss_now; g_draw_state = -1; }
     if ((int)v->state != g_draw_state) {
         if (res_over) gfx_cls_busy(); else gfx_cls();
@@ -2679,11 +2770,11 @@ static void draw(const FlowView *v) {
         if (v->game) {
             const Game *g = v->game;
             u8 arc = game_lives_mode(g) && g->party_rule != PARTY_ROOST && v->state != FLOW_ATTRACT_DEMO; /* Roost Rule: no lives, so no counter */
-            u8 p2hud = (g->mode == GAME_MODE_ARCADE || g->mode == GAME_MODE_ARENA || g->gg_toss) && v->state != FLOW_ATTRACT_DEMO; /* the P2 side: PRESS / INSERT / stats */
+            u8 p2hud = (g->mode == GAME_MODE_ARCADE || g->mode == GAME_MODE_ARENA || seated(g)) && v->state != FLOW_ATTRACT_DEMO; /* the P2 side: PRESS / INSERT / stats */
             u8 b0 = (u8)g->hero[0].balloons;
             u8 l0 = (u8)g->lives[0].lives;
             /* P1: the old block (score, balloons; no balloons row in Gum Trip), plus lives in the arcade */
-            if (!g->gg_toss && (g_hud[0].kind != HUD_KIND_STATS || g->score != g_hud[0].score || b0 != g_hud[0].balloons || l0 != g_hud[0].lives)) {
+            if (!seated(g) && (g_hud[0].kind != HUD_KIND_STATS || g->score != g_hud[0].score || b0 != g_hud[0].balloons || l0 != g_hud[0].lives)) {
                 hud_side_stats(0, g->score, b0, l0, arc, g->mode != GAME_MODE_TRIP && g->mode != GAME_MODE_GUM);
                 g_hud[0].kind = HUD_KIND_STATS; g_hud[0].score = g->score; g_hud[0].balloons = b0; g_hud[0].lives = l0;
             }
@@ -2691,7 +2782,7 @@ static void draw(const FlowView *v) {
                 u8 in = g->players == 2;
                 u8 cr = g->credits;
                 u8 out = (!in || g->lives[1].state == ARC_LIFE_ENDED); /* never joined, or out of lives and continues */
-                if (g->gg_toss) hud_side(1, game_can_join_p2(g) && v->state == FLOW_PLAYING ? (cr > 0 ? HUD_KIND_PRESS : HUD_KIND_INSERT) : HUD_KIND_BLANK, 0, 0, 0, 0, 0);   /* Toss Gum: no score block, only the join prompt before the first burst */
+                if (seated(g)) hud_side(1, game_can_join_p2(g) && v->state == FLOW_PLAYING ? (cr > 0 ? HUD_KIND_PRESS : HUD_KIND_INSERT) : HUD_KIND_BLANK, 0, 0, 0, 0, 0);   /* Toss Gum: no score block, only the join prompt before the first burst */
                 else if (out && v->state == FLOW_PLAYING) hud_side(1, cr > 0 ? HUD_KIND_PRESS : HUD_KIND_INSERT, 0, 0, 0, 0, 0);
                 else if (in) hud_side(1, HUD_KIND_STATS, g->lives[1].score, (u8)g->hero[1].balloons, (u8)g->lives[1].lives, g->party_rule != PARTY_ROOST, 1);
                 else hud_side(1, HUD_KIND_BLANK, 0, 0, 0, 0, 0);
@@ -2700,7 +2791,7 @@ static void draw(const FlowView *v) {
         if (v->game && v->game->mode == GAME_MODE_TRIP && !v->game->gg_fling) draw_gum_meter(v->game->trip.gum);
         else set_distress(0);
         if (v->state == FLOW_ATTRACT_DEMO && v->game) draw_overlay(v);
-        if (v->state == FLOW_PLAYING && v->game && (v->game->mode == GAME_MODE_GUM || v->game->gg_fling) && !v->card) { if (v->game->gg_toss) draw_toss(v->game); else if (v->game->gg_fling) draw_fling(v->game); else if (v->game->gg_gather) draw_gather(v->game); else if (v->game->gg_pop) draw_pop_drop(&v->game->pop); else if (v->game->gg_dash) draw_flap_dash(&v->game->dash); else if (v->game->gg_race) draw_burst_race(&v->game->race); else draw_big_blow(&v->game->blow); }
+        if (v->state == FLOW_PLAYING && v->game && (v->game->mode == GAME_MODE_GUM || v->game->gg_fling) && !v->card) { if (v->game->gg_tug) draw_tug(v->game); else if (v->game->gg_toss) draw_toss(v->game); else if (v->game->gg_fling) draw_fling(v->game); else if (v->game->gg_gather) draw_gather(v->game); else if (v->game->gg_pop) draw_pop_drop(&v->game->pop); else if (v->game->gg_dash) draw_flap_dash(&v->game->dash); else if (v->game->gg_race) draw_burst_race(&v->game->race); else draw_big_blow(&v->game->blow); }
         {
             /* mode name in the bottom-left corner while playing, written when the mode or rule changes only */
             u8 key = (v->state == FLOW_PLAYING && v->game) ? (v->game->party_rule != PARTY_NONE ? (u8)(8 + v->game->party_rule) : (u8)(1 + v->game->mode)) : 0;
@@ -3204,6 +3295,14 @@ static void game_loop(void) {
             if (te & GT_SFX_BURST) sound_play_sfx(SND_SFX_FLING_FOUL);
             if (te & GT_SFX_WIN) sound_play_sfx(SND_SFX_FLING_LAND);
         }
+        if (view.game && view.state == FLOW_PLAYING && g_flow.game.gg_tug && g_flow.game.tug.sfx) { /* Tug Gum sounds (Fling samples) */
+            u8 te = g_flow.game.tug.sfx;
+            g_flow.game.tug.sfx = 0;
+            if (te & GTG_SFX_PULL) sound_play_sfx(SND_SFX_FLING_RUNUP_1);
+            if (te & GTG_SFX_LETGO) sound_play_sfx(SND_SFX_FLING_THROW);
+            if (te & GTG_SFX_SNAP) sound_play_sfx(SND_SFX_FLING_FOUL);
+            if (te & GTG_SFX_WIN) sound_play_sfx(SND_SFX_FLING_LAND);
+        }
         if (view.game && view.state == FLOW_PLAYING && g_flow.game.gg_fling && g_flow.game.fling.sfx) { /* Gum Fling sounds */
             u8 fe = g_flow.game.fling.sfx;
             g_flow.game.fling.sfx = 0;
@@ -3249,7 +3348,7 @@ static void game_loop(void) {
             arcade_elems_step(world && view.game->mode == GAME_MODE_ARCADE && view.game->arc.state != ARC_BONUS ? view.game : 0); /* the bonus shows no stage elements: hidden once on entry */
             u8 stadium = world_state(&view) && stadium_on(view.game);
             island_step(world && !trip && !stadium && !ground_field(view.game) && !pop_field(view.game), g_cam_px); /* arena islands are not drawn in Gum Trip, on the stadium events, on the Gum Fling / Toss Gum field or in Pop Drop */
-            fling_field_step(ground_field(view.game) ? view.game->gg_toss ? &g_idle_fling : &view.game->fling : 0, view.game ? view.game->mood : 0, world_state(&view), world, !(view.game && view.game->gg_toss)); /* after island_step: it takes the island slots */
+            fling_field_step(ground_field(view.game) ? seated(view.game) ? &g_idle_fling : &view.game->fling : 0, view.game ? view.game->mood : 0, world_state(&view), world, !(view.game && seated(view.game))); /* after island_step: it takes the island slots */
             {   /* stadium stands: scores, result and wave edges from the event state */
                 static u8 s_fin;
                 const Game *sg = view.game;
@@ -3292,6 +3391,7 @@ static void game_loop(void) {
             roost_marker_step(arena && view.state == FLOW_PLAYING ? view.game : 0);
             card_scene_step(view.state == FLOW_PLAYING && view.card, view.card_t);
             { u8 on = view.state == FLOW_PLAYING && view.game; countdown_step(on ? ggcd_word(view.game->cd_t) : GGCD_WORD_NONE, on ? view.game->cd_t : 0); }
+            tug_strand_step(world && view.state == FLOW_PLAYING && !view.card ? view.game : 0);
             toss_bubble_step(view.state == FLOW_PLAYING ? view.game : 0);   /* Toss Gum is GAME_MODE_GUM, not arena: the function checks gg_toss itself */
             fling_arc_step(world && view.state == FLOW_PLAYING && !view.card ? view.game : 0);
             { u8 g1 = race || (arena && view.game->players == 2); /* inactive: gum_step ignores every other argument, so they are not computed */
