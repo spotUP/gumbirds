@@ -117,6 +117,20 @@ static void ai_hold_step(Ai *a, const Flier *self, const Flier *target, FlierInp
     }
 }
 
+/* The flap decision runs every frame (additive flight model: one flap cancels only part of a think period of gravity):
+ * flap on a fresh press while the target is above (dir.y < AI_FLAP_MAX) and the cooldown has run out. */
+void ai_flap_step(const Ai *a, const Flier *self, const Flier *target, FlierInput *out) {
+    out->flap = 0;
+    if (target && a->state != AI_FILL && self->flap_cd == 0 && !self->flap_prev) {
+        if (ai_flap_wanted((AiState)a->state, arena_dx(px(target->x), px(self->x)), (int32_t)(px(target->y) - px(self->y)))) {
+            /* Flapping up into the underside of an island only bounces: steer out from under it first. */
+            int8_t away = (int8_t)stage_overhead_edge_dir(self->x, self->y - flier_half_h(self));
+            out->flap = 1;
+            if (away) out->dir = away;
+        }
+    }
+}
+
 void ai_step(Ai *a, Rng *r, const Flier *self, const Flier *target, FlierInput *out) {
     out->flap = 0;
     if (a->hold && target) { ai_hold_step(a, self, target, out); return; }
@@ -132,14 +146,5 @@ void ai_step(Ai *a, Rng *r, const Flier *self, const Flier *target, FlierInput *
         }
     }
     out->dir = a->dir;
-    /* The flap decision runs every frame (additive flight model: one flap cancels only part of a think period of gravity):
-     * flap on a fresh press while the target is above (dir.y < AI_FLAP_MAX) and the cooldown has run out. */
-    if (target && a->state != AI_FILL && self->flap_cd == 0 && !self->flap_prev) {
-        if (ai_flap_wanted((AiState)a->state, arena_dx(px(target->x), px(self->x)), (int32_t)(px(target->y) - px(self->y)))) {
-            /* Flapping up into the underside of an island only bounces: steer out from under it first. */
-            int8_t away = (int8_t)stage_overhead_edge_dir(self->x, self->y - flier_half_h(self));
-            out->flap = 1;
-            if (away) out->dir = away;
-        }
-    }
+    ai_flap_step(a, self, target, out);
 }

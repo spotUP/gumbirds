@@ -1188,16 +1188,17 @@ void game_step_arena(Game *g, uint8_t input)
             ci.flap = 0;
         } else if (c->state <= FLIER_PARACHUTE) {
             /* Rival AI is staggered: rival i thinks on frames where (flier_steps + i) is even and holds its last steering between
-               (flap 0 on the held frames; the timer takes two ticks on a think frame, so the think period is unchanged). Physics runs every frame. */
+               (the flap decision still runs; the timer takes two ticks on a think frame, so the think period is unchanged). Physics runs every frame. */
             const Flier *tgt = 0;
             g->ai[i].flee = 0;
             if (((g->flier_steps + (uint32_t)i) & 1u) && !g->ai[i].hold) {
                 ci.dir = g->ai[i].out_dir;
-                ci.flap = 0;
+                ai_flap_step(&g->ai[i], c, g->ai[i].tgt, &ci); /* the cheap flap decision and (below) the element dodge run every frame; only the target search and the think are staggered */
             } else {
                 if (g->ai[i].timer > 1) g->ai[i].timer--;
                 if (!tgt) tgt = g->ai[i].hold ? &g->roost.mark : ai_nearest(c, g->hero, g->players, g->cpu, g->cpu_count);
                 ai_step(&g->ai[i], &g->rng, c, tgt, &ci);
+                g->ai[i].tgt = tgt;
                 g->ai[i].out_dir = ci.dir;
             }
             if (g->mode == GAME_MODE_ARCADE) {
