@@ -121,7 +121,7 @@ int main(void)
         flow_step(&f, 0, 1, 1);
         CHECK(f.state == FLOW_PLAYING && f.game.gg_poop);
         f.game.poop.b[0].score = 900; f.game.poop.timer = PM_CLOCK - 1;
-        for (i = 0; i < (int)GGCD_SET_FRAMES + (int)PM_RESULT_FRAMES + 400 && f.state == FLOW_PLAYING; i++) flow_step(&f, 0, 0, 0);
+        for (i = 0; i < (int)GGCD_SET_FRAMES + (int)PM_RESULT_FRAMES + (int)GG_CARD_FRAMES + 400 && f.state == FLOW_PLAYING; i++) flow_step(&f, 0, 0, 0);
         CHECK(f.tables.gg_record[GG_POOP_MAN] >= 900);
     }
 
