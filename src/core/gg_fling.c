@@ -5,7 +5,7 @@ static void begin(GgFling *f)
 {
     f->phase = GF_WINDUP; f->prev_in = 0; f->thrower = f->seq.turn; f->power = 0; f->deg = 0; f->foul = 0;
     f->clock = GF_WINDUP_FRAMES; f->t = 0;
-    f->hold.charge = 0;
+    gg_mash_reset(&f->mash);
     f->vx = f->vy = f->h = 0; f->x = 0; f->dist = 0;
 }
 
@@ -28,16 +28,16 @@ uint8_t gumfling_winner(const GgFling *f)
     return f->seq.best[0] == f->seq.best[1] ? 2 : f->seq.best[1] > f->seq.best[0];
 }
 
-uint8_t gumfling_deg(uint16_t charge)
+uint8_t gumfling_deg(uint16_t t)
 {
-    uint16_t a = charge > GF_AIM_CAP ? GF_AIM_CAP >> 1 : charge >> 1;          /* 0..64 on the 256-step angle circle */
-    return (uint8_t)(a + (a >> 2) + (a >> 3) + (a >> 5));   /* a * 1.41 = degrees */
+    uint16_t p = t % (2 * GF_AIM_SWEEP_FRAMES), pos = p < GF_AIM_SWEEP_FRAMES ? p : 2 * GF_AIM_SWEEP_FRAMES - p;
+    return (uint8_t)(GF_DEG_MIN + (GF_DEG_MAX - GF_DEG_MIN) * pos / GF_AIM_SWEEP_FRAMES);
 }
 
-/* Launch velocity of a throw: run-up power and the frames of B held in the aim (charge). Shared by the launch and the aim preview. */
-static void launch_vel(uint8_t power, uint16_t charge, int32_t *vx, int32_t *vy)
+/* Launch velocity of a throw: run-up power and the angle in degrees. Shared by the launch and the aim preview. */
+static void launch_vel(uint8_t power, uint8_t deg, int32_t *vx, int32_t *vy)
 {
-    uint8_t a = (uint8_t)(charge >> 1 > 64 ? 64 : charge >> 1);
+    uint8_t a = (uint8_t)((deg * 182u) >> 8);   /* degrees to the 256-step circle (0..64 = 90 degrees) */
     int32_t v0 = (int32_t)GF_V0_BASE + (int32_t)power * GF_V0_PER_PRESS;
     *vx = (int32_t)(((int64_t)(v0 >> 3) * flier_cos(a)) >> 12);
     *vy = (int32_t)(((int64_t)(v0 >> 3) * flier_sin(a)) >> 12);
@@ -55,12 +55,12 @@ static int fly_frame(uint32_t *x, int32_t *h, int32_t *vy, int32_t vx)
     return 1;
 }
 
-int gumfling_path(uint8_t power, uint16_t charge, int16_t *dx, int16_t *dy, int n)
+int gumfling_path(uint8_t power, uint8_t deg, int16_t *dx, int16_t *dy, int n)
 {
     int32_t vx, vy, h = 0;
     uint32_t x = 0;
     int frames = 0, i, t = 0, landed = 0;
-    launch_vel(power, charge, &vx, &vy);
+    launch_vel(power, deg, &vx, &vy);
     {   /* flight time first, so the dots spread over the whole throw */
         int32_t vy2 = vy;
         while (frames < 4000) { frames++; if (fly_frame(&x, &h, &vy2, vx)) break; }
@@ -91,26 +91,22 @@ int gumfling_step(GgFling *f, uint8_t in)
     f->prev_in = in;
     switch (f->phase) {
     case GF_WINDUP:
-        if ((in & IN_A) && !(prev & IN_A) && f->power < GF_POWER_MAX) f->power++;
-        if (in & IN_B) { f->phase = GF_AIM; f->hold.charge = 0; f->t = 0; }   /* B ends the run-up and starts the needle */
-        else if (--f->clock == 0) { f->foul = 1; finish(f, 0); }
+        if (gg_mash_step(&f->mash, in, prev) && f->power < GF_POWER_MAX) f->power++;
+        if (f->clock % GF_POWER_DRAIN_FRAMES == 0 && f->power) f->power--;
+        if (--f->clock == 0) { f->phase = GF_AIM; f->t = 0; f->deg = GF_DEG_MIN; }   /* power freezes: it is the throw strength */
         else if (f->clock % 60 == 0) f->sfx |= GF_SFX_TICK;
         break;
-    case GF_AIM: {
-        uint16_t c = 0;
-        if (in & IN_B) { if (f->hold.charge < GF_AIM_CAP) f->hold.charge++; }
-        else { c = f->hold.charge ? f->hold.charge : 1; f->hold.charge = 0; }
-        f->deg = gumfling_deg(f->hold.charge);
-        if (c) {
-            f->deg = gumfling_deg(c);
-            if (f->deg < GF_DEG_MIN || f->deg > GF_DEG_MAX) { f->foul = 1; finish(f, 0); break; }
-            launch_vel(f->power, c, &f->vx, &f->vy);
-            f->h = 0; f->x = 0; f->phase = GF_FLIGHT;
+    case GF_AIM:
+        f->deg = gumfling_deg(f->t);
+        if (((in & IN_A) && !(prev & IN_A)) || f->t >= GF_AIM_TIMEOUT_FRAMES) {
+            launch_vel(f->power, f->deg, &f->vx, &f->vy);
+            f->h = 0; f->x = 0; f->phase = GF_FLIGHT; f->flap = 0;
+            f->h_cap = (int32_t)(((int64_t)f->vy * f->vy) / (2 * GF_GRAVITY));
             f->sfx |= GF_SFX_THROW;
             return GF_EV_LAUNCH;
         }
+        f->t++;
         break;
-    }
     case GF_LANDED:
         if (++f->t >= (f->foul ? GF_FOUL_FRAMES : GF_SHOW_FRAMES)) {
             if (f->more) { begin(f); return GF_EV_NEXT; }
@@ -127,9 +123,13 @@ int gumfling_step(GgFling *f, uint8_t in)
     return GF_EV_NONE;
 }
 
-int gumfling_fly(GgFling *f)
+int gumfling_fly(GgFling *f, uint8_t in)
 {
     if (f->phase != GF_FLIGHT) return GF_EV_NONE;
+    if (gg_mash_step(&f->mash, in, f->prev_in) && f->flap + GF_FLAP_PRESS <= GF_FLAP_MAX) f->flap += GF_FLAP_PRESS;
+    f->prev_in = in;
+    if (f->flap > GF_FLAP_THRESH && f->h < f->h_cap) f->vy += (int32_t)(f->flap - GF_FLAP_THRESH) * GF_FLAP_LIFT;
+    f->flap = f->flap > GF_FLAP_DRAIN ? f->flap - GF_FLAP_DRAIN : 0;
     if (fly_frame(&f->x, &f->h, &f->vy, f->vx)) {
         finish(f, f->x >> 16);
         return GF_EV_LANDED;

@@ -527,7 +527,7 @@ static void game_step_fling(Game *g, uint8_t input)
     input = gg_seq_input(&f->seq, input, g->input2);   /* 2P: whoever's turn it is throws */
     if (f->phase == GF_FLIGHT) {
         uint32_t step = (uint32_t)gumfling_scroll(f);
-        ev = gumfling_fly(f);
+        ev = gumfling_fly(f, input);
         camera_scroll(&g->camera, step);
         g->distance = f->x >> 16;
         h->vy = -f->vy;
