@@ -7,7 +7,8 @@
 
 /* Gum Games event Pop Drop (pure logic), the free-fall design: the bird falls without end and the fall speeds up. Platforms (rock island, steel girder,
  * wooden plank) rush up from below, gum candy drifts up between them. The stick steers left / right. A platform hit = bounce, a stun of PD_STUN frames and
- * one caught gum lost; the third hit is the crash. Every PD_SHIELD_EVERY gums blow a shield bubble that soaks one hit. Score = depth in metres + gums.
+ * one caught gum lost; the third hit is the crash. A trail of gums (owner pick 2026-11-20) threads each row's open gap: platforms never sit on it,
+ * so a bird that follows it at full speed never hits. Every PD_SHIELD_EVERY gums blow a shield bubble that soaks one hit. Score = depth in metres + gums.
  * One attempt per player. With P2 both birds fall at once through the same scroll and platforms (owner pick 2026-11-20): birds push
  * each other apart (no damage), a crashed bird floats on as a ghost (no collision) until both crashed; each bird's score goes to
  * its GgSeq slot. The record is the best score (higher is better, 0 = none).
@@ -24,11 +25,14 @@
 #define PD_STEER_ACC 16384            /* 0.25 px per frame per frame */
 #define PD_STUN 30u                   /* 0.5 s without steering after a hit */
 #define PD_HITS_MAX 3u                /* the third hit is the crash */
-#define PD_SHIELD_EVERY 10u
+#define PD_SHIELD_EVERY 25u           /* 5 trail gums per gap: a shield about every 5 gaps followed (10 gave one every 2 gaps) */
 #define PD_CRASH_FRAMES 90u
 #define PD_RESULT_FRAMES 150u
 #define PD_PLATS 4
-#define PD_GUMS 3
+#define PD_GUMS 20                    /* trail gums live at once: 256 px of live y / 14.4 px spacing = 18 at most */
+#define PD_TRAIL_GUMS 5               /* gums per gap, from the last row's gap point down to the new row's */
+#define PD_TRAIL_SHIFT_MAX 48         /* trail sideways move per gap, px (also capped at 1 px per frame of fall, 40 % of PD_STEER) */
+#define PD_TRAIL_CLEAR 16             /* px between the trail and a platform's hit box edge, room for the follower's lag */
 #define PD_SPAWN_Y 240                /* a platform enters below the 224 px screen */
 #define PD_PLAT_H 16
 #define PD_QUALIFY 200u               /* score that counts as qualified */
@@ -45,7 +49,7 @@ enum { PD_FALL, PD_CRASH, PD_RESULT };
 enum { PD_ROCK, PD_GIRDER, PD_PLANK };
 
 typedef struct { int16_t x, y; uint8_t kind, mids, live, hit; } PdPlat;   /* hit: bit k set once bird k hit it */   /* x = left edge in arena px, y = top in screen px */
-typedef struct { int16_t x, y; uint8_t live; } PdGum;                      /* centre */
+typedef struct { int16_t x, y; uint8_t live; } PdGum;                      /* centre; trail gums, see spawn() */
 
 typedef struct {                      /* one bird; 1P uses b[0] */
     uint8_t hits, stun, shield, flip, prev_in;   /* flip: bird faces left (1) or right (0); prev_in: last input (A edge, view lean) */
@@ -75,6 +79,7 @@ typedef struct {
     uint16_t depth;                   /* metres: dist / 128 */
     uint16_t spd;
     uint16_t last_score;              /* best score of the attempt just ended */
+    int16_t trail_x;                  /* gap point of the newest row, arena px: the gum trail runs from here to the next row's */
 } GgPop;
 
 /* Clear the event for one player and start the first fall. seed feeds the platform layout. */

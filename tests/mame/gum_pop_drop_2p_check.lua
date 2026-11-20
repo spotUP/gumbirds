@@ -1,8 +1,8 @@
 -- Gum Games Pop Drop 2P check (make test-gum-pop-drop-2p): UniBIOS 4.0, one coin, the GUM GAMES row, Right three times picks Pop Drop, Start;
 -- then a second coin and P2 Start in the GET SET countdown (the real join path, game_can_join_p2):
 --   Q1. Game.players 2 and pop.seq.players 2 after the join;
---   Q2. both birds fall at once: 60 fall frames with neither crashed, the P2 bird (slot 356, PD_BIRD2_SLOT in src/main.c) and its rag
---       (slot 362, PD_RAG2_SLOT) on screen, the birds at different x;
+--   Q2. both birds fall at once: 60 fall frames with neither crashed, the P2 bird (slot 350, PD_BIRD2_SLOT in src/main.c) and its rag
+--       (slot 356, PD_RAG2_SLOT) on screen, the birds at different x;
 --   Q3. a platform parked on P1 only crashes it (3 hits); the fall goes on (phase PD_FALL) for 60 frames with P2 alive, the P1 ghost drawn
 --       (slot 323 up) and its hit count frozen at 3 (a ghost touches nothing);
 --   sprites per line (tests/mame/sprite_line_count.lua) stay <= 96 and flush time g_last_us <= 1800 us; the flush sampler counts are printed.
@@ -49,7 +49,7 @@ local function finish(ok, msg)
 end
 if not (coin and start1 and start2 and up and abtn and pick) then finish(false, "missing ports") end
 
-local P1_BIRD, P2_BIRD, P2_RAG = 323, 356, 362   -- PD_BIRD_SLOT, PD_BIRD2_SLOT, PD_RAG2_SLOT (src/main.c)
+local P1_BIRD, P2_BIRD, P2_RAG = 323, 350, 356   -- PD_BIRD_SLOT, PD_BIRD2_SLOT, PD_RAG2_SLOT (src/main.c)
 local n, phase, t0, both_n, p2_up, rag2_up, apart, ghost_n, ghost_up = 0, "boot", 0, 0, 0, 0, 0, 0, 0
 local peak, peak_line, us_play = 0, 0, 0
 local function measure()

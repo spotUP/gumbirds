@@ -1819,17 +1819,22 @@ static void draw_pop_drop(const GgPop *p) {
 #define PD_SPRITE 323
 #define PD_BIRD_SLOT PD_SPRITE
 #define PD_PLAT_SLOT (PD_SPRITE + 2)                 /* 4 platforms x 5 pieces */
-#define PD_GUM_SLOT (PD_PLAT_SLOT + PD_PLATS * 5)    /* 3 gums x 2 columns */
-#define PD_SHIELD_SLOT (PD_GUM_SLOT + PD_GUMS * 2)   /* 4 columns: the pop frames are 64 px wide */
+#define PD_SHIELD_SLOT (PD_PLAT_SLOT + PD_PLATS * 5) /* 4 columns: the pop frames are 64 px wide */
 #define PD_RAG_SLOT (PD_SHIELD_SLOT + 4)             /* 1 column: the burst gum skin, on top of the bird */
 #define PD_BIRD2_SLOT (PD_RAG_SLOT + 1)              /* player 2: bird, shield, rag */
 #define PD_SHIELD2_SLOT (PD_BIRD2_SLOT + 2)
 #define PD_RAG2_SLOT (PD_SHIELD2_SLOT + 4)
 #define PD_SPRITE_END (PD_RAG2_SLOT + 1)
 _Static_assert(PD_SPRITE_END <= 367, "Pop Drop slots overlap the Trip pickup slots");
-#define PD_SLOTS (PD_SPRITE_END - PD_SPRITE)
+/* The trail gums (2 columns each) take the arena island slots, as the Gum Fling field does: island_step is off in Pop Drop and
+ * island_relayout reloads their tiles on leaving. They draw under the platforms and the birds. */
+#define PD_GUM_SLOT ISLAND_SPRITE
+_Static_assert(PD_GUMS * 2 <= ISLAND_COUNT, "Pop Drop trail gums overrun the island slots");
+#define PD_SLOTS (PD_SPRITE_END - PD_SPRITE + PD_GUMS * 2)
 static u8 g_pd_on;
-static u8 g_pd_shown[PD_SLOTS], g_pd_new[PD_SLOTS]; /* slot - PD_SPRITE: drawn last frame / this frame */
+static u8 g_pd_shown[PD_SLOTS], g_pd_new[PD_SLOTS]; /* pd_idx(slot): drawn last frame / this frame */
+static u8 pd_idx(u16 slot) { return (u8)(slot >= PD_SPRITE ? slot - PD_SPRITE : PD_SPRITE_END - PD_SPRITE + slot - PD_GUM_SLOT); }
+static u16 pd_slot(u8 k) { return (u16)(k < PD_SPRITE_END - PD_SPRITE ? PD_SPRITE + k : PD_GUM_SLOT + k - (PD_SPRITE_END - PD_SPRITE)); }
 
 static const PopdropFrame *pd_frame(u8 anim, u16 n) {
     const PopdropAnim *a = &popdrop_anims[anim];
@@ -1845,11 +1850,11 @@ static void pd_piece(u16 slot, const PopdropFrame *f, int wx, int top, int flip,
         gfx_sprite_strips((u16)(slot + c), 1, f->tiles_h, t + (flip ? f->tiles_w - 1 - c : c) * f->tiles_h, POPDROP_TILE_BASE,
                           (u16)((pal << 8) | (flip ? 1 : 0)));
     gfx_sprite_place(slot, f->tiles_w, f->tiles_h, sx, top);
-    for (u8 c = 0; c < f->tiles_w; c++) g_pd_new[slot - PD_SPRITE + c] = 1;
+    for (u8 c = 0; c < f->tiles_w; c++) g_pd_new[pd_idx(slot) + c] = 1;
 }
 
 static void pop_hide(void) {
-    for (u16 s = PD_SPRITE; s < PD_SPRITE_END; s++) { obs_hide_slot(s); g_pd_shown[s - PD_SPRITE] = 0; }
+    for (u8 k = 0; k < PD_SLOTS; k++) { obs_hide_slot(pd_slot(k)); g_pd_shown[k] = 0; }
 }
 
 static void pop_show_pieces(const Game *g);
@@ -1860,7 +1865,7 @@ static void pop_show(const Game *g) {
     for (u8 k = 0; k < PD_SLOTS; k++) g_pd_new[k] = 0;
     pop_show_pieces(g);
     for (u8 k = 0; k < PD_SLOTS; k++) {
-        if (g_pd_shown[k] && !g_pd_new[k]) obs_hide_slot((u16)(PD_SPRITE + k));
+        if (g_pd_shown[k] && !g_pd_new[k]) obs_hide_slot(pd_slot(k));
         g_pd_shown[k] = g_pd_new[k];
     }
 }
@@ -1905,14 +1910,14 @@ static void pop_show_pieces(const Game *g) {
     for (u8 k = 0; k < PD_GUMS; k++) {
         const PdGum *gm = &p->gum[k];
         if (!gm->live) continue;
-        int fr = (int)((g->frame >> 2) & (TRIPPICKUP_PICKUP_IDLE_FRAMES - 1));
+        int fr = (int)(((g->frame >> 2) + k) & (TRIPPICKUP_PICKUP_IDLE_FRAMES - 1));   /* phase per gum: the tile rewrites spread over the frames */
         const TrippickupFrame *f = &trippickup_frames[trippickup_anims[TRIPPICKUP_ANIM_PICKUP_IDLE].first_frame + fr];
         int sx = camera_screen_x(gm->x - 16, g_cam_px, 32);
         if (!camera_visible(sx, 32)) continue;
         u16 sl = (u16)(PD_GUM_SLOT + k * 2);
         gfx_sprite_strips(sl, 2, 2, &trippickup_tile_index[f->tile_offset], TRIPPICKUP_TILE_BASE, (u16)(TRIPPICKUP_PAL_SLOT << 8));
         gfx_sprite_place(sl, 2, 2, sx, gm->y - 16);
-        g_pd_new[sl - PD_SPRITE] = 1; g_pd_new[sl - PD_SPRITE + 1] = 1;
+        g_pd_new[pd_idx(sl)] = 1; g_pd_new[pd_idx(sl) + 1] = 1;
     }
     if (p->phase != PD_FALL && p->phase != PD_CRASH) return;
     pop_show_bird(g, 0, PD_BIRD_SLOT, PD_SHIELD_SLOT, PD_RAG_SLOT, POPDROP_PAL_SLOT);
@@ -1949,7 +1954,7 @@ static void hero_and_mode(const FlowView *v) {
         if (v->game->gg_pop) { hero_hide(); pop_show(v->game); }  /* no hero_show here: it queued the hero and hero_hide cleared it the same frame */
         else {
             hero_show(v->game, game_flier_cam_px(v->game));
-            if (g_pd_on) { pop_hide(); g_pd_on = 0; }
+            if (g_pd_on) { pop_hide(); g_pd_on = 0; island_relayout(); }   /* the trail gums wrote the island tiles */
         }
         if (v->game->mode == GAME_MODE_TRIP) pool_sync_trip(v->game, game_trip_ready(v->game));
         pool_sync_cpus(v->game);
