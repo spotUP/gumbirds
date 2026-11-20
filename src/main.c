@@ -2813,6 +2813,8 @@ static void video_init(void) {
     trip_pickup_load_palettes();
     for (u8 p = 0; p < POPDROP_PALETTE_COUNT; p++)
         for (u8 i = 0; i < 16; i++) gfx_pal((u16)((POPDROP_PAL_SLOT + p) * 16 + i), popdrop_palettes[p][i]);
+    for (u8 p = 0; p < POPDROPSKY_PALETTE_COUNT; p++)
+        for (u8 i = 0; i < 16; i++) gfx_pal((u16)((POPDROPSKY_PAL_SLOT + p) * 16 + i), popdropsky_palettes[p][i]);
     gum_load_palettes();
     splash_load_palettes();
     resfx_load_palettes();
@@ -3103,6 +3105,7 @@ static void game_loop(void) {
          * at once and the game waits for it, so the first frame of play shows the whole background. Everywhere else (title, an arena
          * round, a demo rematch, an arcade world change) it fades: the planes dim to black, swap in the dark, brighten, and the game runs on. */
         bg_set_mood(g_flow.game.mood, (u8)(world_state(&view) && g_bg_hold));
+        bg_pop_sky((u8)((world_state(&view) || view.state == FLOW_GAME_OVER) && pop_field(view.game)), view.game ? view.game->pop.dist : 0); /* Pop Drop: summer sky instead of the arena planes (1P, 2P, demo) */
         bg_update(g_cam_unwrapped); /* the planes loop on the unwrapped camera (arena and Gum Trip alike) */
         g_bg_held = (u8)(world_state(&view) && g_bg_hold); /* test sentinel: this frame kept the world hidden */
         if (world_shown(&view) && bg_bare()) g_bg_late++; /* the world over the flat lit backdrop: a cut swap in play */

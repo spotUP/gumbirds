@@ -32,6 +32,7 @@
 #include "gen/flfield_sprites.h"
 #include "gen/stadium_sprites.h"
 #include "gen/popdrop_sprites.h"
+#include "gen/popdropsky_sprites.h"
 
 /* The ngdevkit logo tile block that opens the C-ROM (assets/base-crom-logo); the title logo (gen/logo_sprites.h, LOGO_TILE_COUNT) sits last. */
 #define BASE_LOGO_TILE_COUNT 256
@@ -104,6 +105,8 @@ _Static_assert((TOSSPOSE_TILE_BASE & 7) == 0, "toss pose tile base is not 8-alig
 _Static_assert((STADIUM_TILE_BASE & 7) == 0, "stadium tile base is not 8-aligned");
 #define POPDROP_TILE_BASE (STADIUM_TILE_BASE + STADIUM_TILE_COUNT) /* Gum Games Pop Drop free-fall bird, platforms, shield (assets/popdrop), last in CROM_SETS */
 _Static_assert((POPDROP_TILE_BASE & 7) == 0, "pop drop tile base is not 8-aligned");
+#define POPDROPSKY_TILE_BASE (POPDROP_TILE_BASE + POPDROP_TILE_COUNT) /* Pop Drop summer sky and clouds (assets/popdropsky), last in CROM_SETS */
+_Static_assert((POPDROPSKY_TILE_BASE & 7) == 0, "pop drop sky tile base is not 8-aligned");
 
 #define FIX_PAL_COUNT FIXFONT_PAL_COUNT /* fix palettes 0..4: white, pink, lime, gold, dim (build/gen/fix_font.h) */
 #define ATTRACT_PAL_SLOT FIX_PAL_COUNT /* one palette: the attract overlay icons (build/gen/attract_icons.h). Fix tiles hold a 4-bit palette, so it must sit in slots 0..15, never after the sprite palettes */
@@ -138,6 +141,7 @@ _Static_assert(ATTRACT_PAL_SLOT < 16, "fix layer palettes are 4 bits: the overla
 #define SOOT_VIOLET_PAL_SLOT (TOSSPOSE_PAL_SLOT + 4) /* Toss Gum seat 3 standing body: tosspose_extra_palettes[3], the violet swap of the computer palette */
 #define STADIUM_PAL_SLOT (SOOT_VIOLET_PAL_SLOT + 1) /* ground-event stands: base palette, then the extra ones (mood x team x variant x near/far, structure, dusk light) */
 #define POPDROP_PAL_SLOT (STADIUM_PAL_SLOT + STADIUM_PALETTE_COUNT + STADIUM_EXTRA_PALETTE_COUNT) /* Pop Drop: bird (player), platforms, shield (gum) */
-_Static_assert(POPDROP_PAL_SLOT + POPDROP_PALETTE_COUNT <= 256, "palette slots exceed the 256 the hardware has");
+#define POPDROPSKY_PAL_SLOT (POPDROP_PAL_SLOT + POPDROP_PALETTE_COUNT) /* Pop Drop sky: 0 sky blues, 1..3 far, mid, near clouds */
+_Static_assert(POPDROPSKY_PAL_SLOT + POPDROPSKY_PALETTE_COUNT <= 256, "palette slots exceed the 256 the hardware has");
 
 #endif
