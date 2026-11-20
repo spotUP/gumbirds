@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Pop Drop batch 2 - drafts</title>
+<style>
+body{background:#1c1f2b;color:#e6e8f0;font:15px/1.5 system-ui,sans-serif;margin:24px;max-width:1900px}
+h1{font-size:22px}h2{font-size:18px;margin-top:40px;border-top:1px solid #3a3f5c;padding-top:20px}
+img{image-rendering:pixelated;display:block;background:#000}
+.row{display:flex;gap:16px;flex-wrap:wrap;margin-top:12px;align-items:flex-start}figure{margin:0}
+figcaption{color:#a9afc6;font-size:13px;margin-top:4px}
+</style></head><body>
+<h1>Pop Drop: art batch 2, drafts for owner picks (2026-11-20)</h1>
+<p>Drafts only, nothing imported. The bird with the gum rag in the animations is the existing in-game terror bird at the same scale.
+Sky is summer sky v3 take B. Two new sprite palettes of 15 colours (pool and water; gag objects and cards); birds use the existing bird palettes.</p>
+<h2>All items on one screen (320 x 224, shown at 3 times size, then real size)</h2>
+<div class="row"><figure><img src="screen_mock_3x.png"><figcaption>Sky: bathtub bird, in-game bird, snail on umbrella, armchair; the three flop poses in a row.
+Bottom: pool with the big splash, crowd with score cards on the deck.</figcaption></figure>
+<figure><img src="screen_mock_1x.png"><figcaption>Real size</figcaption></figure></div>
+<h2>1. Odd fallers (background gags, no collision)</h2><p>Bird in a clawfoot bathtub with a rubber duck (4 frames: bob, eyes shut, foam shifts, beads trail upward). Armchair: two drawings, front and profile, the other two tumble frames are flips. Snail riding on top of an open umbrella (4 frames: canopy and handle sway, eye stalk droops).</p><div class="row">
+<figure><img src="fallers.gif"><figcaption>Animation, 3 times size (fallers.gif)</figcaption></figure>
+<figure><img src="fallers_sheet_3x.png"><figcaption>Frames, 3 times size (fallers_sheet_3x.png)</figcaption></figure>
+<figure><img src="fallers_sheet_1x.png"><figcaption>Frames, real size (fallers_sheet_1x.png)</figcaption></figure>
+</div>
+<h2>2. Finish pool</h2><p>Water surface 32 pixels wide, 4 ripple frames, water body tile (second row is a darker palette-index swap), tiled pool edge with coping, brass ladder.</p><div class="row">
+<figure><img src="pool.gif"><figcaption>Animation, 3 times size (pool.gif)</figcaption></figure>
+<figure><img src="pool_sheet_3x.png"><figcaption>Frames, 3 times size (pool_sheet_3x.png)</figcaption></figure>
+<figure><img src="pool_sheet_1x.png"><figcaption>Frames, real size (pool_sheet_1x.png)</figcaption></figure>
+</div>
+<h2>3. Flop poses (24 x 32)</h2><p>Left to right: in-game terror bird for comparison, belly flop (v2: lying flat along the water, belly down, head to the right looking down, near wing spread toward the viewer, far wing behind the back, feet trailing), cannonball (wings hug the knees, eyes shut), face first (the in-game wings-up frame flipped upside down, costs no new tiles). Top row player palette, bottom computer palette.</p><div class="row">
+<figure><img src="flop_sheet_3x.png"><figcaption>Frames, 3 times size (flop_sheet_3x.png)</figcaption></figure>
+<figure><img src="flop_sheet_1x.png"><figcaption>Frames, real size (flop_sheet_1x.png)</figcaption></figure>
+</div>
+<h2>4. Splash, small (16 frames, 32 x 32)</h2><p>Shown with the face-first entry. Crown stages are typed; droplets fly on ballistic arcs and leave a ringlet where they land. Animation slowed to 66 ms a frame (game: 50 ms).</p><div class="row">
+<figure><img src="splash_s.gif"><figcaption>Animation, 3 times size (splash_s.gif)</figcaption></figure>
+<figure><img src="splash_s_sheet_3x.png"><figcaption>Frames, 3 times size (splash_s_sheet_3x.png)</figcaption></figure>
+</div>
+<h2>4. Splash, medium (20 frames, 56 x 48)</h2><p>Shown with the cannonball. Crown rises, tears into strings, a rebound jet pinches off a bead.</p><div class="row">
+<figure><img src="splash_m.gif"><figcaption>Animation, 3 times size (splash_m.gif)</figcaption></figure>
+<figure><img src="splash_m_sheet_3x.png"><figcaption>Frames, 3 times size (splash_m_sheet_3x.png)</figcaption></figure>
+</div>
+<h2>4. Splash, big (23 frames, 88 x 72)</h2><p>Shown with the belly flop. Medium crown plus low side sheets and 25 droplets.</p><div class="row">
+<figure><img src="splash_l.gif"><figcaption>Animation, 3 times size (splash_l.gif)</figcaption></figure>
+<figure><img src="splash_l_sheet_3x.png"><figcaption>Frames, 3 times size (splash_l_sheet_3x.png)</figcaption></figure>
+</div>
+<h2>5. Score-card crowd</h2><p>Crowd birds are the in-game bird in the computer and second-player palettes, wing up holding a card; second frame hops and shouts. Cards 1 to 10 below (10 in red).</p><div class="row">
+<figure><img src="crowd.gif"><figcaption>Animation, 3 times size (crowd.gif)</figcaption></figure>
+<figure><img src="crowd_sheet_3x.png"><figcaption>Frames, 3 times size (crowd_sheet_3x.png)</figcaption></figure>
+<figure><img src="crowd_sheet_1x.png"><figcaption>Frames, real size (crowd_sheet_1x.png)</figcaption></figure>
+</div>
+<h2>Belly flop v2: old (left) against new (right)</h2>
+<p>The old belly flop read as a squashed wide bird with low eyes. The new one lies flat in side view. Cannonball and face first are unchanged.</p>
+<div class="row">
+<figure><img src="v1_flop_sheet_3x.png"><img src="v1_flop_sheet_1x.png" style="margin-top:8px"><figcaption>V1 flop sheet, 3 times and real size</figcaption></figure>
+<figure><img src="flop_sheet_3x.png"><img src="flop_sheet_1x.png" style="margin-top:8px"><figcaption>V2 flop sheet, 3 times and real size</figcaption></figure>
+<figure><img src="v1_splash_l.gif"><figcaption>V1 large splash (belly flop)</figcaption></figure>
+<figure><img src="splash_l.gif"><figcaption>V2 large splash (belly flop)</figcaption></figure>
+</div>
+</body></html>
