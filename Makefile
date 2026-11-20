@@ -802,6 +802,7 @@ test-rain: cart
 	BRAWL_LASTUS_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_last_us"{print $$1}') \
 	BRAWL_DEFER_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_gfx_defer_last"{print $$1}') \
 	BRAWL_FLUSHN_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_gfx_flush_n"{print $$1}') \
+	BRAWL_RE_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_round_end_s"{print $$1}') \
 	BRAWL_RAIN_SLOT=7 \
 	BRAWL_FLIER_LAYOUT="$$($(M68KGCC) -std=c99 -S -o - tests/mame/flier_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
 	BRAWL_RESULT=$$T/result.txt \

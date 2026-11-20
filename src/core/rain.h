@@ -42,7 +42,7 @@ void rain_step(Rain *r, VramQueue *q, uint8_t active, uint8_t mode, int16_t scro
 /* 0 no flash, 1..4 the planes' flash level index (rain_flash_color). */
 uint8_t rain_flash_index(const Rain *r);
 /* 1 while the rain palette is the burst colour. */
-uint8_t rain_burst_palette(const Rain *r);
+uint8_t rain_burst_active(const Rain *r);
 /* Pale flash: colour c brightened toward white by level idx (1..4), NG 16-bit colour word. idx 0 returns c. */
 uint16_t rain_flash_color(uint16_t c, uint8_t idx);
 /* Seconds between flashes: the typed list walked in order. */

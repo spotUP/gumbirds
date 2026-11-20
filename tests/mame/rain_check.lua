@@ -10,6 +10,7 @@ local rain_slot, result = tonumber(os.getenv("BRAWL_RAIN_SLOT") or ""), os.geten
 local flay = {}
 for v in (os.getenv("BRAWL_FLIER_LAYOUT") or ""):gmatch("%d+") do flay[#flay + 1] = tonumber(v) end
 local S_PLAYING, GAME_MOOD_STORM = 3, 2
+local MIN_STORM_FRAMES = 500 -- past the first lightning gap (420) and its burst: a match that ends sooner (the idle bird is hit) still counts
 local NOSTORM_FRAMES, STORM_FRAMES, SB_LIMIT, FLUSH_LIMIT, MIN_CELLS = 120, 900, 90, 1800, 20
 
 local mem   = manager.machine.devices[":maincpu"].spaces["program"]
@@ -49,6 +50,13 @@ end
 local rs = (#flay >= 23) and dofile("tests/mame/round_skip.lua")(mem, flow_addr, flay) or nil
 local n, phase, fc0, t = 0, "boot", nil, 0
 local calm_cells, calm_frames, peak_cells, sframes, worst, worst_line = 0, 0, 0, 0, 0, 0
+local function report()
+  local msg = string.format("rain: calm cells %d, storm peak %d cells, worst line %d sprites at line %d (limit %d), flush max %d us (limit %d), flushes %d, deferred %d",
+    calm_cells, peak_cells, worst, worst_line, SB_LIMIT, fs.us_max, FLUSH_LIMIT, fs.flushes, fs.sat)
+  if peak_cells < MIN_CELLS then finish(false, "no rain in storm: " .. msg) return end
+  if worst > SB_LIMIT or fs.us_max > FLUSH_LIMIT then finish(false, msg) return end
+  finish(true, msg)
+end
 emu.register_frame_done(function() local ok_, err_ = pcall(function()
   if done then return end
   n = n + 1
@@ -64,7 +72,8 @@ emu.register_frame_done(function() local ok_, err_ = pcall(function()
     if ss.step(n, state == S_PLAYING) then phase = "calm_poke"; t = 0 end
     return
   end
-  if state ~= S_PLAYING then finish(false, "left PLAYING in phase " .. phase) return end
+  if state ~= S_PLAYING and not (phase == "storm" and sframes >= MIN_STORM_FRAMES) then finish(false, "left PLAYING in phase " .. phase .. " after " .. sframes .. " storm frames") return end
+  if state ~= S_PLAYING then report() return end
   if not rs.live() or busy ~= 0 then t = 0 return end
   t = t + 1
   if t < 5 then return end
@@ -85,10 +94,6 @@ emu.register_frame_done(function() local ok_, err_ = pcall(function()
     fs.frame()
     sframes = sframes + 1
     if sframes < STORM_FRAMES then return end
-    local msg = string.format("rain: calm cells %d, storm peak %d cells, worst line %d sprites at line %d (limit %d), flush max %d us (limit %d), flushes %d, deferred %d",
-      calm_cells, peak_cells, worst, worst_line, SB_LIMIT, fs.us_max, FLUSH_LIMIT, fs.flushes, fs.sat)
-    if peak_cells < MIN_CELLS then finish(false, "no rain in storm: " .. msg) return end
-    if worst > SB_LIMIT or fs.us_max > FLUSH_LIMIT then finish(false, msg) return end
-    finish(true, msg)
+    report()
   end
 end) if not ok_ then print("BRAWL_TEST ERROR " .. tostring(err_)); finish(false, "Lua error: " .. tostring(err_)) end end)

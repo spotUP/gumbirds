@@ -19,10 +19,10 @@ static int rain_cells(void) {
 
 int main(void) {
     /* palette slot: below 16 (4-bit fix palette), not the font's 0..4, not the attract slot 5, and the sprite chain moved up by one */
-    CHECK(RAIN_PAL_SLOT == 6, "rain slot 6 (the test-rain target passes it to the Lua check)");
+    CHECK(RAIN_PAL_SLOT == 7, "rain slot 7 (the test-rain target passes it to the Lua check)");
     CHECK(RAIN_PAL_SLOT < 16, "rain slot below 16");
     CHECK(RAIN_PAL_SLOT >= FIX_PAL_COUNT && RAIN_PAL_SLOT != ATTRACT_PAL_SLOT, "rain slot is its own");
-    CHECK(OBS_PAL_SLOT == RAIN_PAL_SLOT + 1, "obstacle palettes follow the rain slot");
+    CHECK(OBS_PAL_SLOT == RAIN_PAL_SLOT + 1 && RAIN_PAL_SLOT == PROMPT_PAL_SLOT + 1, "rain slot follows the prompt slot, obstacle palettes follow rain");
     CHECK(RAIN_FIX_BASE + RAIN_FIX_TILES <= 0x1000, "rain tiles inside the 12-bit code range");
 
     vq_init(&q);
@@ -57,7 +57,7 @@ int main(void) {
         rain_step(&r, &q, 1, RAIN_MODE_ARENA, 0);
         if (r.flash_t == 1) { flashes++; if (first < 0) first = f; else if (second < 0) second = f; }
         seen[rain_flash_index(&r)]++;
-        if (rain_burst_palette(&r)) burst_pal++;
+        if (rain_burst_active(&r)) burst_pal++;
     }
     CHECK(first == 7 * 60, "first flash after 7 s");
     CHECK(second - first >= 11 * 60, "second gap 11 s after the flash");

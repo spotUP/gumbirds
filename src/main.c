@@ -1650,7 +1650,7 @@ static void rain_frame(const FlowView *v) {
     u8 trip = g && g->mode == GAME_MODE_TRIP;
     s32 d = g_cam_unwrapped - g_rain_cam;
     g_rain_cam = g_cam_unwrapped;
-    if (on && g_rain_pal != rain_burst_palette(&g_rain)) rain_pal_put(rain_burst_palette(&g_rain));
+    if (on && g_rain_pal != rain_burst_active(&g_rain)) rain_pal_put(rain_burst_active(&g_rain));
     rain_step(&g_rain, &g_gfx_q, on, trip ? RAIN_MODE_TRIP : stadium_on(g) ? RAIN_MODE_STADIUM : RAIN_MODE_ARENA, trip && d > 0 && d < 16 ? (s16)d : 0);
     bg_flash(rain_flash_index(&g_rain));
 }

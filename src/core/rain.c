@@ -140,7 +140,7 @@ uint8_t rain_flash_index(const Rain *r) {
     return 0;
 }
 
-uint8_t rain_burst_palette(const Rain *r) { return (uint8_t)(r->flash_t && r->flash_t - 1 < RAIN_BURST_PAL_FRAMES); }
+uint8_t rain_burst_active(const Rain *r) { return (uint8_t)(r->flash_t && r->flash_t - 1 < RAIN_BURST_PAL_FRAMES); }
 
 uint16_t rain_flash_color(uint16_t c, uint8_t idx) {
     uint16_t q = FLASH_Q[idx > 4 ? 0 : idx];
