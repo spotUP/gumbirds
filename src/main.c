@@ -1651,6 +1651,8 @@ static void rain_frame(const FlowView *v) {
     s32 d = g_cam_unwrapped - g_rain_cam;
     g_rain_cam = g_cam_unwrapped;
     if (on && g_rain_pal != rain_burst_active(&g_rain)) rain_pal_put(rain_burst_active(&g_rain));
+    /* no fix budget left this frame (late raster line): rain holds still instead of adding fix writes the commit cannot take */
+    if (on && g_rain.was_active && !vq_fix_line_budget(VQ_RASTER_LINE(*REG_LSPCMODE))) { bg_flash(rain_flash_index(&g_rain)); return; }
     rain_step(&g_rain, &g_gfx_q, on, trip ? RAIN_MODE_TRIP : stadium_on(g) ? RAIN_MODE_STADIUM : RAIN_MODE_ARENA, trip && d > 0 && d < 16 ? (s16)d : 0);
     bg_flash(rain_flash_index(&g_rain));
 }

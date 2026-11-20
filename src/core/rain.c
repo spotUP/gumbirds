@@ -39,15 +39,25 @@ static void drop_add(Rain *r, uint8_t kind, uint8_t col, uint8_t row0, uint8_t r
 static uint16_t CELLW;
 #define CELL(t) ((uint16_t)(CELLW | (RAIN_FIX_BASE + (t))))
 #define BLANK ((uint16_t)FIXFONT_BLANK)
+/* a cell rain may take: the blank tile in any palette (gfx_fix_tile blanks with the caller's slot), or never written since vq_init */
+#define FREE(w) (((w) & 0x0FFFu) == BLANK || (w) == 0xFFFFu)
+static const uint32_t BIT[32] = {
+    1ul << 0, 1ul << 1, 1ul << 2, 1ul << 3, 1ul << 4, 1ul << 5, 1ul << 6, 1ul << 7, 1ul << 8, 1ul << 9, 1ul << 10,
+    1ul << 11, 1ul << 12, 1ul << 13, 1ul << 14, 1ul << 15, 1ul << 16, 1ul << 17, 1ul << 18, 1ul << 19, 1ul << 20,
+    1ul << 21, 1ul << 22, 1ul << 23, 1ul << 24, 1ul << 25, 1ul << 26, 1ul << 27, 1ul << 28, 1ul << 29, 1ul << 30, 1ul << 31 };
 
-static void put(VramQueue *q, uint16_t idx, uint16_t cell) { vq_fix_put(q, (uint8_t)(idx / RAIN_ROWS), (uint8_t)(idx % RAIN_ROWS + 2), cell); }
-static uint16_t want(const VramQueue *q, uint16_t idx) { return q->fix_want[(idx / RAIN_ROWS) * VQ_FIX_ROWS + idx % RAIN_ROWS + 2]; }
+/* vq_fix_put without the bounds check and the shifts: fi is a fix_want index the caller knows is on screen */
+static inline void put(VramQueue *q, uint16_t fi, uint16_t cell) {
+    q->fix_want[fi] = cell;
+    q->fix_dirty[fi >> 5] |= BIT[fi & 31];
+    q->fix_any = 1;
+}
 
 static void release_all(Rain *r, VramQueue *q) {
     CELLW = (uint16_t)(r->pal << 12);
     for (uint16_t i = 0; i < r->n_list; i++) {
         uint16_t c = r->list[i];
-        if (r->own[c] && want(q, c) == CELL(r->own[c] - 1)) put(q, c, BLANK);
+        if (r->own[c] && q->fix_want[c] == CELL(r->own[c] - 1)) put(q, c, BLANK);
         r->own[c] = 0;
     }
     r->n_list = 0;
@@ -63,9 +73,9 @@ void rain_step(Rain *r, VramQueue *q, uint8_t active, uint8_t mode, int16_t scro
     uint16_t f = r->frame++;
     /* lightning: a countdown over the typed gaps; the flash starts the burst */
     if (r->flash_t) { if (++r->flash_t > RAIN_BURST_FRAMES) r->flash_t = 0; }
-    else if (r->timer && --r->timer == 0) { r->flash_t = 1; r->burst_n = 0; r->gap = (uint8_t)((r->gap + 1) % 7); r->timer = rain_gap_frames(r->gap); }
+    else if (r->timer && --r->timer == 0) { r->flash_t = 1; r->burst_n = 0; r->gap = (uint8_t)(r->gap == 6 ? 0 : r->gap + 1); r->timer = rain_gap_frames(r->gap); }
     /* spawn: far entries fire at frame == gm % TAB, near at frame * 2 == gm % NEAR_TAB; the kind is the gust now */
-    uint16_t gm = (uint16_t)(f % RAIN_LOOP);
+    uint16_t gm = (uint16_t)(f & (RAIN_LOOP - 1));
     uint8_t gust = gust_now(gm);
     for (uint8_t near = 0; near < 2; near++) {
         uint8_t t = (uint8_t)(near * 3 + gust), kind = t;
@@ -79,41 +89,53 @@ void rain_step(Rain *r, VramQueue *q, uint8_t active, uint8_t mode, int16_t scro
         const uint8_t *e = rain_burst_spawn;
         for (uint8_t i = 0; i < RAIN_BURST_N; i++, e += 4) if (e[0] == bt) drop_add(r, 5, e[1], e[2], e[3]);
     }
-    /* cells: far first, near wins a shared cell */
-    uint32_t hud = rain_hud_rows[mode];
+    /* cells: far first, near wins a shared cell. Only touched cells are visited: no scan of the 40 x 28 grid */
+    static uint8_t row_ok[RAIN_ROWS], ok_mode = 0xFF;
+    if (ok_mode != mode) {
+        uint32_t hud = rain_hud_rows[mode];
+        for (uint8_t y = 0; y < RAIN_ROWS; y++) row_ok[y] = (uint8_t)!(hud >> y & 1u);
+        ok_mode = mode;
+    }
+    uint8_t *now = r->now, *own = r->own;
+    uint16_t *want = q->fix_want;
     uint16_t cells[RAIN_MAX_DROPS * 3], n_cells = 0;
     for (uint8_t pass = 0; pass < 2; pass++) {
-        for (uint8_t i = 0; i < r->n; i++) {
-            RainDrop *d = &r->drop[i];
+        const RainDrop *d = r->drop;
+        for (uint8_t i = r->n; i; i--, d++) {
             if ((d->kind >= 3) != pass) continue;
-            const uint8_t *cut = &rain_cut[((d->kind * 8 + (d->px & 7)) * 2 + ((d->py & 7) >> 2)) * 9];
-            uint8_t n = rain_cut_n[(d->kind * 8 + (d->px & 7)) * 2 + ((d->py & 7) >> 2)];
-            for (uint8_t k = 0; k < n; k++) {
-                int16_t c = (int16_t)((d->px >> 3) + cut[k * 3]), row = (int16_t)((d->py >> 3) + cut[k * 3 + 1]);
-                if (c < 0 || c >= RAIN_COLS || row < 0 || row >= RAIN_ROWS || (hud >> row & 1u)) continue;
-                uint16_t idx = (uint16_t)(c * RAIN_ROWS + row);
-                if (!r->now[idx]) cells[n_cells++] = idx;
-                r->now[idx] = (uint8_t)(cut[k * 3 + 2] + 1);
+            uint16_t ci = (uint16_t)((((uint16_t)d->kind << 3 | (d->px & 7)) << 1) | ((d->py >> 2) & 1));
+            const uint8_t *cut = &rain_cut[(ci << 3) + ci];
+            int16_t c0 = (int16_t)(d->px >> 3), r0 = (int16_t)(d->py >> 3);
+            for (uint8_t k = rain_cut_n[ci]; k; k--, cut += 3) {
+                uint16_t c = (uint16_t)(c0 + cut[0]), row = (uint16_t)(r0 + cut[1]);
+                if (c >= RAIN_COLS || row >= RAIN_ROWS || !row_ok[row]) continue;
+                uint16_t fi = (uint16_t)((c << 5) + row + 2);
+                if (!now[fi]) cells[n_cells++] = fi;
+                now[fi] = (uint8_t)(cut[2] + 1);
             }
         }
     }
-    /* blank cells that stopped holding rain, then write the new ones: only blank cells (or ours) are taken */
+    /* blank cells that stopped holding rain, then write the new ones: only free cells (or ours) are taken */
     for (uint16_t i = 0; i < r->n_list; i++) {
         uint16_t c = r->list[i];
-        if (r->now[c]) continue;
-        if (want(q, c) == CELL(r->own[c] - 1)) put(q, c, BLANK);
-        r->own[c] = 0;
+        if (now[c]) continue;
+        if (want[c] == CELL(own[c] - 1)) put(q, c, BLANK);
+        own[c] = 0;
     }
-    r->n_list = 0;
+    uint16_t nl = 0;
     for (uint16_t i = 0; i < n_cells; i++) {
-        uint16_t c = cells[i], w = want(q, c);
-        uint8_t t = r->now[c];
-        r->now[c] = 0;
-        if (w != CELL(t - 1) && w != BLANK) { r->own[c] = 0; continue; } /* text or HUD owns it */
-        if (w != CELL(t - 1)) put(q, c, CELL(t - 1));
-        r->own[c] = t;
-        r->list[r->n_list++] = c;
+        uint16_t c = cells[i], w = want[c];
+        uint8_t t = now[c];
+        uint16_t cw = CELL(t - 1);
+        now[c] = 0;
+        if (w != cw) {
+            if (!FREE(w) && !(own[c] && w == CELL(own[c] - 1))) { own[c] = 0; continue; } /* text or HUD owns it */
+            put(q, c, cw);
+        }
+        own[c] = t;
+        r->list[nl++] = c;
     }
+    r->n_list = nl;
     /* advance */
     uint8_t keep = 0;
     for (uint8_t i = 0; i < r->n; i++) {

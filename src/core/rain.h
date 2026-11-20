@@ -21,17 +21,18 @@ typedef struct { int16_t px, py; uint8_t kind, end_row; int16_t acc; } RainDrop;
 typedef struct {
     RainDrop drop[RAIN_MAX_DROPS];
     uint8_t n;
-    uint8_t own[RAIN_COLS * RAIN_ROWS];  /* tile id + 1 this module wrote into each cell, 0 none */
-    uint16_t list[RAIN_MAX_DROPS * 3];   /* cells set in own[] (col * RAIN_ROWS + row) */
-    uint16_t n_list;
-    uint8_t now[RAIN_COLS * RAIN_ROWS];
+    uint8_t gap;                         /* index into the gap list */
     uint16_t frame;                      /* frames the rain has been active */
     uint16_t timer;                      /* frames to the next flash */
-    uint8_t gap;                         /* index into the gap list */
+    uint16_t n_list;
     uint8_t flash_t;                     /* 0 none, else flash frame + 1 */
     uint8_t was_active, pal;
     uint8_t burst_n;                     /* burst drops spawned this flash */
     uint32_t rng;
+    /* cells are fix_want indices (col * VQ_FIX_ROWS + screen row + 2): no divide or multiply per cell */
+    uint16_t list[RAIN_MAX_DROPS * 3];   /* cells set in own[] */
+    uint8_t own[VQ_FIX_COLS * VQ_FIX_ROWS];  /* tile id + 1 this module wrote into each cell, 0 none */
+    uint8_t now[VQ_FIX_COLS * VQ_FIX_ROWS];
 } Rain;
 
 /* pal_slot: the fix palette slot (RAIN_PAL_SLOT in src/vram_layout.h) the tiles are drawn with. */
