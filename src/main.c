@@ -35,6 +35,8 @@
 #include "gen/countdown_tables.h"
 #include "gen/rulecard_tiles.h"
 #include "gen/flingmeter_tiles.h"
+#include "gen/inputprompt_tiles.h"
+#include "core/input_prompt.h"
 #include "gen/rain_tiles.h"
 #include "core/rain.h"
 #include "gfx.h"
@@ -381,7 +383,7 @@ static void text(u8 x, u8 y, u8 pal, const char *s);
 #define CARD_NONE 0xFF
 enum { CARD_PROP_SLAB, CARD_PROP_NEEDLE_20, CARD_PROP_NEEDLE_45, CARD_PROP_GUM, CARD_PROP_DOT };
 _Static_assert(RULECARD_FRAME_COUNT == 5, "the rules card sheet holds slab, two needles, gum, dot");
-/* step = lit control cell; press / hold = button of cell 0 / 1 down; power = lit bar cells; caret = angle bar cell or CARD_NONE;
+/* step = lit control cell; press / hold = button of cell 0 / 1 down (hold = A locking the swinging angle); power = lit bar cells; caret = angle bar cell or CARD_NONE;
  * bird = Sootling sheet frame (mash 0 / 1, watch 2, aim 16, spit 40); needle = prop or 0; gums = gum trail length */
 static const struct { u8 step, press, hold, power, caret, bird, needle, gums; } card_frames[] = {
     {0, 1, 0, 2, CARD_NONE, 0, 0, 0}, {0, 0, 0, 4, CARD_NONE, 1, 0, 0}, {0, 1, 0, 6, CARD_NONE, 0, 0, 0},
@@ -450,7 +452,53 @@ static void meter_dial(u8 deg) {
     g_dial_i = best;
     for (u8 i = 0; i < 9; i++) meter_put((u8)(DIAL_COL + i % 3), (u8)(DIAL_ROW + i / 3), flingmeter_dial[best * 9 + i]);
 }
-static void meter_reset(void) { g_meter_n[0] = g_meter_n[1] = g_dial_i = METER_NONE; g_meter_tick = 0; if (g_slot_pal >= SLOT_METER) slot_pal(SLOT_ATTRACT); }
+/* Input prompts (owner pick A, tools/inputprompt_art.py): button caps and a stick in the bottom corners, rows 24..25, P1 growing right from column 1
+ * and P2 growing left from column 38 (clear of the meter at columns 11..29 and the dial at 6..10). src/core/input_prompt.c decides what shows for each
+ * event phase; this only draws. Own palette slot: the attract slot holds the meter palette during events. Cache: per slot 0 = blank, else 1 + cell. */
+#define PROMPT_ROW 24
+#define PROMPT_STICK_CODE 10   /* cache codes 1..9 are caps (letter * 3 + state), 10..12 the stick states */
+static u8 g_prompt_code[2][IP_MAX_ITEMS];
+static void prompt_put(u8 x, u8 code) {
+    const uint8_t *t = !code ? 0 : code < PROMPT_STICK_CODE ? &inputprompt_cap[(code - 1) * 4] : &inputprompt_stick[(code - PROMPT_STICK_CODE) * 4];
+    for (u8 i = 0; i < 4; i++) {
+        u8 id = t ? t[i] : INPUTPROMPT_BLANK;
+        gfx_fix_tile((u8)(x + (i & 1)), (u8)(PROMPT_ROW + (i >> 1)), PROMPT_PAL_SLOT, id == INPUTPROMPT_BLANK ? (u16)FIXFONT_BLANK : (u16)(INPUTPROMPT_FIX_BASE + id));
+    }
+}
+static void prompt_side(u8 s, u8 ev, u8 phase, u8 on, u16 tick) {
+    InputPrompt p = { 0, IP_STYLE_NONE, 0 };
+    uint8_t kind[IP_MAX_ITEMS];
+    if (on) p = input_prompt_for(ev, phase);
+    u8 n = input_prompt_items(&p, kind);
+    for (u8 slot = 0; slot < IP_MAX_ITEMS; slot++) {
+        u8 code = 0;
+        if (slot < n) {   /* P2 reads right to left so its first slot is the screen edge */
+            u8 k = kind[s ? n - 1 - slot : slot], st = input_prompt_state(&p, k, tick);
+            code = k == IP_ITEM_STICK ? (u8)(PROMPT_STICK_CODE + st - IP_STICK_NEUTRAL) : (u8)(1 + k * 3 + st);
+        }
+        if (code == g_prompt_code[s][slot]) continue;
+        g_prompt_code[s][slot] = code;
+        prompt_put((u8)(s ? 37 - 3 * slot : 1 + 3 * slot), code);
+    }
+}
+/* Who is prompted and in which phase, per event; the events only keep their own phase. */
+static void draw_prompts(const Game *g, u8 show) {
+    u8 ev = IP_BLOW, ph = 0, p1 = 0, p2 = 0;
+    if (show) {
+        p1 = 1;
+        if (g->gg_toss) { ev = IP_TOSS; ph = g->toss.phase; p1 = g->toss.carrier == 0; p2 = g->toss.humans == 2 && g->toss.carrier == 2; }
+        else if (g->gg_fling) { ev = IP_FLING; ph = g->fling.phase; p1 = g->fling.seq.turn == 0; p2 = g->fling.seq.players == 2 && g->fling.seq.turn == 1; }
+        else if (g->gg_gather) { ev = IP_GATHER; ph = g->res.active ? IP_PHASE_OFF : IP_PHASE_PLAY; }
+        else if (g->gg_pop) { ev = IP_POP; ph = g->pop.phase; p2 = g->players == 2; }
+        else if (g->gg_dash) { ev = IP_DASH; ph = g->dash.done ? IP_PHASE_OFF : IP_PHASE_PLAY; }
+        else if (g->gg_race) { ev = IP_RACE; ph = g->race.phase; p2 = g->race.players == 2; }
+        else { ev = IP_BLOW; ph = g->blow.phase; p2 = g->players == 2; }
+    }
+    prompt_side(0, ev, ph, p1, g->frame);
+    prompt_side(1, ev, ph, p2, g->frame);
+}
+static void prompt_reset(void) { memset(g_prompt_code, 0, sizeof g_prompt_code); }
+static void meter_reset(void) { g_meter_n[0] = g_meter_n[1] = g_dial_i = METER_NONE; g_meter_tick = 0; if (g_slot_pal >= SLOT_METER) slot_pal(SLOT_ATTRACT); memset(g_prompt_code, 0, sizeof g_prompt_code); }
 
 static u8 card_frame(u16 t) {
     u16 p = (u16)(t % ((CARD_FRAMES - 1) * CARD_TICKS + CARD_HOLD)) / CARD_TICKS;
@@ -2723,6 +2771,8 @@ static void draw(const FlowView *v) {
         else set_distress(0);
         if (v->state == FLOW_ATTRACT_DEMO && v->game) draw_overlay(v);
         if (v->state == FLOW_PLAYING && v->game && (v->game->mode == GAME_MODE_GUM || v->game->gg_fling) && !v->card) { if (v->game->gg_toss) draw_toss(v->game); else if (v->game->gg_fling) draw_fling(v->game); else if (v->game->gg_gather) draw_gather(v->game); else if (v->game->gg_pop) draw_pop_drop(&v->game->pop); else if (v->game->gg_dash) draw_flap_dash(&v->game->dash); else if (v->game->gg_race) draw_burst_race(&v->game->race); else draw_big_blow(&v->game->blow); }
+        if (v->state == FLOW_PLAYING && v->game) draw_prompts(v->game, (v->game->mode == GAME_MODE_GUM || v->game->gg_fling) && !v->card && !v->howto);
+        else prompt_reset();
         {
             /* mode name in the bottom-left corner while playing, written when the mode or rule changes only */
             u8 key = (v->state == FLOW_PLAYING && v->game) ? (v->game->party_rule != PARTY_NONE ? (u8)(8 + v->game->party_rule) : (u8)(1 + v->game->mode)) : 0;
@@ -3060,6 +3110,7 @@ static void video_init(void) {
     for (u8 c = 0; c < 16; c++) gfx_pal((u16)(ATTRACT_PAL_SLOT * 16 + c), attract_icon_palette[c]);
     rain_init(&g_rain, RAIN_PAL_SLOT);
     rain_pal_put(0);
+    for (u8 c = 0; c < 16; c++) gfx_pal((u16)(PROMPT_PAL_SLOT * 16 + c), inputprompt_palette[c]);
     bg_load_palettes();
     gfx_word(ADDR_SCB3 + SPRITE_RESERVED, 0); /* sprite 0 is never visible (src/sprite_slots.h): nothing else writes this slot */
     bg_init();
