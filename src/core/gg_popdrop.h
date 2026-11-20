@@ -44,7 +44,7 @@
 enum { PD_FALL, PD_CRASH, PD_RESULT };
 enum { PD_ROCK, PD_GIRDER, PD_PLANK };
 
-typedef struct { int16_t x, y; uint8_t kind, mids, live, hit; } PdPlat;   /* x = left edge in arena px, y = top in screen px */
+typedef struct { int16_t x, y; uint8_t kind, mids, live, hit; } PdPlat;   /* hit: bit k set once bird k hit it */   /* x = left edge in arena px, y = top in screen px */
 typedef struct { int16_t x, y; uint8_t live; } PdGum;                      /* centre */
 
 typedef struct {                      /* one bird; 1P uses b[0] */

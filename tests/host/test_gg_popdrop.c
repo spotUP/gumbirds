@@ -94,6 +94,14 @@ int main(void)
       gp_step(&p, h, IN_A, 0);
       CHECK(p.b[0].hop <= -PD_HOP_PX_2P + 1 && p.b[0].hop < -PD_HOP_PX && p.b[1].hop == 0 && p.brake_t == 0 && p.dist - d0 >= spd0); }
 
+    /* 2P hit: only the hit bird's bit is set on the platform (the rival can still hit it), shared scroll not slowed */
+    gp_init(&p, h, 7); gp_add_p2(&p, &h[0], &h[1]);
+    for (i = 0; i < 30; i++) gp_step(&p, h, 0, 0);
+    plat_on_bird(&p, &h[0]);
+    { uint16_t spd0 = p.spd;
+      gp_step(&p, h, 0, 0);
+      CHECK(p.b[0].hits == 1 && p.plat[0].hit == 1 && p.spd >= spd0); }
+
     /* 2P end: one crash leaves the fall running; the game ends only when both crashed, each score recorded */
     gp_init(&p, h, 7); gp_add_p2(&p, &h[0], &h[1]);
     for (i = 0; i < 3; i++) { p.b[0].stun = 0; plat_on_bird(&p, &h[0]); gp_step(&p, h, 0, 0); }

@@ -66,7 +66,8 @@ static void hit(GgPop *p, PdBird *b)
     if (b->shield) { b->shield = 0; b->pop_t = 1; return; }
     b->hits++;
     b->stun = PD_STUN; b->bounce = PD_BOUNCE_START;
-    p->spd = (uint16_t)(p->spd > PD_SPEED_START + PD_SPEED_HIT_LOSS ? p->spd - PD_SPEED_HIT_LOSS : PD_SPEED_START);
+    if (p->seq.players < 2)   /* 2P: the scroll is shared, so one bird's hit must not slow the rival (same rule as the 2P hop) */
+        p->spd = (uint16_t)(p->spd > PD_SPEED_START + PD_SPEED_HIT_LOSS ? p->spd - PD_SPEED_HIT_LOSS : PD_SPEED_START);
     if (b->gums) b->gums--;
     if (b->hits >= PD_HITS_MAX) { b->crash = 1; if (all_crashed(p)) { p->phase = PD_CRASH; p->timer = 0; } }
 }
@@ -165,12 +166,12 @@ static void fall_step(GgPop *p, Flier *hero, uint8_t in1, uint8_t in2)
         for (i = 0; i < PD_PLATS; i++) {
             PdPlat *q = &p->plat[i];
             int half, d;
-            if (!q->live || q->hit || b->stun) continue;
+            if (!q->live || (q->hit >> k & 1) || b->stun) continue;
             if (q->y < by + PD_BIRD_HALF_H && q->y + PD_PLAT_H > by - PD_BIRD_HALF_H) {
                 half = plat_w(q) / 2;
                 d = arena_dx(bx, q->x + half);
                 if (d < 0) d = -d;
-                if (d < half + PD_BIRD_HALF_W) { q->hit = 1; hit(p, b); }   /* shortcut: q->hit is shared, so the other bird passes through a platform already hit; give PdPlat a hit bit per bird if play-tests show it */
+                if (d < half + PD_BIRD_HALF_W) { q->hit |= (uint8_t)(1u << k); hit(p, b); }   /* one hit bit per bird: the rival still hits this platform */
             }
         }
         for (i = 0; i < PD_GUMS; i++) {
