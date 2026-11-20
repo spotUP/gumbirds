@@ -31,6 +31,7 @@ typedef struct {
     int8_t dir;       /* held between thinks */
     uint32_t thinks;  /* think count (test sentinel) */
     int8_t think_cut;/* frames shaved off every think period by the rank; negative = slower than the arena value (party Slow Thinkers) */
+    const Flier *tgt; /* target of the last think; the off-frame flap decision reuses it (stagger) */
     int8_t out_dir;   /* steering the last think produced; game.c repeats it on the frames the rival does not think (stagger) */
     uint8_t hold;     /* 1 = AI_HOLD: fly to the target and stand on it (set by game.c for the Roost Rule holder) */
     uint8_t flee;     /* 1 = every think flees the target at any range (Hot Gum: rivals of the carrier; set by game.c) */
@@ -45,6 +46,8 @@ const Flier *ai_nearest(const Flier *self, const Flier *humans, int human_count,
 AiState ai_decide(const Flier *self, const Flier *target);
 /* One frame: counts the timer down; on zero thinks (state, dir) and re-arms with jitter. target may be
  * NULL (idle). Fills *out for flier_step. */
+/* The flap half of ai_step alone: no timer, no think. Sets out->flap (and out->dir only to leave the underside of an island). */
+void ai_flap_step(const Ai *a, const Flier *self, const Flier *target, FlierInput *out);
 void ai_step(Ai *a, Rng *r, const Flier *self, const Flier *target, FlierInput *out);
 /* The per-frame flap test: dir.y (Q15, y down, negated when fleeing) of the direction (dx, dy) < AI_FLAP_MAX. */
 int ai_flap_wanted(AiState s, int32_t dx, int32_t dy);
