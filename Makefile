@@ -925,12 +925,13 @@ test-party: cart bios
 	if grep -q '^PASS' $$T/result.txt; then rm -rf $$T; echo "[OK] make test-party passed"; else echo "[FAIL] make test-party, log kept in $$T"; exit 1; fi
 
 # PARTY Toss Gum (tests/mame/party_toss_check.lua): UniBIOS, Arena 1P Start, rule set to Toss, P2 join restarts into Toss Gum; four birds, a toss in flight,
-# a burst and a winner. `make test-party-toss TOSS_SNAP=<dir>` also writes toss_mid.png and toss_burst.png there.
+# a burst and a winner, and the held gum knot sits on the drawn wing gum point of the carrier's pose. `make test-party-toss TOSS_SNAP=<dir>` also writes toss_mid.png and toss_burst.png there.
 test-party-toss: cart bios
 	@if [ ! -f "$(UNIBIOS)" ]; then echo "[FAIL] UNIBIOS file not found: $(UNIBIOS)"; exit 1; fi
 	@$(MAKE) --no-print-directory $(UNIBIOS_DIR)/neogeo.zip
 	@set -e; T=$$(mktemp -d $(BUILDDIR)/test-run.XXXXXX); \
 	BRAWL_FLOW_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flow"{print $$1}') \
+	BRAWL_WING_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_toss_wing"{print $$1}') BRAWL_KNOT_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_toss_knot"{print $$1}') \
 	BRAWL_SNAP=$(TOSS_SNAP) BRAWL_TOSS_LAYOUT="$$($(M68KGCC) $(NGCFLAGS) -Ibuild -std=c99 -S -o - tests/mame/party_toss_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
 	BRAWL_RESULT=$$T/result.txt \
 	SDL_VIDEODRIVER=dummy nice -n 19 $(MAME) -window -nomaximize -video none -sound none -nothrottle -seconds_to_run 400 -noautosave -skip_gameinfo -hash $(ROM) -rp "$(UNIBIOS_DIR);$(ROM)" -bios unibios40 -nvram_directory $$T $(if $(TOSS_SNAP),-snapshot_directory $(TOSS_SNAP)) -autoboot_script tests/mame/party_toss_check.lua neogeo -cart1 $(GAMEROM) > $$T/mame.log 2>&1 || true; \
