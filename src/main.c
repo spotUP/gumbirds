@@ -1857,17 +1857,22 @@ static void pop_show(const Game *g) {
 static void pop_show_bird(const Game *g, u8 i, u16 bird_slot, u16 shield_slot, u16 rag_slot, u16 pal) {
     const GgPop *p = &g->pop;
     const PdBird *b = &p->b[i];
-    u8 ghost = b->crash && p->phase == PD_FALL;
+    u8 ghost = b->crash && b->land < 0;
     u8 lvl = b->hits > 2 ? 2 : b->hits;
-    u8 anim = ghost ? POPDROP_ANIM_FALL0 : p->phase == PD_CRASH ? POPDROP_ANIM_CRASH : b->stun ? POPDROP_ANIM_BONK : (b->prev_in & (IN_LEFT | IN_RIGHT)) ? (u8)(POPDROP_ANIM_LEAN0 + lvl) : (u8)(POPDROP_ANIM_FALL0 + lvl);
+    u8 anim = ghost ? POPDROP_ANIM_FALL0 : b->crash ? POPDROP_ANIM_CRASH : b->stun ? POPDROP_ANIM_BONK : (b->prev_in & (IN_LEFT | IN_RIGHT)) ? (u8)(POPDROP_ANIM_LEAN0 + lvl) : (u8)(POPDROP_ANIM_FALL0 + lvl);
     int bx = (int)(g->hero[i].x >> 16) - 16, top = PD_BIRD_Y + b->hop - 16;
+    if (b->crash && !ghost) {   /* the crash pose lies on top of the island it hit and rides off with it (art feet = frame bottom) */
+        const PdPlat *on = &p->plat[b->land];
+        if (!on->live) return;
+        top = on->y - pd_frame(POPDROP_ANIM_CRASH, 0)->tiles_h * 16;
+    }
     pd_piece(bird_slot, pd_frame(anim, (u16)(g->frame >> 3)), bx, top, b->flip, ghost ? POPDROP_GHOST_PAL_SLOT : pal);
     if (ghost) return;
     if (b->shield) pd_piece(shield_slot, pd_frame(POPDROP_ANIM_SHIELD, (u16)(g->frame >> 4)), bx, top, 0, POPDROP_PAL_SLOT + 2);
     else if (b->pop_t) pd_piece(shield_slot, pd_frame(POPDROP_ANIM_POP, (u16)(b->pop_t >> 3)), bx, top, 0, POPDROP_PAL_SLOT + 2);
     /* The burst gum skin (draft 2026-11-18 freefall): four flutter frames on the upper beak, 11 px into the 24 px art (pad 4) and
      * 12 px above it; the limp frame lies past the splat's right edge. Mirrored with the bird; hidden inside an intact shield. */
-    if (p->phase == PD_CRASH)
+    if (b->crash)
         pd_piece(rag_slot, pd_frame(POPDROP_ANIM_RAG, 4), b->flip ? bx - 15 : bx + 31, top, b->flip, POPDROP_PAL_SLOT);
     else if (!b->shield)
         pd_piece(rag_slot, pd_frame(POPDROP_ANIM_RAG, (u16)((g->frame >> 2) & 3)), b->flip ? bx + 1 : bx + 15, top - 12, b->flip, POPDROP_PAL_SLOT);

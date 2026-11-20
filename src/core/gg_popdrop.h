@@ -50,6 +50,7 @@ typedef struct { int16_t x, y; uint8_t live; } PdGum;                      /* ce
 typedef struct {                      /* one bird; 1P uses b[0] */
     uint8_t hits, stun, shield, flip, prev_in;   /* flip: bird faces left (1) or right (0); prev_in: last input (A edge, view lean) */
     uint8_t crash;                    /* 1 = crashed (2P: floats on as a ghost, no collision) */
+    int8_t land;                      /* platform index of the final crash hit (the crash pose lies on it), -1 = none (a 2P ghost) */
     uint8_t pop_t;                    /* frames since the shield burst, 0 = none (view) */
     uint8_t catch_t;                  /* frames since the last gum was caught, 0 = none (view) */
     uint8_t bump_t;                   /* frames since a bird-bird bump, 0 = none (view hook: squawk + feather puff) */

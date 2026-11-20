@@ -7,7 +7,7 @@ static int plat_w(const PdPlat *q) { return 16 * (2 + q->mids); }
 
 static void bird_begin(PdBird *b)
 {
-    b->hits = 0; b->stun = 0; b->shield = 0; b->shield_count = 0; b->crash = 0; b->prev_in = 0;
+    b->hits = 0; b->stun = 0; b->shield = 0; b->shield_count = 0; b->crash = 0; b->land = -1; b->prev_in = 0;
     b->pop_t = 0; b->catch_t = 0; b->bump_t = 0; b->bounce = 0; b->hop = 0; b->flaps = PD_FLAP_MAX; b->flap_t = 0; b->flip = 0;
     b->gums = 0; b->score = 0;
 }
@@ -61,7 +61,7 @@ static void spawn(GgPop *p)
 
 static int all_crashed(const GgPop *p) { return p->b[0].crash && (p->seq.players < 2 || p->b[1].crash); }
 
-static void hit(GgPop *p, PdBird *b)
+static void hit(GgPop *p, PdBird *b, int plat)
 {
     if (b->shield) { b->shield = 0; b->pop_t = 1; return; }
     b->hits++;
@@ -69,7 +69,7 @@ static void hit(GgPop *p, PdBird *b)
     if (p->seq.players < 2)   /* 2P: the scroll is shared, so one bird's hit must not slow the rival (same rule as the 2P hop) */
         p->spd = (uint16_t)(p->spd > PD_SPEED_START + PD_SPEED_HIT_LOSS ? p->spd - PD_SPEED_HIT_LOSS : PD_SPEED_START);
     if (b->gums) b->gums--;
-    if (b->hits >= PD_HITS_MAX) { b->crash = 1; if (all_crashed(p)) { p->phase = PD_CRASH; p->timer = 0; } }
+    if (b->hits >= PD_HITS_MAX) { b->crash = 1; if (all_crashed(p)) { b->land = (int8_t)plat; p->phase = PD_CRASH; p->timer = 0; } }   /* only the last crash lies on its island; an earlier 2P crash stays a ghost */
 }
 
 /* Both scores go to their own GgSeq slot (the seq turn hands over after each call). */
@@ -128,6 +128,24 @@ static void push_apart(GgPop *p, Flier *h)
     p->b[0].bump_t = 1; p->b[1].bump_t = 1;               /* hook: squawk + feather puff (no sound id or art yet) */
 }
 
+/* Move platforms and gums up by step px; drop the ones past the top. */
+static void scroll_world(GgPop *p, int step)
+{
+    int i;
+    for (i = 0; i < PD_PLATS; i++) {
+        PdPlat *q = &p->plat[i];
+        if (!q->live) continue;
+        q->y = (int16_t)(q->y - step);
+        if (q->y < -PD_PLAT_H) q->live = 0;
+    }
+    for (i = 0; i < PD_GUMS; i++) {
+        PdGum *g = &p->gum[i];
+        if (!g->live) continue;
+        g->y = (int16_t)(g->y - step);
+        if (g->y < -16) g->live = 0;
+    }
+}
+
 static void fall_step(GgPop *p, Flier *hero, uint8_t in1, uint8_t in2)
 {
     int i, k, step, n = p->seq.players == 2 ? 2 : 1;
@@ -141,18 +159,7 @@ static void fall_step(GgPop *p, Flier *hero, uint8_t in1, uint8_t in2)
     if (p->brake_t) { p->brake_t--; p->dist += p->spd >> 1; } else p->dist += p->spd;
     step = (int)((p->dist >> 4) - before);
     p->depth = (uint16_t)(p->dist >> 7);
-    for (i = 0; i < PD_PLATS; i++) {
-        PdPlat *q = &p->plat[i];
-        if (!q->live) continue;
-        q->y = (int16_t)(q->y - step);
-        if (q->y < -PD_PLAT_H) q->live = 0;
-    }
-    for (i = 0; i < PD_GUMS; i++) {
-        PdGum *g = &p->gum[i];
-        if (!g->live) continue;
-        g->y = (int16_t)(g->y - step);
-        if (g->y < -16) g->live = 0;
-    }
+    scroll_world(p, step);
 
     for (k = 0; k < n; k++) {
         PdBird *b = &p->b[k];
@@ -171,7 +178,7 @@ static void fall_step(GgPop *p, Flier *hero, uint8_t in1, uint8_t in2)
                 half = plat_w(q) / 2;
                 d = arena_dx(bx, q->x + half);
                 if (d < 0) d = -d;
-                if (d < half + PD_BIRD_HALF_W) { q->hit |= (uint8_t)(1u << k); hit(p, b); }   /* one hit bit per bird: the rival still hits this platform */
+                if (d < half + PD_BIRD_HALF_W) { q->hit |= (uint8_t)(1u << k); hit(p, b, i); }   /* one hit bit per bird: the rival still hits this platform */
             }
         }
         for (i = 0; i < PD_GUMS; i++) {
@@ -196,6 +203,11 @@ int gp_step(GgPop *p, Flier *hero, uint8_t in1, uint8_t in2)
         fall_step(p, hero, in1, in2);
         break;
     case PD_CRASH:
+        {   /* the world scrolls on at the crash speed (depth frozen): the crashed bird lies on its island and rides off with it */
+            uint32_t before = p->dist >> 4;
+            p->dist += p->spd;
+            scroll_world(p, (int)((p->dist >> 4) - before));
+        }
         if (++p->timer >= PD_CRASH_FRAMES) attempt_end(p);
         break;
     case PD_RESULT:
