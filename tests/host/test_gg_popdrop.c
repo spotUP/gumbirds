@@ -85,6 +85,45 @@ int main(void)
         CHECK(!game_can_join_p2(&g));
     }
 
+    /* brake hop: A press raises the bird, slows the fall for PD_BRAKE_FRAMES, returns to rest; 3 stored, one refills per PD_FLAP_REFILL; none while stunned */
+    {
+        uint32_t d0; uint16_t spd0;
+        gp_init(&p, &h, 7);
+        for (i = 0; i < 30; i++) gp_step(&p, &h, 0);
+        spd0 = p.spd; d0 = p.dist;
+        gp_step(&p, &h, IN_A);
+        CHECK(p.hop <= -PD_HOP_PX + 1 && p.flaps == PD_FLAP_MAX - 1 && p.brake_t == PD_BRAKE_FRAMES - 1);
+        CHECK(p.dist - d0 <= (uint32_t)(spd0 >> 1) + 1 && p.spd == spd0);     /* slower, ramp speed untouched */
+        gp_step(&p, &h, IN_A);                                              /* held A is not a new press */
+        CHECK(p.flaps == PD_FLAP_MAX - 1);
+        for (i = 0; i < PD_BRAKE_FRAMES; i++) gp_step(&p, &h, 0);
+        d0 = p.dist; gp_step(&p, &h, 0);
+        CHECK(p.dist - d0 >= p.spd);                                        /* full speed again */
+        for (i = 0; i < PD_HOP_PX; i++) gp_step(&p, &h, 0);
+        CHECK(p.hop == 0);
+        /* 3 taps use the charges, the 4th does nothing */
+        gp_init(&p, &h, 7);
+        for (i = 0; i < 3; i++) { gp_step(&p, &h, IN_A); gp_step(&p, &h, 0); }
+        CHECK(p.flaps == 0 || p.flaps == 1);                                /* 2 frames per tap, a refill may land late */
+        p.flaps = 0; p.flap_t = 0; p.hop = 0; p.brake_t = 0;
+        gp_step(&p, &h, IN_A);
+        CHECK(p.hop == 0 && p.brake_t == 0 && p.flaps == 0);
+        for (i = 0; i < (int)PD_FLAP_REFILL; i++) gp_step(&p, &h, 0);
+        CHECK(p.flaps == 1);
+        gp_step(&p, &h, IN_A);
+        CHECK(p.hop < 0 && p.flaps == 0);
+        /* no flap while stunned */
+        gp_init(&p, &h, 7);
+        p.stun = 5;
+        gp_step(&p, &h, IN_A);
+        CHECK(p.hop == 0 && p.flaps == PD_FLAP_MAX);
+        /* the hop moves the hit box: a platform on the rest row misses a hopped bird */
+        gp_init(&p, &h, 7);
+        plat_on_bird(&p, &h); p.plat[0].y = PD_BIRD_Y + 8;   /* a hit unhopped (y < 86), a miss hopped (y > 74) */
+        gp_step(&p, &h, IN_A);
+        CHECK(p.hits == 0);
+    }
+
     /* flow: A, then Down three times from Big Blow picks Pop Drop, Start runs it, the best total is the record (either player's best fall, higher is better) */
     {
         Flow f;

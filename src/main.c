@@ -1873,9 +1873,9 @@ static void pop_show_pieces(const Game *g) {
     u8 lvl = p->hits > 2 ? 2 : p->hits;
     u8 anim = p->phase == PD_CRASH ? POPDROP_ANIM_CRASH : p->stun ? POPDROP_ANIM_BONK : (p->prev_in & (IN_LEFT | IN_RIGHT)) ? (u8)(POPDROP_ANIM_LEAN0 + lvl) : (u8)(POPDROP_ANIM_FALL0 + lvl);
     int bx = (int)(g->hero[0].x >> 16) - 16;
-    pd_piece(PD_BIRD_SLOT, pd_frame(anim, (u16)(g->frame >> 3)), bx, PD_BIRD_Y - 16, p->flip, 0);
-    if (p->shield) pd_piece(PD_SHIELD_SLOT, pd_frame(POPDROP_ANIM_SHIELD, (u16)(g->frame >> 4)), bx, PD_BIRD_Y - 16, 0, 2);
-    else if (p->pop_t) pd_piece(PD_SHIELD_SLOT, pd_frame(POPDROP_ANIM_POP, (u16)(p->pop_t >> 3)), bx, PD_BIRD_Y - 16, 0, 2);
+    pd_piece(PD_BIRD_SLOT, pd_frame(anim, (u16)(g->frame >> 3)), bx, PD_BIRD_Y + p->hop - 16, p->flip, 0);
+    if (p->shield) pd_piece(PD_SHIELD_SLOT, pd_frame(POPDROP_ANIM_SHIELD, (u16)(g->frame >> 4)), bx, PD_BIRD_Y + p->hop - 16, 0, 2);
+    else if (p->pop_t) pd_piece(PD_SHIELD_SLOT, pd_frame(POPDROP_ANIM_POP, (u16)(p->pop_t >> 3)), bx, PD_BIRD_Y + p->hop - 16, 0, 2);
 }
 
 /* Bubble Gather on the fix layer: caught of 20 and seconds left; hidden while the result screen covers the fix layer. */

@@ -33,6 +33,10 @@
 #define PD_QUALIFY 200u               /* score that counts as qualified */
 #define PD_STAGE_SCORE 50u            /* score per gg_points stage */
 #define PD_BOUNCE_START (-14)         /* bird display offset right after a hit; it settles back in a few frames */
+#define PD_HOP_PX 12                  /* brake hop: the bird (and its hit box) jumps this many px up, then sinks back 1 px per frame */
+#define PD_BRAKE_FRAMES 10u           /* brake hop: the fall runs at half speed this many frames (the stored speed is not touched) */
+#define PD_FLAP_MAX 3u                /* brake hop: flaps stored */
+#define PD_FLAP_REFILL 20u            /* brake hop: frames until one flap is stored again (full refill 60 frames) */
 enum { PD_FALL, PD_CRASH, PD_PAUSE, PD_RESULT };
 enum { PD_ROCK, PD_GIRDER, PD_PLANK };
 
@@ -48,6 +52,8 @@ typedef struct {
     uint8_t pop_t;                    /* frames since the shield burst, 0 = none (view) */
     uint8_t catch_t;                  /* frames since the last gum was caught, 0 = none (view) */
     uint8_t shield_count;             /* gums toward the next shield, 0 .. PD_SHIELD_EVERY - 1 */
+    uint8_t flaps, flap_t, brake_t;   /* brake hop: flaps stored, frames toward the next refill, frames of slow fall left */
+    int8_t hop;                       /* bird offset of the brake hop, px, 0 .. -PD_HOP_PX (moves the hit box too) */
     int8_t bounce;                    /* display offset of the bird, px (view only) */
     uint16_t gums;                    /* gums caught and kept */
     uint16_t timer;

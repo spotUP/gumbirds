@@ -12,7 +12,7 @@ static void fall_begin(GgPop *p, Flier *hero)
     for (i = 0; i < PD_PLATS; i++) p->plat[i].live = 0;
     for (i = 0; i < PD_GUMS; i++) p->gum[i].live = 0;
     p->phase = PD_FALL; p->hits = 0; p->stun = 0; p->shield = 0; p->shield_count = 0;
-    p->pop_t = 0; p->catch_t = 0; p->bounce = 0; p->flip = 0; p->gums = 0;
+    p->pop_t = 0; p->catch_t = 0; p->bounce = 0; p->hop = 0; p->brake_t = 0; p->flaps = PD_FLAP_MAX; p->flap_t = 0; p->flip = 0; p->gums = 0;
     p->timer = 0; p->dist = 0; p->depth = 0; p->score = 0; p->spd = PD_SPEED_START;
     flier_init(hero, PD_BIRD_X, FL_PX(PD_BIRD_Y), 0, 0);
 }
@@ -77,12 +77,15 @@ static void attempt_end(GgPop *p, Flier *hero)
     (void)hero;
 }
 
-static void fall_step(GgPop *p, Flier *hero, uint8_t in)
+static void fall_step(GgPop *p, Flier *hero, uint8_t in, uint8_t edge)
 {
-    int i, bx, step, dir = ((in & IN_RIGHT) ? 1 : 0) - ((in & IN_LEFT) ? 1 : 0);
+    int i, bx, by, step, dir = ((in & IN_RIGHT) ? 1 : 0) - ((in & IN_LEFT) ? 1 : 0);
     uint32_t before = p->dist >> 4;
 
     if (p->stun) { p->stun--; dir = 0; }
+    else if ((edge & IN_A) && p->flaps) { p->flaps--; p->hop = -PD_HOP_PX; p->brake_t = PD_BRAKE_FRAMES; }
+    if (p->flaps < PD_FLAP_MAX && ++p->flap_t >= PD_FLAP_REFILL) { p->flaps++; p->flap_t = 0; }
+    if (p->flaps == PD_FLAP_MAX) p->flap_t = 0;
     if (dir) { hero->vx += dir * PD_STEER_ACC; p->flip = (uint8_t)(dir < 0); }
     else if (hero->vx > PD_STEER_ACC) hero->vx -= PD_STEER_ACC / 2;
     else if (hero->vx < -PD_STEER_ACC) hero->vx += PD_STEER_ACC / 2;
@@ -94,10 +97,12 @@ static void fall_step(GgPop *p, Flier *hero, uint8_t in)
 
     p->timer++;
     if (p->spd < PD_SPEED_MAX && p->timer % PD_SPEED_RAMP == 0) p->spd++;
-    p->dist += p->spd;
+    if (p->brake_t) { p->brake_t--; p->dist += p->spd >> 1; } else p->dist += p->spd;
     step = (int)((p->dist >> 4) - before);
     p->depth = (uint16_t)(p->dist >> 7);
     if (p->bounce < 0) p->bounce++;
+    by = PD_BIRD_Y + p->hop;
+    if (p->hop < 0) p->hop++;   /* sinks back after the frame it was set */
     if (p->pop_t && ++p->pop_t > 24) p->pop_t = 0;
     if (p->catch_t && ++p->catch_t > 16) p->catch_t = 0;
 
@@ -109,7 +114,7 @@ static void fall_step(GgPop *p, Flier *hero, uint8_t in)
         q->y = (int16_t)(q->y - step);
         if (q->y < -PD_PLAT_H) { q->live = 0; continue; }
         w = plat_w(q); half = w / 2;
-        if (!q->hit && !p->stun && p->phase == PD_FALL && q->y < PD_BIRD_Y + PD_BIRD_HALF_H && q->y + PD_PLAT_H > PD_BIRD_Y - PD_BIRD_HALF_H) {
+        if (!q->hit && !p->stun && p->phase == PD_FALL && q->y < by + PD_BIRD_HALF_H && q->y + PD_PLAT_H > by - PD_BIRD_HALF_H) {
             int d = arena_dx(bx, q->x + half);
             if (d < 0) d = -d;
             if (d < half + PD_BIRD_HALF_W) { q->hit = 1; hit(p); }
@@ -122,7 +127,7 @@ static void fall_step(GgPop *p, Flier *hero, uint8_t in)
         g->y = (int16_t)(g->y - step);
         if (g->y < -16) { g->live = 0; continue; }
         d = arena_dx(bx, g->x); if (d < 0) d = -d;
-        if (p->phase == PD_FALL && d < PD_BIRD_HALF_W + 8 && g->y > PD_BIRD_Y - PD_BIRD_HALF_H - 8 && g->y < PD_BIRD_Y + PD_BIRD_HALF_H + 8) {
+        if (p->phase == PD_FALL && d < PD_BIRD_HALF_W + 8 && g->y > by - PD_BIRD_HALF_H - 8 && g->y < by + PD_BIRD_HALF_H + 8) {
             g->live = 0; p->gums++; p->catch_t = 1;
             if (++p->shield_count >= PD_SHIELD_EVERY) { p->shield_count = 0; p->shield = 1; }
         }
@@ -133,10 +138,11 @@ static void fall_step(GgPop *p, Flier *hero, uint8_t in)
 
 int gp_step(GgPop *p, Flier *hero, uint8_t in)
 {
+    uint8_t edge = (uint8_t)(in & ~p->prev_in);   /* A press, new this frame */
     p->prev_in = in;
     switch (p->phase) {
     case PD_FALL:
-        fall_step(p, hero, in);
+        fall_step(p, hero, in, edge);
         break;
     case PD_CRASH:
         if (++p->timer >= PD_CRASH_FRAMES) attempt_end(p, hero);
