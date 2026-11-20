@@ -34,6 +34,7 @@
 #include "gen/gumleak_tables.h"
 #include "gen/countdown_tables.h"
 #include "gen/rulecard_tiles.h"
+#include "gen/flingmeter_tiles.h"
 #include "gfx.h"
 #include "sprite_slots.h"
 #include "vram_layout.h"
@@ -152,16 +153,11 @@ static const GgCard *g_card_up;
 static u8 g_howto_up; /* PARTY how-to overlay (fix rows HOWTO_ROW..) is on screen */
 #define HOWTO_ROW 22
 #define MODE_LABEL_ROW 29 /* last visible fix row, left safe column: the credits plate sits at columns 28..37 */
-#define BLOW_BAR_CELLS 16
-#define BLOW_BAR_COL 12
-#define BLOW_BAR_ROW 26
 #define BLOW_TEXT_ROW 5
 #define BLOW_TEXT_W 30
 #define MODE_LABEL_COL 2
 #define MODE_LABEL_W 17   /* longest name: RULE OF THE ROUND */
 static u32 g_blow_key = 0xFFFFFFFFu; /* Big Blow text on screen (phase, tickets, last attempt); reset with the fix layer */
-static GgBar g_blow_bar = { BLOW_BAR_CELLS, 0 };
-static u8 g_blow_bar_up;
 static u8 g_mode_key = 0xFF; /* mode label on screen: 0 none, else mode + 1 or 8 + party rule */
 static u8 g_stage_key = 0xFF; /* arcade HUD stage text: 0 none, 254 bonus, else stage number; 0xFF = not drawn since the last clear */
 static u8 g_over_up; /* GAME OVER text drawn since the last clear */
@@ -395,7 +391,64 @@ static const short card_gum[CARD_GUMS][2] = {{40, 2}, {62, -14}, {86, -26}, {112
 _Static_assert(2 + 3 + 1 + CARD_GUMS <= ARC_ELEM_COUNT, "the rules card example needs more sprites than the arcade element slots");
 static u8 g_card_k = CARD_NONE;     /* example frame on the fix layer; reset with the card */
 static u8 g_card_scene = CARD_NONE; /* example frame in the sprites */
-static u8 g_card_pal;               /* 1 = the attract icon palette slot holds the card colours */
+/* The attract icon palette slot (fix palette 0..15, no spare slot is left) holds one of four palettes at a time: the attract icons, the rules card
+ * colours, the power meter pink set, or the meter hot set that flashes at full power. Whoever draws sets it; the fix layer reset restores the icons. */
+enum { SLOT_ATTRACT, SLOT_CARD, SLOT_METER, SLOT_HOT };
+static u8 g_slot_pal;
+static void slot_pal(u8 w) {
+    if (w == g_slot_pal) return;
+    g_slot_pal = w;
+    const u16 *p = w == SLOT_CARD ? rulecard_fix_palette : w == SLOT_METER ? flingmeter_palette : w == SLOT_HOT ? flingmeter_hot_palette : attract_icon_palette;
+    for (u8 i = 0; i < 16; i++) gfx_pal((u16)(ATTRACT_PAL_SLOT * 16 + i), p[i]);
+}
+
+/* Gum Games power meter (owner pick C, tools/flingmeter_art.py): a two tile tall gum tube of METER_CELLS cells, METER_STEPS counted presses
+ * (half a cell each), and for Gum Fling the angle dial. Only the cells whose tile changes are written. */
+#define METER_STEPS 32u
+#define METER_CELLS 16u
+#define METER_COL 12   /* first tube cell; the end caps sit one column outside */
+#define METER_ROW 25   /* top tile row of the first tube; the rival tube of Burst Race sits two rows above */
+#define METER_NONE 0xFF
+#define DIAL_COL 7
+#define DIAL_ROW 24
+static u8 g_meter_n[2] = { METER_NONE, METER_NONE };   /* steps on screen per tube; METER_NONE = not drawn since the last reset */
+static u8 g_dial_i = METER_NONE;                       /* dial needle on screen (flingmeter_dial row) */
+static u8 g_meter_tick;
+
+static void meter_put(u8 x, u8 y, u8 id) { gfx_fix_tile(x, y, ATTRACT_PAL_SLOT, id == FLINGMETER_BLANK ? (u16)FIXFONT_BLANK : (u16)(FLINGMETER_FIX_BASE + id)); }
+static void meter_plaque(u8 x, u8 y, const uint8_t *t) { for (u8 i = 0; i < 8; i++) meter_put((u8)(x + (i & 3)), (u8)(y + (i >> 2)), t[i]); }
+static u8 meter_cell(u8 c, u8 n) {
+    int front = n ? (n - 1) / 2 : -1;
+    if (c < front) return (FLINGMETER_GUM_B_MASK >> c) & 1 ? FLINGMETER_GUM_B : FLINGMETER_GUM_A;
+    if (c == front) return (n & 1) ? FLINGMETER_FRONT4 : FLINGMETER_FRONT8;
+    return c == 8 ? FLINGMETER_EMPTY_MAJOR : (c & 3) ? FLINGMETER_EMPTY : FLINGMETER_EMPTY_TICK;
+}
+static void meter_tube(u8 row, u8 s, u8 n) {
+    if (n > METER_STEPS) n = METER_STEPS;
+    u8 old = g_meter_n[s];
+    if (old == METER_NONE) {
+        meter_put(METER_COL - 1, row, flingmeter_cell[FLINGMETER_CAP_L * 2]);
+        meter_put(METER_COL - 1, (u8)(row + 1), flingmeter_cell[FLINGMETER_CAP_L * 2 + 1]);
+        meter_put(METER_COL + METER_CELLS, row, flingmeter_cell[FLINGMETER_CAP_R * 2]);
+        meter_put(METER_COL + METER_CELLS, (u8)(row + 1), flingmeter_cell[FLINGMETER_CAP_R * 2 + 1]);
+    }
+    for (u8 c = 0; c < METER_CELLS; c++) {
+        u8 k = meter_cell(c, n);
+        if (old != METER_NONE && k == meter_cell(c, old)) continue;
+        meter_put((u8)(METER_COL + c), row, flingmeter_cell[k * 2]);
+        meter_put((u8)(METER_COL + c), (u8)(row + 1), flingmeter_cell[k * 2 + 1]);
+    }
+    g_meter_n[s] = n;
+}
+static void meter_flash(u8 full) { slot_pal(full && (g_meter_tick++ & 4) ? SLOT_HOT : SLOT_METER); if (!full) g_meter_tick = 0; }
+static void meter_dial(u8 deg) {
+    u8 best = 0;
+    for (u8 i = 1; i < FLINGMETER_DIAL_COUNT; i++) if ((deg > flingmeter_dial_deg[i] ? deg - flingmeter_dial_deg[i] : flingmeter_dial_deg[i] - deg) < (deg > flingmeter_dial_deg[best] ? deg - flingmeter_dial_deg[best] : flingmeter_dial_deg[best] - deg)) best = i;
+    if (best == g_dial_i) return;
+    g_dial_i = best;
+    for (u8 i = 0; i < 9; i++) meter_put((u8)(DIAL_COL + i % 3), (u8)(DIAL_ROW + i / 3), flingmeter_dial[best * 9 + i]);
+}
+static void meter_reset(void) { g_meter_n[0] = g_meter_n[1] = g_dial_i = METER_NONE; g_meter_tick = 0; if (g_slot_pal >= SLOT_METER) slot_pal(SLOT_ATTRACT); }
 
 static u8 card_frame(u16 t) {
     u16 p = (u16)(t % ((CARD_FRAMES - 1) * CARD_TICKS + CARD_HOLD)) / CARD_TICKS;
@@ -403,9 +456,8 @@ static u8 card_frame(u16 t) {
 }
 
 static void card_palette(u8 on) {
-    if (on == g_card_pal) return;
-    g_card_pal = on;
-    for (u8 i = 0; i < 16; i++) gfx_pal((u16)(ATTRACT_PAL_SLOT * 16 + i), on ? rulecard_fix_palette[i] : attract_icon_palette[i]);
+    if (on) slot_pal(SLOT_CARD);
+    else if (g_slot_pal == SLOT_CARD) slot_pal(SLOT_ATTRACT);
 }
 
 static void card_panel(u8 y0, u8 y1, u8 pal) {
@@ -1537,8 +1589,27 @@ static void put_number(char *out, u32 v, int width);
 /* GET SET / GO! (gg_countdown.h): the glyph frames of the word, centred, in the arcade stage element slots (no Gum Games event draws those).
  * word = GGCD_WORD_*; GGCD_WORD_NONE parks them. Tiles are rewritten only when the word changes. */
 #define COUNTDOWN_Y 72 /* top of the words, screen px */
-static u8 g_cd_word;
-static void countdown_step(u8 word) {
+#define COUNTDOWN_POP_STEP_FRAMES 3 /* frames per pop-in step (draft anim_A2_go: 50 ms) */
+static u8 g_cd_word, g_cd_cols, g_cd_step = 0xff;
+static u8 g_cd_rows[ARC_ELEM_COUNT];
+static int g_cd_x[ARC_ELEM_COUNT];
+/* Pop-in of the draft (draw_countdown_a2.py): sprite shrink in sixteenths and a y offset, both words; the last step holds. */
+static void countdown_place(u8 step) {
+    static const u8 shrink[] = {4, 8, 12, 16, 16, 16, 16, 16};
+    static const int8_t dy[] = {0, 0, 0, 0, -4, -2, 1, 0};
+    u8 s = shrink[step];
+    u16 s2[ARC_ELEM_COUNT], s3[ARC_ELEM_COUNT], s4[ARC_ELEM_COUNT];
+    for (u8 c = 0; c < g_cd_cols; c++) {
+        int hpx = g_cd_rows[c] * 16;
+        s2[c] = (u16)(((s - 1) << 8) | (s * 16 - 1));
+        s3[c] = gfx_scb3_word(g_cd_rows[c], COUNTDOWN_Y + (hpx - hpx * s / 16) / 2 + dy[step]);
+        s4[c] = gfx_scb4_word(160 + (g_cd_x[c] - 160) * s / 16);
+    }
+    gfx_scb_run((u16)(ADDR_SCB2 + ARC_ELEM_SPRITE), 1, s2, g_cd_cols);
+    gfx_scb_run((u16)(ADDR_SCB3 + ARC_ELEM_SPRITE), 1, s3, g_cd_cols);
+    gfx_scb_run((u16)(ADDR_SCB4 + ARC_ELEM_SPRITE), 1, s4, g_cd_cols);
+}
+static void countdown_step(u8 word, u16 t) {
     static const u16 gx[] = COUNTDOWN_TABLE_GETSET_X, ox[] = COUNTDOWN_TABLE_GO_X;
     static const u16 gw[] = COUNTDOWN_TABLE_GETSET_W, ow[] = COUNTDOWN_TABLE_GO_W;
     if (word != g_cd_word) {
@@ -1547,39 +1618,36 @@ static void countdown_step(u8 word) {
             const u16 *xs = word == GGCD_WORD_GO ? ox : gx, *ws = word == GGCD_WORD_GO ? ow : gw;
             u8 n = countdown_anims[anim].frame_count, pal = word == GGCD_WORD_GO ? COUNTDOWN_HOT_PAL_SLOT : COUNTDOWN_PAL_SLOT;
             int left = (320 - (xs[n - 1] + ws[n - 1])) / 2, col = 0;
-            u16 s3[COUNTDOWN_MAX_COLUMNS * 6], s4[COUNTDOWN_MAX_COLUMNS * 6];
             for (u8 k = 0; k < n; k++) {
                 const CountdownFrame *f = &countdown_frames[countdown_anims[anim].first_frame + k];
                 for (u8 c = 0; c < f->tiles_w; c++, col++) {
                     gfx_sprite_strips((u16)(ARC_ELEM_SPRITE + col), 1, f->tiles_h, &countdown_tile_index[f->tile_offset + c * f->tiles_h], COUNTDOWN_TILE_BASE, (u16)(pal << 8));
-                    s3[col] = gfx_scb3_word(f->tiles_h, COUNTDOWN_Y);
-                    s4[col] = gfx_scb4_word(left + xs[k] + c * 16);
+                    g_cd_rows[col] = f->tiles_h;
+                    g_cd_x[col] = left + xs[k] + c * 16;
                 }
             }
-            gfx_sprite_unchained(ARC_ELEM_SPRITE, (u8)col); /* every glyph column has its own x */
-            gfx_scb_run((u16)(ADDR_SCB3 + ARC_ELEM_SPRITE), 1, s3, (u8)col);
-            gfx_scb_run((u16)(ADDR_SCB4 + ARC_ELEM_SPRITE), 1, s4, (u8)col);
+            g_cd_cols = (u8)col;
+            gfx_sprite_unchained(ARC_ELEM_SPRITE, g_cd_cols); /* every glyph column has its own x */
             for (int c = col; c < ARC_ELEM_COUNT; c++) obs_hide_slot((u16)(ARC_ELEM_SPRITE + c));
         } else {
             for (int c = 0; c < ARC_ELEM_COUNT; c++) obs_hide_slot((u16)(ARC_ELEM_SPRITE + c));
         }
         g_cd_word = word;
+        g_cd_step = 0xff;
+    }
+    if (word) {
+        u16 tw = word == GGCD_WORD_GO ? t - GGCD_SET_FRAMES - 1 : t - 1;
+        u8 step = tw / COUNTDOWN_POP_STEP_FRAMES > 7 ? 7 : (u8)(tw / COUNTDOWN_POP_STEP_FRAMES);
+        if (step != g_cd_step) { countdown_place(step); g_cd_step = step; }
     }
 }
 
 /* Big Blow on the fix layer: the power bar (changed cells only) and one status line, written when the attempt state changes. */
 static void draw_big_blow(const GgBlow *b) {
-    uint8_t ops[BLOW_BAR_CELLS];
-    if (!g_blow_bar_up) {
-        char cells[BLOW_BAR_CELLS + 1];
-        for (u8 i = 0; i < BLOW_BAR_CELLS; i++) cells[i] = '-';
-        cells[BLOW_BAR_CELLS] = 0;
-        text(BLOW_BAR_COL, BLOW_BAR_ROW, PAL_TEXT, cells);
-        g_blow_bar.filled = 0;
-        g_blow_bar_up = 1;
-    }
-    int n = gg_bar_set(&g_blow_bar, (u8)(b->phase == GG_BLOW_INTRO ? 0 : b->size / (GG_BLOW_MAX / BLOW_BAR_CELLS)), ops, BLOW_BAR_CELLS);
-    for (int i = 0; i < n; i++) text((u8)(BLOW_BAR_COL + (ops[i] & 0x7F)), BLOW_BAR_ROW, PAL_HIGH, (ops[i] & 0x80) ? ">" : "-");
+    u8 n = b->phase == GG_BLOW_INTRO ? 0 : (u8)(b->size / (GG_BLOW_MAX / METER_STEPS));
+    if (g_meter_n[0] == METER_NONE) meter_plaque(METER_COL, METER_ROW - 2, flingmeter_label_power);
+    meter_tube(METER_ROW, 0, n);
+    meter_flash(g_meter_n[0] == METER_STEPS);
     u32 key = (u32)b->phase | (u32)b->seq.tickets[0] << 4 | (u32)b->last_size << 8 | (u32)b->burst << 16 | (u32)b->last_qualified << 17;
     if (key == g_blow_key) return;
     g_blow_key = key;
@@ -1609,21 +1677,10 @@ static void draw_big_blow(const GgBlow *b) {
     }
 }
 
-/* Burst Race on the fix layer: one power bar per side (P1 on BLOW_BAR_ROW, the rival two rows above) and a status line. */
-static GgBar g_race_bar[2];
+/* Burst Race on the fix layer: one power tube per side (P1 on METER_ROW, the rival two rows above) and a status line. */
 static void draw_burst_race(const GgRace *r) {
-    uint8_t ops[BLOW_BAR_CELLS];
-    if (!g_blow_bar_up) {
-        char cells[BLOW_BAR_CELLS + 1];
-        for (u8 i = 0; i < BLOW_BAR_CELLS; i++) cells[i] = '-';
-        cells[BLOW_BAR_CELLS] = 0;
-        for (u8 s = 0; s < 2; s++) { text(BLOW_BAR_COL, (u8)(BLOW_BAR_ROW - 2 * s), PAL_TEXT, cells); g_race_bar[s].width = BLOW_BAR_CELLS; g_race_bar[s].filled = 0; }
-        g_blow_bar_up = 1;
-    }
-    for (u8 s = 0; s < 2; s++) {
-        int n = gg_bar_set(&g_race_bar[s], (u8)(r->phase == GG_RACE_INTRO ? 0 : r->size[s] / (GG_BLOW_MAX / BLOW_BAR_CELLS)), ops, BLOW_BAR_CELLS);
-        for (int i = 0; i < n; i++) text((u8)(BLOW_BAR_COL + (ops[i] & 0x7F)), (u8)(BLOW_BAR_ROW - 2 * s), PAL_HIGH, (ops[i] & 0x80) ? ">" : "-");
-    }
+    for (u8 q = 0; q < 2; q++) meter_tube((u8)(METER_ROW - 2 * q), q, r->phase == GG_RACE_INTRO ? 0 : (u8)(r->size[q] / (GG_BLOW_MAX / METER_STEPS)));
+    meter_flash(g_meter_n[0] == METER_STEPS || g_meter_n[1] == METER_STEPS);
     u32 key = (u32)r->phase | (u32)r->winner << 4 | (u32)r->players << 5;
     if (key == g_blow_key) return;
     g_blow_key = key;
@@ -1667,11 +1724,9 @@ static void draw_toss(const Game *g) {
     text((u8)((40 - BLOW_TEXT_W) / 2), BLOW_TEXT_ROW + 4, PAL_TEXT, msg);   /* rows 5..7 are the HUD */
 }
 
-/* Gum Fling on the fix layer: power bar on BLOW_BAR_ROW, angle needle bar two rows above (0..90 degrees over BLOW_BAR_CELLS,
- * safe 15..75 cells lime, foul ends pink), a status line, and in the flight view a mark flag that scrolls in with the course.
- * Distances show in metres (GF_PX_PER_M). Same bar cells as Burst Race. */
+/* Gum Fling on the fix layer: the power tube and the angle dial (meter block above), a status line, and in the flight view a mark flag that scrolls in with the course.
+ * Distances show in metres (GF_PX_PER_M). */
 static int8_t g_fling_flag = -1;   /* fix column of the mark flag on screen, -1 = none; reset with the fix layer */
-static int8_t g_fling_caret = -1;  /* angle bar cell the '^' caret sits under, -1 = none; reset with the fix layer */
 #define FLING_FLAG_ROW 8
 static u8 fling_put(char *line, u8 i, const char *p) { while (*p && i < BLOW_TEXT_W) line[i++] = *p++; return i; }
 static u8 fling_put_m(char *line, u8 i, u32 px) {
@@ -1680,40 +1735,15 @@ static u8 fling_put_m(char *line, u8 i, u32 px) {
     for (u8 k = 0; nb[k] && i < BLOW_TEXT_W; k++) if (nb[k] != ' ') line[i++] = nb[k];
     return fling_put(line, i, " M");
 }
-static u8 fling_angle_pal(u8 cell) {
-    u8 mid = (u8)((cell * 2 + 1) * 45 / BLOW_BAR_CELLS);   /* degrees at the cell centre */
-    return (mid >= GF_DEG_MIN && mid <= GF_DEG_MAX) ? FIXFONT_PAL_LIME : FIXFONT_PAL_PINK;
-}
 static void draw_fling(const Game *g) {
     const GgFling *f = &g->fling;
-    uint8_t ops[BLOW_BAR_CELLS];
-    if (!g_blow_bar_up) {
-        char cells[BLOW_BAR_CELLS + 1];
-        for (u8 i = 0; i < BLOW_BAR_CELLS; i++) cells[i] = '-';
-        cells[BLOW_BAR_CELLS] = 0;
-        text(BLOW_BAR_COL, BLOW_BAR_ROW, PAL_TEXT, cells);
-        for (u8 i = 0; i < BLOW_BAR_CELLS; i++) text((u8)(BLOW_BAR_COL + i), BLOW_BAR_ROW - 2, fling_angle_pal(i), "-");
-        text(BLOW_BAR_COL - 6, BLOW_BAR_ROW, PAL_TEXT, "POWER");
-        text(BLOW_BAR_COL - 6, BLOW_BAR_ROW - 2, PAL_TEXT, "ANGLE");
-        for (u8 s = 0; s < 2; s++) { g_race_bar[s].width = BLOW_BAR_CELLS; g_race_bar[s].filled = 0; }
-        g_blow_bar_up = 1;
+    if (g_meter_n[0] == METER_NONE) {
+        meter_plaque(METER_COL, METER_ROW - 2, flingmeter_label_power);
+        meter_plaque(DIAL_COL - 1, DIAL_ROW - 2, flingmeter_label_angle);
     }
-    u8 want[2] = { (u8)(f->power * BLOW_BAR_CELLS / GF_POWER_MAX), (u8)(f->deg * BLOW_BAR_CELLS / 90) };
-    for (u8 s = 0; s < 2; s++) {
-        int n = gg_bar_set(&g_race_bar[s], want[s], ops, BLOW_BAR_CELLS);
-        for (int i = 0; i < n; i++) {
-            u8 c = ops[i] & 0x7F;
-            text((u8)(BLOW_BAR_COL + c), (u8)(BLOW_BAR_ROW - 2 * s), s ? fling_angle_pal(c) : PAL_HIGH, (ops[i] & 0x80) ? ">" : "-");
-        }
-    }
-    /* aim caret under the angle bar, at the needle's cell, from the aim on */
-    int8_t cc = -1;
-    if (f->phase >= GF_AIM) { u8 n = (u8)(f->deg * BLOW_BAR_CELLS / 90); u8 c = n ? (u8)(n - 1) : 0; /* under the last lit chevron */ cc = (int8_t)(c < BLOW_BAR_CELLS ? c : BLOW_BAR_CELLS - 1); }
-    if (cc != g_fling_caret) {
-        if (g_fling_caret >= 0) text((u8)(BLOW_BAR_COL + g_fling_caret), BLOW_BAR_ROW - 1, PAL_TEXT, " ");
-        if (cc >= 0) gfx_fix_tile((u8)(BLOW_BAR_COL + cc), BLOW_BAR_ROW - 1, PAL_TEXT, FIXFONT_AIM_CARET); /* full-tile red arrow: red is in no bar */
-        g_fling_caret = cc;
-    }
+    meter_tube(METER_ROW, 0, (u8)(f->power * METER_STEPS / GF_POWER_MAX));
+    meter_dial((u8)f->deg);
+    meter_flash(g_meter_n[0] == METER_STEPS);
     /* mark flag: the hero sits at its screen x at launch, so the mark is GF_MARK_PX - flown pixels ahead of it */
     int8_t col = -1;
     if (col != g_fling_flag) {
@@ -1800,7 +1830,32 @@ static void draw_flap_dash(const GgDash *d) {
 }
 
 /* Pop Drop on the fix layer: depth and gums; rewritten when either changes. */
+static u8 s_hits[2], s_hit_t[2]; /* view-only: last seen b->hits, and the 16-tick burst after a hit (pop_show_bird); the life pips flash on it */
+#define PD_PIP_COL0 1   /* player 1 pips: columns 1..3 left of the DEPTH line (cols 5..34), player 2: columns 36..38 */
+#define PD_PIP_COL1 36
+static u16 g_pd_pips = 0xFFFF; /* what the pips show: per bird hits (2 bits) and flash blink (2 bits); redrawn only on change */
+
+/* Life pips on the fix layer: PD_HITS_MAX hearts a bird, one goes out (white blink, then blank) per hit; a shield soak is no hit. */
+static void draw_pd_pips(const GgPop *p) {
+    u8 n = p->seq.players > 1 ? 2 : 1;
+    u16 st = 0;
+    for (u8 i = 0; i < n; i++) st |= (u16)((p->b[i].hits & 3) | (s_hit_t[i] ? 4 + ((s_hit_t[i] >> 2) & 1) : 0) << 2) << (i * 8);
+    if (st == g_pd_pips) return;
+    g_pd_pips = st;
+    for (u8 i = 0; i < n; i++) {
+        u8 hits = p->b[i].hits;
+        for (u8 k = 0; k < PD_HITS_MAX; k++) {
+            u8 col = (u8)((i ? PD_PIP_COL1 : PD_PIP_COL0) + k);
+            if (k < PD_HITS_MAX - hits) gfx_fix_tile(col, BLOW_TEXT_ROW + 2, FIXFONT_PAL_PINK, FIXFONT_ICON_HEART);
+            else if (k == PD_HITS_MAX - hits && s_hit_t[i] && ((s_hit_t[i] >> 2) & 1)) gfx_fix_tile(col, BLOW_TEXT_ROW + 2, PAL_TEXT, FIXFONT_ICON_HEART);
+            else gfx_fix_tile(col, BLOW_TEXT_ROW + 2, 0, FIXFONT_BLANK);
+        }
+    }
+}
+
 static void draw_pop_drop(const GgPop *p) {
+    if (g_blow_key == 0xFFFFFFFFu) g_pd_pips = 0xFFFF; /* the fix layer was cleared */
+    draw_pd_pips(p);
     u32 key = (u32)p->depth | (u32)p->b[0].gums << 14 | (u32)p->phase << 24 | 1u << 28 | 1u << 29;
     if (key == g_blow_key) return;
     g_blow_key = key;
@@ -1838,12 +1893,26 @@ _Static_assert(PD_SPRITE_END <= 367, "Pop Drop slots overlap the Trip pickup slo
 /* The trail gums (2 columns each) take the arena island slots, as the Gum Fling field does: island_step is off in Pop Drop and
  * island_relayout reloads their tiles on leaving. They draw under the platforms and the birds. */
 #define PD_GUM_SLOT ISLAND_SPRITE
+/* Pool finish (batch 2) in the object pool range, which Pop Drop does not use: a higher slot draws in front. Order back to front: background
+ * gags, crowd fans with their cards, flop birds, pool (deck, edge, surface, water), ladder, splashes. */
+#define PD_BACK POOL_SPRITE_BASE
+#define PD_GAG_SLOT PD_BACK                     /* 2 fallers x 5 columns (bathtub: bird 2 + tub 3) */
+#define PD_FAN_SLOT (PD_GAG_SLOT + 10)          /* 2 birds x 3 judges x 3 columns (fan 2 + card 1) */
+#define PD_FLOP_SLOT (PD_FAN_SLOT + 18)         /* 2 birds x 2 columns */
+#define PD_POOLS_SLOT (PD_FLOP_SLOT + 4)        /* the full width: 20 columns of 14 tiles (deck 2, edge 2, water 12, edge 2, deck 2) */
+#define PD_LADDER_SLOT (PD_POOLS_SLOT + 20)
+#define PD_SPL_SLOT (PD_LADDER_SLOT + 1)        /* 2 birds x 6 columns */
+#define PD_BACK_N (PD_SPL_SLOT + 12 - PD_BACK)
+_Static_assert(PD_BACK + PD_BACK_N <= POOL_SPRITE_BASE + POOL_SPRITE_COUNT, "Pop Drop pool slots overflow the object pool range");
+#define PD_POOL_ROWS 14
 _Static_assert(PD_GUMS * 2 <= ISLAND_COUNT, "Pop Drop trail gums overrun the island slots");
-#define PD_SLOTS (PD_SPRITE_END - PD_SPRITE + PD_GUMS * 2)
+#define PD_SLOTS (PD_SPRITE_END - PD_SPRITE + PD_GUMS * 2 + PD_BACK_N)
 static u8 g_pd_on;
 static u8 g_pd_shown[PD_SLOTS], g_pd_new[PD_SLOTS]; /* pd_idx(slot): drawn last frame / this frame */
-static u8 pd_idx(u16 slot) { return (u8)(slot >= PD_SPRITE ? slot - PD_SPRITE : PD_SPRITE_END - PD_SPRITE + slot - PD_GUM_SLOT); }
-static u16 pd_slot(u8 k) { return (u16)(k < PD_SPRITE_END - PD_SPRITE ? PD_SPRITE + k : PD_GUM_SLOT + k - (PD_SPRITE_END - PD_SPRITE)); }
+#define PD_N1 (PD_SPRITE_END - PD_SPRITE)
+#define PD_N2 (PD_N1 + PD_GUMS * 2)
+static u8 pd_idx(u16 slot) { return (u8)(slot >= PD_SPRITE ? slot - PD_SPRITE : slot >= PD_BACK ? PD_N2 + slot - PD_BACK : PD_N1 + slot - PD_GUM_SLOT); }
+static u16 pd_slot(u8 k) { return (u16)(k < PD_N1 ? PD_SPRITE + k : k < PD_N2 ? PD_GUM_SLOT + k - PD_N1 : PD_BACK + k - PD_N2); }
 
 static const PopdropFrame *pd_frame(u8 anim, u16 n) {
     const PopdropAnim *a = &popdrop_anims[anim];
@@ -1863,6 +1932,7 @@ static void pd_piece(u16 slot, const PopdropFrame *f, int wx, int top, int flip,
 }
 
 static void pop_hide(void) {
+    pool_hide_all(); /* the pool range cache must forget what the pool finish drew */
     for (u8 k = 0; k < PD_SLOTS; k++) { obs_hide_slot(pd_slot(k)); g_pd_shown[k] = 0; }
 }
 
@@ -1906,13 +1976,78 @@ static void pop_show_bird(const Game *g, u8 i, u16 bird_slot, u16 shield_slot, u
     if (b->shield) pd_piece(shield_slot, pd_frame(POPDROP_ANIM_SHIELD, 0), bx + 8, top - 22, 0, POPDROP_PAL_SLOT + 2);
     else if (b->pop_t) pd_piece(shield_slot, pd_frame(POPDROP_ANIM_POP, (u16)((b->pop_t - 1) >> 2)), bx, top - 34, 0, POPDROP_PAL_SLOT + 2);
     /* Bump feather puff (hook in gg_popdrop push_apart): the six burst frames over bump_t 1..16, centred on the bird. */
-    if (b->bump_t) pd_piece(puff_slot, pd_frame(POPDROP_ANIM_PUFF, (u16)((b->bump_t - 1) * 6 / 16)), bx - 8, top - 8, 0, pal);
+    /* Island hit puff: view-only, a rising hits counter restarts the same 16-tick burst (a bump keeps the slot while it runs). */
+    if (b->hits > s_hits[i]) s_hit_t[i] = 16;
+    else if (s_hit_t[i]) s_hit_t[i]--;
+    s_hits[i] = b->hits;
+    u8 puff_t = b->bump_t ? b->bump_t : s_hit_t[i];
+    if (puff_t) pd_piece(puff_slot, pd_frame(POPDROP_ANIM_PUFF, (u16)((puff_t - 1) * 6 / 16)), bx - 8, top - 8, 0, pal);
     /* The burst gum skin (draft 2026-11-18 freefall): four flutter frames on the upper beak, 11 px into the 24 px art (pad 4) and
      * 12 px above it; the limp frame lies past the splat's right edge. Mirrored with the bird; hidden inside an intact shield. */
     if (b->crash)
         pd_piece(rag_slot, pd_frame(POPDROP_ANIM_RAG, 4), b->flip ? bx - 15 : bx + 31, top, b->flip, POPDROP_PAL_SLOT);
     else if (!b->shield)
         pd_piece(rag_slot, pd_frame(POPDROP_ANIM_RAG, (u16)((g->frame >> 2) & 3)), b->flip ? bx + 1 : bx + 15, top - 12, b->flip, POPDROP_PAL_SLOT);
+}
+
+/* Pool finish. Screen-space pool across the full width: deck 32 px, edge 32 px, water 192 px, edge, deck. pool_y = deck top; surface art at
+ * pool_y + 3, water from pool_y + 11, waterline pool_y + 6 (draft draw_batch2.py). Each column is one 14 tile strip (surface then water). */
+static void pd_scr(u16 slot, const PopdropFrame *f, int sx, int top, int flip, u16 pal) { pd_piece(slot, f, sx + g_cam_px, top, flip, pal); }
+
+static void pop_show_pool(const Game *g) {
+    int y = g->pop.pool_y;
+    static u16 col[PD_POOL_ROWS];
+    const PopdropFrame *surf = pd_frame(POPDROP_ANIM_SURF, (u16)(g->frame >> 3));
+    const PopdropFrame *w0 = pd_frame(POPDROP_ANIM_WATER, 0), *w1 = pd_frame(POPDROP_ANIM_WATER, 1);
+    const PopdropFrame *e0 = pd_frame(POPDROP_ANIM_EDGE, 0), *e1 = pd_frame(POPDROP_ANIM_EDGE, 1);
+    u16 pal = POPDROP_PAL_SLOT + 4;
+    for (u8 c = 0; c < 20; c++) {
+        u16 slot = (u16)(PD_POOLS_SLOT + c);
+        int water = c >= 4 && c < 16, flip = c >= 16;
+        u8 tc = water ? (u8)(c & 1) : (u8)(c == 3 || c == 16);   /* edge cell: tile column 0 is the deck tile, 1 the lip (the right edge is the flipped cell) */
+        col[0] = popdrop_tile_index[(water ? surf : e0)->tile_offset + tc];
+        for (u8 r = 1; r < PD_POOL_ROWS; r++) col[r] = popdrop_tile_index[(water ? (r > 1 ? w1 : w0) : e1)->tile_offset + tc];
+        gfx_sprite_strips(slot, 1, PD_POOL_ROWS, col, POPDROP_TILE_BASE, (u16)((pal << 8) | (flip ? 1 : 0)));
+        gfx_sprite_place(slot, 1, PD_POOL_ROWS, c * 16, water ? y - 5 : y);
+        g_pd_new[pd_idx(slot)] = 1;
+    }
+    pd_scr(PD_LADDER_SLOT, pd_frame(POPDROP_ANIM_LADDER, 0), 69, y - 7, 0, pal);
+}
+
+/* A bird that flopped: its pose half sunk (it sits in a slot behind the water), the splash by size, the judges' fans and cards. */
+static void pop_show_landed(const Game *g, u8 i, u16 bird_pal) {
+    const GgPop *p = &g->pop;
+    const PdBird *b = &p->b[i];
+    int cx = (int)(g->hero[i].x >> 16), y = p->pool_y;
+    static const u8 spl_cx[3] = { 16, 32, 48 }, spl_wl[3] = { 27, 42, 72 };
+    pd_piece((u16)(PD_FLOP_SLOT + i * 2), pd_frame(POPDROP_ANIM_FLOP, b->pose), cx - 16, y + 6 - 20, b->flip, bird_pal);
+    if (b->splash_f < PD_SPLASH_LEN(b->size) - 1)
+        pd_piece((u16)(PD_SPL_SLOT + i * 6), pd_frame((u8)(POPDROP_ANIM_SPLASH_S + b->size), b->splash_f), cx - spl_cx[b->size], y + 6 - spl_wl[b->size], 0, POPDROP_PAL_SLOT + 4);
+    u8 cards = p->phase == PD_RESULT || b->splash_f >= PD_SPLASH_LEN(b->size) - 1;
+    for (u8 j = 0; j < PD_JUDGES; j++) {
+        static const u8 fan_x[PD_JUDGES] = { 0, 24, 12 };
+        int right = i == 1, fx = right ? 288 - fan_x[j] : fan_x[j], top = y - 32;
+        u16 slot = (u16)(PD_FAN_SLOT + (i * PD_JUDGES + j) * 3);
+        pd_scr(slot, pd_frame(POPDROP_ANIM_FAN, (u16)((g->frame >> 4) + j)), fx, top, right, SOOT_P2_PAL_SLOT);
+        if (cards && b->card[j]) pd_scr((u16)(slot + 2), pd_frame(POPDROP_ANIM_CARD, (u16)(b->card[j] - 1)), right ? fx + 18 : fx - 2, top - 24, right, POPDROP_PAL_SLOT + 5);
+    }
+}
+
+/* Background gag fallers: the tub with its bird behind it, the tumbling armchair, the snail on its umbrella (centre x, y). */
+static void pop_show_gags(const Game *g) {
+    static const u8 dy[4] = { 0, 1, 1, 0 };
+    for (u8 k = 0; k < PD_FALLERS; k++) {
+        const PdFaller *fl = &g->pop.fall[k];
+        if (!fl->live) continue;
+        u16 slot = (u16)(PD_GAG_SLOT + k * 5), n = (u16)(g->frame >> 3), pal = POPDROP_PAL_SLOT + 5;
+        int x = fl->x, y = fl->y;
+        if (fl->kind == PD_FALLER_BATH) {
+            u8 m = (u8)(n & 3);
+            pd_piece(slot, pd_frame(POPDROP_ANIM_TUBBIRD, m == 1 || m == 2), x - 24 + 6, y - 24 - 4 + dy[m], 0, POPDROP_PAL_SLOT);
+            pd_piece((u16)(slot + 2), pd_frame(POPDROP_ANIM_TUB, m), x - 24, y - 24, 0, POPDROP_PAL_SLOT + 4);
+        } else if (fl->kind == PD_FALLER_ARMCHAIR) pd_piece(slot, pd_frame(POPDROP_ANIM_CHAIR, n), x - 16, y - 16, 0, pal);
+        else pd_piece(slot, pd_frame(POPDROP_ANIM_SNAIL, n), x - 24, y - 24, 0, pal);
+    }
 }
 
 static void pop_show_pieces(const Game *g) {
@@ -1930,7 +2065,10 @@ static void pop_show_pieces(const Game *g) {
     for (u8 k = 0; k < PD_GUMS; k++) {
         const PdGum *gm = &p->gum[k];
         if (!gm->live) continue;
-        int fr = (int)(((g->frame >> 2) + k) & (TRIPPICKUP_PICKUP_IDLE_FRAMES - 1));   /* phase per gum: the tile rewrites spread over the frames */
+        /* Phase per gum in the tick timing, not only in the frame shown: with (frame >> 2) + k every gum stepped on the same frame, up to
+         * 15 gums x 2 strips (about 1080 us) in one flush, which with both 2P birds hit GFX_FLUSH_BUDGET_US (make test-gum-pop-drop-2p).
+         * 5k is k mod 4 in the tick, so a quarter of the gums step per frame, and still about 1.25 k frames apart in the loop. */
+        int fr = (int)(((g->frame + (u32)k * 5u) >> 2) & (TRIPPICKUP_PICKUP_IDLE_FRAMES - 1));
         const TrippickupFrame *f = &trippickup_frames[trippickup_anims[TRIPPICKUP_ANIM_PICKUP_IDLE].first_frame + fr];
         int sx = camera_screen_x(gm->x - 16, g_cam_px, 32);
         if (!camera_visible(sx, 32)) continue;
@@ -1939,6 +2077,10 @@ static void pop_show_pieces(const Game *g) {
         gfx_sprite_place(sl, 2, 2, sx, gm->y - 16);
         g_pd_new[pd_idx(sl)] = 1; g_pd_new[pd_idx(sl) + 1] = 1;
     }
+    pop_show_gags(g);
+    if (p->pool_y < SCREEN_H + 8) pop_show_pool(g);
+    if (p->b[0].landed) pop_show_landed(g, 0, POPDROP_PAL_SLOT);
+    if (p->seq.players > 1 && p->b[1].landed) pop_show_landed(g, 1, SOOT_P2_PAL_SLOT);
     if (p->phase != PD_FALL && p->phase != PD_CRASH) return;
     pop_show_bird(g, 0, PD_BIRD_SLOT, PD_SHIELD_SLOT, PD_RAG_SLOT, PD_PUFF_SLOT, POPDROP_PAL_SLOT);
     if (p->seq.players > 1) pop_show_bird(g, 1, PD_BIRD2_SLOT, PD_SHIELD2_SLOT, PD_RAG2_SLOT, PD_PUFF2_SLOT, SOOT_P2_PAL_SLOT);   /* fall0 = the Sootling player palette: P2 reuses its P2 swap */
@@ -2508,7 +2650,7 @@ static void draw(const FlowView *v) {
         g_draw_state = (int)v->state;
         g_hud[0].kind = g_hud[1].kind = HUD_KIND_NONE;
         g_ov_stage = 0; g_ov_key = AO_NONE; g_ov_part = 0;
-        g_rs_drawn = RS_NONE; g_rs_num = 0; g_banner_up = 0; g_howto_up = 0; g_card_up = 0; g_mode_key = 0xFF; g_blow_key = 0xFFFFFFFFu; g_blow_bar_up = 0; g_fling_flag = -1; g_fling_caret = -1; g_cont_key[0] = g_cont_key[1] = 0xFF; g_stage_key = 0xFF; g_over_up = 0;
+        g_rs_drawn = RS_NONE; g_rs_num = 0; g_banner_up = 0; g_howto_up = 0; g_card_up = 0; g_mode_key = 0xFF; g_blow_key = 0xFFFFFFFFu; meter_reset(); g_fling_flag = -1; g_cont_key[0] = g_cont_key[1] = 0xFF; g_stage_key = 0xFF; g_over_up = 0;
         g_meter_step = METER_NONE;
         set_distress(0);
 #ifdef GUMBIRDS_DEBUG_HEADER /* gmake DEBUG_HEADER=1; the normal build leaves the top rows to the HUD */
@@ -2596,7 +2738,7 @@ static void draw(const FlowView *v) {
                     gfx_commit_all(); /* the picker clear reaches the screen before the card draws over it */
                     gfx_drain();
                     card_draw(c);
-                } else { card_clear(); g_blow_key = 0xFFFFFFFFu; g_blow_bar_up = 0; g_fling_flag = -1; g_fling_caret = -1; g_mode_key = 0xFF; g_hud[0].kind = g_hud[1].kind = HUD_KIND_NONE; }
+                } else { card_clear(); g_blow_key = 0xFFFFFFFFu; meter_reset(); g_fling_flag = -1; g_mode_key = 0xFF; g_hud[0].kind = g_hud[1].kind = HUD_KIND_NONE; }
             }
             if (c) card_animate(c, card_frame(v->card_t));
         }
@@ -3149,7 +3291,7 @@ static void game_loop(void) {
             gum_step(0, arena || race || blow || (trip && game_trip_ready(view.game)), trip ? view.game->trip.gum : (race ? race_gum(view.game, 0) : blow ? blow_gum(view.game) : arena ? (uint16_t)(human_bubble_level(view.game, 0) * (GUM_MAX / GUM_VIEW_LEVELS)) : GUM_MAX), (trip || arena || race || blow) ? view.game->frame : 0, g_gum_pose[0].drawn, g_gum_pose[0].frame, g_gum_pose[0].flip, g_gum_pose[0].cx, g_gum_pose[0].top, world && human_leaks(view.game, 0));
             roost_marker_step(arena && view.state == FLOW_PLAYING ? view.game : 0);
             card_scene_step(view.state == FLOW_PLAYING && view.card, view.card_t);
-            countdown_step(view.state == FLOW_PLAYING && view.game ? ggcd_word(view.game->cd_t) : GGCD_WORD_NONE);
+            { u8 on = view.state == FLOW_PLAYING && view.game; countdown_step(on ? ggcd_word(view.game->cd_t) : GGCD_WORD_NONE, on ? view.game->cd_t : 0); }
             toss_bubble_step(view.state == FLOW_PLAYING ? view.game : 0);   /* Toss Gum is GAME_MODE_GUM, not arena: the function checks gg_toss itself */
             fling_arc_step(world && view.state == FLOW_PLAYING && !view.card ? view.game : 0);
             { u8 g1 = race || (arena && view.game->players == 2); /* inactive: gum_step ignores every other argument, so they are not computed */

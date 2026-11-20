@@ -39,6 +39,16 @@ local function lit(row)
   for c = 0, 39 do if cell(c, row) ~= blank then n = n + 1 end end
   return n
 end
+local function fingerprint(c0, c1, r0, r1)   -- the fix tile codes of a rectangle as one string (meter tube / dial change detection)
+  local t = {}
+  for r = r0, r1 do for c = c0, c1 do t[#t + 1] = cell(c, r) end end
+  return table.concat(t, ",")
+end
+local tube_seen, tube_n = {}, 0   -- distinct tube fingerprints: the fill tile changes with the power
+local function tube_watch(row)
+  local f = fingerprint(11, 28, row, row + 1)
+  if not tube_seen[f] then tube_seen[f] = true; tube_n = tube_n + 1 end
+end
 local done = false
 local function finish(ok, msg)
   if done then return end
@@ -77,6 +87,7 @@ emu.register_frame_done(function()
   elseif phase == "pump" then
     local sz = b(O.size)
     if sz > grew then grew = sz end
+    tube_watch(25); tube_watch(23)
     if sz >= 8 and cell(12, 26) ~= cell(27, 26) and cell(12, 24) ~= cell(27, 24) then bar_ok = true end
     local r3, r4, h3, h4 = fix[0x8200 + RIVAL] or 0, fix[0x8400 + RIVAL] or 0, fix[0x8200 + HERO] or 0, fix[0x8400 + HERO] or 0
     local rx, hx, tile = r4 >> 7, h4 >> 7, fix[RIVAL * 64] or 0
@@ -107,6 +118,7 @@ emu.register_frame_done(function()
   elseif phase == "result" then
     if n - t0 == 20 then
       local score = mem:read_u32(flow_addr + O.score)
+      if tube_n < 10 then finish(false, "power tubes changed only " .. tube_n .. " times (fix rows 23-26), want >= 10") return end
       if grew < 20 or not bar_ok then finish(false, string.format("bubble did not grow (max size %d) or bars not drawn (bar_ok %s)", grew, tostring(bar_ok))) return end
       local frames = 0
       for _ in pairs(rival_tiles) do frames = frames + 1 end

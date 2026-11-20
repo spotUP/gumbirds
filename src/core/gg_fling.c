@@ -3,7 +3,7 @@
 
 static void begin(GgFling *f)
 {
-    f->phase = GF_WINDUP; f->prev_in = 0; f->thrower = f->seq.turn; f->power = 0; f->deg = 0; f->foul = 0;
+    f->phase = GF_WINDUP; f->prev_in = 0; f->thrower = f->seq.turn; f->power = 0; f->drain_t = 0; f->deg = 0; f->foul = 0;
     f->clock = GF_WINDUP_FRAMES; f->t = 0;
     gg_mash_reset(&f->mash);
     f->vx = f->vy = f->h = 0; f->x = 0; f->dist = 0;
@@ -92,7 +92,7 @@ int gumfling_step(GgFling *f, uint8_t in)
     switch (f->phase) {
     case GF_WINDUP:
         if (gg_mash_step(&f->mash, in, prev) && f->power < GF_POWER_MAX) f->power++;
-        if (f->clock % GF_POWER_DRAIN_FRAMES == 0 && f->power) f->power--;
+        if (++f->drain_t >= GF_POWER_DRAIN_FRAMES) { f->drain_t = 0; if (f->power) f->power--; }
         if (--f->clock == 0) { f->phase = GF_AIM; f->t = 0; f->deg = GF_DEG_MIN; }   /* power freezes: it is the throw strength */
         else if (f->clock % 60 == 0) f->sfx |= GF_SFX_TICK;
         break;

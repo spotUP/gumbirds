@@ -34,6 +34,17 @@ local function lit(row)
   for c = 0, 39 do if cell(c, row) ~= blank then n = n + 1 end end
   return n
 end
+local function fingerprint(c0, c1, r0, r1)   -- the fix tile codes of a rectangle as one string (meter tube / dial change detection)
+  local t = {}
+  for r = r0, r1 do for c = c0, c1 do t[#t + 1] = cell(c, r) end end
+  return table.concat(t, ",")
+end
+local tube_seen, tube_n = {}, 0   -- distinct tube fingerprints: the fill tile changes with the power
+local function tube_watch(row)
+  local f = fingerprint(11, 28, row, row + 1)
+  if not tube_seen[f] then tube_seen[f] = true; tube_n = tube_n + 1 end
+end
+local dial_seen, dial_n = {}, 0   -- distinct dial looks: the needle tile changes with the angle
 local done = false
 local function finish(ok, msg)
   if done then return end
@@ -72,6 +83,11 @@ emu.register_frame_done(function()
     local mode, ph = b(O.mode), b(O.phase)
     if mode == K.trip then trips = trips + 1 end
     if lit(7) >= 8 then hud = true end
+    if ph == K.windup or ph == 1 then
+      tube_watch(25)
+      local d = fingerprint(7, 9, 24, 26)
+      if not dial_seen[d] then dial_seen[d] = true; dial_n = dial_n + 1 end
+    end
     for r = 0, 27 do if lit(r) > maxlit then maxlit = lit(r); maxrow = r end end
     if ph == K.windup and lastphase ~= K.windup then t0 = n + (attempts == 0 and 61 or 0); attempts = attempts + 1 end   -- GET SET freezes the first windup for 60 frames
     lastphase = ph
@@ -108,6 +124,8 @@ emu.register_frame_done(function()
     local dist, score, rec, best = mem:read_u32(flow_addr + O.dist), mem:read_u32(flow_addr + O.score), mem:read_u32(flow_addr + O.record), mem:read_u32(flow_addr + O.best)
     if not hud then finish(false, "HUD row never lit, max lit " .. maxlit .. " row " .. maxrow .. string.format(" cardn %d attempts %d trips %d n %d", cardn, attempts, trips, n)) return end
     if trips > 0 then finish(false, "mode entered TRIP " .. trips .. " frames") return end
+    if tube_n < 6 then finish(false, "power tube changed only " .. tube_n .. " times (fix rows 25-26), want >= 6") return end
+    if dial_n < 3 then finish(false, "angle dial changed only " .. dial_n .. " times (fix columns 7..9 rows 24-26), want >= 3") return end
     if attempts < 3 then finish(false, string.format("only %d attempts seen", attempts)) return end
     if best < 1 then finish(false, "best distance 0") return end
     if rec ~= best then finish(false, string.format("record %d, best distance %d", rec, best)) return end

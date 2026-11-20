@@ -109,7 +109,7 @@ _Static_assert((POPDROP_TILE_BASE & 7) == 0, "pop drop tile base is not 8-aligne
 _Static_assert((POPDROPSKY_TILE_BASE & 7) == 0, "pop drop sky tile base is not 8-aligned");
 
 #define FIX_PAL_COUNT FIXFONT_PAL_COUNT /* fix palettes 0..4: white, pink, lime, gold, dim (build/gen/fix_font.h) */
-#define ATTRACT_PAL_SLOT FIX_PAL_COUNT /* one palette: the attract overlay icons (build/gen/attract_icons.h). Fix tiles hold a 4-bit palette, so it must sit in slots 0..15, never after the sprite palettes */
+#define ATTRACT_PAL_SLOT FIX_PAL_COUNT /* one palette: the attract overlay icons (build/gen/attract_icons.h). The same slot is rewritten with the rules card colours and the Gum Games meter palettes while those are up (main.c slot_pal). Meter fix tiles sit after the rulecard tiles in the S-ROM (build/gen/flingmeter_tiles.h). Fix tiles hold a 4-bit palette, so it must sit in slots 0..15, never after the sprite palettes */
 _Static_assert(ATTRACT_PAL_SLOT < 16, "fix layer palettes are 4 bits: the overlay palette must be slot 0..15");
 #define OBS_PAL_SLOT (ATTRACT_PAL_SLOT + 1)
 #define CITY_PAL_SLOT (OBS_PAL_SLOT + OBS_PALETTE_COUNT)
@@ -140,7 +140,7 @@ _Static_assert(ATTRACT_PAL_SLOT < 16, "fix layer palettes are 4 bits: the overla
 #define TOSSPOSE_PAL_SLOT (FLFIELD_GEAR_PAL_SLOT + 1) /* Toss Gum poses, palette = seat: 0 player, 1 computer, 2 gold, 3 violet (tosspose_palettes[0], then tosspose_extra_palettes[0..2]) */
 #define SOOT_VIOLET_PAL_SLOT (TOSSPOSE_PAL_SLOT + 4) /* Toss Gum seat 3 standing body: tosspose_extra_palettes[3], the violet swap of the computer palette */
 #define STADIUM_PAL_SLOT (SOOT_VIOLET_PAL_SLOT + 1) /* ground-event stands: base palette, then the extra ones (mood x team x variant x near/far, structure, dusk light) */
-#define POPDROP_PAL_SLOT (STADIUM_PAL_SLOT + STADIUM_PALETTE_COUNT + STADIUM_EXTRA_PALETTE_COUNT) /* Pop Drop: bird (player), platforms, shield (gum) */
+#define POPDROP_PAL_SLOT (STADIUM_PAL_SLOT + STADIUM_PALETTE_COUNT + STADIUM_EXTRA_PALETTE_COUNT) /* Pop Drop: 0 bird (player), 1 platforms, 2 shield (gum), 3 ghost, 4 POOL (pool, tub, splashes), 5 GAG (armchair, snail, score cards) */
 #define POPDROPSKY_PAL_SLOT (POPDROP_PAL_SLOT + POPDROP_PALETTE_COUNT) /* Pop Drop sky: 0 sky blues, 1..3 far, mid, near clouds */
 _Static_assert(POPDROPSKY_PAL_SLOT + POPDROPSKY_PALETTE_COUNT <= 256, "palette slots exceed the 256 the hardware has");
 
