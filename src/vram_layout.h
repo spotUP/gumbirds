@@ -142,7 +142,6 @@ _Static_assert(ATTRACT_PAL_SLOT < 16, "fix layer palettes are 4 bits: the overla
 #define STADIUM_PAL_SLOT (SOOT_VIOLET_PAL_SLOT + 1) /* ground-event stands: base palette, then the extra ones (mood x team x variant x near/far, structure, dusk light) */
 #define POPDROP_PAL_SLOT (STADIUM_PAL_SLOT + STADIUM_PALETTE_COUNT + STADIUM_EXTRA_PALETTE_COUNT) /* Pop Drop: bird (player), platforms, shield (gum) */
 #define POPDROPSKY_PAL_SLOT (POPDROP_PAL_SLOT + POPDROP_PALETTE_COUNT) /* Pop Drop sky: 0 sky blues, 1..3 far, mid, near clouds */
-#define POPDROP_GHOST_PAL_SLOT (POPDROPSKY_PAL_SLOT + POPDROPSKY_PALETTE_COUNT) /* Pop Drop 2P: a crashed bird floats on as a ghost in this pale swap of the bird palette */
-_Static_assert(POPDROP_GHOST_PAL_SLOT + 1 <= 256, "palette slots exceed the 256 the hardware has");
+_Static_assert(POPDROPSKY_PAL_SLOT + POPDROPSKY_PALETTE_COUNT <= 256, "palette slots exceed the 256 the hardware has");
 
 #endif

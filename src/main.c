@@ -1824,7 +1824,9 @@ static void draw_pop_drop(const GgPop *p) {
 #define PD_BIRD2_SLOT (PD_RAG_SLOT + 1)              /* player 2: bird, shield, rag */
 #define PD_SHIELD2_SLOT (PD_BIRD2_SLOT + 2)
 #define PD_RAG2_SLOT (PD_SHIELD2_SLOT + 4)
-#define PD_SPRITE_END (PD_RAG2_SLOT + 1)
+#define PD_PUFF_SLOT (PD_RAG2_SLOT + 1)              /* bump feather puff, 3 columns a bird (48 px) */
+#define PD_PUFF2_SLOT (PD_PUFF_SLOT + 3)
+#define PD_SPRITE_END (PD_PUFF2_SLOT + 3)
 _Static_assert(PD_SPRITE_END <= 367, "Pop Drop slots overlap the Trip pickup slots");
 /* The trail gums (2 columns each) take the arena island slots, as the Gum Fling field does: island_step is off in Pop Drop and
  * island_relayout reloads their tiles on leaving. They draw under the platforms and the birds. */
@@ -1871,22 +1873,33 @@ static void pop_show(const Game *g) {
 }
 
 /* One bird with its shield or pop and its rag. A ghost (crashed in a 2P fall that goes on) is the fall pose in the pale palette, no rag. */
-static void pop_show_bird(const Game *g, u8 i, u16 bird_slot, u16 shield_slot, u16 rag_slot, u16 pal) {
+static void pop_show_bird(const Game *g, u8 i, u16 bird_slot, u16 shield_slot, u16 rag_slot, u16 puff_slot, u16 pal) {
     const GgPop *p = &g->pop;
     const PdBird *b = &p->b[i];
     u8 ghost = b->crash && b->land < 0;
     u8 lvl = b->hits > 2 ? 2 : b->hits;
-    u8 anim = ghost ? POPDROP_ANIM_FALL0 : b->crash ? POPDROP_ANIM_CRASH : b->stun ? POPDROP_ANIM_BONK : (b->prev_in & (IN_LEFT | IN_RIGHT)) ? (u8)(POPDROP_ANIM_LEAN0 + lvl) : (u8)(POPDROP_ANIM_FALL0 + lvl);
+    u8 lean = (b->prev_in & (IN_LEFT | IN_RIGHT)) != 0;
+    /* Pose order: crash, stun, brake hop, shield (hangs under its bubble), half bald (second hit taken, one more crashes), lean, fall. */
+    u8 anim = ghost ? POPDROP_ANIM_GHOST : b->crash ? POPDROP_ANIM_CRASH : b->stun ? POPDROP_ANIM_BONK : b->hop < 0 ? POPDROP_ANIM_HOP
+            : b->shield ? POPDROP_ANIM_HANG : b->hits >= 2 ? POPDROP_ANIM_BALD : lean ? (u8)(POPDROP_ANIM_LEAN0 + lvl) : (u8)(POPDROP_ANIM_FALL0 + lvl);
+    u16 n = (u16)(g->frame >> 3);
+    if (anim == POPDROP_ANIM_HOP) n = b->hop <= -9 ? 2 : b->hop <= -4 ? 3 : 1;   /* pump, wings level, wings high as it sinks */
+    else if (anim == POPDROP_ANIM_BALD) n = (u16)(g->frame >> 4);
+    else if (anim == POPDROP_ANIM_GHOST) n = (u16)(g->frame >> 4);
     int bx = (int)(g->hero[i].x >> 16) - 16, top = PD_BIRD_Y + b->hop - 16;
     if (b->crash && !ghost) {   /* the crash pose lies on top of the island it hit and rides off with it (art feet = frame bottom) */
         const PdPlat *on = &p->plat[b->land];
         if (!on->live) return;
         top = on->y - pd_frame(POPDROP_ANIM_CRASH, 0)->tiles_h * 16;
     }
-    pd_piece(bird_slot, pd_frame(anim, (u16)(g->frame >> 3)), bx, top, b->flip, ghost ? POPDROP_GHOST_PAL_SLOT : pal);
+    pd_piece(bird_slot, pd_frame(anim, n), bx, top, b->flip, ghost ? POPDROP_PAL_SLOT + 3 : pal);   /* palette 3 = the spirit ghost palette (assets/popdrop) */
     if (ghost) return;
-    if (b->shield) pd_piece(shield_slot, pd_frame(POPDROP_ANIM_SHIELD, (u16)(g->frame >> 4)), bx, top, 0, POPDROP_PAL_SLOT + 2);
-    else if (b->pop_t) pd_piece(shield_slot, pd_frame(POPDROP_ANIM_POP, (u16)(b->pop_t >> 3)), bx, top, 0, POPDROP_PAL_SLOT + 2);
+    /* Bubble parachute (draft 2026-11-20 fun, take A): the 32 x 48 bubble-and-strand cell sits 8 px right of the bird box and 22 px above its top;
+     * the 48 x 48 pop frames are centred on that bubble (box x, 34 px up); pop_t runs 1..24, six frames of four. */
+    if (b->shield) pd_piece(shield_slot, pd_frame(POPDROP_ANIM_SHIELD, 0), bx + 8, top - 22, 0, POPDROP_PAL_SLOT + 2);
+    else if (b->pop_t) pd_piece(shield_slot, pd_frame(POPDROP_ANIM_POP, (u16)((b->pop_t - 1) >> 2)), bx, top - 34, 0, POPDROP_PAL_SLOT + 2);
+    /* Bump feather puff (hook in gg_popdrop push_apart): the six burst frames over bump_t 1..16, centred on the bird. */
+    if (b->bump_t) pd_piece(puff_slot, pd_frame(POPDROP_ANIM_PUFF, (u16)((b->bump_t - 1) * 6 / 16)), bx - 8, top - 8, 0, pal);
     /* The burst gum skin (draft 2026-11-18 freefall): four flutter frames on the upper beak, 11 px into the 24 px art (pad 4) and
      * 12 px above it; the limp frame lies past the splat's right edge. Mirrored with the bird; hidden inside an intact shield. */
     if (b->crash)
@@ -1920,8 +1933,8 @@ static void pop_show_pieces(const Game *g) {
         g_pd_new[pd_idx(sl)] = 1; g_pd_new[pd_idx(sl) + 1] = 1;
     }
     if (p->phase != PD_FALL && p->phase != PD_CRASH) return;
-    pop_show_bird(g, 0, PD_BIRD_SLOT, PD_SHIELD_SLOT, PD_RAG_SLOT, POPDROP_PAL_SLOT);
-    if (p->seq.players > 1) pop_show_bird(g, 1, PD_BIRD2_SLOT, PD_SHIELD2_SLOT, PD_RAG2_SLOT, SOOT_P2_PAL_SLOT);   /* fall0 = the Sootling player palette: P2 reuses its P2 swap */
+    pop_show_bird(g, 0, PD_BIRD_SLOT, PD_SHIELD_SLOT, PD_RAG_SLOT, PD_PUFF_SLOT, POPDROP_PAL_SLOT);
+    if (p->seq.players > 1) pop_show_bird(g, 1, PD_BIRD2_SLOT, PD_SHIELD2_SLOT, PD_RAG2_SLOT, PD_PUFF2_SLOT, SOOT_P2_PAL_SLOT);   /* fall0 = the Sootling player palette: P2 reuses its P2 swap */
 }
 
 /* Bubble Gather on the fix layer: caught of 20 and seconds left; hidden while the result screen covers the fix layer. */
@@ -2863,8 +2876,6 @@ static void video_init(void) {
         for (u8 i = 0; i < 16; i++) gfx_pal((u16)((POPDROP_PAL_SLOT + p) * 16 + i), popdrop_palettes[p][i]);
     for (u8 p = 0; p < POPDROPSKY_PALETTE_COUNT; p++)
         for (u8 i = 0; i < 16; i++) gfx_pal((u16)((POPDROPSKY_PAL_SLOT + p) * 16 + i), popdropsky_palettes[p][i]);
-    /* shortcut: the Pop Drop ghost is the bird palette with the top bit of each channel set (pale placeholder), upgrade to a hand-picked ghost palette */
-    for (u8 i = 0; i < 16; i++) gfx_pal((u16)(POPDROP_GHOST_PAL_SLOT * 16 + i), i ? (u16)(popdrop_palettes[0][i] | 0x0888) : popdrop_palettes[0][i]);
     gum_load_palettes();
     splash_load_palettes();
     resfx_load_palettes();
