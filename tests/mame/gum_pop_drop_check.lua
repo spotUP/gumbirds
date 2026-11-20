@@ -16,9 +16,10 @@ local line_count = dofile("tests/mame/sprite_line_count.lua")
 local SB_LIMIT, FLUSH_LIMIT, RESTORE_FRAMES = 96, 1800, 14
 local L = {}
 for v in (os.getenv("BRAWL_BLOW_LAYOUT") or ""):gmatch("%d+") do L[#L + 1] = tonumber(v) end
+local POOL = os.getenv("BRAWL_POOL") == "1" -- make test-gum-pop-drop-pool: no platform is parked; the run is moved to the pool (P8)
 local O = { state = L[1], mode = L[2], pop = L[3], phase = L[4], hits = L[5], pscore = L[6], depth = L[7], record = L[8],
-            hx = L[9], plat = L[10], res = L[11], cdt = L[16], score = L[17] }
-local K = { playing = L[12], gum = L[13], over = L[14], fall = L[15] }
+            hx = L[9], plat = L[10], res = L[11], cdt = L[16], score = L[17], dist = L[25], pool_y = L[26], landed = L[27], card0 = L[28] }
+local K = { playing = L[12], gum = L[13], over = L[14], fall = L[15], pool = L[29], result = L[30] }
 local mem = manager.machine.devices[":maincpu"].spaces["program"]
 local ports = manager.machine.ioport.ports
 local function field(tag, match)
@@ -67,6 +68,19 @@ end
 local CD_SLOT = 309 -- ARC_ELEM_SPRITE (src/sprite_slots.h)
 -- P7: count fall frames with the rag column up (owner report 2026-11-20: the broken gum never showed)
 local RAG_SLOT, rag_n = 349, 0 -- PD_RAG_SLOT (src/main.c)
+-- P8: the pool finish slots (src/main.c PD_BACK = POOL_SPRITE_BASE 161): water column 193 + 8 is 14 rows, flop 189, splash 214, card of fan 0 slot 173
+local WATER_SLOT, FLOP_SLOT, SPLASH_SLOT, CARD_SLOT = 161 + 32 + 8, 161 + 28, 161 + 53, 161 + 10 + 2
+local pool_n, flop_n, splash_n, card_n, pool_peak = 0, 0, 0, 0, 0
+local function h(s) return (fix[0x8200 + s] or 0) & 0x3f end
+local function pool_seen(cnt)
+  if b(O.landed) == 1 then
+    for y = 0, 223 do if cnt[y] > pool_peak then pool_peak = cnt[y] end end
+    if h(FLOP_SLOT) == 2 then flop_n = flop_n + 1 end
+    if h(SPLASH_SLOT) > 0 then splash_n = splash_n + 1 end
+    if h(CARD_SLOT) == 2 then card_n = card_n + 1 end
+  end
+  if h(WATER_SLOT) == 14 then pool_n = pool_n + 1 end
+end
 local function rag_seen(falling)
   if falling and ((fix[0x8200 + RAG_SLOT] or 0) & 0x3f) == 2 then rag_n = rag_n + 1 end
 end
@@ -98,7 +112,11 @@ emu.register_frame_done(function()
     local cd = mem:read_u16(flow_addr + O.cdt)   -- uint16_t; the word shows for cd_t 1..90 (gg_countdown.h): SCB3 height > 0, full size SCB2
     if cd >= 1 and cd <= 90 and ((fix[0x8200 + CD_SLOT] or 0) & 0x3f) > 0 and (fix[0x8000 + CD_SLOT] or 0) == 0x0fff then cd_shown = cd_shown + 1 end
     if b(O.res) == 1 or b(O.state) == K.over then phase = "result"; t0 = n; cbtn:set_value(0) return end
-    if b(O.phase) == K.fall then   -- park a platform (rock, 3 tiles wide) on the bird each frame: one hit per stun, three hits crash
+    if POOL then pool_seen(cnt) end
+    if POOL and b(O.phase) == K.fall then   -- no platform in the way; start the fall 150 px above the pool
+      for k = 0, 3 do mem:write_u8(flow_addr + O.plat + k * 8 + 6, 0) end
+      if mem:read_u32(flow_addr + O.dist) < 36352 then mem:write_u32(flow_addr + O.dist, 36352) end
+    elseif b(O.phase) == K.fall then   -- park a platform (rock, 3 tiles wide) on the bird each frame: one hit per stun, three hits crash
       local bx = mem:read_u32(flow_addr + O.hx) >> 16
       mem:write_u16(flow_addr + O.plat, (bx - 24) & 0xffff); mem:write_u16(flow_addr + O.plat + 2, 72)
       mem:write_u8(flow_addr + O.plat + 5, 1); mem:write_u8(flow_addr + O.plat + 6, 1); mem:write_u8(flow_addr + O.plat + 7, 0)
@@ -116,12 +134,17 @@ emu.register_frame_done(function()
       if not hud then finish(false, "HUD row never lit") return end
       if not sky_ok then finish(false, "Pop Drop sky never up (slot 1 14 rows, slot 21 1 row, slot 72 hidden)") return end
       if cloud_n < 20 then finish(false, string.format("cloud head SCB3 took %d values, want >= 20 (clouds must scroll)", cloud_n)) return end
-      if rag_n < 30 then finish(false, string.format("rag (slot %d) up %d fall frames, want >= 30", RAG_SLOT, rag_n)) return end
-      if maxhits ~= 3 then finish(false, string.format("hits %d, want 3 (the crash)", maxhits)) return end
+      if POOL then
+        if pool_n < 60 then finish(false, string.format("water column (slot %d, 14 rows) up %d frames, want >= 60", WATER_SLOT, pool_n)) return end
+        if flop_n < 30 then finish(false, string.format("flop bird (slot %d) up %d frames, want >= 30", FLOP_SLOT, flop_n)) return end
+        if splash_n < 10 then finish(false, string.format("splash (slot %d) up %d frames, want >= 10", SPLASH_SLOT, splash_n)) return end
+        if card_n < 30 then finish(false, string.format("score card (slot %d) up %d frames, want >= 30", CARD_SLOT, card_n)) return end
+      elseif rag_n < 30 then finish(false, string.format("rag (slot %d) up %d fall frames, want >= 30", RAG_SLOT, rag_n)) return end
+      if not POOL and maxhits ~= 3 then finish(false, string.format("hits %d, want 3 (the crash)", maxhits)) return end
       if depth == 0 or pscore < depth then finish(false, string.format("depth %d score %d", depth, pscore)) return end
       if rec ~= pscore then finish(false, string.format("record %d, fall score %d", rec, pscore)) return end
       phase = "restore"; t0 = n; abtn:set_value(0)
-      saved_msg = string.format("Pop Drop: GUM GAMES row + Right x3 starts it; countdown shown, HUD lit, 3 hits crash, depth %d, score %d, record saved; worst %d sprites on line %d (limit %d), flush play %d us", depth, pscore, peak, peak_line, SB_LIMIT, us_play)
+      saved_msg = string.format("Pop Drop: GUM GAMES row + Right x3 starts it; countdown shown, HUD lit, 3 hits crash, depth %d, score %d, record saved; pool worst %d; worst %d sprites on line %d (limit %d), flush play %d us", depth, pscore, pool_peak, peak, peak_line, SB_LIMIT, us_play)
     elseif n - t0 > 1500 then finish(false, "result never led to game over") end
   elseif phase == "restore" then
     -- the sky stays through GAME_OVER; the restore starts when the flow leaves it. RESTORE_FRAMES frames from there cover the 8 restore frames plus the final SCB3 send.
