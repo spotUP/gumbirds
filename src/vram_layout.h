@@ -34,6 +34,7 @@
 #include "gen/stadium_sprites.h"
 #include "gen/popdrop_sprites.h"
 #include "gen/popdropsky_sprites.h"
+#include "gen/poop_sprites.h"
 
 /* The ngdevkit logo tile block that opens the C-ROM (assets/base-crom-logo); the title logo (gen/logo_sprites.h, LOGO_TILE_COUNT) sits last. */
 #define BASE_LOGO_TILE_COUNT 256
@@ -110,6 +111,8 @@ _Static_assert((POPDROP_TILE_BASE & 7) == 0, "pop drop tile base is not 8-aligne
 _Static_assert((POPDROPSKY_TILE_BASE & 7) == 0, "pop drop sky tile base is not 8-aligned");
 #define TUGPOSE_TILE_BASE (POPDROPSKY_TILE_BASE + POPDROPSKY_TILE_COUNT) /* Tug Gum birds and strand (tools/make_tug_sheet.py), last in CROM_SETS */
 _Static_assert((TUGPOSE_TILE_BASE & 7) == 0, "tug gum tile base is not 8-aligned");
+#define POOP_TILE_BASE (TUGPOSE_TILE_BASE + TUGPOSE_TILE_COUNT) /* Poop the Man walkers, umbrellas, poop, splats, shoes, berry (assets/poop), last in CROM_SETS */
+_Static_assert((POOP_TILE_BASE & 7) == 0, "poop tile base is not 8-aligned");
 
 #define FIX_PAL_COUNT FIXFONT_PAL_COUNT /* fix palettes 0..4: white, pink, lime, gold, dim (build/gen/fix_font.h) */
 #define ATTRACT_PAL_SLOT FIX_PAL_COUNT /* one palette: the attract overlay icons (build/gen/attract_icons.h). The same slot is rewritten with the rules card colours and the Gum Games meter palettes while those are up (main.c slot_pal). Meter fix tiles sit after the rulecard tiles in the S-ROM (build/gen/flingmeter_tiles.h). Fix tiles hold a 4-bit palette, so it must sit in slots 0..15, never after the sprite palettes */
@@ -149,5 +152,7 @@ _Static_assert(PROMPT_PAL_SLOT < 16, "fix layer palettes are 4 bits: the prompt 
 #define POPDROPSKY_PAL_SLOT (POPDROP_PAL_SLOT + POPDROP_PALETTE_COUNT) /* Pop Drop sky: 0 sky blues, 1..3 far, mid, near clouds */
 #define TUGPOSE_PAL_SLOT (POPDROPSKY_PAL_SLOT + POPDROPSKY_PALETTE_COUNT) /* Tug Gum: palette = seat (0 player 1, 1 its darker partner, 2 team 2, 3 its darker partner), then 4 = strand */
 _Static_assert(TUGPOSE_PAL_SLOT + 5 <= 256, "palette slots exceed the 256 the hardware has");
+#define POOP_PAL_SLOT (TUGPOSE_PAL_SLOT + 5) /* Poop the Man: poop_palettes[] order (hat, umb_hat, bald, umb_bald, woman, umb_woman, kid, umb_kid, poop), then the extra umbrella colours */
+_Static_assert(POOP_PAL_SLOT + POOP_PALETTE_COUNT + POOP_EXTRA_PALETTE_COUNT <= 256, "palette slots exceed the 256 the hardware has");
 
 #endif

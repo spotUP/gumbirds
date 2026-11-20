@@ -846,7 +846,7 @@ static void pool_sync_cpus(const Game *g) {
 static u8 g_p2_cpu;   /* 1 = the P2 body object shows the Burst Race computer bird */
 static void pool_sync_p2(const Game *g) {
     g_p2_shown = 0;
-    if (g->gg_pop) {   /* Pop Drop draws both birds itself (pop_show) */
+    if (g->gg_pop || g->gg_poop) {   /* Pop Drop and Poop the Man draw both birds themselves */
         if (obj_pool_is_live(&g_pool, P2_OBJ_BODY)) { g_pool.obj[P2_OBJ_BODY].flags |= POOL_F_BLINK; g_pool.obj[P2_OBJ_CHUTE].flags |= POOL_F_BLINK; }
         return;
     }
@@ -927,7 +927,7 @@ static u8 human_bubble_level(const Game *g, int pl) { return flier_gum_burst(&g-
 /* Burst Race bubble of side s: the pump size on the same 1..16 levels (at least 1, so the bubble shows from the first frame); gum_step takes it as a gum value; 0 once this side won the heat: gum_step plays the pop. */
 static uint16_t race_gum(const Game *g, int s) { if (gg_race_bursts(&g->race, s)) return 0; uint16_t v = (uint16_t)(g->race.size[s] * (GUM_MAX / GG_BLOW_MAX)); return v ? v : 1; }
 /* Big Blow is GAME_MODE_GUM with no other event flag. */
-static int is_big_blow(const Game *g) { return g->mode == GAME_MODE_GUM && !(g->gg_race || g->gg_pop || g->gg_dash || g->gg_gather || g->gg_fling || g->gg_toss || g->gg_tug); }
+static int is_big_blow(const Game *g) { return g->mode == GAME_MODE_GUM && !(g->gg_race || g->gg_pop || g->gg_poop || g->gg_dash || g->gg_gather || g->gg_fling || g->gg_toss || g->gg_tug); }
 static uint16_t blow_gum(const Game *g) { if (g->blow.phase == GG_BLOW_BURST || (g->blow.phase >= GG_BLOW_RESULT && g->blow.burst)) return 0;   /* burst stays set into the next attempt: only the burst and its result screen count */ uint16_t v = (uint16_t)(g->blow.size * (GUM_MAX / GG_BLOW_MAX)); return v ? v : 1; }
 static void human_leak_sync(const Game *g) {
     for (int pl = 0; pl < HUMANS; pl++) {
@@ -1630,7 +1630,7 @@ static u8 g_bg_paused; /* this frame the entry hold skipped flow_step: the frame
  * island tiles (trip_strip_step ready 0, island_trip_preload), so the reveal frame only places and shows them. */
 /* Stadium stands: Big Blow, Burst Race and Gum Fling (stadium_hw.c); never the intro cards or the other events. */
 static u8 stadium_on(const Game *g) {
-    return g->mode == GAME_MODE_GUM && !g->gg_gather && !g->gg_pop && !g->gg_dash && !seated(g);
+    return g->mode == GAME_MODE_GUM && !g->gg_gather && !g->gg_pop && !g->gg_poop && !g->gg_dash && !seated(g);
 }
 static u8 cap99(uint32_t v) { return v > 99u ? 99u : (u8)v; }
 static u8 g_trip_islands_loaded;
@@ -2225,6 +2225,124 @@ static void pop_show_pieces(const Game *g) {
     if (p->seq.players > 1) pop_show_bird(g, 1, PD_BIRD2_SLOT, PD_SHIELD2_SLOT, PD_RAG2_SLOT, PD_PUFF2_SLOT, SOOT_P2_PAL_SLOT);   /* fall0 = the Sootling player palette: P2 reuses its P2 swap */
 }
 
+/* Poop the Man (gg_poop.h): screen-space view, no camera. Birds use the Pop Drop fall frames in the Pop Drop bird slots; walkers, umbrellas, poops,
+ * shoes and the berry (assets/poop) sit in the pool range slots, which Pop Drop's hide bookkeeping (g_pd_new/g_pd_shown) already tracks. */
+#define PM_W_SLOT PD_BACK                    /* 7 walkers x 2 columns */
+#define PM_U_SLOT (PM_W_SLOT + PM_WALKERS * 2)   /* 7 umbrellas x 2 */
+#define PM_P_SLOT (PM_U_SLOT + PM_WALKERS * 2)   /* 6 poops */
+#define PM_S_SLOT (PM_P_SLOT + PM_POOPS)         /* 3 shoes */
+#define PM_B_SLOT (PM_S_SLOT + PM_SHOES)         /* berry */
+_Static_assert(PM_B_SLOT + 1 <= PD_BACK + PD_BACK_N, "Poop the Man slots overflow the Pop Drop hide range");
+
+/* One poop frame; (ox, oy) = top left of its sheet cell (cw wide), the opaque box sits pad_left / pad_top inside it. */
+static void pm_piece(u16 slot, const PoopFrame *f, int ox, int oy, int cw, int flip, u16 pal) {
+    int x = flip ? ox + cw - f->pad_left - f->tiles_w * 16 : ox + f->pad_left;
+    if (!camera_visible(x, f->tiles_w * 16)) return;
+    const u16 *t = &poop_tile_index[f->tile_offset];
+    for (u8 c = 0; c < f->tiles_w; c++)
+        gfx_sprite_strips((u16)(slot + c), 1, f->tiles_h, t + (flip ? f->tiles_w - 1 - c : c) * f->tiles_h, POOP_TILE_BASE, (u16)((pal << 8) | (flip ? 1 : 0)));
+    gfx_sprite_place(slot, f->tiles_w, f->tiles_h, x, oy + f->pad_top);
+    for (u8 c = 0; c < f->tiles_w; c++) g_pd_new[pd_idx(slot) + c] = 1;
+}
+static const PoopFrame *pm_frame(u8 anim, u16 n) {
+    const PoopAnim *a = &poop_anims[anim];
+    return &poop_frames[a->first_frame + n % a->frame_count];
+}
+
+static void poop_show_bird(const GgPoop *p, const Game *g, u8 i, u16 slot, u16 pal) {
+    const PmBird *b = &p->b[i];
+    const PopdropFrame *f = pd_frame(b->stun ? POPDROP_ANIM_BONK : POPDROP_ANIM_FALL0, (u16)(g->frame >> 3));
+    if (b->stun && (g->frame & 2)) return;   /* stunned: blink */
+    int sx = b->x - f->tiles_w * 8, top = b->y - f->tiles_h * 8;
+    if (!camera_visible(sx, f->tiles_w * 16)) return;
+    const u16 *t = &popdrop_tile_index[f->tile_offset];
+    for (u8 c = 0; c < f->tiles_w; c++)
+        gfx_sprite_strips((u16)(slot + c), 1, f->tiles_h, t + (b->flip ? f->tiles_w - 1 - c : c) * f->tiles_h, POPDROP_TILE_BASE, (u16)((pal << 8) | (b->flip ? 1 : 0)));
+    gfx_sprite_place(slot, f->tiles_w, f->tiles_h, sx, top);
+    for (u8 c = 0; c < f->tiles_w; c++) g_pd_new[pd_idx(slot) + c] = 1;
+}
+
+static void poop_show_pieces(const Game *g) {
+    const GgPoop *p = &g->poop;
+    for (u8 k = 0; k < PM_WALKERS; k++) {
+        const PmWalker *w = &p->w[k];
+        if (!w->live) continue;
+        u8 nw = w->kind == PM_KID ? 4 : 6, first = 0, n = 0, anim = (u8)(w->kind * 2);   /* PM_HAT..PM_KID = POOP_ANIM_HAT, BALD, WOMAN, KID */
+        if (w->st == PM_WALK) { first = w->umb ? nw : 0; n = (u8)((w->t >> 3) % nw); }
+        else if (w->st == PM_HIT) { first = (u8)(2 * nw); n = (u8)(w->t * 3u / PM_HIT_FRAMES); if (n > 2) n = 2; }
+        else if (w->st == PM_FIST) { first = (u8)(2 * nw + 3); n = (u8)((w->t >> 3) & 1); }
+        else { first = (u8)(2 * nw + 5); n = (u8)(w->t < 20 ? 0 : w->t < 28 ? 1 : 2); }
+        const PoopAnim *a = &poop_anims[anim];
+        const PoopFrame *f = &poop_frames[a->first_frame + first + n];
+        int cx = w->x8 >> 3, flip = w->dx8 < 0;
+        pm_piece((u16)(PM_W_SLOT + k * 2), f, cx - 16, PM_FEET_Y - 48, 32, flip, (u16)(POOP_PAL_SLOT + f->palette));
+        if (w->umb && w->st == PM_WALK) {
+            const PoopFrame *u = pm_frame((u8)(anim + 1), 2);
+            pm_piece((u16)(PM_U_SLOT + k * 2), u, cx - 16, PM_FEET_Y - 64, 32, flip, (u16)(POOP_PAL_SLOT + u->palette));
+        }
+    }
+    for (u8 k = 0; k < PM_POOPS; k++) {
+        const PmPoop *o = &p->poop[k];
+        if (!o->live) continue;
+        const PoopFrame *f = o->st == PM_POOP_BOUNCE ? pm_frame(POOP_ANIM_BOUNCE, (u16)(o->t >> 3)) : pm_frame(POOP_ANIM_POOP, (u16)(g->frame >> 2));
+        pm_piece((u16)(PM_P_SLOT + k), f, (int)(o->x16 >> 4) - 8, (int)(o->y16 >> 4) - 8, 16, 0, (u16)(POOP_PAL_SLOT + f->palette));
+    }
+    for (u8 k = 0; k < PM_SHOES; k++) {
+        const PmShoe *s = &p->shoe[k];
+        if (!s->live) continue;
+        const PoopFrame *f = pm_frame(POOP_ANIM_SHOE, (u16)(g->frame >> 2));
+        pm_piece((u16)(PM_S_SLOT + k), f, s->x - 8, s->y - 8, 16, 0, (u16)(POOP_PAL_SLOT + f->palette));
+    }
+    if (p->berry.live) {
+        const PoopFrame *f = pm_frame(POOP_ANIM_BERRY, (u16)(g->frame >> 3));
+        pm_piece(PM_B_SLOT, f, p->berry.x - 8, p->berry.y - 8, 16, 0, (u16)(POOP_PAL_SLOT + f->palette));
+    }
+    if (p->phase != PM_PLAY) return;
+    poop_show_bird(p, g, 0, PD_BIRD_SLOT, POPDROP_PAL_SLOT);
+    if (p->seq.players > 1) poop_show_bird(p, g, 1, PD_BIRD2_SLOT, SOOT_P2_PAL_SLOT);
+}
+
+static void poop_show(const Game *g) {
+    if (!g_pd_on) pop_hide();
+    g_pd_on = 1;
+    for (u8 k = 0; k < PD_SLOTS; k++) g_pd_new[k] = 0;
+    poop_show_pieces(g);
+    for (u8 k = 0; k < PD_SLOTS; k++) {
+        if (g_pd_shown[k] && !g_pd_new[k]) obs_hide_slot(pd_slot(k));
+        g_pd_shown[k] = g_pd_new[k];
+    }
+}
+
+/* Poop the Man on the fix layer: per bird score, shots left (berries refill them) and seconds left. */
+static void draw_poop_man(const Game *g) {
+    const GgPoop *p = &g->poop;
+    u16 left = (u16)((p->timer < PM_CLOCK ? PM_CLOCK - p->timer : 0) / 60u);
+    u32 key = left | (u32)p->b[0].ammo << 8 | (u32)p->b[1].ammo << 12 | (p->b[0].score & 0x3FFFu) << 16 | (u32)p->phase << 30 | 1u << 29;
+    if (p->seq.players > 1) key ^= (p->b[1].score & 0xFFu) << 24;
+    if (key == g_blow_key) return;
+    g_blow_key = key;
+    for (u8 i = 0; i < p->seq.players && i < 2; i++) {
+        char line[BLOW_TEXT_W + 1], nb[10];
+        u8 n = 0;
+        const char *s = i ? "P2 " : "P1 ";
+        while (s[n]) { line[n] = s[n]; n++; }
+        put_number(nb, p->b[i].score, 6);
+        for (u8 k = 0; nb[k] && n < BLOW_TEXT_W; k++) if (nb[k] != ' ') line[n++] = nb[k];
+        s = "  AMMO ";
+        for (u8 k = 0; s[k] && n < BLOW_TEXT_W; k++) line[n++] = s[k];
+        line[n++] = (char)('0' + p->b[i].ammo);
+        if (i == 0) {
+            s = "  TIME ";
+            for (u8 k = 0; s[k] && n < BLOW_TEXT_W; k++) line[n++] = s[k];
+            put_number(nb, left, 3);
+            for (u8 k = 0; nb[k] && n < BLOW_TEXT_W; k++) if (nb[k] != ' ') line[n++] = nb[k];
+        }
+        while (n < BLOW_TEXT_W) line[n++] = ' ';
+        line[BLOW_TEXT_W] = 0;
+        text((u8)((40 - BLOW_TEXT_W) / 2), (u8)(BLOW_TEXT_ROW + 2 + i), PAL_TEXT, line);
+    }
+}
+
 /* Bubble Gather on the fix layer: caught of 20 and seconds left; hidden while the result screen covers the fix layer. */
 static void draw_gather(const Game *g) {
     u32 left = (GG_GATHER_CLOCK - g->gather_clock + 59u) / 60u;
@@ -2252,7 +2370,8 @@ static void hero_and_mode(const FlowView *v) {
         g_cam_px = (u16)game_camera_px(v->game);
         g_cam_unwrapped = camera_unwrapped_px(&v->game->camera);
         edge_marker(v->game, game_flier_cam_px(v->game));
-        if (v->game->gg_pop) { hero_hide(); pop_show(v->game); }  /* no hero_show here: it queued the hero and hero_hide cleared it the same frame */
+        if (v->game->gg_poop) { hero_hide(); poop_show(v->game); }
+        else if (v->game->gg_pop) { hero_hide(); pop_show(v->game); }  /* no hero_show here: it queued the hero and hero_hide cleared it the same frame */
         else {
             hero_show(v->game, game_flier_cam_px(v->game));
             if (g_pd_on) { pop_hide(); g_pd_on = 0; island_relayout(); }   /* the trail gums wrote the island tiles */
@@ -2839,7 +2958,7 @@ static void draw(const FlowView *v) {
         if (v->game && v->game->mode == GAME_MODE_TRIP && !v->game->gg_fling) draw_gum_meter(v->game->trip.gum);
         else set_distress(0);
         if (v->state == FLOW_ATTRACT_DEMO && v->game) draw_overlay(v);
-        if (v->state == FLOW_PLAYING && v->game && (v->game->mode == GAME_MODE_GUM || v->game->gg_fling) && !v->card) { if (v->game->gg_tug) draw_tug(v->game); else if (v->game->gg_toss) draw_toss(v->game); else if (v->game->gg_fling) draw_fling(v->game); else if (v->game->gg_gather) draw_gather(v->game); else if (v->game->gg_pop) draw_pop_drop(&v->game->pop); else if (v->game->gg_dash) draw_flap_dash(&v->game->dash); else if (v->game->gg_race) draw_burst_race(&v->game->race); else draw_big_blow(&v->game->blow); }
+        if (v->state == FLOW_PLAYING && v->game && (v->game->mode == GAME_MODE_GUM || v->game->gg_fling) && !v->card) { if (v->game->gg_tug) draw_tug(v->game); else if (v->game->gg_toss) draw_toss(v->game); else if (v->game->gg_fling) draw_fling(v->game); else if (v->game->gg_gather) draw_gather(v->game); else if (v->game->gg_poop) draw_poop_man(v->game); else if (v->game->gg_pop) draw_pop_drop(&v->game->pop); else if (v->game->gg_dash) draw_flap_dash(&v->game->dash); else if (v->game->gg_race) draw_burst_race(&v->game->race); else draw_big_blow(&v->game->blow); }
         if (v->state == FLOW_PLAYING && v->game) draw_prompts(v->game, (v->game->mode == GAME_MODE_GUM || v->game->gg_fling) && !v->card && !v->howto);
         else prompt_reset();
         {
@@ -3164,6 +3283,10 @@ static void video_init(void) {
     trip_pickup_load_palettes();
     for (u8 p = 0; p < POPDROP_PALETTE_COUNT; p++)
         for (u8 i = 0; i < 16; i++) gfx_pal((u16)((POPDROP_PAL_SLOT + p) * 16 + i), popdrop_palettes[p][i]);
+    for (u8 p = 0; p < POOP_PALETTE_COUNT; p++)
+        for (u8 i = 0; i < 16; i++) gfx_pal((u16)((POOP_PAL_SLOT + p) * 16 + i), poop_palettes[p][i]);
+    for (u8 p = 0; p < POOP_EXTRA_PALETTE_COUNT; p++)
+        for (u8 i = 0; i < 16; i++) gfx_pal((u16)((POOP_PAL_SLOT + POOP_PALETTE_COUNT + p) * 16 + i), poop_extra_palettes[p][i]);
     for (u8 p = 0; p < POPDROPSKY_PALETTE_COUNT; p++)
         for (u8 i = 0; i < 16; i++) gfx_pal((u16)((POPDROPSKY_PAL_SLOT + p) * 16 + i), popdropsky_palettes[p][i]);
     gum_load_palettes();
@@ -3338,6 +3461,12 @@ static void game_loop(void) {
         if (view.game && view.state == FLOW_PLAYING && g_flow.game.cd_ev) { /* GET SET tick, higher beep on GO! (existing samples: continue_tick, round_go) */
             sound_play_sfx((g_flow.game.cd_ev & GGCD_EV_GO) ? SND_SFX_ROUND_GO : SND_SFX_CONTINUE_TICK);
             g_flow.game.cd_ev = 0;
+        }
+        if (view.game && view.state == FLOW_PLAYING && g_flow.game.gg_poop) { /* Poop the Man: Fling samples; umbrella bounce, shoe throw and berry pickup have no sound yet */
+            const GgPoop *pm = &g_flow.game.poop;
+            if (pm->b[0].drop_t == 1 || pm->b[1].drop_t == 1) sound_play_sfx(SND_SFX_FLING_THROW);
+            if (pm->last_hit_pts_ev) sound_play_sfx(SND_SFX_FLING_LAND);
+            if (pm->b[0].stun == PM_STUN || pm->b[1].stun == PM_STUN) sound_play_sfx(SND_SFX_FLING_FOUL);
         }
         if (view.game && view.state == FLOW_PLAYING && g_flow.game.gg_toss && g_flow.game.toss.sfx) { /* Toss Gum sounds (Fling samples) */
             u8 te = g_flow.game.toss.sfx;

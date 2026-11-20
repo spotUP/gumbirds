@@ -30,10 +30,12 @@
 #include "tuning.h"
 
 #define SCORE_MODES 5u           /* index = GameMode: 0 arena, 1 trip, 2 arcade, 3 party, 4 gum games */
-#define SCORE_GG_EVENTS 6u       /* Gum Games events with a saved record (gumgames.h GG_EVENT_COUNT) */
+#define SCORE_GG_EVENTS 7u       /* Gum Games events with a saved record (gumgames.h GG_EVENT_COUNT) */
 #define SCORE_CAP 999999u        /* display fact (6 digits): clamp, never wrap */
-#define SCORE_VERSION 5u
-#define SCORE_IMAGE_SIZE 644u     /* 6 + 5 x 120 + 10 party rule tags + 6 x 4 records + 4 checksum (tags sit after the party table, records after the Gum Games table) */
+#define SCORE_VERSION 6u
+#define SCORE_IMAGE_SIZE 648u     /* 6 + 5 x 120 + 10 party rule tags + 7 x 4 records + 4 checksum (tags sit after the party table, records after the Gum Games table) */
+#define SCORE_VERSION_5 5u        /* load path only: six records, 644 bytes; Poop the Man record 0 */
+#define SCORE_IMAGE_SIZE_5 644u
 #define SCORE_VERSION_4 4u        /* load path only: four tables + tags, 500 bytes; Gum Games defaults */
 #define SCORE_IMAGE_SIZE_4 500u
 #define SCORE_VERSION_3 3u        /* load path only: arena + trip + arcade, 370 bytes; party defaults */

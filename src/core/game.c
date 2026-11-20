@@ -84,6 +84,8 @@ int game_can_join_p2(const Game *g)
     if (g->gg_tug) return g->players == 1 && g->tug.phase == GTG_PLAY && g->tug.wins[0] + g->tug.wins[1] == 0;   /* Tug Gum: P2 joins before the first round ends */
     if (g->mode == GAME_MODE_GUM && g->gg_fling)   /* Gum Fling: P2 joins before the first throw (rules card, GET SET, GO!) */
         return g->players == 1 && g->fling.phase == GF_WINDUP && g->fling.seq.tickets[0] == GF_ATTEMPTS && g->cd_t < GGCD_END;
+    if (g->mode == GAME_MODE_GUM && g->gg_poop)   /* Poop the Man: P2 joins during the countdown */
+        return g->players == 1 && g->poop.phase == PM_PLAY && g->poop.timer == 0 && g->cd_t < GGCD_END;
     if (g->mode == GAME_MODE_GUM && g->gg_pop)   /* Pop Drop: P2 joins during the first fall's countdown */
         return g->players == 1 && g->pop.phase == PD_FALL && g->pop.seq.tickets[0] == 1 && g->pop.timer == 0 && g->cd_t < GGCD_END;
     if (g->mode == GAME_MODE_GUM) return g->gg_race && g->race.phase == GG_RACE_INTRO && g->players == 1;   /* Burst Race: P2 joins in the intro */
@@ -117,6 +119,7 @@ int game_join_p2(Game *g)
     if (g->gg_toss) { g->players = g->toss.humans = 2; return 1; }
     if (g->gg_tug) { g->players = g->tug.humans = 2; return 1; }
     if (g->mode == GAME_MODE_GUM && g->gg_fling) { g->players = 2; gumfling_add_p2(&g->fling); return 1; }
+    if (g->mode == GAME_MODE_GUM && g->gg_poop) { g->players = 2; gm_add_p2(&g->poop); return 1; }
     if (g->mode == GAME_MODE_GUM && g->gg_pop) { g->players = 2; gp_add_p2(&g->pop, &g->hero[0], &g->hero[1]); return 1; }
     if (g->mode == GAME_MODE_GUM) { g->players = g->race.players = 2; return 1; }
     if (g->mode == GAME_MODE_ARENA) return 0; /* Arena joins through flow_join_p2: a fresh match */
@@ -245,13 +248,14 @@ static void game_step_gum(Game *g, uint8_t input)
 static void game_step_dash(Game *g, uint8_t input);
 static void game_step_gather(Game *g, uint8_t input);
 static void game_step_pop(Game *g, uint8_t input);
+static void game_step_poop(Game *g, uint8_t input);
 static void game_step_fling(Game *g, uint8_t input);
 static void game_step_toss(Game *g, uint8_t input);
 static void game_step_tug(Game *g, uint8_t input);
 void game_step(Game *g, uint8_t input)
 {
     g->cd_ev = 0;
-    if ((g->gg_fling || g->gg_gather || g->gg_pop || g->gg_dash) && g->cd_t < GGCD_END) {
+    if ((g->gg_fling || g->gg_gather || g->gg_pop || g->gg_poop || g->gg_dash) && g->cd_t < GGCD_END) {
         int frozen = g->cd_t < GGCD_SET_FRAMES;
         cd_tick(g);
         if (frozen) { g->frame++; return; }   /* GET SET: the world stands still and takes no input */
@@ -264,6 +268,8 @@ void game_step(Game *g, uint8_t input)
         game_step_fling(g, input);
     } else if (g->gg_gather) {
         game_step_gather(g, input);
+    } else if (g->gg_poop) {
+        game_step_poop(g, input);
     } else if (g->gg_pop) {
         game_step_pop(g, input);
     } else if (g->gg_dash) {
@@ -495,6 +501,28 @@ static void game_step_pop(Game *g, uint8_t input)
     gp_step(p, g->hero, input, g->input2);   /* 2P: both birds fall at once */
     g->score = p->seq.points[0];
     if (g->players == 2) g->lives[1].score = p->seq.points[1];
+    if (p->done) g->over = 1;
+    g->frame++;
+    g->hero[0].spawn_inv = 0; g->hero[1].spawn_inv = 0;
+    camera_follow(g);
+}
+
+void game_gg_start_poop(Game *g)
+{
+    g->gg_poop = 1;
+    g->cd_t = 0;
+    g->players = 1;
+    g->cpu_count = 0;
+    gm_init(&g->poop, g->frame + 1u, g->mood == GAME_MOOD_STORM);   /* storm: every walker has an umbrella */
+    camera_init(&g->camera);
+}
+
+static void game_step_poop(Game *g, uint8_t input)
+{
+    GgPoop *p = &g->poop;
+    gm_step(p, input, g->input2);
+    g->score = p->phase == PM_PLAY ? p->b[0].score : p->seq.points[0];
+    if (g->players == 2) g->lives[1].score = p->phase == PM_PLAY ? p->b[1].score : p->seq.points[1];
     if (p->done) g->over = 1;
     g->frame++;
     g->hero[0].spawn_inv = 0; g->hero[1].spawn_inv = 0;
