@@ -1929,7 +1929,10 @@ static void pop_show_pieces(const Game *g) {
     for (u8 k = 0; k < PD_GUMS; k++) {
         const PdGum *gm = &p->gum[k];
         if (!gm->live) continue;
-        int fr = (int)(((g->frame >> 2) + k) & (TRIPPICKUP_PICKUP_IDLE_FRAMES - 1));   /* phase per gum: the tile rewrites spread over the frames */
+        /* Phase per gum in the tick timing, not only in the frame shown: with (frame >> 2) + k every gum stepped on the same frame, up to
+         * 15 gums x 2 strips (about 1080 us) in one flush, which with both 2P birds hit GFX_FLUSH_BUDGET_US (make test-gum-pop-drop-2p).
+         * 5k is k mod 4 in the tick, so a quarter of the gums step per frame, and still about 1.25 k frames apart in the loop. */
+        int fr = (int)(((g->frame + (u32)k * 5u) >> 2) & (TRIPPICKUP_PICKUP_IDLE_FRAMES - 1));
         const TrippickupFrame *f = &trippickup_frames[trippickup_anims[TRIPPICKUP_ANIM_PICKUP_IDLE].first_frame + fr];
         int sx = camera_screen_x(gm->x - 16, g_cam_px, 32);
         if (!camera_visible(sx, 32)) continue;
