@@ -16,6 +16,7 @@
  */
 #include <ngdevkit/neogeo.h>
 #include <ngdevkit/ng-video.h>
+#include <string.h>
 #include "bg.h"
 #include "gfx.h"
 #include "core/bg_scroll.h"
@@ -25,6 +26,7 @@
 #include "gen/dusk_tables.h"
 #include "gen/storm_tables.h"
 #include "core/game.h"
+#include "core/rain.h"
 
 volatile s16 g_bg_plane_x[BG_PLANE_COUNT];
 volatile u32 g_bg_x_writes;
@@ -425,11 +427,30 @@ void bg_pop_sky(u8 on, u32 dist) {
     pop_heads();
 }
 
+/* Lightning (src/core/rain.c): the storm planes lift toward white at the flash level. fade_sync only runs during a mood change, so
+ * this is its own idle-time sync: at most BG_FADE_PALS_PER_FRAME palettes a frame (the flush limit), a late frame waits, so a level
+ * spreads over 4 frames. g_pal_flash is the level each storm palette (and the backdrop, entry STORM_PALETTE_COUNT) was last written at. */
+static u8 g_flash, g_pal_flash[STORM_PALETTE_COUNT + 1];
+void bg_flash(u8 idx) { g_flash = idx; }
+static void flash_sync(void) {
+    u8 want = g_flash, written = 0;
+    if (g_bg_mood != GAME_MOOD_STORM) { memset(g_pal_flash, 0, sizeof g_pal_flash); return; }
+    if (g_pal_flash[STORM_PALETTE_COUNT] != want) { gfx_pal(4095, g_dark ? 0 : rain_flash_color((g_hidden ? TRIP_BACKDROP : BACKDROP)[GAME_MOOD_STORM], want)); g_pal_flash[STORM_PALETTE_COUNT] = want; }
+    for (u8 p = 0; p < STORM_PALETTE_COUNT; p++) {
+        if (g_pal_flash[p] == want) continue;
+        if (written >= BG_FADE_PALS_PER_FRAME || fade_late()) return;
+        for (u8 c = 0; c < 16; c++) gfx_pal((u16)((STORM_PAL_SLOT + p) * 16 + c), rain_flash_color(storm_palettes[p][c], want));
+        g_pal_flash[p] = want;
+        written++;
+    }
+}
+
 /* unwrapped_px = camera_unwrapped_px: plane offset = floor(px * k / 16) mod plane width (src/core/bg_scroll.c, one 16 bit divide per
  * plane, no libgcc call). The SCB4 words of a plane go out only when its offset changed. */
 void bg_update(s32 unwrapped_px) {
     BgRamp ramp;
-    if (g_bg_mood_busy) change_step();
+    if (g_bg_mood_busy) { memset(g_pal_flash, 0, sizeof g_pal_flash); change_step(); } /* the change rewrites every palette plain */
+    else flash_sync();
     if (g_pop == POP_RESTORE && !g_bg_mood_busy) pop_restore_step();
     if (g_pop) return; /* the sky sprites are not the planes: no plane x words */
     if (g_last_valid && unwrapped_px == g_last_u) return;

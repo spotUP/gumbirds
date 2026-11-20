@@ -70,7 +70,7 @@ include emu.mk
 # 
 # Note: build rules (%.c -> %.o -> %.elf) are defined in Makefile.build
 ELF=$(BUILDDIR)/rom.elf
-CORE_SRCS=rng game hiscore nameentry flow attract_overlay obstacle_view bg_scroll flier_view gum_view vram_queue obj_pool sound_queue sound_events flier stage island_layout ai camera trip trip_gen trip_cave trip_hit trip_rival score_table gumgames gg_flapdash gg_popdrop gg_fling gg_toss trip_view trip_pickup_fx banner splash_view arcade arc_elements arc_view result result_view stadium
+CORE_SRCS=rng game hiscore nameentry flow attract_overlay obstacle_view bg_scroll flier_view gum_view vram_queue obj_pool sound_queue sound_events flier stage island_layout ai camera trip trip_gen trip_cave trip_hit trip_rival score_table gumgames gg_flapdash gg_popdrop gg_fling gg_toss trip_view trip_pickup_fx banner splash_view arcade arc_elements arc_view result result_view stadium rain
 $(ELF):	$(BUILDDIR)/src/main.o $(BUILDDIR)/gen/sootling_sprites.o $(BUILDDIR)/gen/hazard_sprites.o $(BUILDDIR)/gen/island_sprites.o $(BUILDDIR)/gen/island_garden_sprites.o $(BUILDDIR)/gen/island_deck_sprites.o $(BUILDDIR)/gen/tripstrip_sprites.o $(BUILDDIR)/gen/trippickup_sprites.o $(BUILDDIR)/gen/triphaz_sprites.o $(BUILDDIR)/gen/gum_sprites.o $(BUILDDIR)/gen/splash_sprites.o $(BUILDDIR)/gen/arcade_sprites.o $(BUILDDIR)/gen/resfx_sprites.o $(BUILDDIR)/gen/chute_sprites.o $(BUILDDIR)/gen/gumbubble_sprites.o $(BUILDDIR)/gen/tosspose_sprites.o $(BUILDDIR)/gen/gumleak_sprites.o $(BUILDDIR)/gen/countdown_sprites.o $(BUILDDIR)/gen/rulecard_sprites.o $(BUILDDIR)/gen/popdrop_sprites.o $(BUILDDIR)/gen/popdropsky_sprites.o $(BUILDDIR)/gen/flfield_sprites.o $(BUILDDIR)/gen/stadium_sprites.o $(BUILDDIR)/gen/obs_sprites.o $(BUILDDIR)/gen/city_sprites.o $(BUILDDIR)/gen/dusk_sprites.o $(BUILDDIR)/gen/storm_sprites.o $(BUILDDIR)/src/bg.o $(BUILDDIR)/src/gfx.o $(BUILDDIR)/src/hazard.o $(BUILDDIR)/src/island.o $(BUILDDIR)/src/trip_strip.o $(BUILDDIR)/src/fling_field.o $(BUILDDIR)/src/stadium_hw.o $(BUILDDIR)/src/trip_pickup.o $(BUILDDIR)/src/gum.o $(BUILDDIR)/src/logo.o $(BUILDDIR)/src/splash.o $(BUILDDIR)/src/sound.o $(CORE_SRCS:%=$(BUILDDIR)/src/core/%.o)
 $(PROM1): $(ELF)
 
@@ -92,7 +92,7 @@ $(BUILDDIR)/gen/tripmeter.fix $(BUILDDIR)/gen/tripmeter.h &: assets/tripmeter/tr
 $(BUILDDIR)/gen/fix_font.fix $(BUILDDIR)/gen/fix_font.h &: assets/font/fix_font_sheet.png assets/font/fix_font.json tools/build_fix_font.py tools/sprite_pipeline.py assets/tripmeter/tripmeter_sheet.png assets/font/pop_burst.png assets/font/aim_caret.png assets/result/result_palettes.json $(BUILDDIR)/gen/tripmeter.fix
 	$(PYTHON) -I tools/build_fix_font.py --out $(BUILDDIR)/gen --overlay assets/tripmeter/tripmeter_sheet.png@186 --overlay assets/font/pop_burst.png@75 --overlay assets/font/aim_caret.png@76 --extra-pal assets/result/result_palettes.json
 	dd if=$(BUILDDIR)/gen/fix_font.fix bs=32 skip=954 count=13 2>/dev/null | cmp -s - $(BUILDDIR)/gen/tripmeter.fix || { echo "[FAIL] fix_font.fix tiles 954..966 differ from tripmeter.fix"; exit 1; }
-$(SROM1): $(BUILDDIR)/gen/fix_font.fix $(BUILDDIR)/gen/attract_icons.fix $(BUILDDIR)/gen/result_scene.fix $(BUILDDIR)/gen/rulecard_tiles.fix $(BUILDDIR)/gen/flingmeter_tiles.fix
+$(SROM1): $(BUILDDIR)/gen/fix_font.fix $(BUILDDIR)/gen/attract_icons.fix $(BUILDDIR)/gen/result_scene.fix $(BUILDDIR)/gen/rulecard_tiles.fix $(BUILDDIR)/gen/flingmeter_tiles.fix $(BUILDDIR)/gen/rain_tiles.fix
 
 
 
@@ -231,6 +231,8 @@ $(BUILDDIR)/gen/rulecard_tiles.h $(BUILDDIR)/gen/rulecard_tiles.fix &: assets/ru
 
 $(BUILDDIR)/gen/flingmeter_tiles.h $(BUILDDIR)/gen/flingmeter_tiles.fix &: tools/build_flingmeter_tiles.py tools/flingmeter_art.py tools/build_attract_icons.py tools/sprite_pipeline.py $(BUILDDIR)/gen/rulecard_tiles.h
 	$(PYTHON) -I tools/build_flingmeter_tiles.py --out $(BUILDDIR)/gen/flingmeter_tiles.h
+$(BUILDDIR)/gen/rain_tiles.h $(BUILDDIR)/gen/rain_tiles.fix &: tools/build_rain_tiles.py assets/rain/rain_data.json tools/build_attract_icons.py tools/sprite_pipeline.py $(BUILDDIR)/gen/flingmeter_tiles.h
+	$(PYTHON) -I tools/build_rain_tiles.py --out $(BUILDDIR)/gen/rain_tiles.h
 $(BUILDDIR)/gen/rulecard.c1 $(BUILDDIR)/gen/rulecard.c2 $(BUILDDIR)/gen/rulecard_sprites.c $(BUILDDIR)/gen/rulecard_sprites.h &: assets/rulecard/rulecard_sheet.png assets/rulecard/rulecard_sheet.json tools/build_rulecard_sprites.py tools/sprite_pipeline.py
 	$(PYTHON) -I tools/build_rulecard_sprites.py --out $(BUILDDIR)/gen
 $(BUILDDIR)/gen/rulecard_sprites.o: $(BUILDDIR)/gen/rulecard_sprites.c
@@ -259,7 +261,7 @@ $(BUILDDIR)/gen/popdropsky_sprites.o: $(BUILDDIR)/gen/popdropsky_sprites.c
 $(BUILDDIR)/gen/logo.c1 $(BUILDDIR)/gen/logo.c2 $(BUILDDIR)/gen/logo_sprites.h &: assets/logo/logo_rim.json assets/logo/logo_rim_frames_1x.png assets/logo/logo_rim_pieces_1x.png assets/logo/logo_pieces.json tools/build_logo_sprites.py
 	$(PYTHON) -I tools/build_logo_sprites.py --out $(BUILDDIR)/gen
 
-$(BUILDDIR)/src/main.o $(BUILDDIR)/src/bg.o $(BUILDDIR)/src/gfx.o $(BUILDDIR)/src/hazard.o $(BUILDDIR)/src/island.o $(BUILDDIR)/src/trip_strip.o $(BUILDDIR)/src/fling_field.o $(BUILDDIR)/src/stadium_hw.o $(BUILDDIR)/src/trip_pickup.o $(BUILDDIR)/src/gum.o $(BUILDDIR)/src/logo.o $(BUILDDIR)/src/splash.o $(BUILDDIR)/src/core/sprite_budget.o $(BUILDDIR)/src/core/island_layout.o $(BUILDDIR)/src/core/banner.o $(BUILDDIR)/src/core/result_view.o $(BUILDDIR)/src/core/result.o: $(BUILDDIR)/gen/result_scene.h $(BUILDDIR)/gen/result_paths.h $(BUILDDIR)/gen/resfx_sprites.h $(BUILDDIR)/gen/chute_sprites.h $(BUILDDIR)/gen/gumbubble_sprites.h $(BUILDDIR)/gen/tosspose_sprites.h $(BUILDDIR)/gen/gumleak_sprites.h $(BUILDDIR)/gen/gumleak_tables.h $(BUILDDIR)/gen/countdown_sprites.h $(BUILDDIR)/gen/countdown_tables.h $(BUILDDIR)/gen/rulecard_sprites.h $(BUILDDIR)/gen/popdrop_sprites.h $(BUILDDIR)/gen/popdropsky_sprites.h $(BUILDDIR)/gen/flfield_sprites.h $(BUILDDIR)/gen/stadium_sprites.h $(BUILDDIR)/gen/stadium_layout.h src/stadium_hw.h $(BUILDDIR)/gen/rulecard_tiles.h $(BUILDDIR)/gen/flingmeter_tiles.h $(BUILDDIR)/gen/fix_font.h $(BUILDDIR)/gen/attract_icons.h src/core/attract_overlay.h $(BUILDDIR)/gen/tripmeter.h $(BUILDDIR)/gen/island_tables.h $(BUILDDIR)/gen/city_tables.h $(BUILDDIR)/gen/dusk_tables.h $(BUILDDIR)/gen/storm_tables.h $(BUILDDIR)/gen/island_sprites.h $(BUILDDIR)/gen/island_garden_sprites.h $(BUILDDIR)/gen/island_deck_sprites.h $(BUILDDIR)/gen/tripstrip_sprites.h $(BUILDDIR)/gen/tripstrip_tables.h $(BUILDDIR)/gen/trippickup_sprites.h $(BUILDDIR)/gen/trippickup_tables.h $(BUILDDIR)/gen/triphaz_sprites.h $(BUILDDIR)/gen/triphaz_tables.h $(BUILDDIR)/gen/gum_sprites.h $(BUILDDIR)/gen/gum_tables.h $(BUILDDIR)/gen/logo_sprites.h src/logo.h $(BUILDDIR)/gen/splash_sprites.h $(BUILDDIR)/gen/splash_tables.h $(BUILDDIR)/gen/arcade_sprites.h $(BUILDDIR)/gen/arcade_tables.h src/splash.h src/core/splash_view.h $(BUILDDIR)/gen/hazard_sprites.h $(BUILDDIR)/gen/obs_sprites.h $(BUILDDIR)/gen/city_sprites.h $(BUILDDIR)/gen/dusk_sprites.h $(BUILDDIR)/gen/storm_sprites.h $(BUILDDIR)/gen/sootling_sprites.h src/core/flier_view.h src/core/gum_view.h src/vram_layout.h src/sprite_slots.h src/bg.h src/gfx.h src/hazard.h src/island.h src/core/island_layout.h src/core/vram_queue.h
+$(BUILDDIR)/src/main.o $(BUILDDIR)/src/bg.o $(BUILDDIR)/src/gfx.o $(BUILDDIR)/src/hazard.o $(BUILDDIR)/src/island.o $(BUILDDIR)/src/trip_strip.o $(BUILDDIR)/src/fling_field.o $(BUILDDIR)/src/stadium_hw.o $(BUILDDIR)/src/trip_pickup.o $(BUILDDIR)/src/gum.o $(BUILDDIR)/src/logo.o $(BUILDDIR)/src/splash.o $(BUILDDIR)/src/core/sprite_budget.o $(BUILDDIR)/src/core/island_layout.o $(BUILDDIR)/src/core/banner.o $(BUILDDIR)/src/core/result_view.o $(BUILDDIR)/src/core/result.o: $(BUILDDIR)/gen/result_scene.h $(BUILDDIR)/gen/result_paths.h $(BUILDDIR)/gen/resfx_sprites.h $(BUILDDIR)/gen/chute_sprites.h $(BUILDDIR)/gen/gumbubble_sprites.h $(BUILDDIR)/gen/tosspose_sprites.h $(BUILDDIR)/gen/gumleak_sprites.h $(BUILDDIR)/gen/gumleak_tables.h $(BUILDDIR)/gen/countdown_sprites.h $(BUILDDIR)/gen/countdown_tables.h $(BUILDDIR)/gen/rulecard_sprites.h $(BUILDDIR)/gen/popdrop_sprites.h $(BUILDDIR)/gen/popdropsky_sprites.h $(BUILDDIR)/gen/flfield_sprites.h $(BUILDDIR)/gen/stadium_sprites.h $(BUILDDIR)/gen/stadium_layout.h src/stadium_hw.h $(BUILDDIR)/gen/rulecard_tiles.h $(BUILDDIR)/gen/flingmeter_tiles.h $(BUILDDIR)/gen/rain_tiles.h src/core/rain.h $(BUILDDIR)/gen/fix_font.h $(BUILDDIR)/gen/attract_icons.h src/core/attract_overlay.h $(BUILDDIR)/gen/tripmeter.h $(BUILDDIR)/gen/island_tables.h $(BUILDDIR)/gen/city_tables.h $(BUILDDIR)/gen/dusk_tables.h $(BUILDDIR)/gen/storm_tables.h $(BUILDDIR)/gen/island_sprites.h $(BUILDDIR)/gen/island_garden_sprites.h $(BUILDDIR)/gen/island_deck_sprites.h $(BUILDDIR)/gen/tripstrip_sprites.h $(BUILDDIR)/gen/tripstrip_tables.h $(BUILDDIR)/gen/trippickup_sprites.h $(BUILDDIR)/gen/trippickup_tables.h $(BUILDDIR)/gen/triphaz_sprites.h $(BUILDDIR)/gen/triphaz_tables.h $(BUILDDIR)/gen/gum_sprites.h $(BUILDDIR)/gen/gum_tables.h $(BUILDDIR)/gen/logo_sprites.h src/logo.h $(BUILDDIR)/gen/splash_sprites.h $(BUILDDIR)/gen/splash_tables.h $(BUILDDIR)/gen/arcade_sprites.h $(BUILDDIR)/gen/arcade_tables.h src/splash.h src/core/splash_view.h $(BUILDDIR)/gen/hazard_sprites.h $(BUILDDIR)/gen/obs_sprites.h $(BUILDDIR)/gen/city_sprites.h $(BUILDDIR)/gen/dusk_sprites.h $(BUILDDIR)/gen/storm_sprites.h $(BUILDDIR)/gen/sootling_sprites.h src/core/flier_view.h src/core/gum_view.h src/vram_layout.h src/sprite_slots.h src/bg.h src/gfx.h src/hazard.h src/island.h src/core/island_layout.h src/core/vram_queue.h
 
 
 
@@ -785,6 +787,26 @@ test-mood: cart
 	if [ ! -f $$T/result.txt ]; then tail -n 15 $$T/mame.log; echo "[FAIL] no result from mood Lua script"; exit 1; fi; \
 	cat $$T/result.txt; \
 	if grep -q '^PASS' $$T/result.txt; then rm -rf $$T; echo "[OK] make test-mood passed"; else echo "[FAIL] make test-mood, log kept in $$T"; exit 1; fi
+
+# Storm rain (tests/mame/rain_check.lua): no rain cells in a calm mood; in forced storm rain cells appear, the worst sprites per line stay at most 90
+# and the worst flush stays at most 1800 us (numbers printed). BRAWL_RAIN_SLOT is RAIN_PAL_SLOT (src/vram_layout.h; tests/host/test_rain.c pins it to 6).
+# `make test-rain` alone runs it.
+test-rain: cart
+	@set -e; T=$$(mktemp -d $(BUILDDIR)/test-run.XXXXXX); \
+	BRAWL_FLOW_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flow"{print $$1}') \
+	BRAWL_FRAME_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_frame_counter"{print $$1}') \
+	BRAWL_MOOD_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_bg_mood"{print $$1}') \
+	BRAWL_BUSY_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_bg_mood_busy"{print $$1}') \
+	BRAWL_LASTUS_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_last_us"{print $$1}') \
+	BRAWL_DEFER_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_gfx_defer_last"{print $$1}') \
+	BRAWL_FLUSHN_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_gfx_flush_n"{print $$1}') \
+	BRAWL_RAIN_SLOT=6 \
+	BRAWL_FLIER_LAYOUT="$$($(M68KGCC) -std=c99 -S -o - tests/mame/flier_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
+	BRAWL_RESULT=$$T/result.txt \
+	SDL_VIDEODRIVER=dummy nice -n 19 $(MAME) -window -nomaximize -video none -sound none -nothrottle -seconds_to_run 300 -noautosave -skip_gameinfo -hash $(ROM) -rp $(ROM) -nvram_directory $$T -autoboot_script tests/mame/rain_check.lua neogeo -cart1 $(GAMEROM) > $$T/mame.log 2>&1 || true; \
+	if [ ! -f $$T/result.txt ]; then tail -n 15 $$T/mame.log; echo "[FAIL] no result from rain Lua script"; exit 1; fi; \
+	cat $$T/result.txt; \
+	if grep -q '^PASS' $$T/result.txt; then rm -rf $$T; echo "[OK] make test-rain passed"; else echo "[FAIL] make test-rain, log kept in $$T"; exit 1; fi
 
 # Camera view (tests/mame/camera_check.lua): drives the human right until the camera pixel sentinel g_cam_px goes
 # past 64 and the human crosses the arena seam; asserts the hero sprite x against camera_screen_x, at most 2 px camera

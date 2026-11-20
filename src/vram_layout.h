@@ -111,7 +111,9 @@ _Static_assert((POPDROPSKY_TILE_BASE & 7) == 0, "pop drop sky tile base is not 8
 #define FIX_PAL_COUNT FIXFONT_PAL_COUNT /* fix palettes 0..4: white, pink, lime, gold, dim (build/gen/fix_font.h) */
 #define ATTRACT_PAL_SLOT FIX_PAL_COUNT /* one palette: the attract overlay icons (build/gen/attract_icons.h). The same slot is rewritten with the rules card colours and the Gum Games meter palettes while those are up (main.c slot_pal). Meter fix tiles sit after the rulecard tiles in the S-ROM (build/gen/flingmeter_tiles.h). Fix tiles hold a 4-bit palette, so it must sit in slots 0..15, never after the sprite palettes */
 _Static_assert(ATTRACT_PAL_SLOT < 16, "fix layer palettes are 4 bits: the overlay palette must be slot 0..15");
-#define OBS_PAL_SLOT (ATTRACT_PAL_SLOT + 1)
+#define RAIN_PAL_SLOT (ATTRACT_PAL_SLOT + 1) /* storm rain fix tiles (build/gen/rain_tiles.h): 5 entries, H B T F e. Slot 6: not 0..4 (font), not 5 (ATTRACT_PAL_SLOT, rewritten by the rules card and meters); every fix writer names its slot through these macros (grep gfx_fix_tile/vq_fix_put/gfx_text: only 0..5 appear) */
+_Static_assert(RAIN_PAL_SLOT < 16, "fix layer palettes are 4 bits: the rain palette must be slot 0..15");
+#define OBS_PAL_SLOT (RAIN_PAL_SLOT + 1)
 #define CITY_PAL_SLOT (OBS_PAL_SLOT + OBS_PALETTE_COUNT)
 #define DUSK_PAL_SLOT (CITY_PAL_SLOT + CITY_PALETTE_COUNT) /* dusk mood planes; both moods stay loaded, a mood change rewrites only the strips (src/bg.c) */
 #define STORM_PAL_SLOT (DUSK_PAL_SLOT + DUSK_PALETTE_COUNT) /* storm mood planes, resident like dusk */

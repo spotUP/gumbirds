@@ -20,6 +20,7 @@ u8 bg_bare(void);                     /* 1 while a cut swap shows the flat lit b
 extern volatile u8 g_bg_mood;         /* mood on screen (test sentinel) */
 extern volatile u8 g_bg_mood_busy;    /* 1 while a mood change runs */
 extern volatile u16 g_bg_mood_changes; /* mood changes finished since boot (test sentinel) */
+void bg_flash(u8 idx);                /* lightning level 0..4 (rain_flash_index): the storm planes and backdrop lift toward white; written by bg_update, 2 palettes a frame, only while the storm mood is on screen and idle */
 void bg_update(s32 unwrapped_px);     /* each frame, camera_unwrapped_px: plane offset = (px * k / 16) mod plane width; returns at once when the camera did not move, words go out only for a plane whose offset changed */
 
 #endif
