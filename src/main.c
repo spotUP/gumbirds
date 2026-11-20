@@ -1793,7 +1793,32 @@ static void draw_flap_dash(const GgDash *d) {
 }
 
 /* Pop Drop on the fix layer: depth and gums; rewritten when either changes. */
+static u8 s_hits[2], s_hit_t[2]; /* view-only: last seen b->hits, and the 16-tick burst after a hit (pop_show_bird); the life pips flash on it */
+#define PD_PIP_COL0 1   /* player 1 pips: columns 1..3 left of the DEPTH line (cols 5..34), player 2: columns 36..38 */
+#define PD_PIP_COL1 36
+static u16 g_pd_pips = 0xFFFF; /* what the pips show: per bird hits (2 bits) and flash blink (2 bits); redrawn only on change */
+
+/* Life pips on the fix layer: PD_HITS_MAX hearts a bird, one goes out (white blink, then blank) per hit; a shield soak is no hit. */
+static void draw_pd_pips(const GgPop *p) {
+    u8 n = p->seq.players > 1 ? 2 : 1;
+    u16 st = 0;
+    for (u8 i = 0; i < n; i++) st |= (u16)((p->b[i].hits & 3) | (s_hit_t[i] ? 4 + ((s_hit_t[i] >> 2) & 1) : 0) << 2) << (i * 8);
+    if (st == g_pd_pips) return;
+    g_pd_pips = st;
+    for (u8 i = 0; i < n; i++) {
+        u8 hits = p->b[i].hits;
+        for (u8 k = 0; k < PD_HITS_MAX; k++) {
+            u8 col = (u8)((i ? PD_PIP_COL1 : PD_PIP_COL0) + k);
+            if (k < PD_HITS_MAX - hits) gfx_fix_tile(col, BLOW_TEXT_ROW + 2, FIXFONT_PAL_PINK, FIXFONT_ICON_HEART);
+            else if (k == PD_HITS_MAX - hits && s_hit_t[i] && ((s_hit_t[i] >> 2) & 1)) gfx_fix_tile(col, BLOW_TEXT_ROW + 2, PAL_TEXT, FIXFONT_ICON_HEART);
+            else gfx_fix_tile(col, BLOW_TEXT_ROW + 2, 0, FIXFONT_BLANK);
+        }
+    }
+}
+
 static void draw_pop_drop(const GgPop *p) {
+    if (g_blow_key == 0xFFFFFFFFu) g_pd_pips = 0xFFFF; /* the fix layer was cleared */
+    draw_pd_pips(p);
     u32 key = (u32)p->depth | (u32)p->b[0].gums << 14 | (u32)p->phase << 24 | 1u << 28 | 1u << 29;
     if (key == g_blow_key) return;
     g_blow_key = key;
@@ -1915,7 +1940,6 @@ static void pop_show_bird(const Game *g, u8 i, u16 bird_slot, u16 shield_slot, u
     else if (b->pop_t) pd_piece(shield_slot, pd_frame(POPDROP_ANIM_POP, (u16)((b->pop_t - 1) >> 2)), bx, top - 34, 0, POPDROP_PAL_SLOT + 2);
     /* Bump feather puff (hook in gg_popdrop push_apart): the six burst frames over bump_t 1..16, centred on the bird. */
     /* Island hit puff: view-only, a rising hits counter restarts the same 16-tick burst (a bump keeps the slot while it runs). */
-    static u8 s_hits[2], s_hit_t[2];
     if (b->hits > s_hits[i]) s_hit_t[i] = 16;
     else if (s_hit_t[i]) s_hit_t[i]--;
     s_hits[i] = b->hits;
