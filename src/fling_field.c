@@ -11,13 +11,14 @@
 #define TURF_Y 160        /* screen y of the turf top (FLOOR_Y in tools/draw_fling_field.py) */
 #define STACK_BOTTOM 227  /* every board stack ends here: top = STACK_BOTTOM - 16 * rows */
 #define LINE_X 48         /* left edge of the foul line column; a board m metres out sits at LINE_X + 3 * m */
-#define MARK_K 5          /* marker slot of the 50 M mark board */
+#define MARK_K (GF_MARK_PX / 30)   /* marker slot of the mark board: slots sit 30 px (10 M) apart */
 #define MARK_FLUTTER 4    /* pennant frame changes every 1 << MARK_FLUTTER game frames */
 #define PUFF_X 24         /* hero centre x 36 minus 12 */
 #define PUFF_Y 131
 #define PUFF_TICKS 3      /* game frames per puff frame */
 #define TURF_ATTR (FLFIELD_TURF_PAL_SLOT << 8)
 #define GEAR_ATTR (FLFIELD_GEAR_PAL_SLOT << 8)
+_Static_assert(GF_MARK_PX == 270, "the mark board face reads 90 M: redraw MARK_FACE and set MARK_M in tools/draw_fling_field.py");
 _Static_assert(FLFIELD_BOARD_COUNT + 2 == MARKS, "marker slots: foul line, the boards and the mark board");
 _Static_assert(FLFIELD_MARKER_SPRITE + MARKS <= ISLAND_SPRITE + 41, "field markers overrun the island slots");
 _Static_assert(FLFIELD_PUFF_SPRITE + FLFIELD_PUFF_COUNT <= SPRITE_SLOT_END, "field puff overruns the slot table");

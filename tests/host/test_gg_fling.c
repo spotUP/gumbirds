@@ -125,6 +125,21 @@ int main(void)
         printf("path mid: last dx %d, apex dy %d\n", px[9], py[4]);
     }
 
+    /* range: the best angle at full power lands 400..470 px (inside the 512 px field) and passes the mark; half power falls short of it */
+    {
+        int16_t px[4], py[4];
+        uint16_t c;
+        int best_full = 0, best_half = 0, d;
+        for (c = 1; c <= GF_AIM_CAP; c++) {
+            if (gumfling_deg(c) < GF_DEG_MIN || gumfling_deg(c) > GF_DEG_MAX) continue;
+            gumfling_path(GF_POWER_MAX, c, px, py, 4); d = px[3]; if (d > best_full) best_full = d;
+            gumfling_path(GF_POWER_MAX / 2, c, px, py, 4); d = px[3]; if (d > best_half) best_half = d;
+        }
+        printf("best throw: full power %d px, half power %d px, mark %u px\n", best_full, best_half, (unsigned)GF_MARK_PX);
+        CHECK(best_full >= 400 && best_full <= 470 && best_full >= (int)GF_MARK_PX);
+        CHECK(best_half < (int)GF_MARK_PX);
+    }
+
     /* flow: Left from Big Blow wraps to Gum Fling, Right from Gum Fling wraps to Big Blow; Start runs it */
     {
         Flow fl;

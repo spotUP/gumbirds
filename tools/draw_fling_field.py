@@ -24,7 +24,7 @@ BG = os.path.join(REPO, 'thoughts', 'shared', 'drafts', '2026-11-10-backgrounds-
 BIRD = os.path.join(REPO, '.claude', 'worktrees', 'gum-games', 'assets', 'flier', 'sootling_sheet.png')
 FLOOR_Y = 160
 PX_PER_M = 3          # GF_PX_PER_M
-MARK_M = 50           # GF_MARK_PX 150
+MARK_M = 90           # GF_MARK_PX 270
 MOODS = ('dusk', 'moon', 'storm')
 LIGHT_LEFT = {'dusk': False, 'moon': False, 'storm': False}   # True: turf and shadow tiles are drawn H flipped
 
@@ -292,7 +292,7 @@ DIGIT = {               # 3 x 5, hand-drawn
     '6': ("###", "#..", "###", "#.#", "###"), '7': ("###", "..#", "..#", ".#.", ".#."), '8': ("###", "#.#", "###", "#.#", "###"),
     '9': ("###", "#.#", "###", "..#", "###"),
 }
-# 50 M mark board: pennant (2 flutter frames), gold framed red face, gold banded post. y 115..162
+# 90 M mark board: pennant (2 flutter frames), gold framed red face, gold banded post. y 115..162
 PENNANT = [grid(f, 16) for f in ([
     "................", "......KK........", ".....KCYK.......", ".....KYOK.......",
     "......KK........", "......KUKKK.....", "......KUKRRKKK..", "......KUKRRRRRKK",
@@ -305,8 +305,8 @@ PENNANT = [grid(f, 16) for f in ([
     "......KUK.......", "......KUK.......", "......KUK.......", "......KUK.......",
 ])]
 MARK_FACE = grid([
-    ".KKKKKKKKKKKKKK.", "KCYYYYYYYYYYYYOK", "KYRRRRRRRRRRRRrK", "KYRWWWWWRRWWWRrK",
-    "KYRWRRRRRWRRRWrK", "KYRWWWWRRWRRWWrK", "KYRRRRRWRWRWRWrK", "KYRRRRRWRWWRRWrK",
+    ".KKKKKKKKKKKKKK.", "KCYYYYYYYYYYYYOK", "KYRRRRRRRRRRRRrK", "KYRRWWWRRRWWWRrK",
+    "KYRWRRRWRWRRRWrK", "KYRWRRRWRWRRWWrK", "KYRRWWWWRWRWRWrK", "KYRRRRRWRWWRRWrK",
     "KYRWRRRWRWRRRWrK", "KYRRWWWRRRWWWRrK", "KYrrrrrrrrrrrrrK", "KOOOOOOOOOOOOOOK",
     ".KKKKKKKKKKKKKK.", "......KTUK......", "......KYCK......", "......KTUK......",
 ], 16)
@@ -537,14 +537,14 @@ def main():
         fh.write('  light side per mood by tile H flip: %s\n' % ', '.join('%s %s' % (m, 'left' if LIGHT_LEFT[m] else 'right') for m in MOODS))
         fh.write('puff: %d frames of 32 x 32, %d unique non-empty tiles, turf palette, roles used %d\n'
                  % (len(PUFF), len(puff_t), len(used([r for fr in PUFF for r in fr]))))
-        fh.write('gear (chalk, pole, boards): %d unique tiles (%d number faces 10..150 M without 50), 3 mood palettes (swap only), %d colours each\n'
+        fh.write('gear (chalk, pole, boards): %d unique tiles (%d number faces 10..150 M without 90), 3 mood palettes (swap only), %d colours each\n'
                  % (len(gear_t), len(BOARD_M), len(gu)))
         fh.write('total: %d unique tiles, 2 palettes on screen (turf + gear of the mood); 6 palettes in ROM (3 turf + 3 gear)\n'
                  % (len(turf_t) + len(puff_t) + len(gear_t)))
         fh.write('turf roles used: %s\ngear roles used: %s\n' % (' '.join(tu), ' '.join(gu)))
         fh.write('\nsprite budget (Neo Geo: 96 sprites per scanline, 381 sprites)\n')
         fh.write('field sprites: turf %d (20 + 1 scroll, 4 tiles, lines 160..223); markers %d worst case (336 px / 30 px pitch; board + post + line\n'
-                 '  chained in one sprite of 6 tiles from line 131, the 50 M mark 7 tiles from line 115); puff %d (2 tiles, lines 131..162)\n'
+                 '  chained in one sprite of 6 tiles from line 131, the 90 M mark 7 tiles from line 115); puff %d (2 tiles, lines 131..162)\n'
                  % (turf_n, markers, puff_n))
         fh.write('others counted: bird %d (hero body 2 + parachute 2), aim pointer and dots %d (FLING_ARC_COUNT, all assumed on one line)\n' % (bird_n, dots_n))
         fh.write('background: per 16 lines, trimmed count from 2026-11-10-backgrounds-final/numbers.txt (near plane still drawn behind the turf)\n')

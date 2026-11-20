@@ -4,7 +4,7 @@
 Usage: $PYTHON -I tools/build_flfield_sprites.py [--out build/gen] [--no-verify]
 Palettes (role order, so tile data is shared across moods): [0] turf dusk, [1] turf dusk again (puff anim), [2] gear dusk;
 extra palettes turf_moon, turf_storm, gear_moon, gear_storm. Frame order: 0-3 turf P Q R S, 4-9 puff, 10 foul line,
-11-24 boards (10..150 M without 50), 25.. the 50 M mark with one pennant frame each."""
+11-24 boards (10..150 M without 90), 25.. the 90 M mark with one pennant frame each."""
 import json, os, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from PIL import Image
