@@ -2,6 +2,7 @@
 --   P1. the game is PLAYING in GAME_MODE_GUM with Pop Drop running (gg_pop 1) and the HUD row (fix row 7) is lit;
 --   P2. the bird falls (depth grows); a platform is parked on the bird each frame, so three hits follow (one per stun) and the third is the crash;
 --   P0. the GET SET / GO! countdown runs (cd_t counts up from 0) and its first glyph column (slot 309, ARC_ELEM_SPRITE) is on screen while it does;
+--   P4. the summer sky is up: sky head (slot 1) 14 rows, cloud head (slot 21) 1 row and its SCB3 word changes as the platforms scroll, plane slot 72 hidden;
 --   P3. the run ends: the result shows, A leaves it, the flow reaches GAME_OVER, the record equals the fall score.
 -- Env: BRAWL_FLOW_ADDR (hex), BRAWL_BLOW_LAYOUT (gum_pop_drop_probe.c output), BRAWL_RESULT.
 local flow_addr = tonumber(os.getenv("BRAWL_FLOW_ADDR"), 16)
@@ -46,6 +47,7 @@ end
 if not (coin and start1 and up and abtn and cbtn and pick) then finish(false, "missing ports") end
 
 local n, phase, t0, hud, cd_shown, maxhits = 0, "boot", 0, false, 0, 0
+local sky_ok, cloud_vals, cloud_n = false, {}, 0
 local CD_SLOT = 309 -- ARC_ELEM_SPRITE (src/sprite_slots.h)
 emu.register_frame_done(function()
   n = n + 1
@@ -61,6 +63,11 @@ emu.register_frame_done(function()
   elseif phase == "pop" then
     if b(O.mode) ~= K.gum or b(O.pop) ~= 1 then finish(false, string.format("mode %d pop %d, want GAME_MODE_GUM %d and pop 1", b(O.mode), b(O.pop), K.gum)) return end
     if lit(7) >= 8 then hud = true end
+    if ((fix[0x8201] or 0) & 0x3f) == 14 and ((fix[0x8200 + 21] or 0) & 0x3f) == 1 and (fix[0x8200 + 72] or 1) == 0 then
+      sky_ok = true
+      local w = fix[0x8200 + 21]
+      if not cloud_vals[w] then cloud_vals[w] = true; cloud_n = cloud_n + 1 end
+    end
     local cd = mem:read_u16(flow_addr + O.cdt)   -- uint16_t; the word shows for cd_t 1..90 (gg_countdown.h): SCB3 height > 0, full size SCB2
     if cd >= 1 and cd <= 90 and ((fix[0x8200 + CD_SLOT] or 0) & 0x3f) > 0 and (fix[0x8000 + CD_SLOT] or 0) == 0x0fff then cd_shown = cd_shown + 1 end
     if b(O.res) == 1 or b(O.state) == K.over then phase = "result"; t0 = n; cbtn:set_value(0) return end
@@ -77,6 +84,8 @@ emu.register_frame_done(function()
       local depth, pscore, rec = mem:read_u16(flow_addr + O.depth), mem:read_u16(flow_addr + O.pscore), mem:read_u32(flow_addr + O.record)
       if cd_shown < 60 then finish(false, string.format("countdown word on screen %d frames, want >= 60", cd_shown)) return end
       if not hud then finish(false, "HUD row never lit") return end
+      if not sky_ok then finish(false, "Pop Drop sky never up (slot 1 14 rows, slot 21 1 row, slot 72 hidden)") return end
+      if cloud_n < 20 then finish(false, string.format("cloud head SCB3 took %d values, want >= 20 (clouds must scroll)", cloud_n)) return end
       if maxhits ~= 3 then finish(false, string.format("hits %d, want 3 (the crash)", maxhits)) return end
       if depth == 0 or pscore < depth then finish(false, string.format("depth %d score %d", depth, pscore)) return end
       if rec ~= pscore then finish(false, string.format("record %d, fall score %d", rec, pscore)) return end

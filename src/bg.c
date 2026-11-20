@@ -103,7 +103,10 @@ static u8 g_want, g_step;
 static u8 g_hidden; /* planes bg_trip_planes hides (BG_TRIP_HIDDEN_MASK bits) */
 static u8 g_stadium; /* 1: the stadium owns sprite slots 21..110, planes far..near stay hidden (sky stays) */
 #define STADIUM_HIDDEN_MASK 0x1E /* plane bits 1..4 */
-static u8 hidden_mask(void) { return (u8)(g_hidden | (g_stadium ? STADIUM_HIDDEN_MASK : 0)); }
+/* Pop Drop sky (bg_pop_sky): the sky and cloud sprites take slots 1..POP_SLOTS_END over, so planes far..near stay hidden while it is on or being undone. */
+enum { POP_OFF, POP_ON, POP_RESTORE };
+static u8 g_pop, g_pop_drawn;
+static u8 hidden_mask(void) { return (u8)(g_hidden | ((g_stadium || g_pop) ? STADIUM_HIDDEN_MASK : 0)); }
 static u16 g_scb3_show[BG_SPRITE_TOTAL], g_scb3_out[BG_SPRITE_TOTAL];
 static const u16 g_scb3_zero[BG_SPRITE_TOTAL];
 /* Strips per frame while the mood changes: at most 9 x 7 rows of tile pairs. The show run (every column's SCB3 word, about 31
@@ -174,13 +177,15 @@ void bg_load_palettes(void) {
 static void column_strip(u8 m, u8 slot) {
     u8 i = (u8)(slot - BG_SKY_SPRITE), n = COL_ROWS[i], p = 0;
     const CityFrame *f;
-    if (!n) return;
+    if (!n || g_pop == POP_ON) return; /* the Pop Drop sky owns these tiles */
     while (p + 1 < BG_PLANE_COUNT && slot >= PLANE_FIRST[p + 1]) p++;
     f = &city_frames[city_anims[PLANE_ANIM[p]].first_frame]; /* geometry is the same in both moods (asserts above) */
     gfx_strip_attr(slot, g_pairs[m][f->tile_offset + (slot - PLANE_FIRST[p]) * f->tiles_h + COL_ROW0[i]], TILE_BASE[m], n);
 }
 
 void bg_init(void) {
+    g_pop = POP_OFF;
+    g_pop_drawn = 0;
     for (u16 i = 0; i < BG_TILE_REFS; i++) {
         g_pairs[GAME_MOOD_MOON][i][0] = city_tile_index[i];
         g_pairs[GAME_MOOD_MOON][i][1] = (u16)((CITY_PAL_SLOT + city_tile_pal[i]) << 8);
@@ -237,6 +242,17 @@ void bg_set_mood(u8 mood, u8 cut) {
     if (g_fade.phase == BGF_IN || g_fade.phase == BGF_IDLE) bg_fade_start(&g_fade); /* IN: dim again from the level reached */
 }
 
+/* Every column's SCB3 word: the show words, planes in hidden_mask at height 0. */
+static void show_run(void) {
+    if (hidden_mask())
+        for (u8 p = 0; p < BG_PLANE_COUNT; p++)
+            for (u8 c = 0; c < PLANE_COLS[p]; c++) {
+                u8 i = (u8)(PLANE_FIRST[p] + c - BG_SKY_SPRITE);
+                g_scb3_out[i] = (hidden_mask() & (1u << p)) ? 0 : g_scb3_show[i];
+            }
+    gfx_scb_run((u16)(ADDR_SCB3 + BG_SKY_SPRITE), 1, hidden_mask() ? g_scb3_out : g_scb3_show, BG_SPRITE_TOTAL); /* nothing hidden: the show words as they are */
+}
+
 /* One frame of a mood change: BG_MOOD_COLS_PER_FRAME strips, or once all are sent the show run (planes Gum Trip hides stay at height 0). */
 static void mood_step(void) {
     if (g_step < BG_SPRITE_TOTAL) {
@@ -246,13 +262,7 @@ static void mood_step(void) {
         for (u8 first = g_step; g_step < end && (g_step == first || !fade_late()); g_step++) column_strip(g_want, (u8)(BG_SKY_SPRITE + g_step));
         return;
     }
-    if (hidden_mask())
-        for (u8 p = 0; p < BG_PLANE_COUNT; p++)
-            for (u8 c = 0; c < PLANE_COLS[p]; c++) {
-                u8 i = (u8)(PLANE_FIRST[p] + c - BG_SKY_SPRITE);
-                g_scb3_out[i] = (hidden_mask() & (1u << p)) ? 0 : g_scb3_show[i];
-            }
-    gfx_scb_run((u16)(ADDR_SCB3 + BG_SKY_SPRITE), 1, hidden_mask() ? g_scb3_out : g_scb3_show, BG_SPRITE_TOTAL); /* nothing hidden: the show words as they are */
+    show_run();
     g_bg_mood = g_want;
     g_bg_mood_changes++;
     bg_fade_swapped(&g_fade); /* busy until the fade in has written the last palette */
@@ -304,11 +314,124 @@ void bg_stadium_planes(u8 on) {
     planes_apply(before);
 }
 
+/* ---- Pop Drop sky: one static sky (14 rows x 20 columns, slots 1..20) and cloud groups that drift up with the platforms.
+ * Cloud i is a chained row of tiles; its layer (popdropsky CL) moves at 2, 4 or 6 px while the platforms move 9 and repeats every
+ * 128, 256 or 384 lines, so a 128 line layer shows a cloud twice (two groups). The tiles and x words go out once; per frame only
+ * the group head SCB3 words (height, y) change. ---- */
+#define POP_SKY_ROWS 14
+#define POP_LAYERS 3
+#define POP_GROUPS_MAX 12
+#define POP_SCREEN_H 224
+static const u16 POP_PERIOD[POP_LAYERS] = { 128, 256, 384 };
+static const u8 POP_SPEED[POP_LAYERS] = { 2, 4, 6 };
+#define POP_PLATFORM_SPEED 9
+static const u8 POP_CLOUD_CX_LAYER[POPDROPSKY_CLOUDS] = POPDROPSKY_TABLE_CL;
+static const s16 POP_CLOUD_CX[POPDROPSKY_CLOUDS] = POPDROPSKY_TABLE_CX;
+static const s16 POP_CLOUD_CY[POPDROPSKY_CLOUDS] = POPDROPSKY_TABLE_CY;
+static struct { u8 slot, cols, cloud; u8 copy; } g_pop_group[POP_GROUPS_MAX];
+static u8 g_pop_groups, g_pop_slots_end, g_pop_step;
+static u16 g_pop_pos[POP_LAYERS], g_pop_acc[POP_LAYERS];
+static u32 g_pop_last;
+
+static void pop_layout(void) {
+    u8 slot = BG_SKY_SPRITE + BG_SKY_COUNT;
+    g_pop_groups = 0;
+    for (u8 i = 0; i < POPDROPSKY_CLOUDS; i++) {
+        u16 per = POP_PERIOD[POP_CLOUD_CX_LAYER[i]];
+        u8 cols = popdropsky_frames[1 + i].tiles_w, copies = 1;
+        while (copies * per < POP_SCREEN_H + 16) copies++;
+        for (u8 k = 0; k < copies; k++) {
+            g_pop_group[g_pop_groups].slot = slot;
+            g_pop_group[g_pop_groups].cols = cols;
+            g_pop_group[g_pop_groups].cloud = i;
+            g_pop_group[g_pop_groups].copy = k;
+            g_pop_groups++;
+            slot = (u8)(slot + cols);
+        }
+    }
+    g_pop_slots_end = slot;
+}
+
+/* Head word of every cloud group: y = (CY - pos) wrapped into [-16, period - 16), the copy k one period lower. */
+static void pop_heads(void) {
+    for (u8 g = 0; g < g_pop_groups; g++) {
+        u8 i = g_pop_group[g].cloud, l = POP_CLOUD_CX_LAYER[i];
+        int t = POP_CLOUD_CY[i] - (int)g_pop_pos[l] + 16;
+        while (t < 0) t += POP_PERIOD[l];
+        while (t >= (int)POP_PERIOD[l]) t -= POP_PERIOD[l];
+        gfx_word((u16)(ADDR_SCB3 + g_pop_group[g].slot), gfx_scb3_word(1, t - 16 + g_pop_group[g].copy * POP_PERIOD[l]));
+    }
+}
+
+static void pop_draw(void) {
+    const PopdropskyFrame *f = &popdropsky_frames[0];
+    gfx_sprite_strips(BG_SKY_SPRITE, BG_SKY_COUNT, POP_SKY_ROWS, popdropsky_tile_index + f->tile_offset, POPDROPSKY_TILE_BASE,
+                      (u16)((POPDROPSKY_PAL_SLOT + f->palette) << 8));
+    gfx_sprite_place(BG_SKY_SPRITE, BG_SKY_COUNT, POP_SKY_ROWS, 0, 0);
+    for (u8 g = 0; g < g_pop_groups; g++) {
+        u8 i = g_pop_group[g].cloud;
+        f = &popdropsky_frames[1 + i];
+        gfx_sprite_strips(g_pop_group[g].slot, g_pop_group[g].cols, 1, popdropsky_tile_index + f->tile_offset, POPDROPSKY_TILE_BASE,
+                          (u16)((POPDROPSKY_PAL_SLOT + f->palette) << 8));
+        gfx_sprite_chain(g_pop_group[g].slot, g_pop_group[g].cols);
+        gfx_word((u16)(ADDR_SCB4 + g_pop_group[g].slot), gfx_scb4_word(POP_CLOUD_CX[i]));
+    }
+    pop_heads();
+    g_pop_drawn = 1;
+}
+
+/* Undo: the arena strips of slots 1..g_pop_slots_end come back BG_MOOD_COLS_PER_FRAME per frame, then every SCB3 word. */
+static void pop_restore_step(void) {
+    u8 end = (u8)(g_pop_step + BG_MOOD_COLS_PER_FRAME), total = (u8)(g_pop_slots_end - BG_SKY_SPRITE);
+    if (end > total) end = total;
+    for (; g_pop_step < end; g_pop_step++) column_strip(g_bg_mood, (u8)(BG_SKY_SPRITE + g_pop_step));
+    if (g_pop_step < total) return;
+    g_pop = POP_OFF;
+    g_pop_drawn = 0;
+    show_run();
+    for (u8 p = 0; p < BG_PLANE_COUNT; p++) g_bg_plane_x[p] = 0x7FFF; /* the sky's SCB4 words were overwritten: send all planes */
+    g_last_valid = 0;
+}
+
+void bg_pop_sky(u8 on, u32 dist) {
+    if (!on) {
+        if (g_pop != POP_ON) return;
+        g_pop = POP_RESTORE;
+        g_pop_step = 0;
+        return;
+    }
+    if (g_pop != POP_ON) {
+        u8 before = hidden_mask();
+        pop_layout();
+        g_pop = POP_ON;
+        g_pop_drawn = 0;
+        g_pop_last = dist;
+        for (u8 l = 0; l < POP_LAYERS; l++) g_pop_pos[l] = g_pop_acc[l] = 0;
+        planes_apply(before);
+    }
+    if (!g_pop_drawn) {
+        if (g_bg_mood_busy) return; /* a mood swap rewrites the tiles first; the sky goes up when it is done */
+        pop_draw();
+        return;
+    }
+    if (dist > g_pop_last) {
+        u16 delta = (u16)(dist - g_pop_last > 1024 ? 1024 : dist - g_pop_last); /* 1/16 px; platforms move 9 px per frame at most */
+        for (u8 l = 0; l < POP_LAYERS; l++) {
+            g_pop_acc[l] = (u16)(g_pop_acc[l] + delta * POP_SPEED[l]);
+            while (g_pop_acc[l] >= 16 * POP_PLATFORM_SPEED) { g_pop_acc[l] = (u16)(g_pop_acc[l] - 16 * POP_PLATFORM_SPEED); if (++g_pop_pos[l] >= POP_PERIOD[l]) g_pop_pos[l] = 0; }
+        }
+    }
+    g_pop_last = dist;
+    pop_heads();
+}
+
 /* unwrapped_px = camera_unwrapped_px: plane offset = floor(px * k / 16) mod plane width (src/core/bg_scroll.c, one 16 bit divide per
  * plane, no libgcc call). The SCB4 words of a plane go out only when its offset changed. */
 void bg_update(s32 unwrapped_px) {
     BgRamp ramp;
     if (g_bg_mood_busy) change_step();
+    if (g_pop == POP_RESTORE && !g_bg_mood_busy) pop_restore_step();
+    if (g_pop) return; /* the sky sprites are not the planes: no plane x words */
     if (g_last_valid && unwrapped_px == g_last_u) return;
     g_last_u = unwrapped_px;
     g_last_valid = 1;
