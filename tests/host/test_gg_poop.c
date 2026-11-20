@@ -122,7 +122,6 @@ int main(void)
         CHECK(f.state == FLOW_PLAYING && f.game.gg_poop);
         f.game.poop.b[0].score = 900; f.game.poop.timer = PM_CLOCK - 1;
         for (i = 0; i < (int)GGCD_SET_FRAMES + (int)PM_RESULT_FRAMES + 400 && f.state == FLOW_PLAYING; i++) flow_step(&f, 0, 0, 0);
-        printf("dbg state=%d over=%d phase=%d best=%u rec=%u\n", f.state, f.game.over, f.game.poop.phase, (unsigned)f.game.poop.seq.best[0], (unsigned)f.tables.gg_record[GG_POOP_MAN]);
         CHECK(f.tables.gg_record[GG_POOP_MAN] >= 900);
     }
 
