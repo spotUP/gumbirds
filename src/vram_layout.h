@@ -109,7 +109,7 @@ _Static_assert((POPDROP_TILE_BASE & 7) == 0, "pop drop tile base is not 8-aligne
 _Static_assert((POPDROPSKY_TILE_BASE & 7) == 0, "pop drop sky tile base is not 8-aligned");
 
 #define FIX_PAL_COUNT FIXFONT_PAL_COUNT /* fix palettes 0..4: white, pink, lime, gold, dim (build/gen/fix_font.h) */
-#define ATTRACT_PAL_SLOT FIX_PAL_COUNT /* one palette: the attract overlay icons (build/gen/attract_icons.h). Fix tiles hold a 4-bit palette, so it must sit in slots 0..15, never after the sprite palettes */
+#define ATTRACT_PAL_SLOT FIX_PAL_COUNT /* one palette: the attract overlay icons (build/gen/attract_icons.h). The same slot is rewritten with the rules card colours and the Gum Games meter palettes while those are up (main.c slot_pal). Meter fix tiles sit after the rulecard tiles in the S-ROM (build/gen/flingmeter_tiles.h). Fix tiles hold a 4-bit palette, so it must sit in slots 0..15, never after the sprite palettes */
 _Static_assert(ATTRACT_PAL_SLOT < 16, "fix layer palettes are 4 bits: the overlay palette must be slot 0..15");
 #define OBS_PAL_SLOT (ATTRACT_PAL_SLOT + 1)
 #define CITY_PAL_SLOT (OBS_PAL_SLOT + OBS_PALETTE_COUNT)
