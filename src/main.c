@@ -1450,7 +1450,7 @@ static void fling_arc_step(const Game *g) {
         int16_t dx[FLING_ARC_DOTS], dy[FLING_ARC_DOTS];
         u16 s3[FLING_ARC_COUNT], s4[FLING_ARC_COUNT];
         int cx = (int)(g->hero[0].x >> 16), cy = (int)(g->hero[0].y >> 16);
-        uint8_t a = (uint8_t)(f->hold.charge >> 1 > 64 ? 64 : f->hold.charge >> 1);   /* the angle launch_vel uses */
+        uint8_t a = (uint8_t)((f->deg * 182u) >> 8);   /* the angle launch_vel uses */
         if (!g_fling_arc_on) {
             for (u16 i = 0; i < FLING_ARC_COUNT; i++) {
                 const GumFrame *f = &gum_frames[gum_anims[i ? FLING_ARC_DOT_ANIM : FLING_ARC_POINTER_ANIM].first_frame];
@@ -1459,7 +1459,7 @@ static void fling_arc_step(const Game *g) {
             }
             g_fling_arc_on = 1;
         }
-        gumfling_path(f->power, f->hold.charge, dx, dy, FLING_ARC_DOTS);
+        gumfling_path(f->power, f->deg, dx, dy, FLING_ARC_DOTS);
         for (int i = 0; i < FLING_ARC_COUNT; i++) {
             int wx = i ? cx + dx[i - 1] : cx + (FLING_ARC_RADIUS * flier_cos(a) >> 15);
             int wy = i ? cy - dy[i - 1] : cy - (FLING_ARC_RADIUS * flier_sin(a) >> 15);
@@ -1777,7 +1777,7 @@ static void draw_fling(const Game *g) {
             i = fling_put_m(line, i, GF_MARK_PX);
         }
     } else if (f->phase == GF_LANDED && f->foul) {
-        i = fling_put(line, i, f->deg ? "FOUL  ANGLE OUT OF RANGE" : "FOUL  NO THROW IN TIME");
+        i = fling_put(line, i, "FOUL");
     } else if (f->phase == GF_LANDED || f->phase == GF_FLIGHT) {
         if (two) i = fling_put(line, i, f->thrower ? "PLAYER 2  " : "PLAYER 1  ");
         i = fling_put(line, i, "DISTANCE ");
@@ -1800,6 +1800,13 @@ static void draw_fling(const Game *g) {
         while (i < 12) line[i++] = ' ';
         line[i] = 0;
         text((u8)((40 - 12) / 2), BLOW_TEXT_ROW + 3, PAL_HIGH, line);
+    }
+    {   /* control hint under the HUD rows */
+        const char *h = f->phase == GF_WINDUP ? "MASH A AND B" : f->phase == GF_AIM ? "PRESS A" : f->phase == GF_FLIGHT ? "MASH A AND B TO FLAP" : "";
+        i = fling_put(line, 0, h);
+        while (i < BLOW_TEXT_W) line[i++] = ' ';
+        line[BLOW_TEXT_W] = 0;
+        text((u8)((40 - BLOW_TEXT_W) / 2), BLOW_TEXT_ROW + 4, PAL_HIGH, line);
     }
 }
 
