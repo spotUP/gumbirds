@@ -96,7 +96,7 @@ int main(void)
         CHECK(p.dist - d0 <= (uint32_t)(spd0 >> 1) + 1 && p.spd == spd0);     /* slower, ramp speed untouched */
         gp_step(&p, &h, IN_A);                                              /* held A is not a new press */
         CHECK(p.flaps == PD_FLAP_MAX - 1);
-        for (i = 0; i < PD_BRAKE_FRAMES; i++) gp_step(&p, &h, 0);
+        for (i = 0; i < (int)PD_BRAKE_FRAMES; i++) gp_step(&p, &h, 0);
         d0 = p.dist; gp_step(&p, &h, 0);
         CHECK(p.dist - d0 >= p.spd);                                        /* full speed again */
         for (i = 0; i < PD_HOP_PX; i++) gp_step(&p, &h, 0);
