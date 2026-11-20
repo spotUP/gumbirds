@@ -2,16 +2,20 @@
 -- (the join restarts the match into Toss Gum), then:
 --   T1. Toss Gum is running (mode GUM, gg_toss set) with four birds alive;
 --   T1b. the P2 Start press seated a second human (Toss.humans 2);
---   T2. a toss happens (phase FLIGHT), a burst happens (phase BURST), and a winner is declared (RESULT, one bird left, winner seat alive).
+--   T2. a toss happens (phase FLIGHT), a burst happens (phase BURST), and a winner is declared (RESULT, one bird left, winner seat alive);
+--   T3. while a bird holds the gum (phase HOLD, in a pose), the drawn knot (main.c g_toss_knot) equals the wing gum point of the pose cell drawn
+--       for the carrier's seat (g_toss_wing, from the body sprite position) once both stand still; every seat must be checked at least once.
 -- Humans never press anything, so the computers toss and a stalled human carrier bursts. BRAWL_SNAP=<dir> writes toss_mid.png (flight) and toss_burst.png.
--- Env: BRAWL_FLOW_ADDR (hex), BRAWL_TOSS_LAYOUT (party_toss_probe.c output), BRAWL_RESULT, BRAWL_SNAP.
+-- Env: BRAWL_FLOW_ADDR, BRAWL_WING_ADDR, BRAWL_KNOT_ADDR (hex), BRAWL_TOSS_LAYOUT (party_toss_probe.c output), BRAWL_RESULT, BRAWL_SNAP.
 local flow_addr = tonumber(os.getenv("BRAWL_FLOW_ADDR"), 16)
+local wing_addr = tonumber(os.getenv("BRAWL_WING_ADDR"), 16)
+local knot_addr = tonumber(os.getenv("BRAWL_KNOT_ADDR"), 16)
 local result = os.getenv("BRAWL_RESULT")
 local snap = (os.getenv("BRAWL_SNAP") or "") ~= ""
 local L = {}
 for v in (os.getenv("BRAWL_TOSS_LAYOUT") or ""):gmatch("%d+") do L[#L + 1] = tonumber(v) end
 local O = { flow = L[1], mode = L[2], on = L[3], phase = L[4], alive = L[5], carrier = L[6], winner = L[7], round = L[8], humans = L[9], fmode = L[15], frule = L[16] }
-local K = { playing = L[10], gum = L[11], flight = L[12], burst = L[13], result = L[14], party = L[17], toss = L[18] }
+local K = { playing = L[10], gum = L[11], flight = L[12], burst = L[13], result = L[14], party = L[17], toss = L[18], hold = L[19] }
 local mem = manager.machine.devices[":maincpu"].spaces["program"]
 local screen = manager.machine.screens[":screen"]
 local ports = manager.machine.ioport.ports
@@ -34,6 +38,28 @@ local function finish(ok, msg)
   manager.machine:exit()
 end
 if not (coin and start1 and start2) then finish(false, "missing ports") end
+if not (wing_addr and knot_addr and K.hold) then finish(false, "missing g_toss_wing / g_toss_knot / GT_HOLD") end
+
+-- T3: knot vs drawn wing point; a pair is compared once knot, wing and carrier did not change since the previous frame (the knot slides 6 px a frame).
+local prev, checked, poses_seen = nil, {}, {}
+local function knot_check()
+  local c = b(O.carrier)
+  if b(O.phase) ~= K.hold or c > 3 then prev = nil return true end
+  local kx, ky, kp = mem:read_i16(knot_addr), mem:read_i16(knot_addr + 2), mem:read_i16(knot_addr + 4)
+  local wx, wy = mem:read_i16(wing_addr + 4 * c), mem:read_i16(wing_addr + 4 * c + 2)
+  local now = { c, kx, ky, kp, wx, wy }
+  local still = prev ~= nil and kp >= 0
+  if still then for i = 1, 6 do if prev[i] ~= now[i] then still = false end end end
+  prev = now
+  if not still then return true end
+  checked[c] = (checked[c] or 0) + 1
+  poses_seen[kp] = true
+  if kx ~= wx or ky ~= wy then
+    finish(false, "seat " .. c .. " pose " .. kp .. ": knot at " .. kx .. "," .. ky .. ", wing gum point drawn at " .. wx .. "," .. wy)
+    return false
+  end
+  return true
+end
 
 local n, phase, t0 = 0, "boot", 0
 local seen_flight, seen_burst, snap_mid, snap_burst, min_alive = false, false, false, false, 4
@@ -58,6 +84,7 @@ emu.register_frame_done(function()
     end
     if k > 3000 then finish(false, "Toss Gum never started: flow " .. b(O.flow) .. " mode " .. b(O.mode) .. " gg_toss " .. b(O.on)) return end
   elseif phase == "watch" then
+    if not knot_check() then return end
     local ph, al = b(O.phase), pop(b(O.alive))
     if ph == K.flight then
       seen_flight = true
@@ -72,7 +99,11 @@ emu.register_frame_done(function()
       if not seen_flight then finish(false, "winner without any toss in flight") return end
       if not seen_burst or al ~= 1 then finish(false, "result with " .. al .. " birds, burst seen " .. tostring(seen_burst)) return end
       if (b(O.alive) >> b(O.winner)) & 1 ~= 1 then finish(false, "winner seat " .. b(O.winner) .. " not alive, mask " .. b(O.alive)) return end
-      finish(true, "four birds, toss, burst (min alive " .. min_alive .. "), winner seat " .. b(O.winner) .. " after " .. (n - t0) .. " frames")
+      local seats, ps = "", ""
+      for s = 0, 3 do seats = seats .. " " .. s .. ":" .. (checked[s] or 0) end
+      for p = 0, 7 do if poses_seen[p] then ps = ps .. p end end
+      for s = 0, 3 do if not checked[s] then finish(false, "knot never checked on seat " .. s .. " (checks" .. seats .. ")") return end end
+      finish(true, "four birds, toss, burst (min alive " .. min_alive .. "), winner seat " .. b(O.winner) .. " after " .. (n - t0) .. " frames, knot on wing checks" .. seats .. " poses " .. ps)
     end
   end
 end)
