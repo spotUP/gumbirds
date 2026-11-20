@@ -59,6 +59,7 @@ end
 if not (coin and start1 and up and abtn and cbtn and pick) then finish(false, "missing ports") end
 
 local n, phase, t0, hud, cd_shown, maxhits = 0, "boot", 0, false, 0, 0
+local pip_heart, pip_last, pip_t, pip_ok, pip_fall = 0, -1, 0, 0, 0
 local saved_msg
 local sky_ok, cloud_vals, cloud_n = false, {}, 0
 local peak, peak_line, us_play, us_restore, snap, left_n = 0, 0, 0, 0, nil, nil
@@ -124,6 +125,20 @@ emu.register_frame_done(function()
       mem:write_u8(flow_addr + O.plat + 5, 1); mem:write_u8(flow_addr + O.plat + 6, 1); mem:write_u8(flow_addr + O.plat + 7, 0)
     end
     rag_seen(b(O.phase) == K.fall)
+    -- Life pips (fix row 7, columns 1..3): pip k is a heart while k < 3 - hits, blank after; checked 24 frames after each hit, once the flash is over.
+    if b(O.phase) == K.fall then
+      local hh = b(O.hits)
+      if hh ~= pip_last then pip_last, pip_t = hh, n end
+      if hh > 0 and hh < 3 and n - pip_t == 24 then
+        pip_heart = cell(1, 7)   -- pip 0 is alive until the third hit
+        if pip_heart == cell(0, 27) then finish(false, string.format("life pip 0 blank after %d hits", hh)) return end
+        for k = 0, 2 do
+          local want = k < 3 - hh and pip_heart or cell(0, 27)
+          if cell(1 + k, 7) ~= want then finish(false, string.format("life pip %d after %d hits is %x, want %x", k, hh, cell(1 + k, 7), want)) return end
+        end
+        pip_ok = pip_ok + 1
+      end
+    end
     if b(O.hits) > maxhits then maxhits = b(O.hits) end
     if n - t0 > 6000 then finish(false, "run never reached the result") end
   elseif phase == "result" then
@@ -142,6 +157,7 @@ emu.register_frame_done(function()
         if splash_n < 10 then finish(false, string.format("splash (slot %d) up %d frames, want >= 10", SPLASH_SLOT, splash_n)) return end
         if card_n < 30 then finish(false, string.format("score card (slot %d) up %d frames, want >= 30", CARD_SLOT, card_n)) return end
       elseif rag_n < 30 then finish(false, string.format("rag (slot %d) up %d fall frames, want >= 30", RAG_SLOT, rag_n)) return end
+      if not POOL and pip_ok ~= 2 then finish(false, string.format("life pips checked after %d of 2 hits", pip_ok)) return end
       if not POOL and maxhits ~= 3 then finish(false, string.format("hits %d, want 3 (the crash)", maxhits)) return end
       if depth == 0 or pscore < depth then finish(false, string.format("depth %d score %d", depth, pscore)) return end
       if rec ~= pscore then finish(false, string.format("record %d, fall score %d", rec, pscore)) return end
