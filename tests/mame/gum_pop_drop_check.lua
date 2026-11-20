@@ -17,6 +17,8 @@ local SB_LIMIT, FLUSH_LIMIT, RESTORE_FRAMES = 96, 1800, 14
 local L = {}
 for v in (os.getenv("BRAWL_BLOW_LAYOUT") or ""):gmatch("%d+") do L[#L + 1] = tonumber(v) end
 local POOL = os.getenv("BRAWL_POOL") == "1" -- make test-gum-pop-drop-pool: no platform is parked; the run is moved to the pool (P8)
+-- start the fall near the pool: dist = (bird y 72 + PD_POOL_DEPTH * 8 - 200) * 16, in 1/16 px (probe slot 31)
+local POOL_DIST = (72 + L[31] * 8 - 200) * 16
 local O = { state = L[1], mode = L[2], pop = L[3], phase = L[4], hits = L[5], pscore = L[6], depth = L[7], record = L[8],
             hx = L[9], plat = L[10], res = L[11], cdt = L[16], score = L[17], dist = L[25], pool_y = L[26], landed = L[27], card0 = L[28] }
 local K = { playing = L[12], gum = L[13], over = L[14], fall = L[15], pool = L[29], result = L[30] }
@@ -115,7 +117,7 @@ emu.register_frame_done(function()
     if POOL then pool_seen(cnt) end
     if POOL and b(O.phase) == K.fall then   -- no platform in the way; start the fall 150 px above the pool
       for k = 0, 3 do mem:write_u8(flow_addr + O.plat + k * 8 + 6, 0) end
-      if mem:read_u32(flow_addr + O.dist) < 36352 then mem:write_u32(flow_addr + O.dist, 36352) end
+      if mem:read_u32(flow_addr + O.dist) < POOL_DIST then mem:write_u32(flow_addr + O.dist, POOL_DIST) end
     elseif b(O.phase) == K.fall then   -- park a platform (rock, 3 tiles wide) on the bird each frame: one hit per stun, three hits crash
       local bx = mem:read_u32(flow_addr + O.hx) >> 16
       mem:write_u16(flow_addr + O.plat, (bx - 24) & 0xffff); mem:write_u16(flow_addr + O.plat + 2, 72)
