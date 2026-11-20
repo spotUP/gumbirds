@@ -11,10 +11,14 @@ DRAFT = f"{ROOT}/thoughts/shared/drafts/2026-11-18-popdrop-freefall/draw_popdrop
 spec = importlib.util.spec_from_file_location("draw_popdrop", DRAFT)
 d = importlib.util.module_from_spec(spec); spec.loader.exec_module(d)
 
+T = f"{ROOT}/thoughts/shared/drafts/2026-11-20-popdrop-terror/draw_terror.py"  # take A "screaming flail": fall/lean faces
+tspec = importlib.util.spec_from_file_location("draw_terror", T)
+t = importlib.util.module_from_spec(tspec); tspec.loader.exec_module(t)
+
 B, P, G = d.BIRD, d.PLAT, d.GUM
 anims = {  # name -> list of PIL frames, in draw order
-    **{f"fall{s}": [d.img(d.fall2(w, s, w == 1), B) for w in range(3)] for s in range(3)},
-    **{f"lean{s}": [d.img(d.lean2(s, k), B) for k in range(2)] for s in range(3)},
+    **{f"fall{s}": [d.img(t.take_a(0, s, k), B) for k in range(3)] for s in range(3)},
+    **{f"lean{s}": [d.img(t.take_a(1, s, k), B) for k in range(2)] for s in range(3)},
     "bonk": [d.img(d.BONK, B)],
     "crash": [d.img(d.splat_frame(), B), d.img(d.daze_frame(0), B), d.img(d.daze_frame(1), B)],
     "rag": [d.img(r, B) for r in d.RAG2] + [d.img(d.RAG_LIMP, B)],

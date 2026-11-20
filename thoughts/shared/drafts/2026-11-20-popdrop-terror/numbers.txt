@@ -1,0 +1,4 @@
+current: 15 fall/lean frames, 31 unique 16 x 16 tiles, 15 colours
+A screaming flail: 15 frames, 44 unique tiles, 15 colours
+B frozen stiff: 15 frames, 41 unique tiles, 15 colours
+C eyes shut, clutching: 15 frames, 40 unique tiles, 15 colours

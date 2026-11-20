@@ -1905,9 +1905,11 @@ static void hero_and_mode(const FlowView *v) {
         g_cam_px = (u16)game_camera_px(v->game);
         g_cam_unwrapped = camera_unwrapped_px(&v->game->camera);
         edge_marker(v->game, game_flier_cam_px(v->game));
-        hero_show(v->game, game_flier_cam_px(v->game));
-        if (v->game->gg_pop) { hero_hide(); pop_show(v->game); }
-        else if (g_pd_on) { pop_hide(); g_pd_on = 0; }
+        if (v->game->gg_pop) { hero_hide(); pop_show(v->game); }  /* no hero_show here: it queued the hero and hero_hide cleared it the same frame */
+        else {
+            hero_show(v->game, game_flier_cam_px(v->game));
+            if (g_pd_on) { pop_hide(); g_pd_on = 0; }
+        }
         if (v->game->mode == GAME_MODE_TRIP) pool_sync_trip(v->game, game_trip_ready(v->game));
         pool_sync_cpus(v->game);
         if (v->game->mode == GAME_MODE_ARCADE || v->game->mode == GAME_MODE_ARENA || v->game->gg_race) pool_sync_p2(v->game);
