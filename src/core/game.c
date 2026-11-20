@@ -114,7 +114,7 @@ int game_join_p2(Game *g)
     if (!game_can_join_p2(g)) return 0;
     if (g->gg_toss) { g->players = g->toss.humans = 2; return 1; }
     if (g->mode == GAME_MODE_GUM && g->gg_fling) { g->players = 2; gumfling_add_p2(&g->fling); return 1; }
-    if (g->mode == GAME_MODE_GUM && g->gg_pop) { g->players = 2; gp_add_p2(&g->pop); return 1; }
+    if (g->mode == GAME_MODE_GUM && g->gg_pop) { g->players = 2; gp_add_p2(&g->pop, &g->hero[0], &g->hero[1]); return 1; }
     if (g->mode == GAME_MODE_GUM) { g->players = g->race.players = 2; return 1; }
     if (g->mode == GAME_MODE_ARENA) return 0; /* Arena joins through flow_join_p2: a fresh match */
     g->players = 2;
@@ -486,12 +486,12 @@ void game_gg_start_pop(Game *g)
 static void game_step_pop(Game *g, uint8_t input)
 {
     GgPop *p = &g->pop;
-    gp_step(p, &g->hero[0], gg_seq_input(&p->seq, input, g->input2));   /* 2P: whoever's turn it is steers */
+    gp_step(p, g->hero, input, g->input2);   /* 2P: both birds fall at once */
     g->score = p->seq.points[0];
     if (g->players == 2) g->lives[1].score = p->seq.points[1];
     if (p->done) g->over = 1;
     g->frame++;
-    g->hero[0].spawn_inv = 0;
+    g->hero[0].spawn_inv = 0; g->hero[1].spawn_inv = 0;
     camera_follow(g);
 }
 

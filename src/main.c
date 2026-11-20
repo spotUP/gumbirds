@@ -716,6 +716,10 @@ static void pool_sync_cpus(const Game *g) {
 static u8 g_p2_cpu;   /* 1 = the P2 body object shows the Burst Race computer bird */
 static void pool_sync_p2(const Game *g) {
     g_p2_shown = 0;
+    if (g->gg_pop) {   /* Pop Drop draws both birds itself (pop_show) */
+        if (obj_pool_is_live(&g_pool, P2_OBJ_BODY)) { g_pool.obj[P2_OBJ_BODY].flags |= POOL_F_BLINK; g_pool.obj[P2_OBJ_CHUTE].flags |= POOL_F_BLINK; }
+        return;
+    }
     if (g->players < 2 && !g->gg_race) return;
     u8 cpu = g->gg_race && g->players < 2;   /* Burst Race against the computer: the rival sheet and palette */
     if (cpu != g_p2_cpu) { g_p2_cpu = cpu; g_pool_drawn[P2_OBJ_BODY] = 0; }
@@ -1778,7 +1782,7 @@ static void draw_flap_dash(const GgDash *d) {
 
 /* Pop Drop on the fix layer: depth and gums; rewritten when either changes. */
 static void draw_pop_drop(const GgPop *p) {
-    u32 key = (u32)p->depth | (u32)p->gums << 14 | (u32)p->phase << 24 | (u32)p->seq.turn << 27 | 1u << 28 | 1u << 29;
+    u32 key = (u32)p->depth | (u32)p->b[0].gums << 14 | (u32)p->phase << 24 | 1u << 28 | 1u << 29;
     if (key == g_blow_key) return;
     g_blow_key = key;
     char line[BLOW_TEXT_W + 1], nb[10];
@@ -1789,50 +1793,51 @@ static void draw_pop_drop(const GgPop *p) {
     for (u8 k = 0; nb[k] && i < BLOW_TEXT_W; k++) if (nb[k] != ' ') line[i++] = nb[k];
     s = "  GUMS ";
     for (u8 k = 0; s[k] && i < BLOW_TEXT_W; k++) line[i++] = s[k];
-    put_number(nb, p->gums, 3);
+    put_number(nb, p->b[0].gums, 3);
     for (u8 k = 0; nb[k] && i < BLOW_TEXT_W; k++) if (nb[k] != ' ') line[i++] = nb[k];
     while (i < BLOW_TEXT_W) line[i++] = ' ';
     line[BLOW_TEXT_W] = 0;
     text((u8)((40 - BLOW_TEXT_W) / 2), BLOW_TEXT_ROW + 2, PAL_TEXT, line);
 }
 
-/* Pop Drop sprites: bird, platforms, gum candy and shield in the free shared slots. Each frame redraws the live pieces and hides only the
+/* Pop Drop sprites: birds, platforms, gum candy and shields in the free shared slots. Each frame redraws the live pieces and hides only the
  * slots that showed last frame and not this one: hiding every slot first queued an SCB3 = 0 per slot ahead of its redraw, and when the
- * vblank flush ran out of budget (GFX_FLUSH_BUDGET_US) between the two, the platform stayed hidden on screen (owner report 2026-11-19). */
+ * vblank flush ran out of budget (GFX_FLUSH_BUDGET_US) between the two, the platform stayed hidden on screen (owner report 2026-11-19).
+ * Player 2 (2P simultaneous fall) has its own bird, shield and rag slots after player 1's. */
 #define PD_SPRITE 323
 #define PD_BIRD_SLOT PD_SPRITE
 #define PD_PLAT_SLOT (PD_SPRITE + 2)                 /* 4 platforms x 5 pieces */
 #define PD_GUM_SLOT (PD_PLAT_SLOT + PD_PLATS * 5)    /* 3 gums x 2 columns */
 #define PD_SHIELD_SLOT (PD_GUM_SLOT + PD_GUMS * 2)   /* 4 columns: the pop frames are 64 px wide */
 #define PD_RAG_SLOT (PD_SHIELD_SLOT + 4)             /* 1 column: the burst gum skin, on top of the bird */
-#define PD_SPRITE_END (PD_RAG_SLOT + 1)
+#define PD_BIRD2_SLOT (PD_RAG_SLOT + 1)              /* player 2: bird, shield, rag */
+#define PD_SHIELD2_SLOT (PD_BIRD2_SLOT + 2)
+#define PD_RAG2_SLOT (PD_SHIELD2_SLOT + 4)
+#define PD_SPRITE_END (PD_RAG2_SLOT + 1)
 _Static_assert(PD_SPRITE_END <= 367, "Pop Drop slots overlap the Trip pickup slots");
+#define PD_SLOTS (PD_SPRITE_END - PD_SPRITE)
 static u8 g_pd_on;
-static uint32_t g_pd_shown, g_pd_new; /* bit (slot - PD_SPRITE): drawn last frame / this frame */
-static u8 g_pd_rag_shown, g_pd_rag_new; /* the rag slot sits past the 32-bit mask (no 64-bit shifts on the 68k build) */
-_Static_assert(PD_RAG_SLOT - PD_SPRITE <= 32, "Pop Drop slot mask is 32 bits");
+static u8 g_pd_shown[PD_SLOTS], g_pd_new[PD_SLOTS]; /* slot - PD_SPRITE: drawn last frame / this frame */
 
 static const PopdropFrame *pd_frame(u8 anim, u16 n) {
     const PopdropAnim *a = &popdrop_anims[anim];
     return &popdrop_frames[a->first_frame + (a->frame_count ? n % a->frame_count : 0)];
 }
 
-/* One popdrop frame at world x (left) and screen top; flip mirrors it. */
-static void pd_piece(u16 slot, const PopdropFrame *f, int wx, int top, int flip, u8 pal) {
+/* One popdrop frame at world x (left) and screen top in palette slot pal; flip mirrors it. */
+static void pd_piece(u16 slot, const PopdropFrame *f, int wx, int top, int flip, u16 pal) {
     int sx = camera_screen_x(wx, g_cam_px, f->tiles_w * 16);
     if (!camera_visible(sx, f->tiles_w * 16)) return;
     const u16 *t = &popdrop_tile_index[f->tile_offset];
     for (u8 c = 0; c < f->tiles_w; c++)
         gfx_sprite_strips((u16)(slot + c), 1, f->tiles_h, t + (flip ? f->tiles_w - 1 - c : c) * f->tiles_h, POPDROP_TILE_BASE,
-                          (u16)(((POPDROP_PAL_SLOT + pal) << 8) | (flip ? 1 : 0)));
+                          (u16)((pal << 8) | (flip ? 1 : 0)));
     gfx_sprite_place(slot, f->tiles_w, f->tiles_h, sx, top);
-    if (slot == PD_RAG_SLOT) g_pd_rag_new = 1;
-    else g_pd_new |= ((1UL << f->tiles_w) - 1) << (slot - PD_SPRITE);
+    for (u8 c = 0; c < f->tiles_w; c++) g_pd_new[slot - PD_SPRITE + c] = 1;
 }
 
 static void pop_hide(void) {
-    for (u16 s = PD_SPRITE; s < PD_SPRITE_END; s++) obs_hide_slot(s);
-    g_pd_shown = 0; g_pd_rag_shown = 0;
+    for (u16 s = PD_SPRITE; s < PD_SPRITE_END; s++) { obs_hide_slot(s); g_pd_shown[s - PD_SPRITE] = 0; }
 }
 
 static void pop_show_pieces(const Game *g);
@@ -1840,14 +1845,32 @@ static void pop_show_pieces(const Game *g);
 static void pop_show(const Game *g) {
     if (!g_pd_on) pop_hide(); /* entry: the shared slots may hold another view's sprites */
     g_pd_on = 1;
-    g_pd_new = 0; g_pd_rag_new = 0;
+    for (u8 k = 0; k < PD_SLOTS; k++) g_pd_new[k] = 0;
     pop_show_pieces(g);
-    if (g_pd_rag_shown && !g_pd_rag_new) obs_hide_slot(PD_RAG_SLOT);
-    g_pd_rag_shown = g_pd_rag_new;
-    uint32_t gone = g_pd_shown & ~g_pd_new;
-    for (u16 s = PD_SPRITE; gone; s++, gone >>= 1)
-        if (gone & 1) obs_hide_slot(s);
-    g_pd_shown = g_pd_new;
+    for (u8 k = 0; k < PD_SLOTS; k++) {
+        if (g_pd_shown[k] && !g_pd_new[k]) obs_hide_slot((u16)(PD_SPRITE + k));
+        g_pd_shown[k] = g_pd_new[k];
+    }
+}
+
+/* One bird with its shield or pop and its rag. A ghost (crashed in a 2P fall that goes on) is the fall pose in the pale palette, no rag. */
+static void pop_show_bird(const Game *g, u8 i, u16 bird_slot, u16 shield_slot, u16 rag_slot, u16 pal) {
+    const GgPop *p = &g->pop;
+    const PdBird *b = &p->b[i];
+    u8 ghost = b->crash && p->phase == PD_FALL;
+    u8 lvl = b->hits > 2 ? 2 : b->hits;
+    u8 anim = ghost ? POPDROP_ANIM_FALL0 : p->phase == PD_CRASH ? POPDROP_ANIM_CRASH : b->stun ? POPDROP_ANIM_BONK : (b->prev_in & (IN_LEFT | IN_RIGHT)) ? (u8)(POPDROP_ANIM_LEAN0 + lvl) : (u8)(POPDROP_ANIM_FALL0 + lvl);
+    int bx = (int)(g->hero[i].x >> 16) - 16, top = PD_BIRD_Y + b->hop - 16;
+    pd_piece(bird_slot, pd_frame(anim, (u16)(g->frame >> 3)), bx, top, b->flip, ghost ? POPDROP_GHOST_PAL_SLOT : pal);
+    if (ghost) return;
+    if (b->shield) pd_piece(shield_slot, pd_frame(POPDROP_ANIM_SHIELD, (u16)(g->frame >> 4)), bx, top, 0, POPDROP_PAL_SLOT + 2);
+    else if (b->pop_t) pd_piece(shield_slot, pd_frame(POPDROP_ANIM_POP, (u16)(b->pop_t >> 3)), bx, top, 0, POPDROP_PAL_SLOT + 2);
+    /* The burst gum skin (draft 2026-11-18 freefall): four flutter frames on the upper beak, 11 px into the 24 px art (pad 4) and
+     * 12 px above it; the limp frame lies past the splat's right edge. Mirrored with the bird; hidden inside an intact shield. */
+    if (p->phase == PD_CRASH)
+        pd_piece(rag_slot, pd_frame(POPDROP_ANIM_RAG, 4), b->flip ? bx - 15 : bx + 31, top, b->flip, POPDROP_PAL_SLOT);
+    else if (!b->shield)
+        pd_piece(rag_slot, pd_frame(POPDROP_ANIM_RAG, (u16)((g->frame >> 2) & 3)), b->flip ? bx + 1 : bx + 15, top - 12, b->flip, POPDROP_PAL_SLOT);
 }
 
 static void pop_show_pieces(const Game *g) {
@@ -1859,7 +1882,7 @@ static void pop_show_pieces(const Game *g) {
         u8 n = (u8)(pl->mids + 2);
         for (u8 j = 0; j < n; j++) {
             const PopdropFrame *f = pd_frame(POPDROP_ANIM_PLAT, (u16)(pl->kind * 2 + (j && j < n - 1 ? 1 : 0)));
-            pd_piece((u16)(slot + j), f, pl->x + j * 16, pl->y, j == n - 1, 1);
+            pd_piece((u16)(slot + j), f, pl->x + j * 16, pl->y, j == n - 1, POPDROP_PAL_SLOT + 1);
         }
     }
     for (u8 k = 0; k < PD_GUMS; k++) {
@@ -1872,21 +1895,11 @@ static void pop_show_pieces(const Game *g) {
         u16 sl = (u16)(PD_GUM_SLOT + k * 2);
         gfx_sprite_strips(sl, 2, 2, &trippickup_tile_index[f->tile_offset], TRIPPICKUP_TILE_BASE, (u16)(TRIPPICKUP_PAL_SLOT << 8));
         gfx_sprite_place(sl, 2, 2, sx, gm->y - 16);
-        g_pd_new |= 3UL << (sl - PD_SPRITE);
+        g_pd_new[sl - PD_SPRITE] = 1; g_pd_new[sl - PD_SPRITE + 1] = 1;
     }
     if (p->phase != PD_FALL && p->phase != PD_CRASH) return;
-    u8 lvl = p->hits > 2 ? 2 : p->hits;
-    u8 anim = p->phase == PD_CRASH ? POPDROP_ANIM_CRASH : p->stun ? POPDROP_ANIM_BONK : (p->prev_in & (IN_LEFT | IN_RIGHT)) ? (u8)(POPDROP_ANIM_LEAN0 + lvl) : (u8)(POPDROP_ANIM_FALL0 + lvl);
-    int bx = (int)(g->hero[0].x >> 16) - 16;
-    pd_piece(PD_BIRD_SLOT, pd_frame(anim, (u16)(g->frame >> 3)), bx, PD_BIRD_Y + p->hop - 16, p->flip, 0);
-    if (p->shield) pd_piece(PD_SHIELD_SLOT, pd_frame(POPDROP_ANIM_SHIELD, (u16)(g->frame >> 4)), bx, PD_BIRD_Y + p->hop - 16, 0, 2);
-    else if (p->pop_t) pd_piece(PD_SHIELD_SLOT, pd_frame(POPDROP_ANIM_POP, (u16)(p->pop_t >> 3)), bx, PD_BIRD_Y + p->hop - 16, 0, 2);
-    /* The burst gum skin (draft 2026-11-18 freefall): four flutter frames on the upper beak, 11 px into the 24 px art (pad 4) and
-     * 12 px above it; the limp frame lies past the splat's right edge. Mirrored with the bird; hidden inside an intact shield. */
-    if (p->phase == PD_CRASH)
-        pd_piece(PD_RAG_SLOT, pd_frame(POPDROP_ANIM_RAG, 4), p->flip ? bx - 15 : bx + 31, PD_BIRD_Y + p->hop - 16, p->flip, 0);
-    else if (!p->shield)
-        pd_piece(PD_RAG_SLOT, pd_frame(POPDROP_ANIM_RAG, (u16)((g->frame >> 2) & 3)), p->flip ? bx + 1 : bx + 15, PD_BIRD_Y + p->hop - 28, p->flip, 0);
+    pop_show_bird(g, 0, PD_BIRD_SLOT, PD_SHIELD_SLOT, PD_RAG_SLOT, POPDROP_PAL_SLOT);
+    if (p->seq.players > 1) pop_show_bird(g, 1, PD_BIRD2_SLOT, PD_SHIELD2_SLOT, PD_RAG2_SLOT, SOOT_P2_PAL_SLOT);   /* fall0 = the Sootling player palette: P2 reuses its P2 swap */
 }
 
 /* Bubble Gather on the fix layer: caught of 20 and seconds left; hidden while the result screen covers the fix layer. */
@@ -2828,6 +2841,8 @@ static void video_init(void) {
         for (u8 i = 0; i < 16; i++) gfx_pal((u16)((POPDROP_PAL_SLOT + p) * 16 + i), popdrop_palettes[p][i]);
     for (u8 p = 0; p < POPDROPSKY_PALETTE_COUNT; p++)
         for (u8 i = 0; i < 16; i++) gfx_pal((u16)((POPDROPSKY_PAL_SLOT + p) * 16 + i), popdropsky_palettes[p][i]);
+    /* shortcut: the Pop Drop ghost is the bird palette with the top bit of each channel set (pale placeholder), upgrade to a hand-picked ghost palette */
+    for (u8 i = 0; i < 16; i++) gfx_pal((u16)(POPDROP_GHOST_PAL_SLOT * 16 + i), i ? (u16)(popdrop_palettes[0][i] | 0x0888) : popdrop_palettes[0][i]);
     gum_load_palettes();
     splash_load_palettes();
     resfx_load_palettes();
