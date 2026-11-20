@@ -69,9 +69,10 @@ static void spawn(GgPop *p, const Flier *hero)
          * so a bird that does not steer is hit. Edge-on placement needs only |gap - bird| >= 16 + overlap, so the shift never has to exceed
          * the PD_STEER reach of the fall (2.5 px per frame): PD_TRAIL_SHIFT_MAX stays 48 and the width is not capped. No reachable shift: normal row. */
         uint32_t r = rng_range(&p->rng, 4);      /* bit 0: aimed row, bit 1: first sign, always drawn so the layout stays deterministic */
-        int bi = p->seq.players > 1 ? (int)rng_range(&p->rng, 2) : 0, reach = (PD_SPAWN_Y - y0) * 16 / p->spd * 5 / 2, s, d = 0, bx;
+        int bi = p->seq.players > 1 ? (int)rng_range(&p->rng, 2) : 0, reach = ((PD_SPAWN_Y - y0) * 16 / p->spd - 20) * 5 / 2, s, d = 0, bx;
         if (p->b[bi].crash) bi ^= 1;             /* aim at a live bird */
         bx = hero[bi].x >> 16;
+        if (reach < 0) reach = 0;                /* steering ramps at PD_STEER_ACC: a full reversal (-2.5 to +2.5 px/frame) takes 20 frames and nets 0 px, so only the frames after them count */
         if (reach > PD_TRAIL_SHIFT_MAX) reach = PD_TRAIL_SHIFT_MAX;
         for (s = 0; (r & 1) && s < 2 && !aim; s++) {
             int t = (r >> 1 ^ (uint32_t)s) & 1 ? reach : -reach;
