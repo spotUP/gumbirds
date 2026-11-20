@@ -26,6 +26,7 @@ static void start_game(Flow *f, uint32_t seed, int demo)
         game_set_mode(&f->game, f->mode);
         if (f->mode == GAME_MODE_PARTY) f->game.party_rule = f->party_rule;
         if (f->mode == GAME_MODE_PARTY && f->party_rule == PARTY_TOSS) game_gg_start_toss(&f->game);
+        if (f->mode == GAME_MODE_PARTY && f->party_rule == PARTY_TUG) game_gg_start_tug(&f->game);
         if (f->mode == GAME_MODE_GUM && f->gg_event == GG_BURST_RACE) game_gg_start_race(&f->game);
         if (f->mode == GAME_MODE_GUM && f->gg_event == GG_POP_DROP) game_gg_start_pop(&f->game);
         if (f->mode == GAME_MODE_GUM && f->gg_event == GG_FLAP_DASH) game_gg_start_dash(&f->game);
@@ -38,7 +39,7 @@ static void start_game(Flow *f, uint32_t seed, int demo)
     f->demo_in = 0;
     if (demo) ai_init(&f->demo_ai, &f->game.rng, DEMO_AI_RANK);
     attract_overlay_reset(&f->ov);
-    f->game.rounds = (uint8_t)(!demo && f->mode != GAME_MODE_TRIP && f->mode != GAME_MODE_GUM && !f->game.gg_toss); /* real arena games get the round end and round start phases */
+    f->game.rounds = (uint8_t)(!demo && f->mode != GAME_MODE_TRIP && f->mode != GAME_MODE_GUM && !f->game.gg_toss && !f->game.gg_tug); /* real arena games get the round end and round start phases */
     f->highlight = -1;
     f->new_row = -1;
     f->reset_flash = 0;
@@ -50,7 +51,7 @@ static void start_game(Flow *f, uint32_t seed, int demo)
  * any other mode starts at once. The demo runs as FLOW_PLAYING with howto set and no round phases. */
 static void start_title_game(Flow *f, uint32_t seed)
 {
-    if (f->mode != GAME_MODE_PARTY || f->party_rule == PARTY_TOSS) {   /* Toss Gum teaches itself in its HOLD phase: no demo */
+    if (f->mode != GAME_MODE_PARTY || f->party_rule == PARTY_TOSS || f->party_rule == PARTY_TUG) {   /* Toss Gum and Tug Gum have no how-to demo */
         start_game(f, seed, 0);
         f->gg_card = f->mode == GAME_MODE_GUM && flow_gg_card(f->gg_event);
         f->card_t = 0;
