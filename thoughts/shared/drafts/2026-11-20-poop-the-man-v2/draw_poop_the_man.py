@@ -1029,7 +1029,8 @@ def main():
         def thr(i):
             def fn(im, x, y):
                 draw_walker(im, x + OX, y + OY, tp, f["throw"][i], splat=2, bob=1 if i == 0 else 0)
-                put(im, x + OX + sh[0] + THROW[i][0], y + OY + sh[1] + THROW[i][1], SHOE[THROW[i][2]], ITEMS)
+                sy = RIG[tp]["top"] - 20 if i == 0 else sh[1] + THROW[i][1]     # frame 0: shoe above the head splat, not on it
+                put(im, x + OX + sh[0] + THROW[i][0], y + OY + sy, SHOE[THROW[i][2]], ITEMS)
             return fn
         cells = [D(c) for c in f["walk"]] + [D(c, splat=i, bob=HIT_BOB[i]) for i, c in enumerate(f["hit"])]
         cells += [D(c, splat=2, bob=i) for i, c in enumerate(f["fist"])] + [thr(i) for i in range(3)]
