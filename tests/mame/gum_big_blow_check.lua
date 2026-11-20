@@ -1,7 +1,7 @@
 -- Gum Games Big Blow check (make test-gum-big-blow): UniBIOS 4.0, one coin, Up to the GUM GAMES row (the list wraps up from ARENA), Start:
 --   G1. the game is PLAYING in GAME_MODE_GUM and the intro hands over to the blow phase;
 --   G2. alternating A and B presses (A and B reach the mash counter in this mode) grow the bubble: size rises and the fix-layer power bar
---       (row 26, columns 12..27) shows a filled first cell and an empty last cell;
+--       (gum tube, fix rows 25-26, columns 11..28, 32 steps) shows a filled first cell and an empty last cell and its tiles change with the size (>= 10 distinct looks);
 --   G3. the press loop holds the size near the top; when the clock ends the result shows: qualified, size >= 48, score 800 (stage 3 + mark),
 --       status and tickets lines lit on fix rows 7 and 9, and one ticket spent (2 left) as the next attempt's intro begins.
 -- Not covered here (host test_gumgames covers the logic): burst, attempts 2 and 3, the final game over and return to the title.
@@ -37,6 +37,16 @@ local function lit(row)
   for c = 0, 39 do if cell(c, row) ~= blank then n = n + 1 end end
   return n
 end
+local function fingerprint(c0, c1, r0, r1)   -- the fix tile codes of a rectangle as one string (meter tube / dial change detection)
+  local t = {}
+  for r = r0, r1 do for c = c0, c1 do t[#t + 1] = cell(c, r) end end
+  return table.concat(t, ",")
+end
+local tube_seen, tube_n = {}, 0   -- distinct tube fingerprints: the fill tile changes with the power
+local function tube_watch(row)
+  local f = fingerprint(11, 28, row, row + 1)
+  if not tube_seen[f] then tube_seen[f] = true; tube_n = tube_n + 1 end
+end
 local done = false
 local function finish(ok, msg)
   if done then return end
@@ -66,6 +76,7 @@ emu.register_frame_done(function()
     if n - t0 == 70 then st.shot() end
     local sz = b(O.size)
     if sz > grew then grew = sz end
+    tube_watch(25)
     if sz >= 8 and cell(12, 26) ~= cell(27, 26) then bar_ok = true end
     -- press A and B in turn every 4 frames while the bubble is below 54, none above (the leak brings it down again)
     local k = (n - t0) % 4
@@ -83,6 +94,7 @@ emu.register_frame_done(function()
       local score = mem:read_u32(flow_addr + O.score)
       if grew < 20 or not bar_ok then finish(false, string.format("bubble did not grow (max size %d) or bar not drawn (bar_ok %s)", grew, tostring(bar_ok))) return end
       if b(O.qual) ~= 1 or b(O.last) < 48 then finish(false, string.format("result qualified %d size %d, want 1 and >= 48", b(O.qual), b(O.last))) return end
+      if tube_n < 10 then finish(false, "power tube changed only " .. tube_n .. " times (fix rows 25-26, columns 11..28), want >= 10") return end
       if score ~= 800 then finish(false, "score " .. score .. ", want 800") return end
       if lit(7) < 8 or lit(9) < 8 then finish(false, string.format("result rows 7/9 lit %d/%d", lit(7), lit(9))) return end
       phase = "next"; t0 = n

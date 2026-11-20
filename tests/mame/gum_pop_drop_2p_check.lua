@@ -37,7 +37,10 @@ tap_vram = mem:install_write_tap(0x3c0000, 0x3c0007, "blowvram", function(offset
   elseif r == 2 then fix[vaddr] = data; vaddr = (vaddr + vmod) & 0xffff
   elseif r == 4 then vmod = data end
 end)
+local function cell(col, row) return (fix[0x7000 + col * 32 + row] or 0) & 0xfff end
+local function pips(c0) return cell(c0, 7), cell(c0 + 1, 7), cell(c0 + 2, 7) end   -- life pips, fix row 7: P1 columns 1..3, P2 36..38
 local function up_rows(slot) return (fix[0x8200 + slot] or 0) & 0x3f end
+local pip_heart, ghost_pips = 0, false
 local done = false
 local function finish(ok, msg)
   if done then return end
@@ -80,6 +83,7 @@ emu.register_frame_done(function()
     end
   elseif phase == "both" then
     measure()
+    for q = 0, 3 do mem:write_u8(flow_addr + O.plat + q * 8 + 6, 0) end   -- no random row may hit the idle birds before the pip check (3 of 4 rows are aimed)
     if b(O.phase) == K.fall and mem:read_u16(flow_addr + L[16]) > 90 then
       if b(O.crash0) ~= 0 or b(O.crash1) ~= 0 then finish(false, string.format("a bird crashed with no platform parked (crash %d/%d)", b(O.crash0), b(O.crash1))) return end
       both_n = both_n + 1
@@ -88,6 +92,9 @@ emu.register_frame_done(function()
       if (mem:read_u32(flow_addr + O.hx) >> 16) ~= (mem:read_u32(flow_addr + O.hx1) >> 16) then apart = apart + 1 end
       if both_n >= 60 then
         if p2_up < 60 or rag2_up < 30 or apart < 60 then finish(false, string.format("2P fall: P2 bird up %d, P2 rag up %d, birds apart %d of 60 frames", p2_up, rag2_up, apart)) return end
+        local h1, h2, h3 = pips(1); local g1, g2, g3 = pips(36)
+        if h1 == cell(0, 27) or h1 ~= h2 or h1 ~= h3 or g1 ~= h1 or g2 ~= h1 or g3 ~= h1 then finish(false, string.format("2P life pips with no hit: P1 %x %x %x, P2 %x %x %x, want six equal hearts", h1, h2, h3, g1, g2, g3)) return end
+        pip_heart = h1
         phase = "crash1"; t0 = n
       end
     elseif n - t0 > 600 then finish(false, "fall never started after the join") end
@@ -109,6 +116,16 @@ emu.register_frame_done(function()
     mem:write_u16(flow_addr + O.plat, (bx - 24) & 0xffff); mem:write_u16(flow_addr + O.plat + 2, 72)
     mem:write_u8(flow_addr + O.plat + 5, 1); mem:write_u8(flow_addr + O.plat + 6, 1); mem:write_u8(flow_addr + O.plat + 7, 0)
     if up_rows(P1_BIRD) > 0 then ghost_up = ghost_up + 1 end
+    if k == 40 then   -- P1 out of lives: its pips are blank, P2 keeps three
+      local h1, h2, h3 = pips(1); local g1, g2, g3 = pips(36); local bl = cell(0, 27)
+      local alive = 3 - b(O.hits1)   -- P2 may take a hit from the parked rock: its alive pips stay hearts, the pips past the one just lost are blank
+      local g = { g1, g2, g3 }
+      for q = 1, 3 do
+        if (q <= alive and g[q] ~= pip_heart) or (q > alive + 1 and g[q] ~= bl) then finish(false, string.format("ghost window P2 pip %d is %x with %d hits, heart %x blank %x", q, g[q], b(O.hits1), pip_heart, bl)) return end
+      end
+      if h1 ~= bl or h2 ~= bl or h3 ~= bl then finish(false, string.format("ghost window P1 pips %x %x %x, want blank %x", h1, h2, h3, bl)) return end
+      ghost_pips = true
+    end
     if k >= 60 then
       if ghost_up < 50 then finish(false, string.format("P1 ghost (slot %d) up %d of 60 frames", P1_BIRD, ghost_up)) return end
       if peak > SB_LIMIT then finish(false, string.format("sprites per line %d on line %d, limit %d", peak, peak_line, SB_LIMIT)) return end

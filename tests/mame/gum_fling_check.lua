@@ -1,6 +1,6 @@
 -- Gum Games Gum Fling check (make test-gum-fling): UniBIOS 4.0, one coin, Down to the GUM GAMES row, A opens the list, Down five times picks Gum Fling (last entry), Start:
 --   F1. the game is PLAYING in GAME_MODE_GUM with the fling running (gg_fling 1) and the HUD (fix row 7) lit;
---   F2. A mashed and held, then released: the mode stays GAME_MODE_GUM for the whole event (the grass field replaces the TRIP flip);
+--   F2. A and B mashed, the swinging angle stopped with A: the mode stays GAME_MODE_GUM for the whole event (the grass field replaces the TRIP flip);
 --   F3. three attempts end the event: GAME_OVER, distance > 0, score equals the best distance based points, record in slot 4 equals the best distance.
 -- Env: BRAWL_FLOW_ADDR (hex), BRAWL_BLOW_LAYOUT (gum_fling_probe.c output), BRAWL_RESULT.
 local flow_addr = tonumber(os.getenv("BRAWL_FLOW_ADDR"), 16)
@@ -34,6 +34,17 @@ local function lit(row)
   for c = 0, 39 do if cell(c, row) ~= blank then n = n + 1 end end
   return n
 end
+local function fingerprint(c0, c1, r0, r1)   -- the fix tile codes of a rectangle as one string (meter tube / dial change detection)
+  local t = {}
+  for r = r0, r1 do for c = c0, c1 do t[#t + 1] = cell(c, r) end end
+  return table.concat(t, ",")
+end
+local tube_seen, tube_n = {}, 0   -- distinct tube fingerprints: the fill tile changes with the power
+local function tube_watch(row)
+  local f = fingerprint(11, 28, row, row + 1)
+  if not tube_seen[f] then tube_seen[f] = true; tube_n = tube_n + 1 end
+end
+local dial_seen, dial_n = {}, 0   -- distinct dial looks: the needle tile changes with the angle
 local done = false
 local function finish(ok, msg)
   if done then return end
@@ -45,8 +56,8 @@ local function finish(ok, msg)
 end
 if not (coin and start1 and up and abtn and bbtn and cbtn and pick) then finish(false, "missing ports") end
 
--- per attempt: mash 40 frames, pause, hold B 51 frames (about 35 degrees), release, then wait for the flight and the landing
-local mode_prev_flight, last_fx = false, 0
+-- per attempt: mash A and B through the run-up, A once in the swinging aim, then the flight (frantic flap mash in attempt 2) and the landing
+local mode_prev_flight, last_fx, aim_t0 = false, 0, nil
 local cardn, maxlit, maxrow = 0, 0, -1
 local n, phase, t0, hud, trips, attempts, lastphase = 0, "boot", 0, false, 0, 0, -1
 emu.register_frame_done(function()
@@ -72,6 +83,11 @@ emu.register_frame_done(function()
     local mode, ph = b(O.mode), b(O.phase)
     if mode == K.trip then trips = trips + 1 end
     if lit(7) >= 8 then hud = true end
+    if ph == K.windup or ph == 1 then
+      tube_watch(25)
+      local d = fingerprint(7, 9, 24, 26)
+      if not dial_seen[d] then dial_seen[d] = true; dial_n = dial_n + 1 end
+    end
     for r = 0, 27 do if lit(r) > maxlit then maxlit = lit(r); maxrow = r end end
     if ph == K.windup and lastphase ~= K.windup then t0 = n + (attempts == 0 and 61 or 0); attempts = attempts + 1 end   -- GET SET freezes the first windup for 60 frames
     lastphase = ph
@@ -88,17 +104,28 @@ emu.register_frame_done(function()
     end
     local k = n - t0
     if mode == K.gum and ph == K.windup then
-      -- tap A (2 frames down, 2 up) for 40 frames, then hold B to start the needle and 50 more frames, release
-      abtn:set_value((k < 40 and k % 4 < 2) and 1 or 0)
-      bbtn:set_value((k >= 45 and k < 96) and 1 or 0); cbtn:set_value(0)
+      -- mash A and B alternately (2 frames down, 2 up) for the whole run-up
+      local j = k % 8
+      abtn:set_value(j < 2 and 1 or 0); bbtn:set_value((j >= 4 and j < 6) and 1 or 0); cbtn:set_value(0)
+      aim_t0 = nil
+    elseif mode == K.gum and ph == 1 then
+      -- the needle swings by itself; one frame of A after 20 frames stops it and launches
+      aim_t0 = aim_t0 or n
+      bbtn:set_value(0); cbtn:set_value(0); abtn:set_value((n - aim_t0 >= 20 and n - aim_t0 < 22) and 1 or 0)
+    elseif mode == K.gum and ph == 2 and attempts == 2 then
+      -- frantic flap mash in the flight of attempt 2 (an A or B press every 4 frames)
+      local j = n % 8
+      abtn:set_value(j == 0 and 1 or 0); bbtn:set_value(j == 4 and 1 or 0); cbtn:set_value(0)
     else
-      abtn:set_value(0); bbtn:set_value((mode == K.gum and ph == 1 and k < 96) and 1 or 0); cbtn:set_value(0)
+      abtn:set_value(0); bbtn:set_value(0); cbtn:set_value(0)
     end
     if n > 20000 then finish(false, string.format("never ended: mode %d phase %d attempts %d trips %d", mode, ph, attempts, trips)) end
   elseif phase == "check" then
     local dist, score, rec, best = mem:read_u32(flow_addr + O.dist), mem:read_u32(flow_addr + O.score), mem:read_u32(flow_addr + O.record), mem:read_u32(flow_addr + O.best)
     if not hud then finish(false, "HUD row never lit, max lit " .. maxlit .. " row " .. maxrow .. string.format(" cardn %d attempts %d trips %d n %d", cardn, attempts, trips, n)) return end
     if trips > 0 then finish(false, "mode entered TRIP " .. trips .. " frames") return end
+    if tube_n < 6 then finish(false, "power tube changed only " .. tube_n .. " times (fix rows 25-26), want >= 6") return end
+    if dial_n < 3 then finish(false, "angle dial changed only " .. dial_n .. " times (fix columns 7..9 rows 24-26), want >= 3") return end
     if attempts < 3 then finish(false, string.format("only %d attempts seen", attempts)) return end
     if best < 1 then finish(false, "best distance 0") return end
     if rec ~= best then finish(false, string.format("record %d, best distance %d", rec, best)) return end
