@@ -251,7 +251,7 @@ static const GgCard gg_cards[GG_PICK_COUNT] = {
             { { "PRESS A OR B", "FAST TO PUMP" }, { "EVERY NEW PRESS", "COUNTS ONCE" }, { "FIRST TO BURST", "WINS" } },
             { "HOLDING A BUTTON", "DOES NOT COUNT" } },
     [5] = { "FLING THE GUM AS FAR AS YOU CAN",
-            { { "MASH A", "FOR POWER" }, { "HOLD B", "TO AIM" }, { "LET GO", "TO FLING" } },
+            { { "MASH A+B", "FOR POWER" }, { "A LOCKS", "THE ANGLE" }, { "MASH TO", "FLAP" } },
             { "SAFE ANGLE: 15 TO 75 DEGREES", "TAKE TURNS: 3 THROWS EACH" } },
 };
 const GgCard *flow_gg_card(uint8_t event)
