@@ -41,7 +41,7 @@
 #define PD_TRAIL_CLEAR 16             /* px between the trail and a platform's hit box edge, room for the follower's lag */
 #define PD_SPAWN_Y 240                /* a platform enters below the 224 px screen */
 #define PD_PLAT_H 16
-#define PD_QUALIFY 200u               /* score that counts as qualified */
+#define PD_QUALIFY (PD_POOL_DEPTH + PD_FLOP_MAX / 2u)   /* qualified = reach the pool AND land a decent flop (half the max) or collect gums */
 #define PD_STAGE_SCORE 50u            /* score per gg_points stage */
 #define PD_BOUNCE_START (-14)         /* bird display offset right after a hit; it settles back in a few frames */
 #define PD_HOP_PX 12                  /* brake hop: the bird (and its hit box) jumps this many px up, then sinks back 1 px per frame */
@@ -51,14 +51,17 @@
 #define PD_HOP_PX_2P 20               /* 2P brake hop: only that bird lifts, the shared scroll is not slowed */
 #define PD_P2_GAP 48                  /* 2P: start gap between the birds, px */
 #define PD_PUSH_KICK 65536            /* bird-bird bump: each bird leaves at least 1 px per frame (16.16) */
-#define PD_POOL_DEPTH 300u            /* metres to the pool (about 16 s at the speed ramp; 45 s would be about 900) */
+#define PD_POOL_DEPTH 900u            /* metres to the pool (about 45 s at the speed ramp; owner 2026-11-20) */
 #define PD_POOL_CLEAR 32              /* px of free fall between the last platform's bottom and the pool surface */
 #define PD_POOL_FRAMES 180u           /* flop, splash and cards on screen before the result */
 #define PD_SPLASH_TICKS 3u            /* game frames per splash frame */
 #define PD_SPLASH_LEN(size) ((size) == 0 ? 16u : (size) == 1 ? 20u : 23u)   /* frames of the small / medium / big splash drafts */
 #define PD_SIZE_MEDIUM 56u            /* impact speed (1/16 px per frame) from which the splash is medium: with 3 hits worth 24 speed the 1P range is about 40..74 */
 #define PD_SIZE_BIG 70u
+/* Impact speed per bird: 1P the scroll already lost PD_SPEED_HIT_LOSS per hit; 2P the scroll is shared, so each bird loses it from its own hits.
+ * Table at full speed 112: 0 hits 112 big, 1 hit 88 big, 2 hits 64 medium; at start speed 40 every hit count is small. */
 #define PD_JUDGES 3
+#define PD_FLOP_MAX (PD_JUDGES * 10u * PD_FLOP_MULT)   /* 90 */
 #define PD_FLOP_MULT 3u               /* flop points per card point: 3 judges x 10 x 3 = 90 at most, depth + gums is about 340 */
 #define PD_FALLERS 2                  /* background gags live at once */
 #define PD_FALLER_EVERY 180u          /* next faller after this many frames plus up to PD_FALLER_EVERY more */
