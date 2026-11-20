@@ -8,6 +8,8 @@ VramQueue g_gfx_q; /* extern in gfx.h for the inline gfx_word dedupe test */
 static u16 g_last_us;
 volatile u16 g_gfx_flush_max;
 volatile u16 g_pal_words_frame_max; /* most palette words written in one flush (test sentinel) */
+volatile u16 g_gfx_defer_last; /* ops left in the queue after the last flush (test sentinel: >0 means the budget cut it) */
+volatile u16 g_gfx_flush_n;    /* flushes run since boot (test sentinel, lets a Lua sampler count each flush once) */
 volatile u16 g_gfx_backlog_max; /* most queue ops left over after a flush (test sentinel; init drains count too) */
 
 /* The mode register is written by the next gfx_flush, so like every LSPC write it lands inside vblank (tests/mame/
@@ -247,6 +249,8 @@ void gfx_flush(void) {
     q->count = count;
     u16 us = (u16)(GFX_FLUSH_BUDGET_US - left);
     g_last_us = us;
+    g_gfx_defer_last = count;
+    g_gfx_flush_n++;
     if (us > g_gfx_flush_max) g_gfx_flush_max = us;
     if (pal_words > g_pal_words_frame_max) g_pal_words_frame_max = pal_words;
     if (count > g_gfx_backlog_max) g_gfx_backlog_max = count;

@@ -29,6 +29,7 @@ end
 local coin, start1, up = field(":AUDIO_COIN", "Coin 1"), field(":edge:joy:START", "1 Player Start"), field(":edge:joy:JOY1", "P1 Up")
 local abtn, cbtn, pick = field(":edge:joy:JOY1", "P1 A"), field(":edge:joy:JOY1", "P1 C"), field(":edge:joy:JOY1", "P1 Down")
 local ss = dofile("tests/mame/start_seq.lua")(coin, start1, up)
+local fsamp = dofile("tests/mame/flush_sample.lua")(mem)
 local function b(o) return mem:read_u8(flow_addr + o) end
 local fix, vaddr, vmod = {}, 0, 1
 tap_vram = mem:install_write_tap(0x3c0000, 0x3c0007, "blowvram", function(offset, data, mask)
@@ -48,6 +49,7 @@ local function finish(ok, msg)
   if done then return end
   done = true
   local f = io.open(result, "w"); f:write((ok and "PASS " or "FAIL ") .. msg .. "\n"); f:close()
+  print(fsamp.report("popdrop")) f = io.open(result, "a"); f:write(fsamp.report("popdrop") .. "\n"); f:close()
   print("BRAWL_TEST " .. (ok and "PASS " or "FAIL ") .. msg)
   manager.machine:exit()
 end
@@ -81,6 +83,7 @@ emu.register_frame_done(function()
     if (n - t0) == 50 then snap = {}; for s = 1, 110 do snap[s] = fix[0x8200 + s] or 0 end end   -- arena planes before the run (menu behind the list)
     if ss.step(n, playing, 1) then phase = "pop"; t0 = n; pick:set_value(0) end
   elseif phase == "pop" then
+    fsamp.frame()
     if b(O.mode) ~= K.gum or b(O.pop) ~= 1 then finish(false, string.format("mode %d pop %d, want GAME_MODE_GUM %d and pop 1", b(O.mode), b(O.pop), K.gum)) return end
     if lit(7) >= 8 then hud = true end
     local cnt = line_count.count(fix, 1, 381)

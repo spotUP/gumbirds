@@ -1072,12 +1072,26 @@ test-gum-pop-drop: cart bios
 	@set -e; T=$$(mktemp -d $(BUILDDIR)/test-run.XXXXXX); \
 	BRAWL_FLOW_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flow"{print $$1}') \
 	BRAWL_LASTUS_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_last_us"{print $$1}') \
+	BRAWL_DEFER_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_gfx_defer_last"{print $$1}') \
+	BRAWL_FLUSHN_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_gfx_flush_n"{print $$1}') \
 	BRAWL_BLOW_LAYOUT="$$($(M68KGCC) $(NGCFLAGS) -Ibuild -std=c99 -S -o - tests/mame/gum_pop_drop_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
 	BRAWL_RESULT=$$T/result.txt \
 	SDL_VIDEODRIVER=dummy nice -n 19 $(MAME) -window -nomaximize -video none -sound none -nothrottle -seconds_to_run 300 -noautosave -skip_gameinfo -hash $(ROM) -rp "$(UNIBIOS_DIR);$(ROM)" -bios unibios40 -nvram_directory $$T -autoboot_script tests/mame/gum_pop_drop_check.lua neogeo -cart1 $(GAMEROM) > $$T/mame.log 2>&1 || true; \
 	if [ ! -f $$T/result.txt ]; then tail -n 15 $$T/mame.log; echo "[FAIL] no result from Pop Drop Lua script"; exit 1; fi; \
 	cat $$T/result.txt; \
 	if grep -q '^PASS' $$T/result.txt; then rm -rf $$T; echo "[OK] make test-gum-pop-drop passed"; else echo "[FAIL] make test-gum-pop-drop, log kept in $$T"; exit 1; fi
+
+# Arena flush saturation baseline (measurement only, tests/mame/flush_arena_baseline.lua): prints the FLUSH line for 1500 PLAYING frames of the default mode.
+test-flush-arena: cart bios
+	@set -e; T=$$(mktemp -d $(BUILDDIR)/test-run.XXXXXX); \
+	BRAWL_FLOW_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flow"{print $$1}') \
+	BRAWL_LASTUS_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_last_us"{print $$1}') \
+	BRAWL_DEFER_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_gfx_defer_last"{print $$1}') \
+	BRAWL_FLUSHN_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_gfx_flush_n"{print $$1}') \
+	BRAWL_BLOW_LAYOUT="$$($(M68KGCC) $(NGCFLAGS) -Ibuild -std=c99 -S -o - tests/mame/gum_pop_drop_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
+	BRAWL_RESULT=$$T/result.txt \
+	SDL_VIDEODRIVER=dummy nice -n 19 $(MAME) -window -nomaximize -video none -sound none -nothrottle -seconds_to_run 200 -noautosave -skip_gameinfo -hash $(ROM) -rp "$(UNIBIOS_DIR);$(ROM)" -bios unibios40 -nvram_directory $$T -autoboot_script tests/mame/flush_arena_baseline.lua neogeo -cart1 $(GAMEROM) > $$T/mame.log 2>&1 || true; \
+	if [ ! -f $$T/result.txt ]; then tail -n 15 $$T/mame.log; echo "[FAIL] no result"; exit 1; fi; cat $$T/result.txt
 
 # Gum Games Gum Fling (tests/mame/gum_fling_check.lua): UniBIOS, one coin, Up to the GUM GAMES row, Left once wraps to the event, Start: A/B mashed, C held and released;
 # the TRIP flight, the best distance, the score and the saved record are checked. `make test-gum-fling` alone.
