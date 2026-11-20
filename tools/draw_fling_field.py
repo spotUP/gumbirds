@@ -146,6 +146,46 @@ TURF_COL = {
 # hand-picked column order, 32 long, no column twice in a row; the game repeats it every 512 px (the run is 450 px + run-up)
 TURF_SEQ = "PRQSQPSRPQRSRPSQSRQPRSPQSQRPQSPR"
 
+# ---- Tug Gum worn chalk (owner pick, Take A of thoughts/shared/drafts/2026-11-20-tug-lines): the centre line and the two win marks are
+# turf columns with the chalk painted in (turf roles w h d u only), so the lines cost no sprites. Hand-pixeled 64-row grids. The draft's
+# marks straddled turf columns; they are nudged so each sits inside one 16 px column: centre line x 160..165, left win mark x 128..135
+# (draft 124..131, +4), right win mark x 184..191 (the left grid mirrored, draft 188..195, -4). Win lines are at x 128 / 192 (GTG_WIN_Q 128).
+TUG_CENTRE = [   # 6 wide, x 157..162
+    "......", "......", "..w...", ".dwwd.", ".wwhw.", ".whww.", ".wwwd.", ".dwwu.",
+    ".uwdu.", ".udwu.", "..uwu.", ".uwdu.", ".dwwu.", ".wwwd.", ".whww.", ".wwhw.",
+    ".dwww.", "..www.", "..dw..", "...wd.", ".d.wu.", ".uwdu.", ".udw..", ".uw.u.",
+    "..dwu.", ".uwwu.", ".uwdu.", ".dwwu.", ".uwwd.", ".wwwd.", ".whww.", ".wwhw.",
+    ".wwww.", ".dwhw.", ".wwwd.", ".whw..", ".ww.d.", ".dw.w.", "..wwu.", ".uwdu.",
+    ".udwu.", ".uwwu.", "..dwu.", ".u.wu.", ".uw.u.", ".uwdu.", ".dwwu.", ".uwwu.",
+    ".uwwd.", ".dwww.", ".wwhw.", ".whww.", ".wwww.", "dwwhw.", ".wwwwd", ".whww.",
+    ".wwwd.", ".dww..", "..wwd.", ".dwww.", ".wwhw.", ".wwwd.", ".dwwu.", ".uwdu.",
+]
+TUG_WIN = [      # 8 wide double line, x 124..131 (left); the right one is this grid mirrored
+    "........", "........", ".w...w..", ".wd..ww.", ".ww..hw.", ".hw..ww.", ".ww..wd.", ".wd..wu.",
+    ".du..du.", ".wu..wu.", ".du..wu.", ".wu..du.", ".wu..wu.", ".ww..wd.", ".hw..ww.", ".ww..hw.",
+    ".wd..ww.", ".w...ww.", "..d..wd.", ".w....w.", ".wu..d..", ".du..wu.", ".wu..du.", ".d...wu.",
+    "..u..wu.", ".wu..du.", ".wu..wu.", ".du..wu.", ".wu..wd.", ".ww..ww.", ".hw..wh.", ".ww..ww.",
+    ".wd..hw.", ".ww..ww.", ".hw..w...", ".ww...d.", ".wd..w...", ".ww..wd.", ".wu..ww.", ".du..wu.",
+    ".wu..du.", ".wu..wu.", ".d...wu.", "..u..du.", ".wu..wu.", ".du..w...", ".wu...u.", ".wu..du.",
+    ".wd..wu.", ".ww..wd.", ".wh..ww.", ".ww..hw.", ".hw..ww.", ".ww..wwd", "dww..hw.", ".wd..ww.",
+    ".ww..wd.", ".w...ww.", ".dw..w...", ".ww..wd.", ".hw..ww.", ".ww..hw.", ".wd..wu.", ".du..du.",
+]
+TUG_WIN = [r[:8] for r in TUG_WIN]
+TUG_COLS = (8, 10, 11)    # turf column (x / 16) of the left win mark, the centre line, the right win mark
+TUG_SPEC = (("L", TUG_WIN, 0, False), ("C", TUG_CENTRE, 0, False), ("R", TUG_WIN, 8, True))   # name, grid, x offset in the column, mirrored
+
+
+def tug_col(base, rows, off, flip):
+    """Turf column `base` with the chalk grid laid over it: chalk only where the grid has a pixel."""
+    out = []
+    for r, g in zip(TURF_COL[base], rows):
+        g = g[::-1] if flip else g
+        out.append(''.join(g[i - off] if off <= i < off + len(g) and g[i - off] != '.' else c for i, c in enumerate(r.replace(' ', ''))))
+    return out
+
+
+TUG_COL = {n: tug_col(TURF_SEQ[j], rows, off, flip) for (n, rows, off, flip), j in zip(TUG_SPEC, TUG_COLS)}
+
 # ---- landing puff: 6 frames of 32 x 32 (4 tiles each, empty tiles not stored), turf palette; bottom row sits 3 px into the turf.
 # Dust: w lit top, u body, t only as sparse under-shade, no outline; edges and late frames broken by transparent dither.
 # Blades and crumbs follow hand-computed throws (per frame f: x = x0 + vx f, y = 28 - vy f + f f): B1 vx 3 vy 6, B2 vx -2 vy 5,

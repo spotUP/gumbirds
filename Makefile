@@ -261,6 +261,7 @@ $(BUILDDIR)/gen/popdropsky_sprites.o: $(BUILDDIR)/gen/popdropsky_sprites.c
 $(BUILDDIR)/gen/tugpose.c1 $(BUILDDIR)/gen/tugpose.c2 $(BUILDDIR)/gen/tugpose_sprites.c $(BUILDDIR)/gen/tugpose_sprites.h $(BUILDDIR)/gen/tugpose_tables.h &: assets/tug/tug_sheet.png assets/tug/tug_sheet.json tools/build_tugpose_sprites.py tools/sprite_pipeline.py
 	$(PYTHON) -I tools/build_tugpose_sprites.py --out $(BUILDDIR)/gen
 $(BUILDDIR)/gen/tugpose_sprites.o: $(BUILDDIR)/gen/tugpose_sprites.c
+	$(M68KGCC) $(NGCFLAGS) $(CFLAGS) -c $< -o $@
 # Poop the Man walkers, umbrellas, poop, splats, shoes, berry (assets/poop, cut by tools/import_poop_sheet.py), last in CROM_SETS.
 $(BUILDDIR)/gen/poop.c1 $(BUILDDIR)/gen/poop.c2 $(BUILDDIR)/gen/poop_sprites.c $(BUILDDIR)/gen/poop_sprites.h $(BUILDDIR)/gen/poop_tables.h &: assets/poop/poop_sheet.png assets/poop/poop_sheet.json tools/build_poop_sprites.py tools/sprite_pipeline.py
 	$(PYTHON) -I tools/build_poop_sprites.py --out $(BUILDDIR)/gen
