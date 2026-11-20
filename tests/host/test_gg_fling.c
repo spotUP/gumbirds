@@ -67,8 +67,8 @@ int main(void)
     gumfling_init(&f);
     for (i = 0; i < 20; i++) gumfling_step(&f, (uint8_t)((i & 1) ? 0 : IN_A));
     CHECK(f.phase == GF_WINDUP && f.power == 10);
-    for (i = 0; i < 40; i++) gumfling_step(&f, IN_A);
-    for (i = 0; i < 40; i++) gumfling_step(&f, IN_C);
+    for (i = 0; i < 4; i++) gumfling_step(&f, IN_A);   /* held: one edge only */
+    for (i = 0; i < 4; i++) gumfling_step(&f, IN_C);
     CHECK(f.phase == GF_WINDUP && f.power == 11);
     gumfling_step(&f, IN_B);
     CHECK(f.phase == GF_AIM);
@@ -138,6 +138,41 @@ int main(void)
         printf("best throw: full power %d px, half power %d px, mark %u px\n", best_full, best_half, (unsigned)GF_MARK_PX);
         CHECK(best_full >= 400 && best_full <= 470 && best_full >= (int)GF_MARK_PX);
         CHECK(best_half < (int)GF_MARK_PX);
+    }
+
+    /* flight time: full power at 45 degrees stays up about 137 frames (about 205 before the 1.5 times speed-up) */
+    {
+        int16_t px[4], py[4];
+        int frames = gumfling_path(GF_POWER_MAX, 64, px, py, 4);
+        printf("full power flight: %d frames\n", frames);
+        CHECK(frames >= 125 && frames <= 150);
+    }
+
+    /* power drain: one press lost per GF_POWER_DRAIN_FRAMES; mash at a steady rate for the run-up and see the bar */
+    {
+        int rates[] = { 5, 6, 7, 8, 10 }, r, t;
+        for (r = 0; r < 5; r++) {
+            int acc = 0, reached = -1;
+            gumfling_init(&f);
+            for (t = 0; t < (int)GF_WINDUP_FRAMES - 1; t++) {
+                int press = 0;
+                acc += 2 * rates[r];   /* two frames per loop */
+                if (acc >= 60) { acc -= 60; press = 1; }
+                gumfling_step(&f, press ? IN_A : 0);
+                gumfling_step(&f, 0);   /* release between presses: every press is an edge (frame pairs, so the rate is per 2 frames) */
+                t++;
+                if (reached < 0 && f.power >= GF_POWER_MAX) reached = t;
+            }
+            printf("mash %d per s: power %u of %u, full at frame %d\n", rates[r], f.power, GF_POWER_MAX, reached);
+            if (rates[r] == 5) CHECK(reached < 0 && f.power >= GF_POWER_MAX * 55 / 100 && f.power <= GF_POWER_MAX * 70 / 100);
+            if (rates[r] == 8) CHECK(reached > 0 && reached <= 330);
+        }
+        /* idle bar drains back to zero, never below */
+        gumfling_init(&f);
+        for (i = 0; i < 6; i++) { gumfling_step(&f, IN_A); gumfling_step(&f, 0); }
+        CHECK(f.power == 6);
+        for (i = 0; i < 6 * (int)GF_POWER_DRAIN_FRAMES + 10; i++) gumfling_step(&f, 0);
+        CHECK(f.power == 0);
     }
 
     /* flow: Left from Big Blow wraps to Gum Fling, Right from Gum Fling wraps to Big Blow; Start runs it */
