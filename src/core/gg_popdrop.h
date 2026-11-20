@@ -31,15 +31,19 @@
 #define PD_STEER_ACC 16384            /* 0.25 px per frame per frame */
 #define PD_STUN 30u                   /* 0.5 s without steering after a hit */
 #define PD_HITS_MAX 3u                /* the third hit is the crash */
-#define PD_SHIELD_EVERY 5u            /* 1 trail gum per gap: a shield about every 5 gaps followed */
+#define PD_SHIELD_EVERY 5u            /* 1 trail gum per gap: a shield every PD_SHIELD_EVERY gums = about every 10 gaps */
 #define PD_CRASH_FRAMES 90u
 #define PD_RESULT_FRAMES 150u
 #define PD_PLATS 4
 #define PD_GUMS 20                    /* trail gums live at once: 256 px of live y / 14.4 px spacing = 18 at most */
 #define PD_TRAIL_GUMS 1               /* gums per gap: one, at the new row's gap point (owner pick 2026-11-20: way too many gums) */
 #define PD_TRAIL_SHIFT_MAX 48         /* trail sideways move per gap, px (also capped at 1 px per frame of fall, 40 % of PD_STEER) */
+#define PD_AIM_SHARE 3                /* aimed rows per 4 (owner 2026-11-20: too easy; was 2 of 4) */
+#define PD_GUM_EVERY_GAPS 2           /* a gum on every second gap only (owner 2026-11-20: half the gums) */
+#define PD_WOBBLE_PERIOD 64u          /* gum sideways wobble: triangle, frames per cycle */
+#define PD_WOBBLE_PX 12               /* ... amplitude around the spawn x, px */
 #define PD_AIM_OVERLAP 4              /* aimed row: px the platform edge reaches into a bird's hit box (owner pick 2026-11-20: aim about half the rows) */
-#define PD_TRAIL_CLEAR 16             /* px between the trail and a platform's hit box edge, room for the follower's lag */
+#define PD_TRAIL_CLEAR (16 + PD_WOBBLE_PX)   /* px between the trail and a platform's hit box edge, room for the follower's lag plus the gum wobble */
 #define PD_SPAWN_Y 240                /* a platform enters below the 224 px screen */
 #define PD_PLAT_H 16
 #define PD_QUALIFY (PD_POOL_DEPTH + PD_FLOP_MAX / 2u)   /* qualified = reach the pool AND land a decent flop (half the max) or collect gums */
@@ -74,7 +78,7 @@ enum { PD_ROCK, PD_GIRDER, PD_PLANK };
 
 typedef struct { int16_t x, y; uint8_t kind, mids, live, hit; } PdPlat;   /* hit: bit k set once bird k hit it */   /* x = left edge in arena px, y = top in screen px */
 typedef struct { int16_t x, y; uint8_t kind, live; int8_t dx; } PdFaller;   /* gag, centre; dx = sideways drift: 1 px every 4 frames */
-typedef struct { int16_t x, y; uint8_t live; } PdGum;                      /* centre; trail gums, see spawn() */
+typedef struct { int16_t x, y, bx; uint8_t live, ph; } PdGum;              /* centre (x = bx + wobble); live 1 = gum, 2 = hidden trail waypoint; ph = wobble phase */
 
 typedef struct {                      /* one bird; 1P uses b[0] */
     uint8_t hits, stun, shield, flip, prev_in;   /* flip: bird faces left (1) or right (0); prev_in: last input (A edge, view lean) */
@@ -114,6 +118,7 @@ typedef struct {
     uint16_t depth;                   /* metres: dist / 128 */
     uint16_t spd;
     uint16_t last_score;              /* best score of the attempt just ended */
+    uint8_t gap_n;                    /* gaps spawned so far (a gum on every PD_GUM_EVERY_GAPS-th)  */
     int16_t trail_x;                  /* gap point of the newest row, arena px: the gum trail runs from here to the next row's */
 } GgPop;
 

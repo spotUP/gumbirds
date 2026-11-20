@@ -83,6 +83,7 @@ emu.register_frame_done(function()
     end
   elseif phase == "both" then
     measure()
+    for q = 0, 3 do mem:write_u8(flow_addr + O.plat + q * 8 + 6, 0) end   -- no random row may hit the idle birds before the pip check (3 of 4 rows are aimed)
     if b(O.phase) == K.fall and mem:read_u16(flow_addr + L[16]) > 90 then
       if b(O.crash0) ~= 0 or b(O.crash1) ~= 0 then finish(false, string.format("a bird crashed with no platform parked (crash %d/%d)", b(O.crash0), b(O.crash1))) return end
       both_n = both_n + 1
