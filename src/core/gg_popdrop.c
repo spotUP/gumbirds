@@ -24,6 +24,7 @@ void gp_init(GgPop *p, Flier *hero, uint32_t seed)
     bird_begin(&p->b[0]); bird_begin(&p->b[1]);
     p->phase = PD_FALL; p->brake_t = 0;
     p->timer = 0; p->dist = 0; p->depth = 0; p->spd = PD_SPEED_START;
+    p->trail_x = PD_BIRD_X >> 16;
     flier_init(hero, PD_BIRD_X, FL_PX(PD_BIRD_Y), 0, 0);
 }
 
@@ -37,26 +38,39 @@ void gp_add_p2(GgPop *p, Flier *hero, Flier *hero2)
     hero2->facing = 0; p->b[1].flip = 1;     /* the pair face each other */
 }
 
+static int16_t wrap_px(int x) { return (int16_t)(x < 0 ? x + ARENA_W : x >= ARENA_W ? x - ARENA_W : x); }   /* |x| off by < ARENA_W */
+
+/* A new platform row at PD_SPAWN_Y and the gum trail into it. The trail's new gap point is the last one moved sideways by at most
+ * 1 px per frame the bird takes to fall from the last row to this one (reachable at any speed), and the platform's centre is drawn
+ * anywhere on the ring that keeps its hit box PD_TRAIL_CLEAR px off the whole trail segment. */
 static void spawn(GgPop *p)
 {
-    int i, low = 0;
+    int i, j, low = 0, y0, m, sh, lo, hi, c, half;
+    PdPlat *q = 0;
     for (i = 0; i < PD_PLATS; i++) if (p->plat[i].live && p->plat[i].y > low) low = p->plat[i].y;
     if (low > PD_SPAWN_Y - 72) return;           /* the lowest platform has not cleared the gap yet */
-    for (i = 0; i < PD_PLATS; i++) {
-        PdPlat *q = &p->plat[i];
-        if (q->live) continue;
-        q->kind = (uint8_t)rng_range(&p->rng, 3);
-        q->mids = (uint8_t)(1 + rng_range(&p->rng, 3));
-        q->x = (int16_t)rng_range(&p->rng, ARENA_W);          /* the ring wraps, so any left edge is legal */
-        q->y = PD_SPAWN_Y; q->live = 1; q->hit = 0;
-        break;
-    }
-    for (i = 0; i < PD_GUMS; i++) {                /* a gum drifts up behind the platform, at its own x */
+    for (i = 0; i < PD_PLATS && !q; i++) if (!p->plat[i].live) q = &p->plat[i];
+    if (!q) return;
+    q->kind = (uint8_t)rng_range(&p->rng, 3);
+    q->mids = (uint8_t)(1 + rng_range(&p->rng, 3));
+    y0 = low > PD_BIRD_Y ? low : PD_BIRD_Y;      /* the last row (the bird itself on the first) */
+    m = (PD_SPAWN_Y - y0) * 16 / p->spd;         /* frames to fall to this row = px the trail may move */
+    if (m > PD_TRAIL_SHIFT_MAX) m = PD_TRAIL_SHIFT_MAX;
+    sh = (int)rng_range(&p->rng, (uint32_t)(2 * m + 1)) - m;
+    lo = sh < 0 ? p->trail_x + sh : p->trail_x; hi = sh < 0 ? p->trail_x : p->trail_x + sh;
+    half = plat_w(q) / 2;
+    c = half + PD_BIRD_HALF_W + PD_TRAIL_CLEAR;  /* centre distance that keeps the bird box clear */
+    c = hi + c + (int)rng_range(&p->rng, (uint32_t)(ARENA_W - 2 * c - (hi - lo) + 1));
+    q->x = wrap_px(wrap_px(c - half));           /* c - half < 2 * ARENA_W */
+    q->y = PD_SPAWN_Y; q->live = 1; q->hit = 0;
+    for (i = 0, j = 1; i < PD_GUMS && j <= PD_TRAIL_GUMS; i++) {
         PdGum *g = &p->gum[i];
         if (g->live) continue;
-        g->x = (int16_t)rng_range(&p->rng, ARENA_W); g->y = PD_SPAWN_Y + 44; g->live = 1;
-        break;
+        g->x = wrap_px(p->trail_x + sh * j / PD_TRAIL_GUMS);
+        g->y = (int16_t)(y0 + (PD_SPAWN_Y - y0) * j / PD_TRAIL_GUMS); g->live = 1;
+        j++;
     }
+    p->trail_x = wrap_px(p->trail_x + sh);
 }
 
 static int all_crashed(const GgPop *p) { return p->b[0].crash && (p->seq.players < 2 || p->b[1].crash); }

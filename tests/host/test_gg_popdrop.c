@@ -1,5 +1,5 @@
 /* test_gg_popdrop.c - Gum Games Pop Drop (free fall): speed ramp, steering and facing, platform hit (stun, gum lost, shield soak), crash on the third hit,
- * score = depth + gums, 2P simultaneous fall (push apart, ghost, hop without brake, end when both crashed), game and flow wiring. */
+ * score = depth + gums, gum trail (clear of every platform, a follower at full speed never hits), 2P simultaneous fall (push apart, ghost, hop without brake, end when both crashed), game and flow wiring. */
 #include <stdio.h>
 #include "gg_popdrop.h"
 #include "arena.h"
@@ -16,6 +16,35 @@ static void plat_on_bird(GgPop *p, const Flier *h)
     for (i = 0; i < PD_PLATS; i++) p->plat[i].live = 0;
     p->plat[0].kind = PD_ROCK; p->plat[0].mids = 1; p->plat[0].live = 1; p->plat[0].hit = 0;
     p->plat[0].x = (int16_t)((h->x >> 16) - 24); p->plat[0].y = PD_BIRD_Y;
+}
+
+/* Trail follower: steer toward the next uncaught trail gum at or below the bird. */
+static uint8_t follow(const GgPop *p, const Flier *h, int k)
+{
+    int i, best = -1, by = PD_BIRD_Y + p->b[k].hop, d;
+    for (i = 0; i < PD_GUMS; i++)
+        if (p->gum[i].live && p->gum[i].y >= by - 8 && (best < 0 || p->gum[i].y < p->gum[best].y)) best = i;
+    if (best < 0) return 0;
+    d = arena_dx(p->gum[best].x, h[k].x >> 16);
+    return (uint8_t)(d > 2 ? IN_RIGHT : d < -2 ? IN_LEFT : 0);
+}
+
+/* 1 when a bird box centred on any live gum would touch no live platform (the fall_step hit test). */
+static int trail_clear(const GgPop *p)
+{
+    int i, j;
+    for (i = 0; i < PD_GUMS; i++) {
+        const PdGum *g = &p->gum[i];
+        if (!g->live) continue;
+        for (j = 0; j < PD_PLATS; j++) {
+            const PdPlat *q = &p->plat[j];
+            int half = 8 * (2 + q->mids), d;
+            if (!q->live || q->y >= g->y + PD_BIRD_HALF_H || q->y + PD_PLAT_H <= g->y - PD_BIRD_HALF_H) continue;
+            d = arena_dx(g->x, q->x + half); if (d < 0) d = -d;
+            if (d < half + PD_BIRD_HALF_W) return 0;
+        }
+    }
+    return 1;
 }
 
 int main(void)
@@ -50,11 +79,38 @@ int main(void)
     /* every 10 gums raise a shield */
     gp_init(&p, h, 7);
     for (i = 0; i < (int)PD_SHIELD_EVERY; i++) {
+        { int k; for (k = 1; k < PD_GUMS; k++) p.gum[k].live = 0; }   /* only the placed gum: no trail gum in reach */
         p.gum[0].x = (int16_t)(h[0].x >> 16); p.gum[0].y = PD_BIRD_Y; p.gum[0].live = 1;
         { int k; for (k = 0; k < PD_PLATS; k++) p.plat[k].live = 0; }
         gp_step(&p, h, 0, 0);
     }
     CHECK(p.b[0].gums == (uint16_t)PD_SHIELD_EVERY && p.b[0].shield == 1 && p.b[0].shield_count == 0);
+
+    /* gum trail: 5 gums per gap, every gum clear of every platform, a follower never hits at full speed or on the ramp; each gum counts */
+    {
+        int seed, spawned = 0, live_max = 0, unclear = 0;
+        for (seed = 1; seed <= 24; seed++) {
+            gp_init(&p, h, (uint32_t)seed);
+            if (seed & 1) p.spd = PD_SPEED_MAX;
+            for (i = 0; i < 3000; i++) {
+                int k, live = 0;
+                gp_step(&p, h, follow(&p, h, 0), 0);
+                for (k = 0; k < PD_GUMS; k++) live += p.gum[k].live;
+                if (live > live_max) live_max = live;
+                if (!trail_clear(&p)) unclear++;
+            }
+            CHECK(p.b[0].hits == 0 && p.phase == PD_FALL);
+            CHECK(p.b[0].score == p.depth + p.b[0].gums && p.b[0].shield && p.b[0].shield_count == p.b[0].gums % PD_SHIELD_EVERY);
+            spawned += p.b[0].gums;
+            CHECK(p.b[0].gums * 10 > (p.depth * 8 / 72) * PD_TRAIL_GUMS * 9);   /* over 90 % of the trail caught (a row every 72+ px, depth = px / 8) */
+        }
+        CHECK(unclear == 0 && live_max <= PD_GUMS && spawned > 0);
+    }
+
+    /* 2P trail: both birds follow the one trail (bumping each other) and both collect */
+    gp_init(&p, h, 11); gp_add_p2(&p, &h[0], &h[1]);
+    for (i = 0; i < 1500; i++) gp_step(&p, h, follow(&p, h, 0), follow(&p, h, 1));
+    CHECK(p.b[0].gums > 20 && p.b[1].gums > 20);
 
     /* three hits crash; the attempt ends with the score, then the result, then done */
     gp_init(&p, h, 7);

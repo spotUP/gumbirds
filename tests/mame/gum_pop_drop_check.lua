@@ -6,7 +6,7 @@
 --   P5. sprites per line (shared counter, tests/mame/sprite_line_count.lua, every frame of the run with sky, clouds, platforms and birds) stay <= 96;
 --       flush time g_last_us (play, and the 14 frames after Pop Drop ends = the 8 restore frames) is printed and stays <= 1800 us (GFX_FLUSH_BUDGET_US);
 --   P6. after Pop Drop ends (attract), SCB3 words 1..110 equal the arena snapshot taken before the run: plane slots shown again, sky and cloud words gone.
---   P7. the burst gum skin (rag, slot 355 PD_RAG_SLOT in src/main.c) is on screen while the bird falls: SCB3 height 2 tiles (rag_seen);
+--   P7. the burst gum skin (rag, slot 349 PD_RAG_SLOT in src/main.c) is on screen while the bird falls: SCB3 height 2 tiles (rag_seen);
 --   P3. the run ends: the result shows, A leaves it, the flow reaches GAME_OVER, the record equals the fall score.
 -- Env: BRAWL_LASTUS_ADDR (hex, g_last_us), BRAWL_FLOW_ADDR (hex), BRAWL_BLOW_LAYOUT (gum_pop_drop_probe.c output), BRAWL_RESULT.
 local flow_addr = tonumber(os.getenv("BRAWL_FLOW_ADDR"), 16)
@@ -66,7 +66,7 @@ local function scb3_diff()
 end
 local CD_SLOT = 309 -- ARC_ELEM_SPRITE (src/sprite_slots.h)
 -- P7: count fall frames with the rag column up (owner report 2026-11-20: the broken gum never showed)
-local RAG_SLOT, rag_n = 355, 0 -- PD_RAG_SLOT (src/main.c)
+local RAG_SLOT, rag_n = 349, 0 -- PD_RAG_SLOT (src/main.c)
 local function rag_seen(falling)
   if falling and ((fix[0x8200 + RAG_SLOT] or 0) & 0x3f) == 2 then rag_n = rag_n + 1 end
 end
