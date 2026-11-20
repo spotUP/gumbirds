@@ -16,12 +16,12 @@
 #define GF_V0_BASE FL_PX(1)             /* launch speed with no run-up, 16.16 px per frame */
 #define GF_V0_PER_PRESS 4096            /* 1/16 px per frame per counted press: full power = 3 px per frame */
 #define GF_MAX_VX FL_PX(2)              /* CAM_MAX_STEP_PX: above this the view cannot keep up with the scroll */
-#define GF_GRAVITY 2000                 /* 16.16 px per frame squared */
-#define GF_MARK_PX 150u                 /* qualifying distance */
+#define GF_GRAVITY 1350                 /* 16.16 px per frame squared */
+#define GF_MARK_PX 270u                 /* qualifying distance */
 #define GF_SHOW_FRAMES 90u              /* touch-down held on screen before the next attempt */
 #define GF_FOUL_FRAMES 60u
 #define GF_RESULT_FRAMES 180u           /* winner / pass-fail line held before the event ends */
-#define GF_PX_PER_M 3u                  /* on-screen distance unit: pixels per metre (mark 150 px = 50 M) */
+#define GF_PX_PER_M 3u                  /* on-screen distance unit: pixels per metre (mark 270 px = 90 M) */
 
 /* Sound requests raised by the step (main.c plays them and clears the byte). */
 #define GF_SFX_TICK 0x01u               /* run-up clock: one per second */
