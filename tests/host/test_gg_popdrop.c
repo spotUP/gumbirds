@@ -59,7 +59,12 @@ int main(void)
     /* three hits crash; the attempt ends with the score, then the result, then done */
     gp_init(&p, h, 7);
     for (i = 0; i < 3; i++) { p.b[0].stun = 0; plat_on_bird(&p, h); gp_step(&p, h, 0, 0); }
-    CHECK(p.b[0].hits == 3 && p.phase == PD_CRASH);
+    CHECK(p.b[0].hits == 3 && p.phase == PD_CRASH && p.b[0].land == 0);
+    {   /* the crash pose lies on the hit island: the island scrolls on during the crash, depth and score stay frozen */
+        int16_t y0 = p.plat[0].y; uint16_t d0 = p.depth, s0 = p.b[0].score;
+        for (i = 0; i < 10; i++) gp_step(&p, h, 0, 0);
+        CHECK(p.phase == PD_CRASH && p.plat[0].y < y0 && p.depth == d0 && p.b[0].score == s0);
+    }
     { int ret = 0, n; for (n = 0; n < 400 && !ret; n++) ret = gp_step(&p, h, 0, 0);
       CHECK(ret == 1 && p.done && p.phase == PD_RESULT && p.seq.best[0] == p.last_score); }
 
@@ -105,11 +110,11 @@ int main(void)
     /* 2P end: one crash leaves the fall running; the game ends only when both crashed, each score recorded */
     gp_init(&p, h, 7); gp_add_p2(&p, &h[0], &h[1]);
     for (i = 0; i < 3; i++) { p.b[0].stun = 0; plat_on_bird(&p, &h[0]); gp_step(&p, h, 0, 0); }
-    CHECK(p.b[0].crash && !p.b[1].crash && p.phase == PD_FALL && !p.done);
+    CHECK(p.b[0].crash && p.b[0].land == -1 && !p.b[1].crash && p.phase == PD_FALL && !p.done);   /* the first crash is a ghost, not on an island */
     for (i = 0; i < 20; i++) gp_step(&p, h, 0, 0);
     CHECK(p.b[1].score > p.b[0].score);                                    /* the live bird keeps scoring, the ghost's score stays */
     for (i = 0; i < 3; i++) { p.b[1].stun = 0; plat_on_bird(&p, &h[1]); gp_step(&p, h, 0, 0); }
-    CHECK(p.b[1].crash && p.phase == PD_CRASH);
+    CHECK(p.b[1].crash && p.phase == PD_CRASH && p.b[1].land == 0 && p.b[0].land == -1);
     { int ret = 0, n; for (n = 0; n < 400 && !ret; n++) ret = gp_step(&p, h, 0, 0);
       CHECK(ret == 1 && p.done && p.phase == PD_RESULT && p.last_score == p.b[1].score && p.seq.best[0] == p.b[0].score && p.seq.best[1] == p.b[1].score); }
 
