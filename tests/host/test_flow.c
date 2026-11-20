@@ -609,7 +609,9 @@ static void test_mode_select(void)
     CHECK(r.f.sub_open && r.f.mode == GAME_MODE_PARTY && r.f.state == FLOW_ATTRACT_TITLE);
     rig_press(&r, IN_DOWN); CHECK(r.f.party_rule == PARTY_ROOST && r.f.mode == GAME_MODE_PARTY);
     rig_press(&r, IN_DOWN); CHECK(r.f.party_rule == PARTY_TOSS);
+    rig_press(&r, IN_DOWN); CHECK(r.f.party_rule == PARTY_TUG);
     rig_press(&r, IN_DOWN); CHECK(r.f.party_rule == PARTY_ROUND);
+    rig_press(&r, IN_UP); CHECK(r.f.party_rule == PARTY_TUG);
     rig_press(&r, IN_UP); CHECK(r.f.party_rule == PARTY_TOSS);
     rig_press(&r, IN_RIGHT); CHECK(r.f.party_rule == PARTY_TOSS && r.f.sub_open);
     {

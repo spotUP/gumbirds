@@ -36,6 +36,8 @@ const SpriteBudgetEntry SPRITE_BUDGET[] = {
     /* 24 columns, not the 21 visible at a camera offset: the LSPC picks sprites per line by Y only, so columns with X off screen still count. */
     /* island sprites sit 4 lines above the platform top and are 16 high (ISLAND_LINE_ROW): lines 68-4 .. 164+12. The bands of the 4 islands
        are disjoint, so one line meets one island at most; the widest island (112 px) has 7 columns. */
+    /* Tug Gum strand: 18 one-tile sprites on lines 186..201 inside the island slots (FLFIELD_MARKER_SPRITE, src/main.c tug_strand_step).
+       No entry of its own: the slots are the islands' and the field hides the islands. Measured by gmake test-party-tug. */
     { "islands",     ISLAND_SPRITE,       ISLAND_COUNT,        32, 176, 7, SB_ISLANDS },
     /* The player's gum bubble (full size in the arena, the gum meter in Gum Trip): 2 columns; the bird (and so the bubble) may be on any line. */
     { "gum bubble",  GUM_SPRITE,          GUM_COUNT,            0, 224, GUM_COUNT, SB_ALWAYS },
