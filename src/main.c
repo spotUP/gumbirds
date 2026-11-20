@@ -1899,7 +1899,13 @@ static void pop_show_bird(const Game *g, u8 i, u16 bird_slot, u16 shield_slot, u
     if (b->shield) pd_piece(shield_slot, pd_frame(POPDROP_ANIM_SHIELD, 0), bx + 8, top - 22, 0, POPDROP_PAL_SLOT + 2);
     else if (b->pop_t) pd_piece(shield_slot, pd_frame(POPDROP_ANIM_POP, (u16)((b->pop_t - 1) >> 2)), bx, top - 34, 0, POPDROP_PAL_SLOT + 2);
     /* Bump feather puff (hook in gg_popdrop push_apart): the six burst frames over bump_t 1..16, centred on the bird. */
-    if (b->bump_t) pd_piece(puff_slot, pd_frame(POPDROP_ANIM_PUFF, (u16)((b->bump_t - 1) * 6 / 16)), bx - 8, top - 8, 0, pal);
+    /* Island hit puff: view-only, a rising hits counter restarts the same 16-tick burst (a bump keeps the slot while it runs). */
+    static u8 s_hits[2], s_hit_t[2];
+    if (b->hits > s_hits[i]) s_hit_t[i] = 16;
+    else if (s_hit_t[i]) s_hit_t[i]--;
+    s_hits[i] = b->hits;
+    u8 puff_t = b->bump_t ? b->bump_t : s_hit_t[i];
+    if (puff_t) pd_piece(puff_slot, pd_frame(POPDROP_ANIM_PUFF, (u16)((puff_t - 1) * 6 / 16)), bx - 8, top - 8, 0, pal);
     /* The burst gum skin (draft 2026-11-18 freefall): four flutter frames on the upper beak, 11 px into the 24 px art (pad 4) and
      * 12 px above it; the limp frame lies past the splat's right edge. Mirrored with the bird; hidden inside an intact shield. */
     if (b->crash)
