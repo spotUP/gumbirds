@@ -69,7 +69,8 @@ int main(void)
         flow_coin(&f);
         flow_step(&f, IN_A, 0, 0); flow_step(&f, 0, 0, 0);
         left(&f);
-        CHECK(f.gg_event == GG_FLING);
+        CHECK(f.gg_event == GG_POOP_MAN);
+        left(&f); CHECK(f.gg_event == GG_FLING);
         left(&f); CHECK(f.gg_event == GG_FLAP_DASH);
         left(&f); CHECK(f.gg_event == GG_POP_DROP);
         left(&f); CHECK(f.gg_event == GG_BUBBLE_GATHER);
@@ -80,6 +81,7 @@ int main(void)
         right(&f); CHECK(f.gg_event == GG_POP_DROP);
         right(&f); CHECK(f.gg_event == GG_FLAP_DASH);
         right(&f); CHECK(f.gg_event == GG_FLING);
+        right(&f); CHECK(f.gg_event == GG_POOP_MAN);
         right(&f); CHECK(f.gg_event == GG_BIG_BLOW);
         right(&f); right(&f);
         CHECK(f.gg_event == GG_BUBBLE_GATHER);

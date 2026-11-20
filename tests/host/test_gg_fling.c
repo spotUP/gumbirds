@@ -208,7 +208,7 @@ int main(void)
         flow_coin(&fl);
         flow_step(&fl, IN_A, 0, 0); flow_step(&fl, 0, 0, 0); /* A opens the GUM GAMES list */
         flow_step(&fl, IN_UP, 0, 0); flow_step(&fl, 0, 0, 0);
-        CHECK(fl.gg_event == GG_FLING);
+        CHECK(fl.gg_event == GG_POOP_MAN);
         flow_step(&fl, IN_DOWN, 0, 0); flow_step(&fl, 0, 0, 0);
         CHECK(fl.gg_event == GG_BIG_BLOW);
         for (i = 0; i < 5; i++) { flow_step(&fl, IN_DOWN, 0, 0); flow_step(&fl, 0, 0, 0); }

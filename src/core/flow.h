@@ -116,7 +116,7 @@ void flow_init(Flow *f, const uint8_t *image, size_t len);
 void flow_step(Flow *f, uint8_t input, uint8_t start_pressed, uint32_t frame_counter);
 
 void flow_coin(Flow *f);
-#define GG_PICK_COUNT 6
+#define GG_PICK_COUNT 7
 uint8_t flow_gg_event(uint8_t i);      /* GG_* of GUM GAMES submenu line i (0..5) */
 const char *flow_gg_name(uint8_t i);   /* its on-screen name */
 /* Rules card shown before GET SET (layout A "banner and strip"): goal line, three control steps of two lines, two rule lines.

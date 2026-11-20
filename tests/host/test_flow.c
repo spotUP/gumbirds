@@ -628,14 +628,14 @@ static void test_mode_select(void)
     rig_press(&r, IN_RIGHT); CHECK(r.f.gg_event == GG_BIG_BLOW && !r.f.sub_open);
     rig_press(&r, IN_A); CHECK(r.f.sub_open);
     {
-        static const uint8_t want[6] = { GG_BURST_RACE, GG_BUBBLE_GATHER, GG_POP_DROP, GG_FLAP_DASH, GG_FLING, GG_BIG_BLOW };
+        static const uint8_t want[7] = { GG_BURST_RACE, GG_BUBBLE_GATHER, GG_POP_DROP, GG_FLAP_DASH, GG_FLING, GG_POOP_MAN, GG_BIG_BLOW };
         int i;
-        for (i = 0; i < 6; i++) { rig_press(&r, IN_DOWN); CHECK(r.f.gg_event == want[i] && r.f.mode == GAME_MODE_GUM); }
-        rig_press(&r, IN_UP); CHECK(r.f.gg_event == GG_FLING);
-        for (i = 0; i < 6; i++) CHECK(flow_gg_event((uint8_t)i) == (i < 3 ? i : i == 3 ? GG_POP_DROP : i == 4 ? GG_FLAP_DASH : GG_FLING));
+        for (i = 0; i < 7; i++) { rig_press(&r, IN_DOWN); CHECK(r.f.gg_event == want[i] && r.f.mode == GAME_MODE_GUM); }
+        rig_press(&r, IN_UP); CHECK(r.f.gg_event == GG_POOP_MAN);
+        for (i = 0; i < 7; i++) CHECK(flow_gg_event((uint8_t)i) == (i < 3 ? i : i == 3 ? GG_POP_DROP : i == 4 ? GG_FLAP_DASH : i == 5 ? GG_FLING : GG_POOP_MAN));
     }
     rig_press(&r, IN_B);
-    CHECK(!r.f.sub_open && r.f.mode == GAME_MODE_GUM && r.f.gg_event == GG_FLING);
+    CHECK(!r.f.sub_open && r.f.mode == GAME_MODE_GUM && r.f.gg_event == GG_POOP_MAN);
     rig_press(&r, IN_UP); CHECK(r.f.mode == GAME_MODE_PARTY && r.f.party_rule == PARTY_TOSS); /* Start below plays PARTY as before */
     /* Start plays PARTY as arena (P2 can join), tagged with the rule; game over scores into table 3 with the tag */
     rig_begin(&r, 0);

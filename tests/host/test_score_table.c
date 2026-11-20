@@ -84,7 +84,8 @@ int main(void)
         score_tables_defaults(&d);
         s2 = s;
         CHECK(score_load(&s2, img, SCORE_IMAGE_SIZE) == 0);
-        CHECK(memcmp(&s2, &d, sizeof d) == 0);
+        { uint8_t i1[SCORE_IMAGE_SIZE], i2[SCORE_IMAGE_SIZE]; /* compare images: struct padding is indeterminate */
+          CHECK(score_serialise(&s2, i1, sizeof i1) == SCORE_IMAGE_SIZE && score_serialise(&d, i2, sizeof i2) == SCORE_IMAGE_SIZE && memcmp(i1, i2, sizeof i1) == 0); }
         img[i] = save;
     }
     CHECK(score_load(&s2, img, SCORE_IMAGE_SIZE - 1) == 0);
@@ -147,12 +148,24 @@ int main(void)
 
     /* v5: Gum Games table and the six event records round trip */
     score_tables_defaults(&s);
-    CHECK(SCORE_GG_EVENTS == 6 && s.gg_record[0] == 0 && score_insert(&s, 4, "GGG", 40321) == 0);
-    s.gg_record[0] = 3; s.gg_record[5] = 777;
+    CHECK(SCORE_GG_EVENTS == 7 && s.gg_record[0] == 0 && score_insert(&s, 4, "GGG", 40321) == 0);
+    s.gg_record[0] = 3; s.gg_record[5] = 777; s.gg_record[6] = 4242;
     CHECK(sc(&s, 4, 0) == 40321 && sc(&s, 3, 0) != 40321);
     CHECK(score_serialise(&s, img, sizeof img) == SCORE_IMAGE_SIZE);
     CHECK(score_load(&s2, img, SCORE_IMAGE_SIZE) == 1 && memcmp(&s, &s2, sizeof s) == 0);
-    CHECK(s2.gg_record[0] == 3 && s2.gg_record[5] == 777 && sc(&s2, 4, 0) == 40321);
+    CHECK(s2.gg_record[0] == 3 && s2.gg_record[5] == 777 && sc(&s2, 4, 0) == 40321 && s2.gg_record[6] == 4242);
+
+    /* v5 image (644 bytes, six records): loads as 6, the seventh record stays 0 */
+    {
+        uint8_t v5[644];
+        unsigned k;
+        uint32_t h = 2166136261u;
+        for (k = 0; k < 640; k++) v5[k] = img[k];
+        v5[5] = 5;
+        for (k = 0; k < 640; k++) { h ^= v5[k]; h *= 16777619u; }
+        v5[640] = (uint8_t)(h >> 24); v5[641] = (uint8_t)(h >> 16); v5[642] = (uint8_t)(h >> 8); v5[643] = (uint8_t)h;
+        CHECK(score_load(&s2, v5, sizeof v5) == 6 && s2.gg_record[5] == 777 && s2.gg_record[6] == 0 && sc(&s2, 4, 0) == 40321);
+    }
 
     /* v4 image (500 bytes, four tables and tags): loads as 5, Gum Games at defaults */
     {

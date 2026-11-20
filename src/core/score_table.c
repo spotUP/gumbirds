@@ -183,7 +183,7 @@ size_t score_serialise(const ScoreTables *s, uint8_t *buf, size_t cap)
 }
 
 /* Read modes tables from p, then check them. The modes after them keep the defaults. */
-static int read_tables(ScoreTables *s, const uint8_t *p, unsigned modes)
+static int read_tables(ScoreTables *s, const uint8_t *p, unsigned modes, unsigned nrec)
 {
     unsigned m;
     int i;
@@ -200,7 +200,7 @@ static int read_tables(ScoreTables *s, const uint8_t *p, unsigned modes)
             p += HISCORE_ENTRIES;
         }
     }
-    if (modes == SCORE_MODES) for (i = 0; i < (int)SCORE_GG_EVENTS; i++, p += 4) s->gg_record[i] = get32(p);
+    if (modes == SCORE_MODES) for (i = 0; i < (int)nrec; i++, p += 4) s->gg_record[i] = get32(p);
     return score_tables_valid(s);
 }
 
@@ -212,22 +212,27 @@ int score_load(ScoreTables *s, const uint8_t *buf, size_t len)
     }
     if (ver == SCORE_VERSION && len >= SCORE_IMAGE_SIZE &&
         get32(buf + SCORE_IMAGE_SIZE - 4) == fnv1a(buf, SCORE_IMAGE_SIZE - 4)) {
-        if (read_tables(s, buf + 6, SCORE_MODES)) {
+        if (read_tables(s, buf + 6, SCORE_MODES, SCORE_GG_EVENTS)) {
             return 1;
+        }
+    } else if (ver == SCORE_VERSION_5 && len >= SCORE_IMAGE_SIZE_5 &&
+               get32(buf + SCORE_IMAGE_SIZE_5 - 4) == fnv1a(buf, SCORE_IMAGE_SIZE_5 - 4)) {
+        if (read_tables(s, buf + 6, SCORE_MODES, 6)) {   /* six records, the seventh stays 0 */
+            return 6;
         }
     } else if (ver == SCORE_VERSION_4 && len >= SCORE_IMAGE_SIZE_4 &&
                get32(buf + SCORE_IMAGE_SIZE_4 - 4) == fnv1a(buf, SCORE_IMAGE_SIZE_4 - 4)) {
-        if (read_tables(s, buf + 6, 4)) {
+        if (read_tables(s, buf + 6, 4, 0)) {
             return 5;
         }
     } else if (ver == SCORE_VERSION_3 && len >= SCORE_IMAGE_SIZE_3 &&
                get32(buf + SCORE_IMAGE_SIZE_3 - 4) == fnv1a(buf, SCORE_IMAGE_SIZE_3 - 4)) {
-        if (read_tables(s, buf + 6, 3)) {
+        if (read_tables(s, buf + 6, 3, 0)) {
             return 4;
         }
     } else if (ver == SCORE_VERSION_2 && len >= SCORE_IMAGE_SIZE_2 &&
                get32(buf + SCORE_IMAGE_SIZE_2 - 4) == fnv1a(buf, SCORE_IMAGE_SIZE_2 - 4)) {
-        if (read_tables(s, buf + 6, 2)) {
+        if (read_tables(s, buf + 6, 2, 0)) {
             return 3;
         }
     } else if (ver == HISCORE_VERSION) {
