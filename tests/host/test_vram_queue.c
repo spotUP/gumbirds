@@ -70,12 +70,23 @@ static u16 total_cost(void)
     return n;
 }
 
+/* Fix cells in the queued ops (adjacent changed rows share one VQ_RUN op), without popping. */
+static u16 fix_cells(void)
+{
+    u16 n = 0;
+    for (u16 k = 0; k < q.count; k++) {
+        const VqOp *op = &q.ops[(q.head + k) % VQ_CAP];
+        n = (u16)(n + (op->kind == VQ_RUN ? op->rows : 1));
+    }
+    return n;
+}
+
 /* Commit the fix layer, draining the queue whenever it fills; returns the number of cells written. */
 static int commit_all(void)
 {
     int n = 0;
-    while (!vq_fix_commit(&q)) { n += vq_pending(&q); (void)total_cost(); }
-    n += vq_pending(&q);
+    while (!vq_fix_commit(&q)) { n += fix_cells(); (void)total_cost(); }
+    n += fix_cells();
     (void)total_cost();
     return n;
 }
@@ -242,10 +253,10 @@ int main(void)
     {
         int frames = 0, total = 0;
         while (frames < 64) {
-            u16 before = vq_pending(&q);
+            u16 before = fix_cells();
             CHECK(vq_fix_commit_room(&q, 128, 200));
-            CHECK(vq_pending(&q) <= VQ_CAP - 200 || vq_pending(&q) == before);
-            total += vq_pending(&q) - before;
+            CHECK(vq_pending(&q) <= VQ_CAP - 200 || fix_cells() == before);
+            total += fix_cells() - before;
             (void)total_cost();
             frames++;
             if (vq_pending(&q) == 0 && total == VQ_FIX_COLS * VQ_FIX_ROWS) break;
@@ -257,7 +268,7 @@ int main(void)
     for (u16 i = 0; i < 190; i++) vq_pal(&q, i, i);
     CHECK(vq_fix_commit_room(&q, 128, 200) && vq_pending(&q) == 190); /* no room above the reserve */
     (void)total_cost();
-    CHECK(vq_fix_commit_room(&q, 128, 200) && vq_pending(&q) == 128);
+    CHECK(vq_fix_commit_room(&q, 128, 200) && fix_cells() == 128);
     (void)total_cost();
     (void)commit_all();
     /* font maps: plain, backed, tall (two rows), space and unknown are the blank tile 255 */

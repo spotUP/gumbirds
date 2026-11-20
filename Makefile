@@ -791,7 +791,7 @@ test-mood: cart
 	if grep -q '^PASS' $$T/result.txt; then rm -rf $$T; echo "[OK] make test-mood passed"; else echo "[FAIL] make test-mood, log kept in $$T"; exit 1; fi
 
 # Storm rain (tests/mame/rain_check.lua): no rain cells in a calm mood; in forced storm rain cells appear, the worst sprites per line stay at most 90
-# and the worst flush stays at most 1800 us (numbers printed). BRAWL_RAIN_SLOT is RAIN_PAL_SLOT (src/vram_layout.h; tests/host/test_rain.c pins it to 7).
+# and the worst flush stays at most 1800 us (numbers printed). BRAWL_RAIN_SLOT is RAIN_PAL_SLOT (src/vram_layout.h; tests/host/test_rain.c pins it to 12).
 # `make test-rain` alone runs it.
 test-rain: cart
 	@set -e; T=$$(mktemp -d $(BUILDDIR)/test-run.XXXXXX); \
@@ -804,7 +804,7 @@ test-rain: cart
 	BRAWL_FLUSHN_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_gfx_flush_n"{print $$1}') \
 	BRAWL_RE_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_round_end_s"{print $$1}') \
 	BRAWL_RAIN_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_rain"{print $$1}') \
-	BRAWL_RAIN_SLOT=7 \
+	BRAWL_RAIN_SLOT=12 \
 	BRAWL_FLIER_LAYOUT="$$($(M68KGCC) -std=c99 -S -o - tests/mame/flier_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
 	BRAWL_RESULT=$$T/result.txt \
 	SDL_VIDEODRIVER=dummy nice -n 19 $(MAME) -window -nomaximize -video none -sound none -nothrottle -seconds_to_run 300 -noautosave -skip_gameinfo -hash $(ROM) -rp $(ROM) -nvram_directory $$T -autoboot_script tests/mame/rain_check.lua neogeo -cart1 $(GAMEROM) > $$T/mame.log 2>&1 || true; \

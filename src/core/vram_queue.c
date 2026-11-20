@@ -239,28 +239,51 @@ void vq_fix_clear(VramQueue *q, u8 x, u8 y, u8 w, u8 h, u16 cell) {
 
 /* Walks only the dirty bits: the cost is per changed cell, not per touched column (a whole-column scan cost about
  * 3.6 raster lines per column at the end of the logic frame and pushed "cam moved" frames past line 224). */
+/* Close the open run: one changed cell goes out as a plain word op (18 us), more as one VQ_RUN read from fix_hw at
+ * flush time (22 + 4 us per word). A later change to a run cell writes its own op, so reading the shadow late is safe. */
+static void fix_run_close(VramQueue *q, VqOp *op) {
+    if (op->rows == 1) { op->kind = VQ_WORD; op->b = *op->tiles; op->cost = VQ_US_OP; }
+    q->count++;
+}
+
+/* Changed rows next to each other in a column (column-major: consecutive fix addresses) share one VQ_RUN op. Storm rain
+ * changes about 70 cells a frame in short vertical streaks; one op per cell cost about 63 lines of logic frame and
+ * pushed the commit past VQ_FIX_LINE_END (budget 0: no rain reached VRAM, make test-rain / test-vblank).
+ * The budget still counts cells, so the flush time bound is unchanged. */
 int vq_fix_commit_n(VramQueue *q, u16 budget) {
-    if (!q->fix_any) return 1; /* most frames change no fix cell: the empty 40 column walk cost about 6 lines */
+    if (!q->fix_any) return 1;
     for (u16 x = 0; x < VQ_FIX_COLS; x++) {
         uint32_t m = q->fix_dirty[x];
         if (!m) continue;
         u16 i = (u16)(x * VQ_FIX_ROWS), r = 0;
+        VqOp *op = 0;
         for (; m; m >>= 1, i++, r++) {
-            /* skip clean rows 8 at a time: a bit-per-row walk cost ~1.5 raster lines per column for one cell low on the screen (arc-fix) */
-            while (!(m & 0xFFu)) { m >>= 8; i = (u16)(i + 8); r = (u16)(r + 8); }
-            if (!(m & 1) || q->fix_want[i] == q->fix_hw[i]) continue;
-            VqOp op = { 0, (u16)(VQ_FIX_BASE + i), q->fix_want[i], 0, VQ_WORD, 0, VQ_US_OP, 0 };
-            if (!push(q, &op)) { q->fix_dirty[x] = m << r; return 0; } /* this row and the rest stay dirty */
+            if (!(m & 0xFFu)) {
+                if (op) { fix_run_close(q, op); op = 0; }
+                do { m >>= 8; i = (u16)(i + 8); r = (u16)(r + 8); } while (!(m & 0xFFu));
+            }
+            if (!(m & 1) || q->fix_want[i] == q->fix_hw[i]) {
+                if (op) { fix_run_close(q, op); op = 0; }
+                continue;
+            }
+            if (!op) {
+                if (!(op = tail_op(q))) { q->fix_dirty[x] = m << r; return 0; }
+                op->tiles = &q->fix_hw[i]; op->a = (u16)(VQ_FIX_BASE + i); op->b = 1; op->c = 0;
+                op->kind = VQ_RUN; op->rows = 0; op->cost = VQ_US_RUN; op->split = 0;
+            }
             q->fix_hw[i] = q->fix_want[i];
-            if (--budget == 0) { q->fix_dirty[x] = (m >> 1) << (r + 1); return 1; } /* the next commit resumes after row r */
+            op->rows++;
+            op->cost = (u16)(op->cost + VQ_US_RUN_WORD);
+            if (--budget == 0) { fix_run_close(q, op); q->fix_dirty[x] = (m >> 1) << (r + 1); return 1; }
         }
+        if (op) fix_run_close(q, op);
         q->fix_dirty[x] = 0;
     }
-    q->fix_any = 0; /* the cut and queue-full returns above leave bits, and the flag, set */
+    q->fix_any = 0;
     return 1;
 }
 
-/* shortcut: counts ops, not VRAM words; the reserve is tuned in ops (gfx.c) */
+/* shortcut: counts ops, not VRAM words; the reserve is tuned in ops (gfx.c). Cells per commit <= ops, so room holds. */
 int vq_fix_commit_room(VramQueue *q, u16 max, u16 reserve) {
     u16 pend = vq_pending(q);
     if (pend + reserve >= VQ_CAP) return 1; /* no room above the reserve: the columns stay dirty for the next frame */

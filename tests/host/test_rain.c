@@ -19,7 +19,7 @@ static int rain_cells(void) {
 
 int main(void) {
     /* palette slot: below 16 (4-bit fix palette), not the font's 0..4, not the attract slot 5, and the sprite chain moved up by one */
-    CHECK(RAIN_PAL_SLOT == 7, "rain slot 7 (the test-rain target passes it to the Lua check)");
+    CHECK(RAIN_PAL_SLOT == 12, "rain slot 12 (the test-rain target passes it to the Lua check)");
     CHECK(RAIN_PAL_SLOT < 16, "rain slot below 16");
     CHECK(RAIN_PAL_SLOT >= FIX_PAL_COUNT && RAIN_PAL_SLOT != ATTRACT_PAL_SLOT, "rain slot is its own");
     CHECK(OBS_PAL_SLOT == RAIN_PAL_SLOT + 1 && RAIN_PAL_SLOT == PROMPT_PAL_SLOT + 1, "rain slot follows the prompt slot, obstacle palettes follow rain");

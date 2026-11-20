@@ -113,7 +113,7 @@ _Static_assert((POPDROPSKY_TILE_BASE & 7) == 0, "pop drop sky tile base is not 8
 _Static_assert(ATTRACT_PAL_SLOT < 16, "fix layer palettes are 4 bits: the overlay palette must be slot 0..15");
 #define PROMPT_PAL_SLOT (FIX_PAL_COUNT + 1) /* input prompt caps (build/gen/inputprompt_tiles.h), written once at boot: the attract slot holds the meter palette during events, so prompts need their own */
 _Static_assert(PROMPT_PAL_SLOT < 16, "fix layer palettes are 4 bits: the prompt palette must be slot 0..15");
-#define RAIN_PAL_SLOT (PROMPT_PAL_SLOT + 1) /* storm rain fix tiles (build/gen/rain_tiles.h): 5 entries, H B T F e. Slot 7 (after the prompt slot 6): not 0..4 (font), 5 (attract/meter), 6 (prompts) */
+#define RAIN_PAL_SLOT (PROMPT_PAL_SLOT + 1) /* storm rain fix tiles (build/gen/rain_tiles.h): 5 entries, H B T F e. Slot 12 (after the prompt slot 11): not 0..9 (font), 10 (attract/meter), 11 (prompts) */
 _Static_assert(RAIN_PAL_SLOT < 16, "fix layer palettes are 4 bits: the rain palette must be slot 0..15");
 #define OBS_PAL_SLOT (ATTRACT_PAL_SLOT + 3) /* after the overlay, prompt and rain slots */
 #define CITY_PAL_SLOT (OBS_PAL_SLOT + OBS_PALETTE_COUNT)
