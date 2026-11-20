@@ -140,7 +140,7 @@ _Static_assert(ATTRACT_PAL_SLOT < 16, "fix layer palettes are 4 bits: the overla
 #define TOSSPOSE_PAL_SLOT (FLFIELD_GEAR_PAL_SLOT + 1) /* Toss Gum poses, palette = seat: 0 player, 1 computer, 2 gold, 3 violet (tosspose_palettes[0], then tosspose_extra_palettes[0..2]) */
 #define SOOT_VIOLET_PAL_SLOT (TOSSPOSE_PAL_SLOT + 4) /* Toss Gum seat 3 standing body: tosspose_extra_palettes[3], the violet swap of the computer palette */
 #define STADIUM_PAL_SLOT (SOOT_VIOLET_PAL_SLOT + 1) /* ground-event stands: base palette, then the extra ones (mood x team x variant x near/far, structure, dusk light) */
-#define POPDROP_PAL_SLOT (STADIUM_PAL_SLOT + STADIUM_PALETTE_COUNT + STADIUM_EXTRA_PALETTE_COUNT) /* Pop Drop: bird (player), platforms, shield (gum) */
+#define POPDROP_PAL_SLOT (STADIUM_PAL_SLOT + STADIUM_PALETTE_COUNT + STADIUM_EXTRA_PALETTE_COUNT) /* Pop Drop: 0 bird (player), 1 platforms, 2 shield (gum), 3 ghost, 4 POOL (pool, tub, splashes), 5 GAG (armchair, snail, score cards) */
 #define POPDROPSKY_PAL_SLOT (POPDROP_PAL_SLOT + POPDROP_PALETTE_COUNT) /* Pop Drop sky: 0 sky blues, 1..3 far, mid, near clouds */
 _Static_assert(POPDROPSKY_PAL_SLOT + POPDROPSKY_PALETTE_COUNT <= 256, "palette slots exceed the 256 the hardware has");
 

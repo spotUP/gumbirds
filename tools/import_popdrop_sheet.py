@@ -19,7 +19,15 @@ FUN = f"{ROOT}/thoughts/shared/drafts/2026-11-20-popdrop-fun/draw_fun.py"  # bat
 fspec = importlib.util.spec_from_file_location("draw_fun", FUN)
 fu = importlib.util.module_from_spec(fspec); fspec.loader.exec_module(fu)
 
+B2 = f"{ROOT}/thoughts/shared/drafts/2026-11-20-popdrop-batch2/draw_batch2.py"  # batch 2: odd fallers, finish pool, flop poses, splashes, score cards
+bspec = importlib.util.spec_from_file_location("draw_batch2", B2)
+b2 = importlib.util.module_from_spec(bspec); bspec.loader.exec_module(b2)
+assert not b2.BAD, b2.BAD   # a ragged typed row in the draft
+
 B, P, G = d.BIRD, d.PLAT, d.GUM
+# The batch 2 POOL colours are 8 bit; the pipeline wants 5 bit expanded values (as tools/import_arcade_sheet.py snap5). GAG already is.
+POOL, GAG = ([tuple((round(v * 31 / 255) << 3) | (round(v * 31 / 255) >> 2) for v in c) for c in pal] for pal in (b2.POOL, b2.GAG))
+assert len(set(POOL)) == 15 and GAG == b2.GAG, "snapping merged two POOL colours or moved a GAG colour"
 # Half bald: lit skin e would be green on the computer / player 2 palettes, so the bare skin is remapped to the salmon slots
 # a, b, c (red to salmon in every bird palette) at import: e->c, c->b, b->a (owner pick 2026-11-20). Only the BALD base grid is
 # remapped; the stamped eyes, wings, beak and hair keep their own colours.
@@ -50,8 +58,26 @@ anims = {  # name -> list of PIL frames, in draw order
     "hang": [d.img(fu.hang(k), B) for k in (2, 3)],       # hanging under the bubble, eyes up
     "puff": [d.img(cell(48, 48, [(fu.burst(k), 2, 2)]), B) for k in range(6)],   # 44 x 44 burst, centred in the tile box
     "ghost": [d.img(fu.ghost(k, "a"), fu.SPIRIT) for k in range(3)],
+    # ---- batch 2 (draw_batch2.py). A sprite tile has one palette, so the draft's two-palette cells are cut into their layers:
+    # the bathtub is the bird head (bird palette) behind the tub layer (POOL); a crowd bird (bird palette) holds a card (GAG).
+    # Frames that are not whole tiles are padded by the pipeline (centred, bottom aligned; pad_left / pad_top in the frame table).
+    "surf": [d.img(g, POOL) for g in b2.SURF],         # pool surface, 4 ripple frames
+    "water": [d.img(b2.WATER, POOL), d.img([r.translate(b2.DEEPER) for r in b2.WATER], POOL)],   # body, deeper body
+    # pool edge 24 px at cell x 0: tile column 0 alone is the deck tile (the draft's r[:16] crop); H flip gives the right edge
+    "edge": [d.img(cell(32, len(g), [(g, 0, 0)]), POOL) for g in (b2.EDGE_TOP, b2.EDGE_LOW)],
+    "ladder": [d.img(b2.LADDER, POOL)],
+    # tub() front layer: duck, tub, foam, beads. The head (tubbird) goes behind it at cell (6, 2 + (0, 1, 1, 0)[k]), eyes shut on frames 1, 2
+    "tub": [d.img(b2.many(b2.blank(40, 40), [(b2.DUCK, 28, 15 + (0, 0, 1, 1)[k]), (b2.TUB, 2, 22), (b2.FOAM[k % 2], 2, 18)]
+                          + [(["6"], x, y) for x, y in b2.TUB_DROPS[k]]), POOL) for k in range(4)],
+    "tubbird": [d.img(g[6:24], B) for g in (t.base(0, 0), d.stamp(t.base(0, 0), fu.EYES_SHUT, 8, 12))],
+    **{f"splash_{z}": [d.img(b2.splash(z, k), POOL) for k in range(b2.SPL[z]["n"])] for z in "sml"},
+    "flop": [d.img(b2.flop(k), B) for k in ("belly", "cannon", "face")],
+    "fan": [d.img(b2.fan(k), B) for k in range(2)],       # crowd bird, shown in the computer / player 2 palette swaps
+    "chair": [d.img(b2.chair(k), GAG) for k in range(4)],
+    "snail": [d.img(b2.snail(k), GAG) for k in range(4)],
+    "card": [d.img(b2.card(n), GAG) for n in range(1, 11)],   # frame n - 1 = score n; fancell(): card at bird x - 5, y - 10
 }
-fixed = {"fall0": B, "plat": P, "shield": G, "ghost": fu.SPIRIT}  # the first user of each palette fixes its order; the rest share it by subset
+fixed = {"fall0": B, "plat": P, "shield": G, "ghost": fu.SPIRIT, "surf": POOL, "chair": GAG}  # the first user of each palette fixes its order; the rest share it by subset
 
 W = 400
 x = y = rowh = 0

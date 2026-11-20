@@ -1589,8 +1589,27 @@ static void put_number(char *out, u32 v, int width);
 /* GET SET / GO! (gg_countdown.h): the glyph frames of the word, centred, in the arcade stage element slots (no Gum Games event draws those).
  * word = GGCD_WORD_*; GGCD_WORD_NONE parks them. Tiles are rewritten only when the word changes. */
 #define COUNTDOWN_Y 72 /* top of the words, screen px */
-static u8 g_cd_word;
-static void countdown_step(u8 word) {
+#define COUNTDOWN_POP_STEP_FRAMES 3 /* frames per pop-in step (draft anim_A2_go: 50 ms) */
+static u8 g_cd_word, g_cd_cols, g_cd_step = 0xff;
+static u8 g_cd_rows[ARC_ELEM_COUNT];
+static int g_cd_x[ARC_ELEM_COUNT];
+/* Pop-in of the draft (draw_countdown_a2.py): sprite shrink in sixteenths and a y offset, both words; the last step holds. */
+static void countdown_place(u8 step) {
+    static const u8 shrink[] = {4, 8, 12, 16, 16, 16, 16, 16};
+    static const int8_t dy[] = {0, 0, 0, 0, -4, -2, 1, 0};
+    u8 s = shrink[step];
+    u16 s2[ARC_ELEM_COUNT], s3[ARC_ELEM_COUNT], s4[ARC_ELEM_COUNT];
+    for (u8 c = 0; c < g_cd_cols; c++) {
+        int hpx = g_cd_rows[c] * 16;
+        s2[c] = (u16)(((s - 1) << 8) | (s * 16 - 1));
+        s3[c] = gfx_scb3_word(g_cd_rows[c], COUNTDOWN_Y + (hpx - hpx * s / 16) / 2 + dy[step]);
+        s4[c] = gfx_scb4_word(160 + (g_cd_x[c] - 160) * s / 16);
+    }
+    gfx_scb_run((u16)(ADDR_SCB2 + ARC_ELEM_SPRITE), 1, s2, g_cd_cols);
+    gfx_scb_run((u16)(ADDR_SCB3 + ARC_ELEM_SPRITE), 1, s3, g_cd_cols);
+    gfx_scb_run((u16)(ADDR_SCB4 + ARC_ELEM_SPRITE), 1, s4, g_cd_cols);
+}
+static void countdown_step(u8 word, u16 t) {
     static const u16 gx[] = COUNTDOWN_TABLE_GETSET_X, ox[] = COUNTDOWN_TABLE_GO_X;
     static const u16 gw[] = COUNTDOWN_TABLE_GETSET_W, ow[] = COUNTDOWN_TABLE_GO_W;
     if (word != g_cd_word) {
@@ -1599,23 +1618,27 @@ static void countdown_step(u8 word) {
             const u16 *xs = word == GGCD_WORD_GO ? ox : gx, *ws = word == GGCD_WORD_GO ? ow : gw;
             u8 n = countdown_anims[anim].frame_count, pal = word == GGCD_WORD_GO ? COUNTDOWN_HOT_PAL_SLOT : COUNTDOWN_PAL_SLOT;
             int left = (320 - (xs[n - 1] + ws[n - 1])) / 2, col = 0;
-            u16 s3[COUNTDOWN_MAX_COLUMNS * 6], s4[COUNTDOWN_MAX_COLUMNS * 6];
             for (u8 k = 0; k < n; k++) {
                 const CountdownFrame *f = &countdown_frames[countdown_anims[anim].first_frame + k];
                 for (u8 c = 0; c < f->tiles_w; c++, col++) {
                     gfx_sprite_strips((u16)(ARC_ELEM_SPRITE + col), 1, f->tiles_h, &countdown_tile_index[f->tile_offset + c * f->tiles_h], COUNTDOWN_TILE_BASE, (u16)(pal << 8));
-                    s3[col] = gfx_scb3_word(f->tiles_h, COUNTDOWN_Y);
-                    s4[col] = gfx_scb4_word(left + xs[k] + c * 16);
+                    g_cd_rows[col] = f->tiles_h;
+                    g_cd_x[col] = left + xs[k] + c * 16;
                 }
             }
-            gfx_sprite_unchained(ARC_ELEM_SPRITE, (u8)col); /* every glyph column has its own x */
-            gfx_scb_run((u16)(ADDR_SCB3 + ARC_ELEM_SPRITE), 1, s3, (u8)col);
-            gfx_scb_run((u16)(ADDR_SCB4 + ARC_ELEM_SPRITE), 1, s4, (u8)col);
+            g_cd_cols = (u8)col;
+            gfx_sprite_unchained(ARC_ELEM_SPRITE, g_cd_cols); /* every glyph column has its own x */
             for (int c = col; c < ARC_ELEM_COUNT; c++) obs_hide_slot((u16)(ARC_ELEM_SPRITE + c));
         } else {
             for (int c = 0; c < ARC_ELEM_COUNT; c++) obs_hide_slot((u16)(ARC_ELEM_SPRITE + c));
         }
         g_cd_word = word;
+        g_cd_step = 0xff;
+    }
+    if (word) {
+        u16 tw = word == GGCD_WORD_GO ? t - GGCD_SET_FRAMES - 1 : t - 1;
+        u8 step = tw / COUNTDOWN_POP_STEP_FRAMES > 7 ? 7 : (u8)(tw / COUNTDOWN_POP_STEP_FRAMES);
+        if (step != g_cd_step) { countdown_place(step); g_cd_step = step; }
     }
 }
 
@@ -1800,7 +1823,32 @@ static void draw_flap_dash(const GgDash *d) {
 }
 
 /* Pop Drop on the fix layer: depth and gums; rewritten when either changes. */
+static u8 s_hits[2], s_hit_t[2]; /* view-only: last seen b->hits, and the 16-tick burst after a hit (pop_show_bird); the life pips flash on it */
+#define PD_PIP_COL0 1   /* player 1 pips: columns 1..3 left of the DEPTH line (cols 5..34), player 2: columns 36..38 */
+#define PD_PIP_COL1 36
+static u16 g_pd_pips = 0xFFFF; /* what the pips show: per bird hits (2 bits) and flash blink (2 bits); redrawn only on change */
+
+/* Life pips on the fix layer: PD_HITS_MAX hearts a bird, one goes out (white blink, then blank) per hit; a shield soak is no hit. */
+static void draw_pd_pips(const GgPop *p) {
+    u8 n = p->seq.players > 1 ? 2 : 1;
+    u16 st = 0;
+    for (u8 i = 0; i < n; i++) st |= (u16)((p->b[i].hits & 3) | (s_hit_t[i] ? 4 + ((s_hit_t[i] >> 2) & 1) : 0) << 2) << (i * 8);
+    if (st == g_pd_pips) return;
+    g_pd_pips = st;
+    for (u8 i = 0; i < n; i++) {
+        u8 hits = p->b[i].hits;
+        for (u8 k = 0; k < PD_HITS_MAX; k++) {
+            u8 col = (u8)((i ? PD_PIP_COL1 : PD_PIP_COL0) + k);
+            if (k < PD_HITS_MAX - hits) gfx_fix_tile(col, BLOW_TEXT_ROW + 2, FIXFONT_PAL_PINK, FIXFONT_ICON_HEART);
+            else if (k == PD_HITS_MAX - hits && s_hit_t[i] && ((s_hit_t[i] >> 2) & 1)) gfx_fix_tile(col, BLOW_TEXT_ROW + 2, PAL_TEXT, FIXFONT_ICON_HEART);
+            else gfx_fix_tile(col, BLOW_TEXT_ROW + 2, 0, FIXFONT_BLANK);
+        }
+    }
+}
+
 static void draw_pop_drop(const GgPop *p) {
+    if (g_blow_key == 0xFFFFFFFFu) g_pd_pips = 0xFFFF; /* the fix layer was cleared */
+    draw_pd_pips(p);
     u32 key = (u32)p->depth | (u32)p->b[0].gums << 14 | (u32)p->phase << 24 | 1u << 28 | 1u << 29;
     if (key == g_blow_key) return;
     g_blow_key = key;
@@ -1838,12 +1886,26 @@ _Static_assert(PD_SPRITE_END <= 367, "Pop Drop slots overlap the Trip pickup slo
 /* The trail gums (2 columns each) take the arena island slots, as the Gum Fling field does: island_step is off in Pop Drop and
  * island_relayout reloads their tiles on leaving. They draw under the platforms and the birds. */
 #define PD_GUM_SLOT ISLAND_SPRITE
+/* Pool finish (batch 2) in the object pool range, which Pop Drop does not use: a higher slot draws in front. Order back to front: background
+ * gags, crowd fans with their cards, flop birds, pool (deck, edge, surface, water), ladder, splashes. */
+#define PD_BACK POOL_SPRITE_BASE
+#define PD_GAG_SLOT PD_BACK                     /* 2 fallers x 5 columns (bathtub: bird 2 + tub 3) */
+#define PD_FAN_SLOT (PD_GAG_SLOT + 10)          /* 2 birds x 3 judges x 3 columns (fan 2 + card 1) */
+#define PD_FLOP_SLOT (PD_FAN_SLOT + 18)         /* 2 birds x 2 columns */
+#define PD_POOLS_SLOT (PD_FLOP_SLOT + 4)        /* the full width: 20 columns of 14 tiles (deck 2, edge 2, water 12, edge 2, deck 2) */
+#define PD_LADDER_SLOT (PD_POOLS_SLOT + 20)
+#define PD_SPL_SLOT (PD_LADDER_SLOT + 1)        /* 2 birds x 6 columns */
+#define PD_BACK_N (PD_SPL_SLOT + 12 - PD_BACK)
+_Static_assert(PD_BACK + PD_BACK_N <= POOL_SPRITE_BASE + POOL_SPRITE_COUNT, "Pop Drop pool slots overflow the object pool range");
+#define PD_POOL_ROWS 14
 _Static_assert(PD_GUMS * 2 <= ISLAND_COUNT, "Pop Drop trail gums overrun the island slots");
-#define PD_SLOTS (PD_SPRITE_END - PD_SPRITE + PD_GUMS * 2)
+#define PD_SLOTS (PD_SPRITE_END - PD_SPRITE + PD_GUMS * 2 + PD_BACK_N)
 static u8 g_pd_on;
 static u8 g_pd_shown[PD_SLOTS], g_pd_new[PD_SLOTS]; /* pd_idx(slot): drawn last frame / this frame */
-static u8 pd_idx(u16 slot) { return (u8)(slot >= PD_SPRITE ? slot - PD_SPRITE : PD_SPRITE_END - PD_SPRITE + slot - PD_GUM_SLOT); }
-static u16 pd_slot(u8 k) { return (u16)(k < PD_SPRITE_END - PD_SPRITE ? PD_SPRITE + k : PD_GUM_SLOT + k - (PD_SPRITE_END - PD_SPRITE)); }
+#define PD_N1 (PD_SPRITE_END - PD_SPRITE)
+#define PD_N2 (PD_N1 + PD_GUMS * 2)
+static u8 pd_idx(u16 slot) { return (u8)(slot >= PD_SPRITE ? slot - PD_SPRITE : slot >= PD_BACK ? PD_N2 + slot - PD_BACK : PD_N1 + slot - PD_GUM_SLOT); }
+static u16 pd_slot(u8 k) { return (u16)(k < PD_N1 ? PD_SPRITE + k : k < PD_N2 ? PD_GUM_SLOT + k - PD_N1 : PD_BACK + k - PD_N2); }
 
 static const PopdropFrame *pd_frame(u8 anim, u16 n) {
     const PopdropAnim *a = &popdrop_anims[anim];
@@ -1863,6 +1925,7 @@ static void pd_piece(u16 slot, const PopdropFrame *f, int wx, int top, int flip,
 }
 
 static void pop_hide(void) {
+    pool_hide_all(); /* the pool range cache must forget what the pool finish drew */
     for (u8 k = 0; k < PD_SLOTS; k++) { obs_hide_slot(pd_slot(k)); g_pd_shown[k] = 0; }
 }
 
@@ -1906,13 +1969,78 @@ static void pop_show_bird(const Game *g, u8 i, u16 bird_slot, u16 shield_slot, u
     if (b->shield) pd_piece(shield_slot, pd_frame(POPDROP_ANIM_SHIELD, 0), bx + 8, top - 22, 0, POPDROP_PAL_SLOT + 2);
     else if (b->pop_t) pd_piece(shield_slot, pd_frame(POPDROP_ANIM_POP, (u16)((b->pop_t - 1) >> 2)), bx, top - 34, 0, POPDROP_PAL_SLOT + 2);
     /* Bump feather puff (hook in gg_popdrop push_apart): the six burst frames over bump_t 1..16, centred on the bird. */
-    if (b->bump_t) pd_piece(puff_slot, pd_frame(POPDROP_ANIM_PUFF, (u16)((b->bump_t - 1) * 6 / 16)), bx - 8, top - 8, 0, pal);
+    /* Island hit puff: view-only, a rising hits counter restarts the same 16-tick burst (a bump keeps the slot while it runs). */
+    if (b->hits > s_hits[i]) s_hit_t[i] = 16;
+    else if (s_hit_t[i]) s_hit_t[i]--;
+    s_hits[i] = b->hits;
+    u8 puff_t = b->bump_t ? b->bump_t : s_hit_t[i];
+    if (puff_t) pd_piece(puff_slot, pd_frame(POPDROP_ANIM_PUFF, (u16)((puff_t - 1) * 6 / 16)), bx - 8, top - 8, 0, pal);
     /* The burst gum skin (draft 2026-11-18 freefall): four flutter frames on the upper beak, 11 px into the 24 px art (pad 4) and
      * 12 px above it; the limp frame lies past the splat's right edge. Mirrored with the bird; hidden inside an intact shield. */
     if (b->crash)
         pd_piece(rag_slot, pd_frame(POPDROP_ANIM_RAG, 4), b->flip ? bx - 15 : bx + 31, top, b->flip, POPDROP_PAL_SLOT);
     else if (!b->shield)
         pd_piece(rag_slot, pd_frame(POPDROP_ANIM_RAG, (u16)((g->frame >> 2) & 3)), b->flip ? bx + 1 : bx + 15, top - 12, b->flip, POPDROP_PAL_SLOT);
+}
+
+/* Pool finish. Screen-space pool across the full width: deck 32 px, edge 32 px, water 192 px, edge, deck. pool_y = deck top; surface art at
+ * pool_y + 3, water from pool_y + 11, waterline pool_y + 6 (draft draw_batch2.py). Each column is one 14 tile strip (surface then water). */
+static void pd_scr(u16 slot, const PopdropFrame *f, int sx, int top, int flip, u16 pal) { pd_piece(slot, f, sx + g_cam_px, top, flip, pal); }
+
+static void pop_show_pool(const Game *g) {
+    int y = g->pop.pool_y;
+    static u16 col[PD_POOL_ROWS];
+    const PopdropFrame *surf = pd_frame(POPDROP_ANIM_SURF, (u16)(g->frame >> 3));
+    const PopdropFrame *w0 = pd_frame(POPDROP_ANIM_WATER, 0), *w1 = pd_frame(POPDROP_ANIM_WATER, 1);
+    const PopdropFrame *e0 = pd_frame(POPDROP_ANIM_EDGE, 0), *e1 = pd_frame(POPDROP_ANIM_EDGE, 1);
+    u16 pal = POPDROP_PAL_SLOT + 4;
+    for (u8 c = 0; c < 20; c++) {
+        u16 slot = (u16)(PD_POOLS_SLOT + c);
+        int water = c >= 4 && c < 16, flip = c >= 16;
+        u8 tc = water ? (u8)(c & 1) : (u8)(c == 3 || c == 16);   /* edge cell: tile column 0 is the deck tile, 1 the lip (the right edge is the flipped cell) */
+        col[0] = popdrop_tile_index[(water ? surf : e0)->tile_offset + tc];
+        for (u8 r = 1; r < PD_POOL_ROWS; r++) col[r] = popdrop_tile_index[(water ? (r > 1 ? w1 : w0) : e1)->tile_offset + tc];
+        gfx_sprite_strips(slot, 1, PD_POOL_ROWS, col, POPDROP_TILE_BASE, (u16)((pal << 8) | (flip ? 1 : 0)));
+        gfx_sprite_place(slot, 1, PD_POOL_ROWS, c * 16, water ? y - 5 : y);
+        g_pd_new[pd_idx(slot)] = 1;
+    }
+    pd_scr(PD_LADDER_SLOT, pd_frame(POPDROP_ANIM_LADDER, 0), 69, y - 7, 0, pal);
+}
+
+/* A bird that flopped: its pose half sunk (it sits in a slot behind the water), the splash by size, the judges' fans and cards. */
+static void pop_show_landed(const Game *g, u8 i, u16 bird_pal) {
+    const GgPop *p = &g->pop;
+    const PdBird *b = &p->b[i];
+    int cx = (int)(g->hero[i].x >> 16), y = p->pool_y;
+    static const u8 spl_cx[3] = { 16, 32, 48 }, spl_wl[3] = { 27, 42, 72 };
+    pd_piece((u16)(PD_FLOP_SLOT + i * 2), pd_frame(POPDROP_ANIM_FLOP, b->pose), cx - 16, y + 6 - 20, b->flip, bird_pal);
+    if (b->splash_f < PD_SPLASH_LEN(b->size) - 1)
+        pd_piece((u16)(PD_SPL_SLOT + i * 6), pd_frame((u8)(POPDROP_ANIM_SPLASH_S + b->size), b->splash_f), cx - spl_cx[b->size], y + 6 - spl_wl[b->size], 0, POPDROP_PAL_SLOT + 4);
+    u8 cards = p->phase == PD_RESULT || b->splash_f >= PD_SPLASH_LEN(b->size) - 1;
+    for (u8 j = 0; j < PD_JUDGES; j++) {
+        static const u8 fan_x[PD_JUDGES] = { 0, 24, 12 };
+        int right = i == 1, fx = right ? 288 - fan_x[j] : fan_x[j], top = y - 32;
+        u16 slot = (u16)(PD_FAN_SLOT + (i * PD_JUDGES + j) * 3);
+        pd_scr(slot, pd_frame(POPDROP_ANIM_FAN, (u16)((g->frame >> 4) + j)), fx, top, right, SOOT_P2_PAL_SLOT);
+        if (cards && b->card[j]) pd_scr((u16)(slot + 2), pd_frame(POPDROP_ANIM_CARD, (u16)(b->card[j] - 1)), right ? fx + 18 : fx - 2, top - 24, right, POPDROP_PAL_SLOT + 5);
+    }
+}
+
+/* Background gag fallers: the tub with its bird behind it, the tumbling armchair, the snail on its umbrella (centre x, y). */
+static void pop_show_gags(const Game *g) {
+    static const u8 dy[4] = { 0, 1, 1, 0 };
+    for (u8 k = 0; k < PD_FALLERS; k++) {
+        const PdFaller *fl = &g->pop.fall[k];
+        if (!fl->live) continue;
+        u16 slot = (u16)(PD_GAG_SLOT + k * 5), n = (u16)(g->frame >> 3), pal = POPDROP_PAL_SLOT + 5;
+        int x = fl->x, y = fl->y;
+        if (fl->kind == PD_FALLER_BATH) {
+            u8 m = (u8)(n & 3);
+            pd_piece(slot, pd_frame(POPDROP_ANIM_TUBBIRD, m == 1 || m == 2), x - 24 + 6, y - 24 - 4 + dy[m], 0, POPDROP_PAL_SLOT);
+            pd_piece((u16)(slot + 2), pd_frame(POPDROP_ANIM_TUB, m), x - 24, y - 24, 0, POPDROP_PAL_SLOT + 4);
+        } else if (fl->kind == PD_FALLER_ARMCHAIR) pd_piece(slot, pd_frame(POPDROP_ANIM_CHAIR, n), x - 16, y - 16, 0, pal);
+        else pd_piece(slot, pd_frame(POPDROP_ANIM_SNAIL, n), x - 24, y - 24, 0, pal);
+    }
 }
 
 static void pop_show_pieces(const Game *g) {
@@ -1930,7 +2058,10 @@ static void pop_show_pieces(const Game *g) {
     for (u8 k = 0; k < PD_GUMS; k++) {
         const PdGum *gm = &p->gum[k];
         if (!gm->live) continue;
-        int fr = (int)(((g->frame >> 2) + k) & (TRIPPICKUP_PICKUP_IDLE_FRAMES - 1));   /* phase per gum: the tile rewrites spread over the frames */
+        /* Phase per gum in the tick timing, not only in the frame shown: with (frame >> 2) + k every gum stepped on the same frame, up to
+         * 15 gums x 2 strips (about 1080 us) in one flush, which with both 2P birds hit GFX_FLUSH_BUDGET_US (make test-gum-pop-drop-2p).
+         * 5k is k mod 4 in the tick, so a quarter of the gums step per frame, and still about 1.25 k frames apart in the loop. */
+        int fr = (int)(((g->frame + (u32)k * 5u) >> 2) & (TRIPPICKUP_PICKUP_IDLE_FRAMES - 1));
         const TrippickupFrame *f = &trippickup_frames[trippickup_anims[TRIPPICKUP_ANIM_PICKUP_IDLE].first_frame + fr];
         int sx = camera_screen_x(gm->x - 16, g_cam_px, 32);
         if (!camera_visible(sx, 32)) continue;
@@ -1939,6 +2070,10 @@ static void pop_show_pieces(const Game *g) {
         gfx_sprite_place(sl, 2, 2, sx, gm->y - 16);
         g_pd_new[pd_idx(sl)] = 1; g_pd_new[pd_idx(sl) + 1] = 1;
     }
+    pop_show_gags(g);
+    if (p->pool_y < SCREEN_H + 8) pop_show_pool(g);
+    if (p->b[0].landed) pop_show_landed(g, 0, POPDROP_PAL_SLOT);
+    if (p->seq.players > 1 && p->b[1].landed) pop_show_landed(g, 1, SOOT_P2_PAL_SLOT);
     if (p->phase != PD_FALL && p->phase != PD_CRASH) return;
     pop_show_bird(g, 0, PD_BIRD_SLOT, PD_SHIELD_SLOT, PD_RAG_SLOT, PD_PUFF_SLOT, POPDROP_PAL_SLOT);
     if (p->seq.players > 1) pop_show_bird(g, 1, PD_BIRD2_SLOT, PD_SHIELD2_SLOT, PD_RAG2_SLOT, PD_PUFF2_SLOT, SOOT_P2_PAL_SLOT);   /* fall0 = the Sootling player palette: P2 reuses its P2 swap */
@@ -3149,7 +3284,7 @@ static void game_loop(void) {
             gum_step(0, arena || race || blow || (trip && game_trip_ready(view.game)), trip ? view.game->trip.gum : (race ? race_gum(view.game, 0) : blow ? blow_gum(view.game) : arena ? (uint16_t)(human_bubble_level(view.game, 0) * (GUM_MAX / GUM_VIEW_LEVELS)) : GUM_MAX), (trip || arena || race || blow) ? view.game->frame : 0, g_gum_pose[0].drawn, g_gum_pose[0].frame, g_gum_pose[0].flip, g_gum_pose[0].cx, g_gum_pose[0].top, world && human_leaks(view.game, 0));
             roost_marker_step(arena && view.state == FLOW_PLAYING ? view.game : 0);
             card_scene_step(view.state == FLOW_PLAYING && view.card, view.card_t);
-            countdown_step(view.state == FLOW_PLAYING && view.game ? ggcd_word(view.game->cd_t) : GGCD_WORD_NONE);
+            { u8 on = view.state == FLOW_PLAYING && view.game; countdown_step(on ? ggcd_word(view.game->cd_t) : GGCD_WORD_NONE, on ? view.game->cd_t : 0); }
             toss_bubble_step(view.state == FLOW_PLAYING ? view.game : 0);   /* Toss Gum is GAME_MODE_GUM, not arena: the function checks gg_toss itself */
             fling_arc_step(world && view.state == FLOW_PLAYING && !view.card ? view.game : 0);
             { u8 g1 = race || (arena && view.game->players == 2); /* inactive: gum_step ignores every other argument, so they are not computed */

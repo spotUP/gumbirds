@@ -3,7 +3,7 @@
 
 static void begin(GgFling *f)
 {
-    f->phase = GF_WINDUP; f->prev_in = 0; f->thrower = f->seq.turn; f->power = 0; f->deg = 0; f->foul = 0;
+    f->phase = GF_WINDUP; f->prev_in = 0; f->thrower = f->seq.turn; f->power = 0; f->drain_t = 0; f->deg = 0; f->foul = 0;
     f->clock = GF_WINDUP_FRAMES; f->t = 0;
     f->hold.charge = 0;
     f->vx = f->vy = f->h = 0; f->x = 0; f->dist = 0;
@@ -92,6 +92,7 @@ int gumfling_step(GgFling *f, uint8_t in)
     switch (f->phase) {
     case GF_WINDUP:
         if ((in & IN_A) && !(prev & IN_A) && f->power < GF_POWER_MAX) f->power++;
+        if (++f->drain_t >= GF_POWER_DRAIN_FRAMES) { f->drain_t = 0; if (f->power) f->power--; }
         if (in & IN_B) { f->phase = GF_AIM; f->hold.charge = 0; f->t = 0; }   /* B ends the run-up and starts the needle */
         else if (--f->clock == 0) { f->foul = 1; finish(f, 0); }
         else if (f->clock % 60 == 0) f->sfx |= GF_SFX_TICK;
