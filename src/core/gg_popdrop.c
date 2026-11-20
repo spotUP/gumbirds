@@ -195,6 +195,12 @@ static void spawn_faller(GgPop *p)
 }
 
 /* The feet touch the surface: every bird still alive flops and the world brakes (spd decays, the birds sink a few px). */
+static uint16_t bird_impact_spd(const GgPop *p, const PdBird *b)
+{
+    unsigned loss = p->seq.players < 2 ? 0u : b->hits * PD_SPEED_HIT_LOSS;
+    return (uint16_t)(p->spd > PD_SPEED_START + loss ? p->spd - loss : (p->spd < PD_SPEED_START ? p->spd : PD_SPEED_START));
+}
+
 static void pool_land(GgPop *p, int n)
 {
     int k, j;
@@ -203,7 +209,7 @@ static void pool_land(GgPop *p, int n)
         PdBird *b = &p->b[k];
         if (b->crash) continue;
         b->landed = 1; b->pose = b->pose_pick;
-        b->size = p->spd >= PD_SIZE_BIG ? PD_SPLASH_BIG : p->spd >= PD_SIZE_MEDIUM ? PD_SPLASH_MEDIUM : PD_SPLASH_SMALL;
+        { uint16_t v = bird_impact_spd(p, b); b->size = v >= PD_SIZE_BIG ? PD_SPLASH_BIG : v >= PD_SIZE_MEDIUM ? PD_SPLASH_MEDIUM : PD_SPLASH_SMALL; }
         b->flop = 0;
         for (j = 0; j < PD_JUDGES; j++) {
             int c = card_base[b->pose][b->size] + judge_off[j];

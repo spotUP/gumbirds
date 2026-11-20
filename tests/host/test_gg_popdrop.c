@@ -296,6 +296,19 @@ int main(void)
         for (n = 0; n < (int)PD_POOL_FRAMES + 2; n++) gp_step(&p, h2, 0, 0);
         CHECK(p.phase == PD_RESULT && p.seq.best[0] == p.b[0].score && p.seq.best[1] == p.b[1].score);
     }
+    /* 2P: splash size and flop score are per bird from its own hits; the shared scroll is untouched; qualify needs flop or gums */
+    {
+        Flier h2[2]; int n;
+        gp_init(&p, h2, 7); gp_add_p2(&p, &h2[0], &h2[1]);
+        p.dist = (uint32_t)(PD_POOL_DEPTH * 8u - 10) << 4; p.spd = PD_SPEED_MAX; p.b[1].hits = 2;
+        for (n = 0; n < 10 && p.phase == PD_FALL; n++) gp_step(&p, h2, 0, 0);
+        CHECK(p.phase == PD_POOL && p.b[0].size == PD_SPLASH_BIG && p.b[1].size == PD_SPLASH_MEDIUM && p.b[0].flop > p.b[1].flop && p.b[0].score > p.b[1].score);
+        gp_init(&p, h2, 7);   /* 1P: the same rule, via the scroll speed the hits already cut */
+        p.dist = (uint32_t)(PD_POOL_DEPTH * 8u - 10) << 4; p.spd = PD_SIZE_MEDIUM;
+        for (n = 0; n < 10 && p.phase == PD_FALL; n++) gp_step(&p, h2, 0, 0);
+        CHECK(p.b[0].size == PD_SPLASH_MEDIUM);
+        CHECK(PD_POOL_DEPTH == 900u && PD_QUALIFY == PD_POOL_DEPTH + 45u && PD_POOL_DEPTH < PD_QUALIFY);
+    }
     /* fallers: scheduled, deterministic, drift on, expire, and the platform layout is unchanged by them */
     {
         int n, seen = 0; PdFaller f0[PD_FALLERS]; GgPop q; Flier hq, hp;
