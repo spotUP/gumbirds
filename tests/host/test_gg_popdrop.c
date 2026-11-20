@@ -98,11 +98,12 @@ int main(void)
                 for (k = 0; k < PD_GUMS; k++) live += p.gum[k].live;
                 if (live > live_max) live_max = live;
                 if (!trail_clear(&p)) unclear++;
+                if (p.phase != PD_FALL) break;   /* the pool ends the fall at PD_POOL_DEPTH */
             }
-            CHECK(p.b[0].hits == 0 && p.phase == PD_FALL);
-            CHECK(p.b[0].score == p.depth + p.b[0].gums && p.b[0].shield && p.b[0].shield_count == p.b[0].gums % PD_SHIELD_EVERY);
+            CHECK(p.b[0].hits == 0 && p.phase == PD_POOL);
+            CHECK(p.b[0].score == p.depth + p.b[0].gums + p.b[0].flop && p.b[0].shield && p.b[0].shield_count == p.b[0].gums % PD_SHIELD_EVERY);
             spawned += p.b[0].gums;
-            CHECK(p.b[0].gums * 10 > (p.depth * 8 / 72) * PD_TRAIL_GUMS * 9);   /* over 90 % of the trail caught (a row every 72+ px, depth = px / 8) */
+            CHECK(p.b[0].gums * 10 > ((p.depth * 8 - 216) / 72) * PD_TRAIL_GUMS * 9);   /* over 90 % of the trail caught (a row every 72+ px, depth = px / 8; the last 216 px before the pool carry no rows) */
         }
         CHECK(unclear == 0 && live_max <= PD_GUMS && spawned > 0);
     }
@@ -224,6 +225,88 @@ int main(void)
         plat_on_bird(&p, h); p.plat[0].y = PD_BIRD_Y + 8;   /* a hit unhopped (y < 86), a miss hopped (y > 74) */
         gp_step(&p, h, IN_A, 0);
         CHECK(p.b[0].hits == 0);
+    }
+
+    /* pool: no platform spawns inside the approach, the fall ends at PD_POOL_DEPTH with a flop (pose from B / C / D, size from speed, cards, points) */
+    {
+        int n, lowest_y = 0, pool_seen = 0;
+        gp_init(&p, h, 7);
+        for (n = 0; n < 4000 && p.phase == PD_FALL; n++) {
+            int k;
+            gp_step(&p, h, 0, 0);
+            for (k = 0; k < PD_PLATS; k++) if (p.plat[k].live && p.plat[k].y + PD_PLAT_H + PD_POOL_CLEAR > p.pool_y && p.plat[k].y > lowest_y) lowest_y = p.plat[k].y;
+            for (k = 0; k < PD_PLATS; k++) p.plat[k].live = 0;   /* a hit-free run: the pool test needs no platform luck */
+            if (p.b[0].hits) break;
+        }
+        (void)pool_seen;
+        CHECK(p.phase == PD_POOL && p.depth == PD_POOL_DEPTH && p.b[0].landed && lowest_y == 0);
+        CHECK(p.b[0].pose == PD_POSE_BELLY && p.b[0].card[0] >= 1 && p.b[0].card[0] <= 10 && p.b[0].flop > 0);
+        CHECK(p.b[0].score == PD_POOL_DEPTH + p.b[0].gums + p.b[0].flop);
+        { uint16_t s = p.b[0].score; for (n = 0; n < (int)PD_POOL_FRAMES + 2; n++) gp_step(&p, h, 0, 0); CHECK(p.phase == PD_RESULT && p.b[0].score == s && p.seq.best[0] == s); }
+        /* every platform ever spawned stays clear of the surface (checked on the real spawner, platforms kept) */
+        gp_init(&p, h, 11);
+        lowest_y = 0;
+        for (n = 0; n < 4000 && p.phase == PD_FALL; n++) {
+            int k;
+            gp_step(&p, h, 0, 0);
+            for (k = 0; k < PD_PLATS; k++) if (p.plat[k].live && p.plat[k].y + PD_PLAT_H + PD_POOL_CLEAR > p.pool_y && p.plat[k].y < p.pool_y + 8) lowest_y = 1;
+            p.b[0].hits = 0; p.b[0].crash = 0; p.phase = p.phase == PD_CRASH ? PD_FALL : p.phase;
+        }
+        CHECK(lowest_y == 0 && p.phase == PD_POOL);
+    }
+    /* flop score: pose latch (last of B / C / D pressed), size by speed, cards deterministic and ordered */
+    {
+        uint16_t tot[3][3]; int pose, size;
+        for (pose = 0; pose < 3; pose++) for (size = 0; size < 3; size++) {
+            gp_init(&p, h, 7);
+            p.dist = (uint32_t)(PD_POOL_DEPTH * 8u - 10) << 4;          /* 10 px above the pool */
+            p.spd = size == 0 ? PD_SPEED_START : size == 1 ? PD_SIZE_MEDIUM : PD_SIZE_BIG;
+            gp_step(&p, h, pose == 1 ? IN_B : pose == 2 ? IN_C : IN_D, 0);
+            gp_step(&p, h, 0, 0);
+            for (i = 0; i < 6 && p.phase == PD_FALL; i++) gp_step(&p, h, 0, 0);
+            CHECK(p.phase == PD_POOL && p.b[0].pose == pose && p.b[0].size == size);
+            tot[pose][size] = p.b[0].flop;
+        }
+        CHECK(tot[PD_POSE_BELLY][0] < tot[PD_POSE_BELLY][2] && tot[PD_POSE_FACE][2] > tot[PD_POSE_CANNON][2] && tot[PD_POSE_FACE][0] < tot[PD_POSE_BELLY][0]);
+        gp_init(&p, h, 7); gp_step(&p, h, IN_C, 0); gp_step(&p, h, IN_B, 0); gp_step(&p, h, IN_B, 0); CHECK(p.b[0].pose_pick == PD_POSE_CANNON);   /* last press wins */
+        CHECK(tot[PD_POSE_FACE][2] + 0u <= 90u && PD_FLOP_MULT * 10u * PD_JUDGES <= 90u);
+    }
+    /* splash frames advance and hold on the last; the world slows and the birds sink */
+    {
+        int n;
+        gp_init(&p, h, 7); p.dist = (uint32_t)(PD_POOL_DEPTH * 8u - 10) << 4; p.spd = PD_SIZE_BIG;
+        for (n = 0; n < 8 && p.phase == PD_FALL; n++) gp_step(&p, h, 0, 0);
+        CHECK(p.phase == PD_POOL && p.b[0].size == PD_SPLASH_BIG && p.b[0].splash_f == 0);
+        for (n = 0; n < 40; n++) gp_step(&p, h, 0, 0);
+        CHECK(p.b[0].splash_f > 0 && p.b[0].splash_f < PD_SPLASH_LEN(PD_SPLASH_BIG) && p.spd == 0 && p.pool_y < PD_BIRD_Y + PD_BIRD_HALF_H);
+        for (n = 0; n < 100; n++) gp_step(&p, h, 0, 0);
+        CHECK(p.b[0].splash_f == PD_SPLASH_LEN(PD_SPLASH_BIG) - 1);
+    }
+    /* 2P: a ghost never flops, the survivor does; two survivors flop with their own pose */
+    {
+        Flier h2[2]; int n;
+        gp_init(&p, h2, 7); gp_add_p2(&p, &h2[0], &h2[1]);
+        p.dist = (uint32_t)(PD_POOL_DEPTH * 8u - 10) << 4; p.b[0].crash = 1; p.b[0].score = 40; p.spd = PD_SIZE_MEDIUM;
+        for (n = 0; n < 10 && p.phase == PD_FALL; n++) gp_step(&p, h2, 0, n == 0 ? IN_B : 0);
+        CHECK(p.phase == PD_POOL && !p.b[0].landed && p.b[1].landed && p.b[1].pose == PD_POSE_CANNON && p.b[0].score == 40);
+        gp_init(&p, h2, 7); gp_add_p2(&p, &h2[0], &h2[1]);
+        p.dist = (uint32_t)(PD_POOL_DEPTH * 8u - 10) << 4; p.spd = PD_SIZE_MEDIUM;
+        for (n = 0; n < 10 && p.phase == PD_FALL; n++) gp_step(&p, h2, n == 0 ? IN_C : 0, n == 0 ? IN_B : 0);
+        CHECK(p.b[0].landed && p.b[1].landed && p.b[0].pose == PD_POSE_FACE && p.b[1].pose == PD_POSE_CANNON);
+        for (n = 0; n < (int)PD_POOL_FRAMES + 2; n++) gp_step(&p, h2, 0, 0);
+        CHECK(p.phase == PD_RESULT && p.seq.best[0] == p.b[0].score && p.seq.best[1] == p.b[1].score);
+    }
+    /* fallers: scheduled, deterministic, drift on, expire, and the platform layout is unchanged by them */
+    {
+        int n, seen = 0; PdFaller f0[PD_FALLERS]; GgPop q; Flier hq, hp;
+        gp_init(&p, &hp, 7);
+        for (n = 0; n < 400; n++) { gp_step(&p, &hp, 0, 0); p.b[0].hits = 0; }
+        for (i = 0; i < PD_FALLERS; i++) { if (p.fall[i].live) { seen++; CHECK(p.fall[i].kind <= PD_FALLER_SNAIL); } f0[i] = p.fall[i]; }
+        CHECK(seen >= 1);
+        gp_init(&q, &hq, 7);
+        for (n = 0; n < 400; n++) { gp_step(&q, &hq, 0, 0); q.b[0].hits = 0; }
+        for (i = 0; i < PD_FALLERS; i++) CHECK(q.fall[i].live == f0[i].live && (!f0[i].live || (q.fall[i].x == f0[i].x && q.fall[i].y == f0[i].y)));
+        for (i = 0; i < PD_PLATS; i++) CHECK(q.plat[i].y == p.plat[i].y && q.plat[i].x == p.plat[i].x);
     }
 
     /* flow: A, then Down three times from Big Blow picks Pop Drop, Start runs it, the best total is the record (either player's best fall, higher is better) */
