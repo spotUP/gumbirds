@@ -27,7 +27,7 @@ void gp_init(GgPop *p, Flier *hero, uint32_t seed)
     bird_begin(&p->b[0]); bird_begin(&p->b[1]);
     p->phase = PD_FALL; p->brake_t = 0;
     p->timer = 0; p->dist = 0; p->depth = 0; p->spd = PD_SPEED_START;
-    p->trail_x = PD_BIRD_X >> 16;
+    p->trail_x = PD_BIRD_X >> 16; p->gap_n = 0;
     for (i = 0; i < PD_FALLERS; i++) p->fall[i].live = 0;
     rng_seed(&p->frng, seed ^ 0x5eedfa11u); p->fall_next = PD_FALLER_EVERY; p->pool_y = pool_surface(p);
     flier_init(hero, PD_BIRD_X, FL_PX(PD_BIRD_Y), 0, 0);
@@ -65,19 +65,19 @@ static void spawn(GgPop *p, const Flier *hero)
     lo = sh < 0 ? p->trail_x + sh : p->trail_x; hi = sh < 0 ? p->trail_x : p->trail_x + sh;
     half = plat_w(q) / 2;
     c = half + PD_BIRD_HALF_W + PD_TRAIL_CLEAR;  /* centre distance that keeps the bird box clear */
-    {   /* aimed row (about half): the platform's near edge overlaps a bird's box by PD_AIM_OVERLAP px on the side away from the new gap point,
+    {   /* aimed row (PD_AIM_SHARE of 4): the platform's near edge overlaps a bird's box by PD_AIM_OVERLAP px on the side away from the new gap point,
          * so a bird that does not steer is hit. Edge-on placement needs only |gap - bird| >= 16 + overlap, so the shift never has to exceed
          * the PD_STEER reach of the fall (2.5 px per frame): PD_TRAIL_SHIFT_MAX stays 48 and the width is not capped. No reachable shift: normal row. */
-        uint32_t r = rng_range(&p->rng, 4);      /* bit 0: aimed row, bit 1: first sign, always drawn so the layout stays deterministic */
+        uint32_t r = rng_range(&p->rng, 8);      /* bit 0: first sign, bits 1..2: aimed row when below PD_AIM_SHARE (of 4); always drawn so the layout stays deterministic */
         int bi = p->seq.players > 1 ? (int)rng_range(&p->rng, 2) : 0, reach = ((PD_SPAWN_Y - y0) * 16 / p->spd - 20) * 5 / 2, s, d = 0, bx;
         if (p->b[bi].crash) bi ^= 1;             /* aim at a live bird */
         bx = hero[bi].x >> 16;
         if (reach < 0) reach = 0;                /* steering ramps at PD_STEER_ACC: a full reversal (-2.5 to +2.5 px/frame) takes 20 frames and nets 0 px, so only the frames after them count */
         if (reach > PD_TRAIL_SHIFT_MAX) reach = PD_TRAIL_SHIFT_MAX;
-        for (s = 0; (r & 1) && s < 2 && !aim; s++) {
-            int t = (r >> 1 ^ (uint32_t)s) & 1 ? reach : -reach;
+        for (s = 0; (r >> 1 & 3) < PD_AIM_SHARE && s < 2 && !aim; s++) {
+            int t = (r ^ (uint32_t)s) & 1 ? reach : -reach;
             d = arena_dx(p->trail_x + t, bx);
-            if (d >= 16 + PD_AIM_OVERLAP || d <= -(16 + PD_AIM_OVERLAP)) { aim = 1; sh = t; }
+            if (d >= PD_TRAIL_CLEAR + PD_AIM_OVERLAP || d <= -(PD_TRAIL_CLEAR + PD_AIM_OVERLAP)) { aim = 1; sh = t; }
         }
         if (aim) {
             c = bx + (d > 0 ? -1 : 1) * (half + PD_BIRD_HALF_W - PD_AIM_OVERLAP);
@@ -91,10 +91,13 @@ static void spawn(GgPop *p, const Flier *hero)
     for (i = 0, j = 1; i < PD_GUMS && j <= PD_TRAIL_GUMS; i++) {
         PdGum *g = &p->gum[i];
         if (g->live) continue;
-        g->x = wrap_px(p->trail_x + sh * j / PD_TRAIL_GUMS);
-        g->y = (int16_t)(y0 + (PD_SPAWN_Y - y0) * j / PD_TRAIL_GUMS); g->live = 1;
+        g->bx = g->x = wrap_px(p->trail_x + sh * j / PD_TRAIL_GUMS);
+        g->y = (int16_t)(y0 + (PD_SPAWN_Y - y0) * j / PD_TRAIL_GUMS);
+        g->live = p->gap_n % PD_GUM_EVERY_GAPS == 0 ? 1 : 2;   /* 2 = hidden waypoint of a gum-less gap: no catch, not drawn, keeps the trail line for a follower */
+        g->ph = (uint8_t)rng_range(&p->rng, PD_WOBBLE_PERIOD);
         j++;
     }
+    p->gap_n++;
     p->trail_x = wrap_px(p->trail_x + sh);
 }
 
@@ -193,6 +196,11 @@ static void scroll_world(GgPop *p, int step)
         if (!g->live) continue;
         g->y = (int16_t)(g->y - step);
         if (g->y < -16) g->live = 0;
+        if (++g->ph >= PD_WOBBLE_PERIOD) g->ph = 0;
+        {   /* triangle wobble: v 0..PD_WOBBLE_PERIOD/2 and back, centred, scaled to +-PD_WOBBLE_PX */
+            int per = PD_WOBBLE_PERIOD, v = g->ph < per / 2 ? g->ph : per - g->ph;
+            g->x = wrap_px(g->bx + (v - per / 4) * PD_WOBBLE_PX / (per / 4));
+        }
     }
 }
 
@@ -278,7 +286,7 @@ static void fall_step(GgPop *p, Flier *hero, uint8_t in1, uint8_t in2)
         for (i = 0; i < PD_GUMS; i++) {
             PdGum *g = &p->gum[i];
             int d;
-            if (!g->live || b->crash) continue;
+            if (g->live != 1 || b->crash) continue;
             d = arena_dx(bx, g->x); if (d < 0) d = -d;
             if (d < PD_BIRD_HALF_W + 8 && g->y > by - PD_BIRD_HALF_H - 8 && g->y < by + PD_BIRD_HALF_H + 8) {
                 g->live = 0; b->gums++; b->catch_t = 1;

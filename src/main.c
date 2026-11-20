@@ -1831,7 +1831,7 @@ static u16 g_pd_pips = 0xFFFF; /* what the pips show: per bird hits (2 bits) and
 /* Life pips on the fix layer: PD_HITS_MAX hearts a bird, one goes out (white blink, then blank) per hit; a shield soak is no hit. */
 static void draw_pd_pips(const GgPop *p) {
     u8 n = p->seq.players > 1 ? 2 : 1;
-    u16 st = 0;
+    u16 st = n > 1 ? 0x8000 : 0;   /* P2 joining in the countdown must redraw the pips too */
     for (u8 i = 0; i < n; i++) st |= (u16)((p->b[i].hits & 3) | (s_hit_t[i] ? 4 + ((s_hit_t[i] >> 2) & 1) : 0) << 2) << (i * 8);
     if (st == g_pd_pips) return;
     g_pd_pips = st;
@@ -2057,7 +2057,7 @@ static void pop_show_pieces(const Game *g) {
     }
     for (u8 k = 0; k < PD_GUMS; k++) {
         const PdGum *gm = &p->gum[k];
-        if (!gm->live) continue;
+        if (gm->live != 1) continue;
         /* Phase per gum in the tick timing, not only in the frame shown: with (frame >> 2) + k every gum stepped on the same frame, up to
          * 15 gums x 2 strips (about 1080 us) in one flush, which with both 2P birds hit GFX_FLUSH_BUDGET_US (make test-gum-pop-drop-2p).
          * 5k is k mod 4 in the tick, so a quarter of the gums step per frame, and still about 1.25 k frames apart in the loop. */

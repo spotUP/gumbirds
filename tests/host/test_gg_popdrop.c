@@ -80,7 +80,7 @@ int main(void)
     gp_init(&p, h, 7);
     for (i = 0; i < (int)PD_SHIELD_EVERY; i++) {
         { int k; for (k = 1; k < PD_GUMS; k++) p.gum[k].live = 0; }   /* only the placed gum: no trail gum in reach */
-        p.gum[0].x = (int16_t)(h[0].x >> 16); p.gum[0].y = PD_BIRD_Y; p.gum[0].live = 1;
+        p.gum[0].bx = p.gum[0].x = (int16_t)(h[0].x >> 16); p.gum[0].ph = 16; p.gum[0].y = PD_BIRD_Y; p.gum[0].live = 1;
         { int k; for (k = 0; k < PD_PLATS; k++) p.plat[k].live = 0; }
         gp_step(&p, h, 0, 0);
     }
@@ -88,7 +88,7 @@ int main(void)
 
     /* gum trail: 1 gum per gap, every gum clear of every platform, a follower never hits at full speed or on the ramp; each gum counts */
     {
-        int seed, spawned = 0, live_max = 0, unclear = 0;
+        int seed, spawned = 0, live_max = 0, unclear = 0, moved = 0, wob_bad = 0;
         for (seed = 1; seed <= 24; seed++) {
             gp_init(&p, h, (uint32_t)seed);
             if (seed & 1) p.spd = PD_SPEED_MAX;
@@ -98,20 +98,27 @@ int main(void)
                 for (k = 0; k < PD_GUMS; k++) live += p.gum[k].live;
                 if (live > live_max) live_max = live;
                 if (!trail_clear(&p)) unclear++;
+                for (k = 0; k < PD_GUMS; k++) {   /* wobble: current x within +-PD_WOBBLE_PX of the spawn x, and it moves */
+                    int dx = arena_dx(p.gum[k].x, p.gum[k].bx);
+                    if (!p.gum[k].live) continue;
+                    if (dx < 0) dx = -dx;
+                    if (dx > PD_WOBBLE_PX) wob_bad++;
+                    if (dx > 0) moved++;
+                }
                 if (p.phase != PD_FALL) break;   /* the pool ends the fall at PD_POOL_DEPTH */
             }
             CHECK(p.b[0].hits == 0 && p.phase == PD_POOL);
             CHECK(p.b[0].score == p.depth + p.b[0].gums + p.b[0].flop && p.b[0].shield && p.b[0].shield_count == p.b[0].gums % PD_SHIELD_EVERY);
             spawned += p.b[0].gums;
-            CHECK(p.b[0].gums * 10 > ((p.depth * 8 - 216) / 72) * PD_TRAIL_GUMS * 9);   /* over 90 % of the trail caught (a row every 72+ px, depth = px / 8; the last 216 px before the pool carry no rows) */
+            CHECK(p.b[0].gums * 10 > ((p.depth * 8 - 216) / 72) / PD_GUM_EVERY_GAPS * PD_TRAIL_GUMS * 8);   /* over 80 % of the gums caught (was 90 %: a wobbling gum is sometimes missed by the follower's dead band): one gum per PD_GUM_EVERY_GAPS rows (a row every 72+ px, depth = px / 8; the last 216 px before the pool carry no rows) */
         }
-        CHECK(unclear == 0 && live_max <= PD_GUMS && spawned > 0);
+        CHECK(unclear == 0 && live_max <= PD_GUMS && spawned > 0 && wob_bad == 0 && moved > 1000);
     }
 
     /* 2P trail: both birds follow the one trail (bumping each other) and both collect */
     gp_init(&p, h, 11); gp_add_p2(&p, &h[0], &h[1]);
     for (i = 0; i < 1500; i++) gp_step(&p, h, follow(&p, h, 0), follow(&p, h, 1));
-    CHECK(p.b[0].gums > 20 && p.b[1].gums > 20);
+    CHECK(p.b[0].gums > 10 && p.b[1].gums > 10);
 
     /* a bird with no input is hit on aimed rows: 3 hits crash it before the pool, 1P and 2P (both birds idle), over several seeds */
     {
@@ -156,7 +163,7 @@ int main(void)
     gp_init(&p, h, 7); gp_add_p2(&p, &h[0], &h[1]);
     p.b[0].hits = PD_HITS_MAX; p.b[0].crash = 1;
     plat_on_bird(&p, h);
-    p.gum[0].x = (int16_t)(h[0].x >> 16); p.gum[0].y = PD_BIRD_Y; p.gum[0].live = 1;
+    p.gum[0].bx = p.gum[0].x = (int16_t)(h[0].x >> 16); p.gum[0].ph = 16; p.gum[0].y = PD_BIRD_Y; p.gum[0].live = 1;
     gp_step(&p, h, 0, 0);
     CHECK(p.phase == PD_FALL && p.b[0].hits == PD_HITS_MAX && p.plat[0].hit == 0 && p.gum[0].live && p.b[0].gums == 0 && !p.b[1].crash);
     h[1].x = h[0].x + FL_PX(4);
