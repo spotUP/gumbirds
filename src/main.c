@@ -507,6 +507,7 @@ static void draw_prompts(const Game *g, u8 show) {
         if (g->gg_toss) { ev = IP_TOSS; ph = g->toss.phase; p1 = g->toss.carrier == 0; p2 = g->toss.humans == 2 && g->toss.carrier == 2; }
         else if (g->gg_fling) { ev = IP_FLING; ph = g->fling.phase; p1 = g->fling.seq.turn == 0; p2 = g->fling.seq.players == 2 && g->fling.seq.turn == 1; }
         else if (g->gg_gather) { ev = IP_GATHER; ph = g->res.active ? IP_PHASE_OFF : IP_PHASE_PLAY; }
+        else if (g->gg_poop) { ev = IP_POOP; ph = g->poop.phase; p2 = g->players == 2; }
         else if (g->gg_pop) { ev = IP_POP; ph = g->pop.phase; p2 = g->players == 2; }
         else if (g->gg_dash) { ev = IP_DASH; ph = g->dash.done ? IP_PHASE_OFF : IP_PHASE_PLAY; }
         else if (g->gg_race) { ev = IP_RACE; ph = g->race.phase; p2 = g->race.players == 2; }
@@ -1637,6 +1638,7 @@ static u8 g_trip_islands_loaded;
 /* The Gum Fling grass field also hosts Toss Gum: one gate for both. The field reads the Fling state only for the flight scroll and landing puff; Toss Gum passes an idle one. */
 static u8 ground_field(const Game *g) { return g && (g->gg_fling || g->gg_toss || g->gg_tug); }
 static u8 pop_field(const Game *g) { return g && g->gg_pop; }
+static u8 poop_field(const Game *g) { return g && g->gg_poop; }   /* Poop the Man draws no water floor and no islands */
 static const GgFling g_idle_fling;   /* all zero: wind-up phase, no scroll */
 static u8 bg_pending(void) {
     u8 world = g_flow.state == FLOW_PLAYING || g_flow.state == FLOW_ATTRACT_DEMO;
@@ -2231,8 +2233,7 @@ static void pop_show_pieces(const Game *g) {
 #define PM_U_SLOT (PM_W_SLOT + PM_WALKERS * 2)   /* 7 umbrellas x 2 */
 #define PM_P_SLOT (PM_U_SLOT + PM_WALKERS * 2)   /* 6 poops */
 #define PM_S_SLOT (PM_P_SLOT + PM_POOPS)         /* 3 shoes */
-#define PM_B_SLOT (PM_S_SLOT + PM_SHOES)         /* berry */
-#define PM_H_SLOT (PM_B_SLOT + 1)                /* 7 head splats x 1 column */
+#define PM_H_SLOT (PM_S_SLOT + PM_SHOES)                /* 7 head splats x 1 column */
 _Static_assert(PM_H_SLOT + PM_WALKERS <= PD_BACK + PD_BACK_N, "Poop the Man slots overflow the Pop Drop hide range");
 
 /* One poop frame; (ox, oy) = top left of its sheet cell (cw wide), the opaque box sits pad_left / pad_top inside it. */
@@ -2252,8 +2253,13 @@ static const PoopFrame *pm_frame(u8 anim, u16 n) {
 
 static void poop_show_bird(const GgPoop *p, const Game *g, u8 i, u16 slot, u16 pal) {
     const PmBird *b = &p->b[i];
-    const PopdropFrame *f = pd_frame(b->stun ? POPDROP_ANIM_BONK : POPDROP_ANIM_FALL0, (u16)(g->frame >> 3));
-    if (b->stun && (g->frame & 2)) return;   /* stunned: blink */
+    u8 hurt = b->stun || b->dead;   /* dead: the stun pose, falling off screen */
+    u16 n = (u16)(g->frame >> 3);
+    u8 anim = hurt ? POPDROP_ANIM_BONK : b->flap_t && b->flap_t < 12 ? POPDROP_ANIM_HOP : POPDROP_ANIM_FALL0;   /* flap: the Pop Drop hop frames */
+    if (anim == POPDROP_ANIM_HOP) n = b->flap_t <= 3 ? 2 : b->flap_t <= 7 ? 3 : 1;   /* pump, wings level, wings high */
+    const PopdropFrame *f = pd_frame(anim, n);
+    if ((b->stun || (b->inv && !b->dead)) && (g->frame & 2)) return;   /* stunned or invulnerable: blink */
+    if (b->y > 232) return;
     int sx = b->x - f->tiles_w * 8, top = b->y - f->tiles_h * 8;
     if (!camera_visible(sx, f->tiles_w * 16)) return;
     const u16 *t = &popdrop_tile_index[f->tile_offset];
@@ -2275,7 +2281,7 @@ static void poop_show_pieces(const Game *g) {
         else { first = (u8)(2 * nw + 5); n = (u8)(w->t < 20 ? 0 : w->t < 28 ? 1 : 2); }
         const PoopAnim *a = &poop_anims[anim];
         const PoopFrame *f = &poop_frames[a->first_frame + first + n];
-        int cx = w->x8 >> 3, flip = w->dx8 < 0;
+        int cx = w->x8 >> 3, flip = w->dx8 - PM_SCROLL * 8 < 0;   /* face the way it moves on screen: the backdrop does not scroll, so every walker drifts left */
         pm_piece((u16)(PM_W_SLOT + k * 2), f, cx - 16, PM_FEET_Y - 48, 32, flip, (u16)(POOP_PAL_SLOT + f->palette));
         if (w->st != PM_WALK) {   /* head splat (draft rig: head x, top row, hit bob) lies on the head from the hit until the walker walks again */
             static const u8 hx[4] = { 4, 5, 5, 5 }, top[4] = { 0, 8, 6, 18 };
@@ -2300,10 +2306,6 @@ static void poop_show_pieces(const Game *g) {
         const PoopFrame *f = pm_frame(POOP_ANIM_SHOE, (u16)(g->frame >> 2));
         pm_piece((u16)(PM_S_SLOT + k), f, s->x - 8, s->y - 8, 16, 0, (u16)(POOP_PAL_SLOT + f->palette));
     }
-    if (p->berry.live) {
-        const PoopFrame *f = pm_frame(POOP_ANIM_BERRY, (u16)(g->frame >> 3));
-        pm_piece(PM_B_SLOT, f, p->berry.x - 8, p->berry.y - 8, 16, 0, (u16)(POOP_PAL_SLOT + f->palette));
-    }
     if (p->phase != PM_PLAY) return;
     poop_show_bird(p, g, 0, PD_BIRD_SLOT, POPDROP_PAL_SLOT);
     if (p->seq.players > 1) poop_show_bird(p, g, 1, PD_BIRD2_SLOT, SOOT_P2_PAL_SLOT);
@@ -2320,11 +2322,11 @@ static void poop_show(const Game *g) {
     }
 }
 
-/* Poop the Man on the fix layer: per bird score, shots left (berries refill them) and seconds left. */
+/* Poop the Man on the fix layer: per bird score and seconds left. */
 static void draw_poop_man(const Game *g) {
     const GgPoop *p = &g->poop;
     u16 left = (u16)((p->timer < PM_CLOCK ? PM_CLOCK - p->timer : 0) / 60u);
-    u32 key = left | (u32)p->b[0].ammo << 8 | (u32)p->b[1].ammo << 12 | (p->b[0].score & 0x3FFFu) << 16 | (u32)p->phase << 30 | 1u << 29;
+    u32 key = left | (p->b[0].score & 0x3FFFu) << 16 | (u32)p->phase << 30 | 1u << 29;
     if (p->seq.players > 1) key ^= (p->b[1].score & 0xFFu) << 24;
     if (key == g_blow_key) return;
     g_blow_key = key;
@@ -2335,9 +2337,6 @@ static void draw_poop_man(const Game *g) {
         while (s[n]) { line[n] = s[n]; n++; }
         put_number(nb, p->b[i].score, 6);
         for (u8 k = 0; nb[k] && n < BLOW_TEXT_W; k++) if (nb[k] != ' ') line[n++] = nb[k];
-        s = "  AMMO ";
-        for (u8 k = 0; s[k] && n < BLOW_TEXT_W; k++) line[n++] = s[k];
-        line[n++] = (char)('0' + p->b[i].ammo);
         if (i == 0) {
             s = "  TIME ";
             for (u8 k = 0; s[k] && n < BLOW_TEXT_W; k++) line[n++] = s[k];
@@ -3474,7 +3473,8 @@ static void game_loop(void) {
             if (pm->b[0].drop_t == 1 || pm->b[1].drop_t == 1) sound_play_sfx(SND_SFX_FLING_THROW);
             if (pm->last_hit_pts_ev) sound_play_sfx(SND_SFX_FLING_LAND);
             if (pm->sfx & PM_SFX_BOUNCE) sound_play_sfx(SND_SFX_BUMP);
-            if (pm->sfx & PM_SFX_BERRY) sound_play_sfx(SND_SFX_PICKUP);
+            if (pm->sfx & PM_SFX_FLAP) sound_play_sfx(SND_SFX_FLAP_A);
+            if (pm->sfx & PM_SFX_DEAD) sound_play_sfx(SND_SFX_FLING_FOUL);
             g_flow.game.poop.sfx = 0;
             if (pm->b[0].stun == PM_STUN || pm->b[1].stun == PM_STUN) sound_play_sfx(SND_SFX_FLING_FOUL);
         }
@@ -3530,14 +3530,14 @@ static void game_loop(void) {
             u8 world = world_shown(&view);
             u8 trip = world && view.game->mode == GAME_MODE_TRIP;
             u8 trip_game = (world || view.state == FLOW_GAME_OVER) && view.game && view.game->mode == GAME_MODE_TRIP;
-            hazard_step((world || view.state == FLOW_GAME_OVER) && !trip_game && !ground_field(view.game) && !pop_field(view.game), g_cam_px); /* the hazard strip is the arena's floor; Gum Trip has its own, Pop Drop shows only its platforms */
+            hazard_step((world || view.state == FLOW_GAME_OVER) && !trip_game && !ground_field(view.game) && !pop_field(view.game) && !poop_field(view.game), g_cam_px); /* the hazard strip is the arena's floor; Gum Trip has its own, Pop Drop shows only its platforms */
             if (g_bg_paused && world_state(&view) && view.game->mode != GAME_MODE_TRIP && !ground_field(view.game)) hazard_preload(); /* the reveal frame then only places it */
             /* arcade only: elements kill, so they must be seen (worst scanline with them is checked in tests/host/test_sprite_budget.c) */
             /* Bonus first: on the frame it ends it parks slot 323, which the stage elements share and draw right after. */
             arcade_bonus_step(world && ((view.game->mode == GAME_MODE_ARCADE && view.game->arc.state == ARC_BONUS) || (view.game->mode == GAME_MODE_GUM && view.game->gg_gather)) && !view.game->res.active ? view.game : 0);
             arcade_elems_step(world && view.game->mode == GAME_MODE_ARCADE && view.game->arc.state != ARC_BONUS ? view.game : 0); /* the bonus shows no stage elements: hidden once on entry */
             u8 stadium = world_state(&view) && stadium_on(view.game);
-            island_step(world && !trip && !stadium && !ground_field(view.game) && !pop_field(view.game), g_cam_px); /* arena islands are not drawn in Gum Trip, on the stadium events, on the Gum Fling / Toss Gum field or in Pop Drop */
+            island_step(world && !trip && !stadium && !ground_field(view.game) && !pop_field(view.game) && !poop_field(view.game), g_cam_px); /* arena islands are not drawn in Gum Trip, on the stadium events, on the Gum Fling / Toss Gum field or in Pop Drop */
             fling_field_step(ground_field(view.game) ? seated(view.game) ? &g_idle_fling : &view.game->fling : 0, view.game ? view.game->mood : 0, world_state(&view), world, !(view.game && seated(view.game)), view.game && view.game->gg_tug); /* after island_step: it takes the island slots */
             {   /* stadium stands: scores, result and wave edges from the event state */
                 static u8 s_fin;

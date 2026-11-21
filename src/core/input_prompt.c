@@ -18,6 +18,7 @@ InputPrompt input_prompt_for(uint8_t event, uint8_t phase)
     case IP_DASH:   if (phase == IP_PHASE_PLAY) { p.buttons = IN_A | IN_B; p.style = IP_STYLE_MASH; } break;
     case IP_GATHER: if (phase == IP_PHASE_PLAY) { p.buttons = IN_A; p.style = IP_STYLE_MASH; p.stick = 1; } break;
     case IP_POP:    if (phase == PD_FALL) { p.buttons = IN_B | IN_C; p.style = IP_STYLE_PRESS; p.stick = 1; } break;   /* B and C pick the pose; the A brake hop is not prompted */
+    case IP_POOP:   if (phase == 0) { p.buttons = IN_A | IN_B; p.style = IP_STYLE_PRESS; p.stick = 1; } break;   /* A flaps, B drops; stick trims the speed */
     case IP_TOSS:   if (phase == GT_HOLD) { p.buttons = IN_A | IN_B | IN_C; p.style = IP_STYLE_PRESS; } break;
     case IP_FLING:
         if (phase == GF_WINDUP || phase == GF_FLIGHT) { p.buttons = IN_A | IN_B; p.style = IP_STYLE_MASH; }   /* mash until the clock ends; mash to flap in flight */
