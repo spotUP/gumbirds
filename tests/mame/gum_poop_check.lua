@@ -2,6 +2,7 @@
 --   P1. the game is PLAYING in GAME_MODE_GUM with gg_poop 1 and the HUD (fix row 7) lit;
 --   P2. A pressed every 20 frames drops poops: the ammo count falls below its start;
 --   P3. the event ends in GAME_OVER and the record in slot 6 is at least the score (higher is better);
+--   P3b. at least one splat started (poop splat_n); bounce/berry sfx count is reported (a drop that misses every umbrella may leave it 0);
 --   P4. worst sprites per line <= 96 (stadium_snap.lua) and flush time <= 1800 us (flush_sample.lua, play frames).
 -- Env: BRAWL_FLOW_ADDR (hex), BRAWL_POOP_LAYOUT (gum_poop_probe.c output), BRAWL_RESULT, BRAWL_LASTUS_ADDR, BRAWL_DEFER_ADDR, BRAWL_FLUSHN_ADDR.
 local flow_addr = tonumber(os.getenv("BRAWL_FLOW_ADDR"), 16)
@@ -9,7 +10,7 @@ local result = os.getenv("BRAWL_RESULT")
 local L = {}
 for v in (os.getenv("BRAWL_POOP_LAYOUT") or ""):gmatch("%d+") do L[#L + 1] = tonumber(v) end
 local O = { state = L[1], mode = L[2], poop = L[3], phase = L[4], timer = L[5], score = L[6], record = L[7], ammo = L[8], bscore = L[9] }
-local K = { playing = L[11], gum = L[12], over = L[13], card = L[14] }
+local K = { playing = L[11], gum = L[12], over = L[13], card = L[14], splat = L[15], sfxn = L[16] }
 local FLUSH_LIMIT = 1800
 local mem = manager.machine.devices[":maincpu"].spaces["program"]
 local st = dofile("tests/mame/stadium_snap.lua")(mem, flow_addr)
@@ -47,6 +48,7 @@ local function finish(ok, msg)
   manager.machine:exit()
 end
 if not (coin and start1 and up and abtn and pick) then finish(false, "missing ports") end
+local splats, sfxs = 0, 0
 local n, phase, t0, hud, cardn, min_ammo, play_n = 0, "boot", 0, false, 0, 99, 0
 emu.register_frame_done(function()
   n = n + 1
@@ -67,16 +69,18 @@ emu.register_frame_done(function()
     if b(O.phase) == 0 and mem:read_u16(flow_addr + O.timer) > 0 then
       play_n = play_n + 1
       fsamp.frame()
+      splats, sfxs = b(K.splat), b(K.sfxn)
       local a = b(O.ammo); if a < min_ammo then min_ammo = a end
       abtn:set_value((play_n % 20) < 2 and 1 or 0)   -- one drop per 20 frames
     else abtn:set_value(0) end
     if n > 20000 then finish(false, "never ended") end
   elseif phase == "check" then
     local rec, score = mem:read_u32(flow_addr + O.record), mem:read_u32(flow_addr + O.score)
+    if splats == 0 then finish(false, "no splat started (pavement or head)") return end
     if not hud then finish(false, "HUD row 7 never lit") return end
     if min_ammo >= 5 then finish(false, "ammo never fell below 5 (min " .. min_ammo .. ")") return end
     if fsamp.us_max and fsamp.us_max > FLUSH_LIMIT then finish(false, "flush " .. fsamp.us_max .. " us over " .. FLUSH_LIMIT) return end
     if rec < score then finish(false, string.format("record %d below score %d", rec, score)) return end
-    finish(true, string.format("Poop the Man: GUM GAMES row + Down x6 starts it; HUD lit, min ammo %d, score %d, record %d saved; play frames %d", min_ammo, score, rec, play_n))
+    finish(true, string.format("Poop the Man: GUM GAMES row + Down x6 starts it; HUD lit, min ammo %d, score %d, record %d saved; splats %d, bounce/berry sfx %d; play frames %d", min_ammo, score, rec, splats, sfxs, play_n))
   end
 end)

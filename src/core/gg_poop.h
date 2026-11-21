@@ -45,7 +45,10 @@
 enum { PM_PLAY, PM_RESULT, PM_DONE };
 enum { PM_HAT, PM_BALD, PM_WOMAN, PM_KID };
 enum { PM_WALK, PM_HIT, PM_FIST, PM_THROW };   /* walker states (art: walk, hit, fist, throw) */
-enum { PM_POOP_FALL, PM_POOP_BOUNCE };
+enum { PM_POOP_FALL, PM_POOP_BOUNCE, PM_POOP_SPLAT };   /* SPLAT: lies on the pavement PM_SPLAT_FRAMES, scrolling with the street */
+#define PM_SPLAT_FRAMES 30u
+#define PM_SFX_BOUNCE 1u             /* GgPoop.sfx bits raised by gm_step for the view (throw, head hit and shoe hit are read from the bird / last_hit fields) */
+#define PM_SFX_BERRY 2u
 
 typedef struct { int16_t x8, dx8; uint8_t kind, st, live, umb_prone, umb, owner; uint16_t t; } PmWalker;   /* x8 = centre in 1/8 px; dx8 = own speed relative to the street, 1/8 px per frame */
 typedef struct { int32_t x16, y16; int16_t vx16, vy16; uint8_t live, st, t, owner; } PmPoop;     /* centre and velocity in 1/16 px (per frame) */
@@ -73,6 +76,8 @@ typedef struct {
     uint16_t scroll;                 /* street scroll distance, px, wraps at 65536 (view reads it mod the ring width) */
     uint8_t last_hit_b, last_hit_pts_ev; /* view hooks: bird of the last head hit, 1 on the frame it scored */
     uint32_t last_pts;
+    uint8_t sfx;                     /* PM_SFX_* raised this frame, cleared by the caller */
+    uint8_t splat_n, sfx_n;          /* running counts (wrap) of splats started and bounce / berry events: test hooks */
 } GgPoop;
 
 void gm_init(GgPoop *p, uint32_t seed, uint8_t storm);

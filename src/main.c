@@ -2232,7 +2232,8 @@ static void pop_show_pieces(const Game *g) {
 #define PM_P_SLOT (PM_U_SLOT + PM_WALKERS * 2)   /* 6 poops */
 #define PM_S_SLOT (PM_P_SLOT + PM_POOPS)         /* 3 shoes */
 #define PM_B_SLOT (PM_S_SLOT + PM_SHOES)         /* berry */
-_Static_assert(PM_B_SLOT + 1 <= PD_BACK + PD_BACK_N, "Poop the Man slots overflow the Pop Drop hide range");
+#define PM_H_SLOT (PM_B_SLOT + 1)                /* 7 head splats x 1 column */
+_Static_assert(PM_H_SLOT + PM_WALKERS <= PD_BACK + PD_BACK_N, "Poop the Man slots overflow the Pop Drop hide range");
 
 /* One poop frame; (ox, oy) = top left of its sheet cell (cw wide), the opaque box sits pad_left / pad_top inside it. */
 static void pm_piece(u16 slot, const PoopFrame *f, int ox, int oy, int cw, int flip, u16 pal) {
@@ -2276,6 +2277,12 @@ static void poop_show_pieces(const Game *g) {
         const PoopFrame *f = &poop_frames[a->first_frame + first + n];
         int cx = w->x8 >> 3, flip = w->dx8 < 0;
         pm_piece((u16)(PM_W_SLOT + k * 2), f, cx - 16, PM_FEET_Y - 48, 32, flip, (u16)(POOP_PAL_SLOT + f->palette));
+        if (w->st != PM_WALK) {   /* head splat (draft rig: head x, top row, hit bob) lies on the head from the hit until the walker walks again */
+            static const u8 hx[4] = { 4, 5, 5, 5 }, top[4] = { 0, 8, 6, 18 };
+            const PoopFrame *s = pm_frame(POOP_ANIM_SPLAT_HEAD, w->st == PM_HIT ? n : 2);
+            int bob = w->st == PM_HIT ? 2 - n : w->st == PM_FIST ? n : 0, off = hx[w->kind] + 1;
+            pm_piece((u16)(PM_H_SLOT + k), s, flip ? cx - 16 + 32 - off - 16 : cx - 16 + off, PM_FEET_Y - 48 + top[w->kind] + bob - 4, 16, flip, (u16)(POOP_PAL_SLOT + s->palette));
+        }
         if (w->umb && w->st == PM_WALK) {
             const PoopFrame *u = pm_frame((u8)(anim + 1), 2);
             pm_piece((u16)(PM_U_SLOT + k * 2), u, cx - 16, PM_FEET_Y - 64, 32, flip, (u16)(POOP_PAL_SLOT + u->palette));
@@ -2284,8 +2291,8 @@ static void poop_show_pieces(const Game *g) {
     for (u8 k = 0; k < PM_POOPS; k++) {
         const PmPoop *o = &p->poop[k];
         if (!o->live) continue;
-        const PoopFrame *f = o->st == PM_POOP_BOUNCE ? pm_frame(POOP_ANIM_BOUNCE, (u16)(o->t >> 3)) : pm_frame(POOP_ANIM_POOP, (u16)(g->frame >> 2));
-        pm_piece((u16)(PM_P_SLOT + k), f, (int)(o->x16 >> 4) - 8, (int)(o->y16 >> 4) - 8, 16, 0, (u16)(POOP_PAL_SLOT + f->palette));
+        const PoopFrame *f = o->st == PM_POOP_BOUNCE ? pm_frame(POOP_ANIM_BOUNCE, (u16)(o->t >> 3)) : o->st == PM_POOP_SPLAT ? pm_frame(POOP_ANIM_SPLAT_PAVE, (u16)(o->t >> 2 > 2 ? 2 : o->t >> 2)) : pm_frame(POOP_ANIM_POOP, (u16)(g->frame >> 2));
+        pm_piece((u16)(PM_P_SLOT + k), f, (int)(o->x16 >> 4) - 8, o->st == PM_POOP_SPLAT ? PM_PAVE_Y - 8 : (int)(o->y16 >> 4) - 8, 16, 0, (u16)(POOP_PAL_SLOT + f->palette));
     }
     for (u8 k = 0; k < PM_SHOES; k++) {
         const PmShoe *s = &p->shoe[k];
@@ -3462,10 +3469,13 @@ static void game_loop(void) {
             sound_play_sfx((g_flow.game.cd_ev & GGCD_EV_GO) ? SND_SFX_ROUND_GO : SND_SFX_CONTINUE_TICK);
             g_flow.game.cd_ev = 0;
         }
-        if (view.game && view.state == FLOW_PLAYING && g_flow.game.gg_poop) { /* Poop the Man: Fling samples; umbrella bounce, shoe throw and berry pickup have no sound yet */
+        if (view.game && view.state == FLOW_PLAYING && g_flow.game.gg_poop) { /* Poop the Man: Fling samples; bounce = bump, berry = pickup, shoe hit = foul */
             const GgPoop *pm = &g_flow.game.poop;
             if (pm->b[0].drop_t == 1 || pm->b[1].drop_t == 1) sound_play_sfx(SND_SFX_FLING_THROW);
             if (pm->last_hit_pts_ev) sound_play_sfx(SND_SFX_FLING_LAND);
+            if (pm->sfx & PM_SFX_BOUNCE) sound_play_sfx(SND_SFX_BUMP);
+            if (pm->sfx & PM_SFX_BERRY) sound_play_sfx(SND_SFX_PICKUP);
+            g_flow.game.poop.sfx = 0;
             if (pm->b[0].stun == PM_STUN || pm->b[1].stun == PM_STUN) sound_play_sfx(SND_SFX_FLING_FOUL);
         }
         if (view.game && view.state == FLOW_PLAYING && g_flow.game.gg_toss && g_flow.game.toss.sfx) { /* Toss Gum sounds (Fling samples) */

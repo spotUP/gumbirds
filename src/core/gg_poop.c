@@ -22,6 +22,7 @@ void gm_init(GgPoop *p, uint32_t seed, uint8_t storm)
     for (i = 0; i < PM_POOPS; i++) p->poop[i].live = 0;
     for (i = 0; i < PM_SHOES; i++) p->shoe[i].live = 0;
     p->berry.live = 0;
+    p->sfx = p->splat_n = p->sfx_n = 0;
     p->timer = 0; p->end_t = 0; p->scroll = 0; p->last_hit_pts_ev = 0; p->last_pts = 0;
 }
 
@@ -85,6 +86,7 @@ static void poop_end_streak(GgPoop *p, const PmPoop *o) { p->b[o->owner].streak 
 static void poop_step(GgPoop *p, PmPoop *o)
 {
     int i, x, y;
+    if (o->st == PM_POOP_SPLAT) { o->x16 -= PM_SCROLL * 16; if (++o->t >= PM_SPLAT_FRAMES) o->live = 0; return; }
     if (o->st == PM_POOP_BOUNCE) {   /* bounced off an umbrella: arcs up and away, harmless */
         o->vy16 = (int16_t)(o->vy16 + 4);
         o->x16 += o->vx16; o->y16 += o->vy16;
@@ -103,6 +105,7 @@ static void poop_step(GgPoop *p, PmPoop *o)
         if (w->umb && y >= top - PM_UMB_Y && y <= top - PM_UMB_Y + PM_UMB_H) {
             o->st = PM_POOP_BOUNCE; o->t = 0; o->vy16 = -40; o->vx16 = (int16_t)(x < wx ? -16 : 16);
             poop_end_streak(p, o);
+            p->sfx |= PM_SFX_BOUNCE; p->sfx_n++;
             return;
         }
         if (iabs(x - wx) <= PM_HEAD_HALF_W && y >= top && y <= top + PM_HEAD_H) {
@@ -111,12 +114,13 @@ static void poop_step(GgPoop *p, PmPoop *o)
             if (b->streak < 255) b->streak++;
             pts = PM_BASE * gm_kind_mult(w->kind) * (b->streak > PM_COMBO_CAP ? PM_COMBO_CAP : b->streak);
             b->score += pts; p->last_pts = pts; p->last_hit_b = o->owner; p->last_hit_pts_ev = 1;
-            w->st = PM_HIT; w->t = 0; w->umb = 0; w->owner = o->owner;
+            w->st = PM_HIT; w->t = 0; w->umb = 0; w->owner = o->owner; p->splat_n++;
             o->live = 0;
             return;
         }
     }
-    if (y >= PM_PAVE_Y || x < -16 || x > PM_W + 16) { poop_end_streak(p, o); o->live = 0; }
+    if (y >= PM_PAVE_Y && x >= -16 && x <= PM_W + 16) { poop_end_streak(p, o); o->st = PM_POOP_SPLAT; o->t = 0; o->y16 = PM_PAVE_Y * 16; p->splat_n++; return; }
+    if (x < -16 || x > PM_W + 16) { poop_end_streak(p, o); o->live = 0; }
 }
 
 static void walker_step(GgPoop *p, PmWalker *w)
@@ -190,7 +194,7 @@ int gm_step(GgPoop *p, uint8_t in1, uint8_t in2)
         p->berry.x = (int16_t)(p->berry.x - PM_SCROLL);
         for (i = 0; i < n && p->berry.live; i++) if (bird_hit(&p->b[i], p->berry.x, p->berry.y)) {
             p->b[i].ammo = (uint8_t)(p->b[i].ammo + PM_BERRY_AMMO > PM_AMMO_MAX ? PM_AMMO_MAX : p->b[i].ammo + PM_BERRY_AMMO);
-            p->berry.live = 0;
+            p->berry.live = 0; p->sfx |= PM_SFX_BERRY; p->sfx_n++;
         }
         if (p->berry.x < -8) p->berry.live = 0;
     }

@@ -60,7 +60,14 @@ int main(void)
     p.b[0].streak = 3;
     poop_at(&p, 0, 40, PM_PAVE_Y);
     gm_step(&p, 0, 0);
-    CHECK(p.b[0].score == 0 && p.b[0].streak == 0 && !p.poop[0].live);
+    CHECK(p.b[0].score == 0 && p.b[0].streak == 0 && p.poop[0].live && p.poop[0].st == PM_POOP_SPLAT && p.splat_n == 1);
+    {   /* the pavement splat scrolls with the street, holds PM_SPLAT_FRAMES, then clears */
+        int32_t x0 = p.poop[0].x16;
+        for (int i = 0; i < (int)PM_SPLAT_FRAMES - 2; i++) gm_step(&p, 0, 0);
+        CHECK(p.poop[0].live && p.poop[0].x16 < x0);
+        gm_step(&p, 0, 0); gm_step(&p, 0, 0);
+        CHECK(!p.poop[0].live);
+    }
 
     /* umbrella bounce: no score, streak ends, the walker stays unhit */
     clean(&p);
@@ -68,7 +75,7 @@ int main(void)
     p.b[0].streak = 2;
     poop_at(&p, 0, 96, 158);   /* hat top 168, umbrella band 156..164 */
     gm_step(&p, 0, 0);
-    CHECK(p.b[0].score == 0 && p.b[0].streak == 0 && p.poop[0].st == PM_POOP_BOUNCE && p.w[0].st == PM_WALK);
+    CHECK(p.b[0].score == 0 && p.b[0].streak == 0 && p.poop[0].st == PM_POOP_BOUNCE && p.w[0].st == PM_WALK && (p.sfx & PM_SFX_BOUNCE));
 
     /* shoe that reaches a bird stuns it 45 frames and ends the streak */
     clean(&p);
@@ -90,7 +97,7 @@ int main(void)
     CHECK(p.b[0].ammo == 0);
     p.berry.live = 1; p.berry.x = (int16_t)(p.b[0].x + PM_SCROLL); p.berry.y = p.b[0].y;
     gm_step(&p, 0, 0);
-    CHECK(p.b[0].ammo == PM_BERRY_AMMO && !p.berry.live);
+    CHECK(p.b[0].ammo == PM_BERRY_AMMO && !p.berry.live && (p.sfx & PM_SFX_BERRY));
 
     /* timer, result, done; record points = score */
     clean(&p);
