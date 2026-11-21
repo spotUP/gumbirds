@@ -1,4 +1,4 @@
--- Gum Games Gum Fling check (make test-gum-fling): UniBIOS 4.0, one coin, Down to the GUM GAMES row, A opens the list, Down five times picks Gum Fling (last entry), Start:
+-- Gum Games Gum Fling check (make test-gum-fling): UniBIOS 4.0, one coin, Down to the PARTY event list, A opens the list, Down five times picks Gum Fling (last entry), Start:
 --   F1. the game is PLAYING in GAME_MODE_GUM with the fling running (gg_fling 1) and the HUD (fix row 7) lit;
 --   F2. A and B mashed, the swinging angle stopped with A: the mode stays GAME_MODE_GUM for the whole event (the grass field replaces the TRIP flip);
 --   F3. three attempts end the event: GAME_OVER, distance > 0, score equals the best distance based points, record in slot 4 equals the best distance.
@@ -68,10 +68,10 @@ emu.register_frame_done(function()
   if phase == "boot" then
     if n == 600 then phase = "start"; t0 = n; ss.begin(n) end
   elseif phase == "start" then
-    -- the shared sequence presses Down at +70..+78 (the GUM GAMES row); A at +80 opens the list, Downs at +84..+97 reach Gum Fling before Start at +100
+    -- the shared sequence presses Down at +70..+78 (the PARTY event list); A at +80 opens the list, Downs at +84..+97 reach Gum Fling before Start at +100
     local k = n - t0
-    pick:set_value((k >= 84 and k < 98 and (k - 84) % 3 < 2) and 1 or 0); abtn:set_value((k >= 80 and k < 84) and 1 or 0) -- A opens the GUM GAMES list, five Downs (one per 3 frames) reach Gum Fling
     if ss.step(n, playing, 1) then phase = "fling"; t0 = n; pick:set_value(0) end
+    ss.menu(n - t0, 9, abtn, pick)
   elseif phase == "fling" then
     if b(O.state) == K.over then phase = "check" return end
     if b(O.fling) ~= 1 then finish(false, "gg_fling not set") return end
@@ -130,6 +130,6 @@ emu.register_frame_done(function()
     if best < 1 then finish(false, "best distance 0") return end
     if rec ~= best then finish(false, string.format("record %d, best distance %d", rec, best)) return end
     if score < 1 then finish(false, "score 0") return end
-    finish(true, string.format("Gum Fling: GUM GAMES row + A, Down starts it; %d attempts, never TRIP, best %d, score %d, record saved", attempts, best, score))
+    finish(true, string.format("Gum Fling: PARTY event list + A, Down starts it; %d attempts, never TRIP, best %d, score %d, record saved", attempts, best, score))
   end
 end)

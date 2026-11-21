@@ -1,4 +1,4 @@
--- Gum Games Poop the Man check (test-gum-poop): UniBIOS 4.0, one coin, Down to the GUM GAMES row, A opens the list, Down six times picks Poop the Man (last entry), Start:
+-- Gum Games Poop the Man check (test-gum-poop): UniBIOS 4.0, one coin, Down to the PARTY event list, A opens the list, Down six times picks Poop the Man (last entry), Start:
 --   P1. the game is PLAYING in GAME_MODE_GUM with gg_poop 1 and the HUD (fix row 7) lit;
 --   P2. A pressed every 20 frames drops poops: the ammo count falls below its start;
 --   P3. the event ends in GAME_OVER and the record in slot 6 is at least the score (higher is better);
@@ -59,11 +59,11 @@ emu.register_frame_done(function()
     if n == 600 then phase = "start"; t0 = n; ss.begin(n) end
   elseif phase == "start" then
     local k = n - t0   -- Down presses at +84, 87, 90, 93, 96, 99 (six), Start at +100 from the shared sequence
-    pick:set_value((k >= 84 and k < 100 and (k - 84) % 3 < 2) and 1 or 0); abtn:set_value((k >= 80 and k < 84) and 1 or 0)
     if ss.step(n, playing, 1) then phase = "poop"; t0 = n; pick:set_value(0) end
+    ss.menu(n - t0, 10, abtn, pick)
   elseif phase == "poop" then
     if b(O.state) == K.over then phase = "check" return end
-    if b(O.poop) ~= 1 then finish(false, "gg_poop not set") return end
+    if b(O.poop) ~= 1 then finish(false, "gg_poop not set: state " .. b(O.state) .. " mode " .. b(O.mode) .. " k " .. (n - t0)) return end
     if b(K.card) == 1 then cardn = cardn + 1; abtn:set_value((cardn >= 40 and cardn < 44) and 1 or 0) return end
     if lit(7) >= 8 then hud = true end
     if b(O.phase) == 0 and mem:read_u16(flow_addr + O.timer) > 0 then
@@ -81,6 +81,6 @@ emu.register_frame_done(function()
     if min_ammo >= 5 then finish(false, "ammo never fell below 5 (min " .. min_ammo .. ")") return end
     if fsamp.us_max and fsamp.us_max > FLUSH_LIMIT then finish(false, "flush " .. fsamp.us_max .. " us over " .. FLUSH_LIMIT) return end
     if rec < score then finish(false, string.format("record %d below score %d", rec, score)) return end
-    finish(true, string.format("Poop the Man: GUM GAMES row + Down x6 starts it; HUD lit, min ammo %d, score %d, record %d saved; splats %d, bounce/berry sfx %d; play frames %d", min_ammo, score, rec, splats, sfxs, play_n))
+    finish(true, string.format("Poop the Man: PARTY event list + Down x6 starts it; HUD lit, min ammo %d, score %d, record %d saved; splats %d, bounce/berry sfx %d; play frames %d", min_ammo, score, rec, splats, sfxs, play_n))
   end
 end)

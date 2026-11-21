@@ -35,6 +35,16 @@ return function(coin, start, down)
     end
     return false
   end
+  -- PARTY event list (11 entries: Round, Roost, Toss, Tug, Big Blow, Burst Race, Bubble Gather, Pop Drop, Flap Dash, Gum Fling, Poop the Man).
+  -- Call every frame AFTER step(n, playing, 1) (cursor on PARTY): A at +80 opens the list, then the cursor goes to idx (0..10) by the shorter way
+  -- (P1 Down for idx <= 5, P1 Up wrapping from the top otherwise), one press per 3 frames from +84, all done before Start at +100. a/pick = P1 A / P1 Down fields.
+  function s.menu(k, idx, a, pick)
+    local n = idx
+    if idx > 5 then n = 11 - idx end
+    local v = (k >= 84 and k < 98 and (k - 84) % 3 < 2 and (k - 84) // 3 < n) and 1 or 0
+    a:set_value((k >= 80 and k < 84) and 1 or 0)
+    if idx > 5 then pick:set_value(0); if down and k >= 80 then down:set_value(v) end else pick:set_value(v) end
+  end
   function s.verdict(b, f, p)
     if s.c_before == b and s.c_first == f and s.c_play == p then return nil end
     return string.format("credits (before first Start, after first Start, in play) = (%s, %s, %s), want (%d, %d, %d)",

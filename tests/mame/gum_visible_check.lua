@@ -1,5 +1,5 @@
 -- Gum Games / Party visibility check (make test-gum-visible), regression for the owner report 2026-11-18 "Big Blow: bird at the screen edge, no
--- bubble; Toss Gum: no gum". Scenario by BRAWL_SCEN: "blow" (menu, GUM GAMES row, Start; mash A and B) or "toss" (Arena Start, rule TOSS, P2 join).
+-- bubble; Toss Gum: no gum". Scenario by BRAWL_SCEN: "blow" (menu, PARTY event list, Start; mash A and B) or "toss" (Arena Start, rule TOSS, P2 join).
 -- On at least 90% of the frames while the bubble should show (Big Blow: blow phase; Toss Gum: hold and flight phases, after 30 settle frames):
 --   V1. the hero body sprite (HERO_SPRITE) has a non-zero height and its x is inside the screen, 24..264 (not at an edge);
 --   V2. the bubble sprite (Big Blow: GUM_SPRITE..+GUM_COUNT-1 any; Toss Gum: ROOST_SPRITE) has a non-zero height, an x inside 0..304, and its
@@ -20,7 +20,7 @@ local function field(tag, match)
   for fname, f in pairs(p.fields) do if fname:find(match, 1, true) then return f end end
 end
 local coin, start1, start2, up = field(":AUDIO_COIN", "Coin 1"), field(":edge:joy:START", "1 Player Start"), field(":edge:joy:START", "2 Players Start") or field(":edge:joy:START", "2 Player"), field(":edge:joy:JOY1", "P1 Up")
-local abtn, bbtn = field(":edge:joy:JOY1", "P1 A"), field(":edge:joy:JOY1", "P1 B")
+local abtn, bbtn, pdown = field(":edge:joy:JOY1", "P1 A"), field(":edge:joy:JOY1", "P1 B"), field(":edge:joy:JOY1", "P1 Down")
 local ss = dofile("tests/mame/start_seq.lua")(coin, start1, up)
 local function b(o) return mem:read_u8(flow_addr + o) end
 local vram, vaddr, vmod = {}, 0, 1
@@ -69,6 +69,7 @@ emu.register_frame_done(function()
   elseif phase == "start" then
     if scen == "blow" then
       if ss.step(n, playing, 1) then phase = "watch"; t0 = n end
+      ss.menu(n - t0, 4, abtn, pdown) -- PARTY row, A opens the event list, four Downs reach Big Blow
     else
       if ss.step(n, playing, nil) then phase = "join"; t0 = n end
     end

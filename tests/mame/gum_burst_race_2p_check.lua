@@ -1,4 +1,4 @@
--- Gum Games Burst Race 2P check (make test-gum-burst-race-2p): UniBIOS 4.0, one coin, Up to the GUM GAMES row, Right to pick Burst Race, Start;
+-- Gum Games Burst Race 2P check (make test-gum-burst-race-2p): UniBIOS 4.0, one coin, Up to the PARTY event list, Right to pick Burst Race, Start;
 -- then a second coin and P2 Start in the intro (the real join path, game_can_join_p2):
 --   Q1. players 2 and race.players 2 after the join, still the intro of GAME_MODE_GUM with gg_race 1;
 --   Q2. P2 is the rival, not the computer: with both humans idle for 90 pump frames both bubbles stay at size 0 (the computer bird would pump);
@@ -54,8 +54,8 @@ emu.register_frame_done(function()
     if n == 600 then phase = "start"; t0 = n; ss.begin(n) end
   elseif phase == "start" then
     local k = n - t0
-    pick:set_value((k >= 88 and k < 96) and 1 or 0); a1:set_value((k >= 80 and k < 84) and 1 or 0) -- A opens the GUM GAMES list, Down picks
     if ss.step(n, playing, 1) then phase = "join"; t0 = n; pick:set_value(0) end
+    ss.menu(n - t0, 5, a1, pick)
   elseif phase == "join" then
     -- second credit, then P2 Start while the intro still runs (150 frames)
     local k = n - t0
