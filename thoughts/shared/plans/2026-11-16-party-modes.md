@@ -210,3 +210,12 @@ Implementation (feature/tug-gum): PARTY_TUG after PARTY_TOSS; logic in src/core/
 ## STADIUM background (ground events)
 
 Owner decisions 2026-11-18: ground events only (Toss Gum, Tug Gum, Gum Fling, Big Blow, Burst Race). Side stands behind the field at pitch level: sky with floodlight towers, far stands, near rail, grass. Bird crowd reacts to play (idle bob, cheer burst on score/burst/snap, each half in one team colour, win wave at result) plus a rolling stadium wave in calm moments. Moods dusk, moon, storm (floodlights at moon and storm, rain and umbrellas at storm). Drafts: thoughts/shared/drafts/2026-11-18-stadium/, owner pick before code.
+
+## Owner decisions 2026-11-21: MENU-MERGE (one PARTY list)
+
+- Title page: PARTY and GUM GAMES rows become one PARTY row. Title menu goes from 5 to 4 modes (ARENA, GUM TRIP, ARCADE, PARTY).
+- PARTY opens one event list with all 11 events, party rules first: RULE OF THE ROUND, ROOST RULE, TOSS GUM, TUG GUM, BIG BLOW, BURST RACE, BUBBLE GATHER, POP DROP, FLAP DASH, GUM FLING, POOP THE MAN.
+- Tournament (SINGLE EVENT / TOURNAMENT split from 2026-11-18) is NOT in this step. It comes later as its own task.
+- Player count: each event keeps the player count it supports today. 1-player gum game records stay and stay visible. Nothing is removed.
+- Look: same style as today's GUM GAMES submenu; the list scrolls if 11 rows do not fit. No visual draft first; owner checks it in the play build.
+- Score tables: keep today's PARTY SCORES and GUM GAMES SCORES data; only the menu entry merges.

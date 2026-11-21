@@ -505,7 +505,8 @@ static void draw_prompts(const Game *g, u8 show) {
     if (show) {
         p1 = 1;
         if (g->gg_toss) { ev = IP_TOSS; ph = g->toss.phase; p1 = g->toss.carrier == 0; p2 = g->toss.humans == 2 && g->toss.carrier == 2; }
-        else if (g->gg_fling) { ev = IP_FLING; ph = g->fling.phase; p1 = g->fling.seq.turn == 0; p2 = g->fling.seq.players == 2 && g->fling.seq.turn == 1; }
+        else if (g->gg_fling) { ev = IP_FLING; ph = g->fling.phase; p1 = g->fling.seq.turn == 0; p2 = g->fling.seq.players == 2 && g->fling.seq.turn == 1;
+            if (ph == GF_AIM && g->fling.t < GF_AIM_HOLD_FRAMES) p1 = p2 = 0; }   /* aim hold: A is ignored, so no A prompt yet */
         else if (g->gg_gather) { ev = IP_GATHER; ph = g->res.active ? IP_PHASE_OFF : IP_PHASE_PLAY; }
         else if (g->gg_pop) { ev = IP_POP; ph = g->pop.phase; p2 = g->players == 2; }
         else if (g->gg_dash) { ev = IP_DASH; ph = g->dash.done ? IP_PHASE_OFF : IP_PHASE_PLAY; }
@@ -1941,7 +1942,7 @@ static void draw_fling(const Game *g) {
         text((u8)((40 - 12) / 2), BLOW_TEXT_ROW + 3, PAL_HIGH, line);
     }
     {   /* control hint under the HUD rows */
-        const char *h = f->phase == GF_WINDUP ? "MASH A AND B" : f->phase == GF_AIM ? "PRESS A" : f->phase == GF_FLIGHT ? "MASH A AND B TO FLAP" : "";
+        const char *h = f->phase == GF_WINDUP ? "MASH A AND B" : f->phase == GF_AIM ? (f->t < GF_AIM_HOLD_FRAMES ? "" : "PRESS A") : f->phase == GF_FLIGHT ? "MASH A AND B TO FLAP" : "";
         i = fling_put(line, 0, h);
         while (i < BLOW_TEXT_W) line[i++] = ' ';
         line[BLOW_TEXT_W] = 0;
@@ -3483,15 +3484,15 @@ static void game_loop(void) {
             g_flow.game.toss.sfx = 0;
             if (te & GT_SFX_TOSS) sound_play_sfx(SND_SFX_FLING_THROW);
             if (te & GT_SFX_BURST) sound_play_sfx(SND_SFX_FLING_FOUL);
-            if (te & GT_SFX_WIN) sound_play_sfx(SND_SFX_FLING_LAND);
+            if (te & GT_SFX_WIN) sound_play_sfx(SND_SFX_FLING_WIN);
         }
         if (view.game && view.state == FLOW_PLAYING && g_flow.game.gg_tug && g_flow.game.tug.sfx) { /* Tug Gum sounds (Fling samples) */
             u8 te = g_flow.game.tug.sfx;
             g_flow.game.tug.sfx = 0;
             if (te & GTG_SFX_PULL) sound_play_sfx(SND_SFX_FLING_RUNUP_1);
             if (te & GTG_SFX_LETGO) sound_play_sfx(SND_SFX_FLING_THROW);
-            if (te & GTG_SFX_SNAP) sound_play_sfx(SND_SFX_FLING_FOUL);
-            if (te & GTG_SFX_WIN) sound_play_sfx(SND_SFX_FLING_LAND);
+            if (te & GTG_SFX_SNAP) sound_play_sfx(SND_SFX_FLING_WIN);   /* the snap ends a won round: the foul buzzer read as an error (owner 2026-11-21) */
+            if (te & GTG_SFX_WIN) sound_play_sfx(SND_SFX_FLING_WIN);
         }
         if (view.game && view.state == FLOW_PLAYING && g_flow.game.gg_fling && g_flow.game.fling.sfx) { /* Gum Fling sounds */
             u8 fe = g_flow.game.fling.sfx;
