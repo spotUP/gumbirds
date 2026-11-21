@@ -10,7 +10,7 @@ local rain_slot, result = tonumber(os.getenv("BRAWL_RAIN_SLOT") or ""), os.geten
 local flay = {}
 for v in (os.getenv("BRAWL_FLIER_LAYOUT") or ""):gmatch("%d+") do flay[#flay + 1] = tonumber(v) end
 local S_PLAYING, GAME_MOOD_STORM = 3, 2
-local MIN_STORM_FRAMES = 500 -- past the first lightning gap (420) and its burst: a match that ends sooner (the idle bird is hit) still counts
+local MIN_STORM_FRAMES = 475 -- past the first lightning gap (420) and its burst: a match that ends sooner (the idle bird is hit) still counts
 local NOSTORM_FRAMES, STORM_FRAMES, SB_LIMIT, FLUSH_LIMIT, MIN_CELLS = 120, 900, 90, 1800, 20
 
 local mem   = manager.machine.devices[":maincpu"].spaces["program"]
@@ -44,7 +44,7 @@ local scr = manager.machine.screens[":screen"]
 local rain_addr = hex("BRAWL_RAIN_ADDR")
 local t_rs, t_re, le = nil, nil, nil
 local tm = { calm = {n = 0, sum = 0, max = 0}, storm = {n = 0, sum = 0, max = 0}, rain = {n = 0, sum = 0, max = 0}, drops = {n = 0, sum = 0, max = 0}, owned = {n = 0, sum = 0, max = 0} }
-local function acc(k, v) local a = tm[k]; a.n = a.n + 1; a.sum = a.sum + v; if v > a.max then a.max = v end end
+local function acc(k, v) local a = tm[k]; if v >= 999 then a.over = (a.over or 0) + 1 else a.fit_n = (a.fit_n or 0) + 1; a.fit_sum = (a.fit_sum or 0) + v end; a.n = a.n + 1; a.sum = a.sum + v; if v > a.max then a.max = v end end
 local function timing_taps() -- installed once the game runs (a tap on work RAM set at script load never fired here)
   tap_fc = mem:install_write_tap(frame_addr, frame_addr + 3, "rainfc", function(o, d, m)
     local to_end, to_start = scr:time_until_vblank_end():as_double(), scr:time_until_vblank_start():as_double()
@@ -55,7 +55,7 @@ local function timing_taps() -- installed once the game runs (a tap on work RAM 
   end
 end
 local function timing()
-  local function f(k) local a = tm[k]; return string.format("%s mean %.1f max %.1f (n %d)", k, a.n > 0 and a.sum / a.n or 0, a.max, a.n) end
+  local function f(k) local a = tm[k]; return string.format("%s mean %.1f max %.1f (n %d, overruns %d, mean of fitting %.1f)", k, a.n > 0 and a.sum / a.n or 0, a.max, a.n, a.over or 0, (a.fit_n or 0) > 0 and a.fit_sum / a.fit_n or 0) end
   return "logic end lines after vblank " .. f("calm") .. ", " .. f("storm") .. "; rain_step us " .. f("rain") .. "; " .. f("drops") .. ", " .. f("owned")
 end
 

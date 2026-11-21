@@ -246,6 +246,17 @@ static void fix_run_close(VramQueue *q, VqOp *op) {
     q->count++;
 }
 
+/* index of the lowest set bit of a byte (0 for 0): lets the commit jump to the next dirty row instead of testing 32 bits one by one */
+static const uint8_t CTZ8[256] = {
+    0, 0, 1, 0, 2, 0, 1, 0, 3, 0, 1, 0, 2, 0, 1, 0, 4, 0, 1, 0, 2, 0, 1, 0, 3, 0, 1, 0, 2, 0, 1, 0,
+    5, 0, 1, 0, 2, 0, 1, 0, 3, 0, 1, 0, 2, 0, 1, 0, 4, 0, 1, 0, 2, 0, 1, 0, 3, 0, 1, 0, 2, 0, 1, 0,
+    6, 0, 1, 0, 2, 0, 1, 0, 3, 0, 1, 0, 2, 0, 1, 0, 4, 0, 1, 0, 2, 0, 1, 0, 3, 0, 1, 0, 2, 0, 1, 0,
+    5, 0, 1, 0, 2, 0, 1, 0, 3, 0, 1, 0, 2, 0, 1, 0, 4, 0, 1, 0, 2, 0, 1, 0, 3, 0, 1, 0, 2, 0, 1, 0,
+    7, 0, 1, 0, 2, 0, 1, 0, 3, 0, 1, 0, 2, 0, 1, 0, 4, 0, 1, 0, 2, 0, 1, 0, 3, 0, 1, 0, 2, 0, 1, 0,
+    5, 0, 1, 0, 2, 0, 1, 0, 3, 0, 1, 0, 2, 0, 1, 0, 4, 0, 1, 0, 2, 0, 1, 0, 3, 0, 1, 0, 2, 0, 1, 0,
+    6, 0, 1, 0, 2, 0, 1, 0, 3, 0, 1, 0, 2, 0, 1, 0, 4, 0, 1, 0, 2, 0, 1, 0, 3, 0, 1, 0, 2, 0, 1, 0,
+    5, 0, 1, 0, 2, 0, 1, 0, 3, 0, 1, 0, 2, 0, 1, 0, 4, 0, 1, 0, 2, 0, 1, 0, 3, 0, 1, 0, 2, 0, 1, 0 };
+
 /* Changed rows next to each other in a column (column-major: consecutive fix addresses) share one VQ_RUN op. Storm rain
  * changes about 70 cells a frame in short vertical streaks; one op per cell cost about 63 lines of logic frame and
  * pushed the commit past VQ_FIX_LINE_END (budget 0: no rain reached VRAM, make test-rain / test-vblank).
@@ -262,7 +273,12 @@ int vq_fix_commit_n(VramQueue *q, u16 budget) {
                 if (op) { fix_run_close(q, op); op = 0; }
                 do { m >>= 8; i = (u16)(i + 8); r = (u16)(r + 8); } while (!(m & 0xFFu));
             }
-            if (!(m & 1) || q->fix_want[i] == q->fix_hw[i]) {
+            u16 t = CTZ8[m & 0xFFu];
+            if (t) { /* a gap of clean rows ends the run */
+                if (op) { fix_run_close(q, op); op = 0; }
+                m >>= t; i = (u16)(i + t); r = (u16)(r + t);
+            }
+            if (q->fix_want[i] == q->fix_hw[i]) {
                 if (op) { fix_run_close(q, op); op = 0; }
                 continue;
             }

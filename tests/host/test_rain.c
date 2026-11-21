@@ -5,6 +5,7 @@
 #include "../../src/vram_layout.h"
 #include "gen/rain_tiles.h"
 
+#define GOLDEN_HASH 0x7811f346u
 static int fails;
 #define CHECK(c, msg) do { if (!(c)) { printf("[FAIL] %s\n", msg); fails++; } } while (0)
 
@@ -65,6 +66,21 @@ int main(void) {
     CHECK(burst_pal >= RAIN_BURST_PAL_FRAMES, "burst palette shown");
     CHECK(flashes >= 3, "flashes repeat");
     CHECK(rain_flash_color(0x0000, 1) != 0 && rain_flash_color(0x1234, 0) == 0x1234, "flash colour lifts toward white");
+    /* golden: cell writes for a fixed run (all modes, trip scroll, a text cell) must match the pre-speed-pass code */
+    {
+        uint32_t h = 2166136261u;
+        vq_init(&q);
+        vq_fix_fill(&q, FIXFONT_BLANK);
+        vq_fix_put(&q, 10, 14, (uint16_t)((1 << 12) | 'A'));
+        rain_init(&r, RAIN_PAL_SLOT);
+        for (int f = 0; f < 4000; f++) {
+            uint8_t mode = (uint8_t)((f / 700) % 3);
+            rain_step(&r, &q, 1, mode, mode == RAIN_MODE_TRIP ? (int16_t)(f % 5) : 0);
+            for (int i = 0; i < VQ_FIX_COLS * VQ_FIX_ROWS; i++) h = (h ^ q.fix_want[i]) * 16777619u;
+        }
+        printf("[INFO] golden hash %08x\n", (unsigned)h);
+        CHECK(h == GOLDEN_HASH, "rain cell writes match the reference run");
+    }
     printf("%s\n", fails ? "[FAIL] test_rain" : "[OK] test_rain");
     return fails != 0;
 }

@@ -53,6 +53,22 @@ static inline void put(VramQueue *q, uint16_t fi, uint16_t cell) {
     q->fix_any = 1;
 }
 
+/* rain_cut as RAM entries: fix_want index offset (col * 32 + row), column, row, tile + 1; built once (3 slots per cell class) */
+typedef struct { int16_t off; int8_t dc, dr; uint8_t t1; } Cut;
+static Cut cutw[96 * 3];
+static uint8_t cutw_ok;
+static void cut_init(void) {
+    if (cutw_ok) return;
+    for (uint8_t ci = 0; ci < 96; ci++)
+        for (uint8_t k = 0; k < rain_cut_n[ci]; k++) {
+            const uint8_t *e = &rain_cut[ci * 9 + k * 3];
+            Cut *c = &cutw[ci * 3 + k];
+            c->dc = (int8_t)e[0]; c->dr = (int8_t)e[1]; c->t1 = (uint8_t)(e[2] + 1);
+            c->off = (int16_t)(e[0] * 32 + e[1]);
+        }
+    cutw_ok = 1;
+}
+
 static void release_all(Rain *r, VramQueue *q) {
     CELLW = (uint16_t)(r->pal << 12);
     for (uint16_t i = 0; i < r->n_list; i++) {
@@ -89,32 +105,45 @@ void rain_step(Rain *r, VramQueue *q, uint8_t active, uint8_t mode, int16_t scro
         const uint8_t *e = rain_burst_spawn;
         for (uint8_t i = 0; i < RAIN_BURST_N; i++, e += 4) if (e[0] == bt) drop_add(r, 5, e[1], e[2], e[3]);
     }
-    /* cells: far first, near wins a shared cell. Only touched cells are visited: no scan of the 40 x 28 grid */
-    static uint8_t row_ok[RAIN_ROWS], ok_mode = 0xFF;
+    /* cells: one pass over the drops (cells, then advance). Far drops never replace a near cell; near wins a shared cell (now[] bit 7). */
+    static uint8_t rok[256 + 4], ok_mode = 0xFF; /* row_ok padded: a drop row0 is a byte, cut rows add up to 2 */
     if (ok_mode != mode) {
         uint32_t hud = rain_hud_rows[mode];
-        for (uint8_t y = 0; y < RAIN_ROWS; y++) row_ok[y] = (uint8_t)!(hud >> y & 1u);
+        for (uint8_t y = 0; y < RAIN_ROWS; y++) rok[y] = (uint8_t)!(hud >> y & 1u);
         ok_mode = mode;
     }
+    cut_init();
     uint8_t *now = r->now, *own = r->own;
     uint16_t *want = q->fix_want;
     uint16_t cells[RAIN_MAX_DROPS * 3], n_cells = 0;
-    for (uint8_t pass = 0; pass < 2; pass++) {
-        const RainDrop *d = r->drop;
-        for (uint8_t i = r->n; i; i--, d++) {
-            if ((d->kind >= 3) != pass) continue;
-            uint16_t ci = (uint16_t)((((uint16_t)d->kind << 3 | (d->px & 7)) << 1) | ((d->py >> 2) & 1));
-            const uint8_t *cut = &rain_cut[(ci << 3) + ci];
-            int16_t c0 = (int16_t)(d->px >> 3), r0 = (int16_t)(d->py >> 3);
-            for (uint8_t k = rain_cut_n[ci]; k; k--, cut += 3) {
-                uint16_t c = (uint16_t)(c0 + cut[0]), row = (uint16_t)(r0 + cut[1]);
-                if (c >= RAIN_COLS || row >= RAIN_ROWS || !row_ok[row]) continue;
-                uint16_t fi = (uint16_t)((c << 5) + row + 2);
-                if (!now[fi]) cells[n_cells++] = fi;
-                now[fi] = (uint8_t)(cut[2] + 1);
-            }
+    uint8_t keep = 0;
+    for (uint8_t i = 0; i < r->n; i++) {
+        RainDrop d = r->drop[i];
+        uint8_t near = d.kind >= 3, flag = (uint8_t)(near << 7);
+        uint16_t ci = (uint16_t)((((uint16_t)d.kind << 3 | (d.px & 7)) << 1) | ((d.py >> 2) & 1));
+        const Cut *cut = &cutw[ci * 3];
+        int16_t c0 = (int16_t)(d.px >> 3), r0 = (int16_t)(d.py >> 3);
+        uint16_t base = (uint16_t)((c0 << 5) + r0 + 2);
+        uint8_t inside = (uint16_t)c0 < RAIN_COLS - 1; /* every cut column is 0 or 1: no column test needed */
+        for (uint8_t k = rain_cut_n[ci]; k; k--, cut++) {
+            if (!rok[r0 + cut->dr]) continue;
+            if (!inside && (uint16_t)(c0 + cut->dc) >= RAIN_COLS) continue;
+            uint16_t fi = (uint16_t)(base + cut->off);
+            uint8_t v = now[fi];
+            if (!v) cells[n_cells++] = fi;
+            if (!v || near || !(v & 0x80)) now[fi] = (uint8_t)(cut->t1 | flag);
         }
+        d.px = (int16_t)(d.px - rain_move[d.kind][0]);
+        d.py = (int16_t)(d.py + rain_move[d.kind][1]);
+        if (scroll_px > 0) { /* extra left steps of this drop's own lattice step (2 near, 1 far per px of speed) */
+            int16_t step = (int16_t)(rain_move[d.kind][0] * (near ? 2 : 1));
+            d.acc = (int16_t)(d.acc + scroll_px);
+            while (d.acc >= step) { d.acc = (int16_t)(d.acc - step); d.px = (int16_t)(d.px - step); }
+        }
+        int16_t end = (int16_t)(d.end_row * 8);
+        if (d.py < (end < H ? end : H) && d.px > -16) r->drop[keep++] = d;
     }
+    r->n = keep;
     /* blank cells that stopped holding rain, then write the new ones: only free cells (or ours) are taken */
     for (uint16_t i = 0; i < r->n_list; i++) {
         uint16_t c = r->list[i];
@@ -125,7 +154,7 @@ void rain_step(Rain *r, VramQueue *q, uint8_t active, uint8_t mode, int16_t scro
     uint16_t nl = 0;
     for (uint16_t i = 0; i < n_cells; i++) {
         uint16_t c = cells[i], w = want[c];
-        uint8_t t = now[c];
+        uint8_t t = now[c] & 0x7F;
         uint16_t cw = CELL(t - 1);
         now[c] = 0;
         if (w != cw) {
@@ -136,21 +165,6 @@ void rain_step(Rain *r, VramQueue *q, uint8_t active, uint8_t mode, int16_t scro
         r->list[nl++] = c;
     }
     r->n_list = nl;
-    /* advance */
-    uint8_t keep = 0;
-    for (uint8_t i = 0; i < r->n; i++) {
-        RainDrop d = r->drop[i];
-        d.px = (int16_t)(d.px - rain_move[d.kind][0]);
-        d.py = (int16_t)(d.py + rain_move[d.kind][1]);
-        if (scroll_px > 0) { /* extra left steps of this drop's own lattice step (2 near, 1 far per px of speed) */
-            int16_t step = (int16_t)(rain_move[d.kind][0] * (d.kind >= 3 ? 2 : 1));
-            d.acc = (int16_t)(d.acc + scroll_px);
-            while (d.acc >= step) { d.acc = (int16_t)(d.acc - step); d.px = (int16_t)(d.px - step); }
-        }
-        int16_t end = (int16_t)(d.end_row * 8);
-        if (d.py < (end < H ? end : H) && d.px > -16) r->drop[keep++] = d;
-    }
-    r->n = keep;
 }
 
 uint8_t rain_flash_index(const Rain *r) {
