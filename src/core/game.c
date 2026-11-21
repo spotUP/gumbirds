@@ -69,6 +69,7 @@ void game_start_p2(Game *g)
 {
     g->players = 2;
     g->toss.humans = g->gg_toss ? 2 : g->toss.humans;   /* a restart into Toss Gum (flow_join_p2 from Arena) seats the second human too */
+    g->tug.humans = g->gg_tug ? 2 : g->tug.humans;
     arc_lives_start(&g->lives[1]);
     player_spawn_h(g, 1);
 }
@@ -80,8 +81,11 @@ int game_can_join_p2(const Game *g)
         return g->rounds && !g->over && g->cpu_count > 0 && (g->players == 1 || g->lives[1].state == ARC_LIFE_ENDED);
     }
     if (g->gg_toss) return g->players == 1 && g->toss.round == 0;   /* Toss Gum: P2 joins before the first burst */
+    if (g->gg_tug) return g->players == 1 && g->tug.phase == GTG_PLAY && g->tug.wins[0] + g->tug.wins[1] == 0;   /* Tug Gum: P2 joins before the first round ends */
     if (g->mode == GAME_MODE_GUM && g->gg_fling)   /* Gum Fling: P2 joins before the first throw (rules card, GET SET, GO!) */
         return g->players == 1 && g->fling.phase == GF_WINDUP && g->fling.seq.tickets[0] == GF_ATTEMPTS && g->cd_t < GGCD_END;
+    if (g->mode == GAME_MODE_GUM && g->gg_poop)   /* Poop the Man: P2 joins during the countdown */
+        return g->players == 1 && g->poop.phase == PM_PLAY && g->poop.timer == 0 && g->cd_t < GGCD_END;
     if (g->mode == GAME_MODE_GUM && g->gg_pop)   /* Pop Drop: P2 joins during the first fall's countdown */
         return g->players == 1 && g->pop.phase == PD_FALL && g->pop.seq.tickets[0] == 1 && g->pop.timer == 0 && g->cd_t < GGCD_END;
     if (g->mode == GAME_MODE_GUM) return g->gg_race && g->race.phase == GG_RACE_INTRO && g->players == 1;   /* Burst Race: P2 joins in the intro */
@@ -113,7 +117,9 @@ int game_join_p2(Game *g)
 {
     if (!game_can_join_p2(g)) return 0;
     if (g->gg_toss) { g->players = g->toss.humans = 2; return 1; }
+    if (g->gg_tug) { g->players = g->tug.humans = 2; return 1; }
     if (g->mode == GAME_MODE_GUM && g->gg_fling) { g->players = 2; gumfling_add_p2(&g->fling); return 1; }
+    if (g->mode == GAME_MODE_GUM && g->gg_poop) { g->players = 2; gm_add_p2(&g->poop); return 1; }
     if (g->mode == GAME_MODE_GUM && g->gg_pop) { g->players = 2; gp_add_p2(&g->pop, &g->hero[0], &g->hero[1]); return 1; }
     if (g->mode == GAME_MODE_GUM) { g->players = g->race.players = 2; return 1; }
     if (g->mode == GAME_MODE_ARENA) return 0; /* Arena joins through flow_join_p2: a fresh match */
@@ -242,22 +248,28 @@ static void game_step_gum(Game *g, uint8_t input)
 static void game_step_dash(Game *g, uint8_t input);
 static void game_step_gather(Game *g, uint8_t input);
 static void game_step_pop(Game *g, uint8_t input);
+static void game_step_poop(Game *g, uint8_t input);
 static void game_step_fling(Game *g, uint8_t input);
 static void game_step_toss(Game *g, uint8_t input);
+static void game_step_tug(Game *g, uint8_t input);
 void game_step(Game *g, uint8_t input)
 {
     g->cd_ev = 0;
-    if ((g->gg_fling || g->gg_gather || g->gg_pop || g->gg_dash) && g->cd_t < GGCD_END) {
+    if ((g->gg_fling || g->gg_gather || g->gg_pop || g->gg_poop || g->gg_dash) && g->cd_t < GGCD_END) {
         int frozen = g->cd_t < GGCD_SET_FRAMES;
         cd_tick(g);
         if (frozen) { g->frame++; return; }   /* GET SET: the world stands still and takes no input */
     }
-    if (g->gg_toss) {
+    if (g->gg_tug) {
+        game_step_tug(g, input);
+    } else if (g->gg_toss) {
         game_step_toss(g, input);
     } else if (g->gg_fling) {
         game_step_fling(g, input);
     } else if (g->gg_gather) {
         game_step_gather(g, input);
+    } else if (g->gg_poop) {
+        game_step_poop(g, input);
     } else if (g->gg_pop) {
         game_step_pop(g, input);
     } else if (g->gg_dash) {
@@ -495,6 +507,28 @@ static void game_step_pop(Game *g, uint8_t input)
     camera_follow(g);
 }
 
+void game_gg_start_poop(Game *g)
+{
+    g->gg_poop = 1;
+    g->cd_t = 0;
+    g->players = 1;
+    g->cpu_count = 0;
+    gm_init(&g->poop, g->frame + 1u, g->mood == GAME_MOOD_STORM);   /* storm: every walker has an umbrella */
+    camera_init(&g->camera);
+}
+
+static void game_step_poop(Game *g, uint8_t input)
+{
+    GgPoop *p = &g->poop;
+    gm_step(p, input, g->input2);
+    g->score = p->phase == PM_PLAY ? p->b[0].score : p->seq.points[0];
+    if (g->players == 2) g->lives[1].score = p->phase == PM_PLAY ? p->b[1].score : p->seq.points[1];
+    if (p->done) g->over = 1;
+    g->frame++;
+    g->hero[0].spawn_inv = 0; g->hero[1].spawn_inv = 0;
+    camera_follow(g);
+}
+
 static void game_step_dash(Game *g, uint8_t input)
 {
     GgDash *d = &g->dash;
@@ -561,13 +595,14 @@ void game_gg_start_toss(Game *g)
 }
 
 /* The flier standing on seat s: humans are seats 0 and (2 players) 2, computers fill the rest in seat order. */
-static Flier *toss_flier(Game *g, int s)
+static Flier *seat_flier(Game *g, int s, int humans)
 {
-    int h = s == 0 ? 0 : (s == 2 && g->toss.humans == 2) ? 1 : -1, i, c = 0;
+    int h = s == 0 ? 0 : (s == 2 && humans == 2) ? 1 : -1, i, c = 0;
     if (h >= 0) return &g->hero[h];
-    for (i = 0; i < s; i++) c += !(i == 0 || (i == 2 && g->toss.humans == 2));
+    for (i = 0; i < s; i++) c += !(i == 0 || (i == 2 && humans == 2));
     return &g->cpu[c];
 }
+static Flier *toss_flier(Game *g, int s) { return seat_flier(g, s, g->toss.humans); }
 
 const Flier *game_toss_flier(const Game *g, int seat) { return toss_flier((Game *)g, seat); }
 
@@ -600,6 +635,46 @@ static void game_step_toss(Game *g, uint8_t input)
         if (w == 1) g->lives[1].score = 1000;
     }
     if (t->phase == GT_END) g->over = 1;
+}
+
+/* Tug Gum (PARTY_TUG): two teams of two birds on the stadium turf (gg_tug.h). Seat order: 0 P1, 1 its partner, 2 P2 (or the computer rival), 3 its partner.
+ * Feet in screen pixels: the draft puts the left team's cells at x 40 (partner) and 88 (player), the right team mirrored about x = 160, feet on line 201. */
+static const int16_t tug_foot[GTG_SEATS][2] = { { 104, 201 }, { 56, 201 }, { 216, 201 }, { 264, 201 } };
+void game_gg_start_tug(Game *g)
+{
+    g->mode = GAME_MODE_GUM;
+    g->gg_tug = 1;
+    g->rounds = 0;
+    g->players = 1;
+    g->cpu_count = 3;
+    gg_tug_start(&g->tug, rng_next(&g->rng), 1);
+    camera_init(&g->camera);
+}
+
+const Flier *game_tug_flier(const Game *g, int seat) { return seat_flier((Game *)g, seat, g->tug.humans); }
+
+static void game_step_tug(Game *g, uint8_t input)
+{
+    GgTug *t = &g->tug;
+    int s, c = 0;
+    gg_tug_step(t, input, g->input2);
+    for (s = 0; s < (int)GTG_SEATS; s++) {
+        Flier *f = seat_flier(g, s, t->humans);
+        c += f >= g->cpu && f < g->cpu + STAGE_SPAWN_COUNT;
+        if (f->state == FLIER_GONE) flier_init(f, 0, 0, 0, 0);
+        f->x = FL_PX(tug_foot[s][0]);
+        f->y = FL_PX(tug_foot[s][1]) - flier_half_h(f);
+        f->vx = f->vy = 0;
+        f->facing = s < 2;   /* the left team looks right, the right team looks left */
+        f->spawn_inv = 0;
+    }
+    g->cpu_count = (uint8_t)c;
+    g->frame++;
+    if (t->phase >= GTG_RESULT) {
+        if (t->round_winner == 0) g->score = 1000;
+        else if (t->humans == 2) g->lives[1].score = 1000;
+    }
+    if (t->phase == GTG_END) g->over = 1;
 }
 
 /* Arena and arcade share the round phases (pan, ROUND/STAGE banner, frozen hazards). */
@@ -639,9 +714,9 @@ int game_banner_flags(const Game *g)
 }
 
 /* The party rule table: name, goal line (owner-approved 2026-11-16). Index = PARTY_*; twist names index = TWIST_*. */
-static const char *const party_names[PARTY_RULE_COUNT] = { "", "RULE OF THE ROUND", "ROOST RULE", "TOSS GUM" };
+static const char *const party_names[PARTY_RULE_COUNT] = { "", "RULE OF THE ROUND", "ROOST RULE", "TOSS GUM", "TUG GUM" };
 static const char *const party_goals[PARTY_RULE_COUNT] = {
-    "", "A NEW TWIST EVERY ROUND", "STAND ON THE GLOWING ISLAND TO SCORE", "TOSS THE GUM ON BEFORE IT BURSTS"
+    "", "A NEW TWIST EVERY ROUND", "STAND ON THE GLOWING ISLAND TO SCORE", "TOSS THE GUM ON BEFORE IT BURSTS", "PULL THE GUM KNOT OVER YOUR LINE"
 };
 static const char *const twist_names[TWIST_COUNT] = { "", "ONE GUM EACH", "CROWDED SKY", "SLOW THINKERS", "QUICK THINKERS", "MIRROR STICK", "WINDY" };
 const char *game_party_name(uint8_t rule) { return rule < PARTY_RULE_COUNT ? party_names[rule] : ""; }
@@ -658,7 +733,8 @@ static const char *const party_howto[PARTY_RULE_COUNT][3] = {
     { "", "", "" },
     { "POP THE OTHER BIRDS' GUM BUBBLES", "THE LAST BIRD FLYING WINS THE ROUND", "EVERY ROUND HAS A NEW TWIST" },
     { "STAND ALONE ON THE GLOWING ISLAND", "TO EARN POINTS WHILE YOU HOLD IT", "POP RIVALS OFF THE ISLAND" },
-    { "A B C TOSS THE GUM TO A NEIGHBOUR", "THE BIRD HOLDING IT WHEN IT BURSTS IS OUT", "THE LAST BIRD STANDING WINS" }
+    { "A B C TOSS THE GUM TO A NEIGHBOUR", "THE BIRD HOLDING IT WHEN IT BURSTS IS OUT", "THE LAST BIRD STANDING WINS" },
+    { "MASH A B C TO PULL THE KNOT OVER", "D LETS GO: A RIVAL WHO JUST PULLED STUMBLES", "BEST OF THREE ROUNDS" }
 };
 const char *game_party_howto(uint8_t rule, int line) { return rule < PARTY_RULE_COUNT && line >= 0 && line < 3 ? party_howto[rule][line] : ""; }
 
@@ -688,7 +764,7 @@ int game_camera_px(const Game *g)
 int game_flier_cam_px(const Game *g)
 {
     /* The trip flier and the Gum Fling hero live in screen space (x 0..319): the view places them with camera 0. */
-    return g->mode == GAME_MODE_TRIP || g->gg_fling || g->gg_toss ? 0 : camera_px(&g->camera);
+    return g->mode == GAME_MODE_TRIP || g->gg_fling || g->gg_toss || g->gg_tug ? 0 : camera_px(&g->camera);
 }
 
 /* One arena step for any flier: the floor line, then the solid island bodies (pre-step position kept for the push-out). */

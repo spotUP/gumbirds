@@ -4,6 +4,7 @@
 #include "sprite_slots.h"
 #include "vram_layout.h"
 #include "core/game.h"
+#include "core/gg_tug.h"
 
 #define COLS FLFIELD_TURF_COUNT
 #define MARKS FLFIELD_MARKER_COUNT
@@ -23,9 +24,15 @@ _Static_assert(FLFIELD_BOARD_COUNT + 2 == MARKS, "marker slots: foul line, the b
 _Static_assert(FLFIELD_MARKER_SPRITE + MARKS <= ISLAND_SPRITE + 41, "field markers overrun the island slots");
 _Static_assert(FLFIELD_PUFF_SPRITE + FLFIELD_PUFF_COUNT <= SPRITE_SLOT_END, "field puff overruns the slot table");
 
+/* Tug Gum worn chalk (tools/draw_fling_field.py TUG_COLS): turf columns with the lines painted in, loaded in place of the plain column; no scroll in Tug.
+ * Columns are x / 16: left win mark 8 (x 128 = 160 - GTG_WIN_Q / 4), centre line 10, right win mark 11 (x 176..191, mirrored). */
+#define TUG_CODE 0x10   /* g_type value of a chalk column = TUG_CODE + frame offset from FLFIELD_TUG_FIRST */
+_Static_assert(GTG_WIN_Q == 128, "the Tug win marks are drawn at x 128 and 192: redraw TUG_WIN in tools/draw_fling_field.py and move TUG_COLS");
+static const u8 k_tug_col[3] = { 8, 10, 11 };
+
 static const char k_seq[] = "PRQSQPSRPQRSRPSQSRQPRSPQSQRPQSPR"; /* TURF_SEQ in tools/draw_fling_field.py: the column letters repeat every 32 */
 
-static u8 g_on, g_vis, g_ready, g_mood, g_prev, g_mload, g_flut, g_puff_t;
+static u8 g_on, g_vis, g_ready, g_mood, g_prev, g_mload, g_flut, g_puff_t, g_mvis;
 static u16 g_tick;
 static u8 g_type[COLS];           /* turf frame loaded in the slot, 0xFF = none */
 static u16 g_t3[COLS], g_t4[COLS], g_mw[MARKS], g_m3[MARKS], g_m4[MARKS], g_p3[FLFIELD_PUFF_COUNT], g_p4[FLFIELD_PUFF_COUNT];
@@ -61,7 +68,7 @@ static void hide_all(void) {
 
 u8 fling_field_loaded(void) { return g_ready; }
 
-void fling_field_step(const GgFling *f, u8 mood, int on, int show, int markers) {
+void fling_field_step(const GgFling *f, u8 mood, int on, int show, int markers, int tug) {
     u8 loads = LOADS_PER_FRAME, pending = 0;
     u32 scroll, j0;
     if (!f || !on) {
@@ -82,9 +89,10 @@ void fling_field_step(const GgFling *f, u8 mood, int on, int show, int markers) 
     j0 = scroll >> 4;
     for (u32 j = j0; j < j0 + COLS; j++) {
         u8 s = (u8)(j % COLS), t = (u8)(k_seq[j & 31] - 'P');
+        if (tug && !scroll) for (u8 c = 0; c < 3; c++) if (j == k_tug_col[c]) t = (u8)(TUG_CODE + c);
         if (g_type[s] != t) {
             if (!loads) { pending = 1; g_t3[s] = 0; continue; }
-            gfx_strip((u16)(FLFIELD_TURF_SPRITE + s), tiles_of((u16)(FLFIELD_TURF_FIRST + t)), FLFIELD_TILE_BASE, 4, TURF_ATTR);
+            gfx_strip((u16)(FLFIELD_TURF_SPRITE + s), tiles_of((u16)(t >= TUG_CODE ? FLFIELD_TUG_FIRST + t - TUG_CODE : FLFIELD_TURF_FIRST + t)), FLFIELD_TILE_BASE, 4, TURF_ATTR);
             g_type[s] = t; loads--;
         }
         g_t3[s] = gfx_scb3_word(4, TURF_Y);
@@ -117,8 +125,11 @@ void fling_field_step(const GgFling *f, u8 mood, int on, int show, int markers) 
     if (g_vis) {
         gfx_scb_run((u16)(ADDR_SCB3 + FLFIELD_TURF_SPRITE), 1, g_t3, COLS);
         gfx_scb_run((u16)(ADDR_SCB4 + FLFIELD_TURF_SPRITE), 1, g_t4, COLS);
-        gfx_scb_run((u16)(ADDR_SCB3 + FLFIELD_MARKER_SPRITE), 1, g_m3, MARKS);
-        gfx_scb_run((u16)(ADDR_SCB4 + FLFIELD_MARKER_SPRITE), 1, g_m4, MARKS);
+        if (markers || g_mvis) {   /* without markers the slots are left alone after one hiding frame: Tug Gum draws its strand there */
+            gfx_scb_run((u16)(ADDR_SCB3 + FLFIELD_MARKER_SPRITE), 1, g_m3, MARKS);
+            gfx_scb_run((u16)(ADDR_SCB4 + FLFIELD_MARKER_SPRITE), 1, g_m4, MARKS);
+        }
+        g_mvis = (u8)(markers != 0);
         gfx_scb_run((u16)(ADDR_SCB3 + FLFIELD_PUFF_SPRITE), 1, g_p3, FLFIELD_PUFF_COUNT);
         gfx_scb_run((u16)(ADDR_SCB4 + FLFIELD_PUFF_SPRITE), 1, g_p4, FLFIELD_PUFF_COUNT);
     }

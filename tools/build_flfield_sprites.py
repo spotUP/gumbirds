@@ -4,7 +4,7 @@
 Usage: $PYTHON -I tools/build_flfield_sprites.py [--out build/gen] [--no-verify]
 Palettes (role order, so tile data is shared across moods): [0] turf dusk, [1] turf dusk again (puff anim), [2] gear dusk;
 extra palettes turf_moon, turf_storm, gear_moon, gear_storm. Frame order: 0-3 turf P Q R S, 4-9 puff, 10 foul line,
-11-24 boards (10..150 M without 90), 25.. the 90 M mark with one pennant frame each."""
+11-24 boards (10..150 M without 90), 25.. the 90 M mark with one pennant frame each, then 3 Tug Gum chalk columns (L C R)."""
 import json, os, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from PIL import Image
@@ -28,8 +28,8 @@ def main():
     stacks += [("mark%d" % i, [pen, art.MARK_FACE, art.MARK_POST, art.MARK_TOP, art.MARK_MID, art.MARK_MID, art.MARK_MID])
                for i, pen in enumerate(art.PENNANT)]
     W = 16 * len(stacks)
-    sheet = Image.new("RGBA", (max(W, 32 * len(art.PUFF)), 64 + 32 + 7 * 16), (0, 0, 0, 0))
-    anims = {"turf": [], "puff": [], "gear": []}
+    sheet = Image.new("RGBA", (max(W, 32 * len(art.PUFF)), 64 + 32 + 7 * 16 + 64), (0, 0, 0, 0))
+    anims = {"turf": [], "puff": [], "gear": [], "tug": []}
     for j, c in enumerate("PQRS"):
         art.stamp(sheet, art.TURF_COL[c], tp, 16 * j, 0)
         anims["turf"].append(dict(x=16 * j, y=0, w=16, h=64))
@@ -40,6 +40,9 @@ def main():
         for k, t in enumerate(tiles):
             art.stamp(sheet, t, gp, 16 * i, 96 + 16 * k)
         anims["gear"].append(dict(x=16 * i, y=96, w=16, h=16 * len(tiles)))
+    for i, n in enumerate("LCR"):          # Tug Gum worn chalk columns: left win mark, centre line, right win mark
+        art.stamp(sheet, art.TUG_COL[n], tp, 16 * i, 96 + 7 * 16)
+        anims["tug"].append(dict(x=16 * i, y=96 + 7 * 16, w=16, h=64))
     px = sheet.load()
     for y in range(sheet.height):          # stamp() writes the snapped RGB at alpha 255; transparent stays (0,0,0,0)
         for x in range(sheet.width):
@@ -51,7 +54,8 @@ def main():
                 extra_palettes={"turf_moon": pal(art.TURF["moon"]), "turf_storm": pal(art.TURF["storm"]),
                                 "gear_moon": pal(art.GEAR["moon"]), "gear_storm": pal(art.GEAR["storm"])},
                 defines=dict(turf_first=0, puff_first=4, puff_frames=len(art.PUFF), foul_frame=10, board_first=11,
-                             board_count=len(art.BOARD_M), mark_first=11 + len(art.BOARD_M), mark_frames=len(art.PENNANT)))
+                             board_count=len(art.BOARD_M), mark_first=11 + len(art.BOARD_M), mark_frames=len(art.PENNANT),
+                             tug_first=11 + len(art.BOARD_M) + len(art.PENNANT)))
     sp, mp = os.path.join(out, "flfield_sheet.png"), os.path.join(out, "flfield_sheet.json")
     sheet.save(sp)
     json.dump(meta, open(mp, "w"))

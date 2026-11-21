@@ -26,11 +26,13 @@ static void start_game(Flow *f, uint32_t seed, int demo)
         game_set_mode(&f->game, f->mode);
         if (f->mode == GAME_MODE_PARTY) f->game.party_rule = f->party_rule;
         if (f->mode == GAME_MODE_PARTY && f->party_rule == PARTY_TOSS) game_gg_start_toss(&f->game);
+        if (f->mode == GAME_MODE_PARTY && f->party_rule == PARTY_TUG) game_gg_start_tug(&f->game);
         if (f->mode == GAME_MODE_GUM && f->gg_event == GG_BURST_RACE) game_gg_start_race(&f->game);
         if (f->mode == GAME_MODE_GUM && f->gg_event == GG_POP_DROP) game_gg_start_pop(&f->game);
         if (f->mode == GAME_MODE_GUM && f->gg_event == GG_FLAP_DASH) game_gg_start_dash(&f->game);
         if (f->mode == GAME_MODE_GUM && f->gg_event == GG_BUBBLE_GATHER) game_gg_start_gather(&f->game);
         if (f->mode == GAME_MODE_GUM && f->gg_event == GG_FLING) game_gg_start_fling(&f->game);
+        if (f->mode == GAME_MODE_GUM && f->gg_event == GG_POOP_MAN) game_gg_start_poop(&f->game);
     }
     f->demo = (uint8_t)demo;
     f->howto = 0;
@@ -38,7 +40,7 @@ static void start_game(Flow *f, uint32_t seed, int demo)
     f->demo_in = 0;
     if (demo) ai_init(&f->demo_ai, &f->game.rng, DEMO_AI_RANK);
     attract_overlay_reset(&f->ov);
-    f->game.rounds = (uint8_t)(!demo && f->mode != GAME_MODE_TRIP && f->mode != GAME_MODE_GUM && !f->game.gg_toss); /* real arena games get the round end and round start phases */
+    f->game.rounds = (uint8_t)(!demo && f->mode != GAME_MODE_TRIP && f->mode != GAME_MODE_GUM && !f->game.gg_toss && !f->game.gg_tug); /* real arena games get the round end and round start phases */
     f->highlight = -1;
     f->new_row = -1;
     f->reset_flash = 0;
@@ -50,7 +52,7 @@ static void start_game(Flow *f, uint32_t seed, int demo)
  * any other mode starts at once. The demo runs as FLOW_PLAYING with howto set and no round phases. */
 static void start_title_game(Flow *f, uint32_t seed)
 {
-    if (f->mode != GAME_MODE_PARTY || f->party_rule == PARTY_TOSS) {   /* Toss Gum teaches itself in its HOLD phase: no demo */
+    if (f->mode != GAME_MODE_PARTY || f->party_rule == PARTY_TOSS || f->party_rule == PARTY_TUG) {   /* Toss Gum and Tug Gum have no how-to demo */
         start_game(f, seed, 0);
         f->gg_card = f->mode == GAME_MODE_GUM && flow_gg_card(f->gg_event);
         f->card_t = 0;
@@ -239,8 +241,8 @@ static void title_reset_combo(Flow *f, uint8_t input)
 }
 
 /* GUM GAMES submenu order (owner 2026-11-17): the GG_* events as listed on screen. */
-static const uint8_t gg_order[GG_PICK_COUNT] = { GG_BIG_BLOW, GG_BURST_RACE, GG_BUBBLE_GATHER, GG_POP_DROP, GG_FLAP_DASH, GG_FLING };
-static const char *const gg_names[GG_PICK_COUNT] = { "BIG BLOW", "BURST RACE", "BUBBLE GATHER", "POP DROP", "FLAP DASH", "GUM FLING" };
+static const uint8_t gg_order[GG_PICK_COUNT] = { GG_BIG_BLOW, GG_BURST_RACE, GG_BUBBLE_GATHER, GG_POP_DROP, GG_FLAP_DASH, GG_FLING, GG_POOP_MAN };
+static const char *const gg_names[GG_PICK_COUNT] = { "BIG BLOW", "BURST RACE", "BUBBLE GATHER", "POP DROP", "FLAP DASH", "GUM FLING", "POOP THE MAN" };
 
 uint8_t flow_gg_event(uint8_t i) { return gg_order[i]; }
 const char *flow_gg_name(uint8_t i) { return gg_names[i]; }
@@ -253,6 +255,9 @@ static const GgCard gg_cards[GG_PICK_COUNT] = {
     [5] = { "FLING THE GUM AS FAR AS YOU CAN",
             { { "MASH A+B", "FOR POWER" }, { "A LOCKS", "THE ANGLE" }, { "MASH TO", "FLAP" } },
             { "SAFE ANGLE: 15 TO 75 DEGREES", "TAKE TURNS: 3 THROWS EACH" } },
+    [6] = { "POOP ON THE WALKERS' HEADS FOR POINTS",
+            { { "STICK TO FLY", "OVER THE STREET" }, { "A DROPS POOP", "5 SHOTS, BERRY +3" }, { "HITS IN A ROW", "SCORE MORE" } },
+            { "UMBRELLAS BLOCK, ANGRY SHOES STUN", "60 SECONDS, 1 OR 2 PLAYERS" } },
 };
 const GgCard *flow_gg_card(uint8_t event)
 {
@@ -391,6 +396,9 @@ void flow_step(Flow *f, uint8_t input, uint8_t start_pressed, uint32_t frame_cou
             if (f->game.mode == GAME_MODE_GUM && f->game.gg_pop) { /* Pop Drop: the best fall score of either player is the record */
                 uint32_t n = f->game.pop.seq.best[0] > f->game.pop.seq.best[1] ? f->game.pop.seq.best[0] : f->game.pop.seq.best[1];
                 if (n > f->tables.gg_record[GG_POP_DROP]) { f->tables.gg_record[GG_POP_DROP] = n; f->dirty = 1; }
+            } else if (f->game.gg_poop) { /* Poop the Man: the best score of either player is the record */
+                uint32_t n = f->game.poop.seq.best[0] > f->game.poop.seq.best[1] ? f->game.poop.seq.best[0] : f->game.poop.seq.best[1];
+                if (n > f->tables.gg_record[GG_POOP_MAN]) { f->tables.gg_record[GG_POOP_MAN] = n; f->dirty = 1; }
             } else if (f->game.gg_fling) { /* Gum Fling: the longest fling is the record */
                 uint32_t n = f->game.fling.seq.best[0];
                 if (n > f->tables.gg_record[GG_FLING]) { f->tables.gg_record[GG_FLING] = n; f->dirty = 1; }

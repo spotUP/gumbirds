@@ -205,6 +205,8 @@ Owner decisions 2026-11-18. 2 players + 2 CPU birds.
 - Win: the knot crosses a line, the strand snaps, the losing team gets slapped by the gum. Best of 3.
 - Stage: stadium background (see STADIUM below) on the field.
 
+Implementation (feature/tug-gum): PARTY_TUG after PARTY_TOSS; logic in src/core/gg_tug.c/.h (pure, tests/host/test_gg_tug.c); wiring copies Toss Gum (GgTug in Game, game_gg_start_tug, game_step_tug, flow start). Win line +/-32 px, pull 1.5 px, let go 3 px, D window 15 frames, stumble 36 frames, CPU rival presses every 8-13 frames. Remaining: art sheet from drafts/2026-11-20-tug-gum (partner marker, stronger pull0, thicker storm strand), main.c drawing, sprite_budget, make test-party-tug.
+
 ## STADIUM background (ground events)
 
 Owner decisions 2026-11-18: ground events only (Toss Gum, Tug Gum, Gum Fling, Big Blow, Burst Race). Side stands behind the field at pitch level: sky with floodlight towers, far stands, near rail, grass. Bird crowd reacts to play (idle bob, cheer burst on score/burst/snap, each half in one team colour, win wave at result) plus a rolling stadium wave in calm moments. Moods dusk, moon, storm (floodlights at moon and storm, rain and umbrellas at storm). Drafts: thoughts/shared/drafts/2026-11-18-stadium/, owner pick before code.
