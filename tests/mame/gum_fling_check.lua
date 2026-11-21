@@ -102,6 +102,14 @@ emu.register_frame_done(function()
       for i = 0, 9 do local a = (323 + i) * 64; o[#o + 1] = string.format("%x/%x s3=%x", fix[a] or -1, fix[a + 1] or -1, fix[0x8200 + 323 + i] or -1) end
       local df = io.open(os.getenv("FLING_DUMP"), "a"); df:write("SCB1 n=" .. n .. " " .. table.concat(o, " | ") .. "\n"); df:close()
     end
+    if os.getenv("FLING_SPR_LOG") and mode == K.gum and n % 4 == 0 then   -- every shown sprite column: slot, x, top, height
+      local o = {}
+      for s = 1, 380 do
+        local w3 = fix[0x8200 + s] or 0
+        if (w3 & 0x3f) > 0 and (w3 & 0x40) == 0 then o[#o + 1] = string.format("%d:%d,%d,%d", s, (fix[0x8400 + s] or 0) >> 7, (496 - (w3 >> 7)) & 0x1ff, w3 & 0x3f) end
+      end
+      local df = io.open(os.getenv("FLING_SPR_LOG"), "a"); df:write(string.format("n=%d att=%d ph=%d x=%d ", n, attempts, ph, mem:read_u32(flow_addr + K.x) >> 16) .. table.concat(o, " ") .. "\n"); df:close()
+    end
     local k = n - t0
     if mode == K.gum and ph == K.windup then
       -- mash A and B alternately (2 frames down, 2 up) for the whole run-up
