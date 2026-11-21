@@ -1,4 +1,4 @@
-/* Host test for TUG-GUM (gg_tug): pulls move the knot, D stumble window, best of 3, the computer rival is beatable. */
+/* Host test for TUG-GUM (gg_tug): pulls move the knot, D stumble window, best of 3, the computer rival is beatable but not by rolling fingers. */
 #include <stdio.h>
 #include "../../src/core/gg_tug.h"
 #include "../../src/core/game.h"
@@ -7,7 +7,7 @@ static int checks, failures;
 #define CHECK(c) do { checks++; if (!(c)) { failures++; printf("FAIL %s:%d: %s\n", __FILE__, __LINE__, #c); } } while (0)
 
 static GgTug t;
-static void press(uint8_t in1, uint8_t in2) { gg_tug_step(&t, in1, in2); gg_tug_step(&t, 0, 0); }   /* a press, then a release frame */
+static void press(uint8_t in1, uint8_t in2) { gg_tug_step(&t, in1, in2); gg_tug_step(&t, 0, 0); gg_tug_step(&t, 0, 0); }   /* a press, then two release frames (the pull cooldown is 3) */
 
 int main(void)
 {
@@ -52,14 +52,24 @@ int main(void)
     for (i = 0; i < (int)GTG_RESULT_FRAMES; i++) gg_tug_step(&t, 0, 0);
     CHECK(t.phase == GTG_END);
 
-    /* 1P: a player mashing at 10 presses per second beats the computer rival every time; idling loses to it */
-    { int wins = 0, seed;
-      for (seed = 1; seed <= 20; seed++) {
+    /* pull cooldown: a second press inside GTG_PULL_COOLDOWN frames shows but adds no force */
+    gg_tug_start(&t, 1, 2);
+    gg_tug_step(&t, IN_A, 0); gg_tug_step(&t, 0, 0); gg_tug_step(&t, IN_B, 0); CHECK(t.knot == -GTG_PULL_Q && t.press_n[0] == 2);
+
+    /* 1P round 1: 15 presses/s (rolling fingers) is close, nobody wins within 4 s; 6 presses/s loses the round */
+    { int seed, early = 0, lost = 0;
+      for (seed = 1; seed <= 40; seed++) {
           gg_tug_start(&t, (uint32_t)seed, 1);
-          for (i = 0; i < 60 * 40 && t.phase == GTG_PLAY; i++) gg_tug_step(&t, (i % 6 < 1) ? IN_A : 0, 0);
-          wins += t.phase == GTG_SNAP && t.round_winner == 0;
+          for (i = 0; i < 60 * 4 && t.phase == GTG_PLAY; i++) gg_tug_step(&t, (i % 4 < 1) ? IN_A : 0, 0);
+          early += t.phase != GTG_PLAY;
+          gg_tug_start(&t, (uint32_t)seed, 1);
+          for (i = 0; i < 60 * 40 && t.phase == GTG_PLAY; i++) gg_tug_step(&t, (i % 10 < 1) ? IN_A : 0, 0);
+          lost += t.phase == GTG_SNAP && t.round_winner == 1;
       }
-      CHECK(wins == 20); }
+      CHECK(early == 0); CHECK(lost == 40); }
+    /* the rival gets quicker for each round it lost, and never lets go while the human is not pulling */
+    gg_tug_start(&t, 5, 1); t.wins[0] = 1; gg_tug_start(&t, 5, 1);
+    { int n = 0; t.wins[0] = 1; for (i = 0; i < 600; i++) { gg_tug_step(&t, 0, 0); n += t.sfx & GTG_SFX_LETGO; t.sfx = 0; if (t.phase != GTG_PLAY) break; } CHECK(n == 0); }
     gg_tug_start(&t, 3, 1);
     for (i = 0; i < 60 * 40 && t.phase == GTG_PLAY; i++) gg_tug_step(&t, 0, 0);
     CHECK(t.phase == GTG_SNAP && t.round_winner == 1);

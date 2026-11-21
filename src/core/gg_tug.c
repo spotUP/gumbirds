@@ -5,7 +5,14 @@
 static void round_reset(GgTug *t)
 {
     t->phase = GTG_PLAY; t->t = 0; t->knot = 0;
-    for (int i = 0; i < 2; i++) { t->press_pose[i] = t->slide[i] = t->stumble[i] = 0; t->since_pull[i] = 255; }
+    for (int i = 0; i < 2; i++) { t->press_pose[i] = t->slide[i] = t->stumble[i] = 0; t->since_pull[i] = 255; t->cool[i] = 0; }
+}
+
+/* Rival press gap in frames: one frame shorter for every round the rival has lost, never below GTG_CPU_GAP_FLOOR. */
+static uint8_t cpu_gap(GgTug *t)
+{
+    uint8_t m = t->wins[0] >= GTG_CPU_GAP_MIN - GTG_CPU_GAP_FLOOR ? GTG_CPU_GAP_FLOOR : (uint8_t)(GTG_CPU_GAP_MIN - t->wins[0]);
+    return (uint8_t)(m + rng_range(&t->rng, GTG_CPU_GAP_SPAN));
 }
 
 void gg_tug_start(GgTug *t, uint32_t seed, uint8_t humans)
@@ -14,7 +21,7 @@ void gg_tug_start(GgTug *t, uint32_t seed, uint8_t humans)
     for (unsigned i = 0; i < sizeof(*t); i++) z[i] = 0;
     rng_seed(&t->rng, seed);
     t->humans = humans == 2 ? 2 : 1;
-    t->cpu_gap = (uint8_t)(GTG_CPU_GAP_MIN + rng_range(&t->rng, GTG_CPU_GAP_SPAN));
+    t->cpu_gap = cpu_gap(t);
     round_reset(t);
 }
 
@@ -24,7 +31,7 @@ static void play(GgTug *t, const uint8_t pull[2], const uint8_t letgo[2])
 {
     int16_t move = 0;
     for (int p = 0; p < 2; p++) {
-        dec(&t->press_pose[p]); dec(&t->slide[p]); dec(&t->stumble[p]);
+        dec(&t->press_pose[p]); dec(&t->slide[p]); dec(&t->stumble[p]); dec(&t->cool[p]);
         if (t->since_pull[p] < 255) t->since_pull[p]++;
     }
     for (int p = 0; p < 2; p++) {
@@ -37,9 +44,11 @@ static void play(GgTug *t, const uint8_t pull[2], const uint8_t letgo[2])
     }
     for (int p = 0; p < 2; p++) {
         if (!pull[p]) continue;
-        t->since_pull[p] = 0;
         t->press_pose[p] = GTG_PRESS_POSE_FRAMES;
         t->press_n[p]++;
+        if (t->cool[p]) continue;   /* faster than one pull per cooldown: the press shows but adds no force */
+        t->cool[p] = GTG_PULL_COOLDOWN;
+        t->since_pull[p] = 0;
         if (t->stumble[p]) continue;   /* a stumbling team's pulls count for nothing */
         move = (int16_t)(move + (p ? GTG_PULL_Q : -GTG_PULL_Q));
         t->sfx |= GTG_SFX_PULL;
@@ -64,9 +73,12 @@ void gg_tug_step(GgTug *t, uint8_t in1, uint8_t in2)
     }
     switch (t->phase) {
     case GTG_PLAY:
-        if (t->humans == 1 && --t->cpu_gap == 0) {   /* the computer rival mashes at a steady, beatable rate and never lets go */
-            pull[1] = 1;
-            t->cpu_gap = (uint8_t)(GTG_CPU_GAP_MIN + rng_range(&t->rng, GTG_CPU_GAP_SPAN));
+        dec(&t->cpu_letgo_cd);
+        if (t->humans == 1 && --t->cpu_gap == 0) {   /* the computer rival mashes at a steady rate; it lets go to stumble a human who is winning */
+            if (!t->cpu_letgo_cd && t->knot < 0 && t->since_pull[0] <= GTG_LETGO_WINDOW && rng_range(&t->rng, 4) == 0) {
+                letgo[1] = 1; t->cpu_letgo_cd = GTG_CPU_LETGO_CD;
+            } else pull[1] = 1;
+            t->cpu_gap = cpu_gap(t);
         }
         play(t, pull, letgo);
         break;

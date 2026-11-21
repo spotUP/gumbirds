@@ -17,8 +17,11 @@
 #define GTG_STUMBLE_FRAMES 36u     /* about 0.6 s */
 #define GTG_SLIDE_FRAMES 14u
 #define GTG_PRESS_POSE_FRAMES 8u
-#define GTG_CPU_GAP_MIN 8u         /* the computer rival presses every GAP_MIN + random(GAP_SPAN) frames */
-#define GTG_CPU_GAP_SPAN 6u
+#define GTG_PULL_COOLDOWN 3u       /* one counted pull per team per 3 frames: rolling three fingers gets no extra force (about 20 pulls/s at most) */
+#define GTG_CPU_GAP_MIN 4u         /* the computer rival presses every gap frames, gap = min + random(GAP_SPAN); min is 4 in round 1, 1 less per round it lost, floor GAP_FLOOR */
+#define GTG_CPU_GAP_SPAN 4u
+#define GTG_CPU_GAP_FLOOR 3u
+#define GTG_CPU_LETGO_CD 120u      /* the rival lets go at most once per 2 s (1 in 4 per press opportunity, only when the human pulled within GTG_LETGO_WINDOW and the knot is on the rival's half) */
 #define GTG_SNAP_FRAMES 90u
 #define GTG_RESULT_FRAMES 180u
 #define GTG_ROUNDS_TO_WIN 2
@@ -40,8 +43,8 @@ typedef struct {
     uint8_t wins[2];
     uint8_t round_winner;
     uint8_t sfx;                     /* GTG_SFX_* raised this frame, cleared by the caller */
-    uint8_t press_n[2], press_pose[2], slide[2], stumble[2], since_pull[2];
-    uint8_t cpu_gap;
+    uint8_t press_n[2], press_pose[2], slide[2], stumble[2], since_pull[2], cool[2];
+    uint8_t cpu_gap, cpu_letgo_cd;
     int16_t knot;
     uint16_t t;
 } GgTug;

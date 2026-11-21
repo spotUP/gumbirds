@@ -956,6 +956,8 @@ test-party-toss: cart bios
 
 # Party Tug Gum: P2 joins, player 1 mashes A, the strand knot follows the logic, a snap and a 2 - 0 winner line show, and the worst
 # sprites per line (limit 96) and flush time (limit 1800 us) are reported. TUG_SNAP=<dir> writes three still frames.
+TUG_MID ?=
+# TUG_MID=1 alone: Tug starts 1P and P2 joins inside the match; plain `make test-party-tug` runs the restart path, then that variant.
 test-party-tug: cart bios
 	@if [ ! -f "$(UNIBIOS)" ]; then echo "[FAIL] UNIBIOS file not found: $(UNIBIOS)"; exit 1; fi
 	@$(MAKE) --no-print-directory $(UNIBIOS_DIR)/neogeo.zip
@@ -964,11 +966,12 @@ test-party-tug: cart bios
 	BRAWL_LASTUS_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_last_us"{print $$1}') BRAWL_TUGKNOT_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_tug_knot_x"{print $$1}') \
 	BRAWL_CPUOBJ_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_cpu_obj"{print $$1}') \
 	BRAWL_SNAP=$(TUG_SNAP) BRAWL_TUG_LAYOUT="$$($(M68KGCC) $(NGCFLAGS) -Ibuild -std=c99 -S -o - tests/mame/party_tug_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
-	BRAWL_RESULT=$$T/result.txt \
+	BRAWL_TUG_MID=$(TUG_MID) BRAWL_RESULT=$$T/result.txt \
 	SDL_VIDEODRIVER=dummy nice -n 19 $(MAME) -window -nomaximize -video none -sound none -nothrottle -seconds_to_run 400 -noautosave -skip_gameinfo -hash $(ROM) -rp "$(UNIBIOS_DIR);$(ROM)" -bios unibios40 -nvram_directory $$T $(if $(TUG_SNAP),-snapshot_directory $(TUG_SNAP)) -autoboot_script tests/mame/party_tug_check.lua neogeo -cart1 $(GAMEROM) > $$T/mame.log 2>&1 || true; \
 	if [ ! -f $$T/result.txt ]; then tail -n 15 $$T/mame.log; echo "[FAIL] no result from party tug Lua script"; exit 1; fi; \
 	cat $$T/result.txt; \
-	if grep -q '^PASS' $$T/result.txt; then rm -rf $$T; echo "[OK] make test-party-tug passed"; else echo "[FAIL] make test-party-tug, log kept in $$T"; exit 1; fi
+	if grep -q '^PASS' $$T/result.txt; then rm -rf $$T; echo "[OK] make test-party-tug passed (TUG_MID=$(TUG_MID))"; else echo "[FAIL] make test-party-tug, log kept in $$T"; exit 1; fi
+	@if [ -z "$(TUG_MID)" ]; then $(MAKE) --no-print-directory test-party-tug TUG_MID=1; fi
 
 # Gum visibility (tests/mame/gum_visible_check.lua): Big Blow and Toss Gum each must show the hero on screen and a lit bubble sprite.
 test-gum-visible: cart bios

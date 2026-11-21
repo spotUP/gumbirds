@@ -14,6 +14,7 @@ local lastus_addr = tonumber(os.getenv("BRAWL_LASTUS_ADDR") or "", 16)
 local knot_addr = tonumber(os.getenv("BRAWL_TUGKNOT_ADDR") or "", 16)
 local cpuobj_addr = tonumber(os.getenv("BRAWL_CPUOBJ_ADDR") or "", 16)
 local result = os.getenv("BRAWL_RESULT")
+local mid = os.getenv("BRAWL_TUG_MID") == "1"   -- variant: Party + Tug is set on the title, Tug starts 1P, P2 Start joins INSIDE the match
 local snap = (os.getenv("BRAWL_SNAP") or "") ~= ""
 local line_count = dofile("tests/mame/sprite_line_count.lua")
 local SB_LIMIT, FLUSH_LIMIT = 96, 1800
@@ -86,14 +87,16 @@ emu.register_frame_done(function()
   if n > 30000 then finish(false, "watchdog in phase " .. phase .. " snap " .. tostring(seen_snap) .. " wins " .. b(O.wins) .. "-" .. b(O.wins + 1)) return end
   local k = n - t0
   if phase == "boot" then
+    if mid and n == 590 then mem:write_u8(flow_addr + O.fmode, K.party); mem:write_u8(flow_addr + O.frule, K.tug) end
     if n == 600 then phase = "start"; t0 = n; ss.begin(n) end
   elseif phase == "start" then
     if ss.step(n, b(O.flow) == K.playing, nil) then phase = "join"; t0 = n end
   elseif phase == "join" then
     if k == 5 then coin:set_value(1) end
     if k == 20 then coin:set_value(0) end
-    if k == 100 then mem:write_u8(flow_addr + O.fmode, K.party); mem:write_u8(flow_addr + O.frule, K.tug) end
+    if k == 100 and not mid then mem:write_u8(flow_addr + O.fmode, K.party); mem:write_u8(flow_addr + O.frule, K.tug) end
     if k >= 110 then press(start2, k, 110) end
+    if mid and k == 100 and (b(O.mode) ~= K.gum or b(O.on) ~= 1 or b(O.humans) ~= 1) then finish(false, "mid-join variant: Tug did not start 1P: mode " .. b(O.mode) .. " gg_tug " .. b(O.on) .. " humans " .. b(O.humans)) return end
     if k > 130 and b(O.flow) == K.playing and b(O.mode) == K.gum and b(O.on) == 1 then
       if b(O.humans) ~= 2 then finish(false, "P2 start did not add a second human: humans " .. b(O.humans)) return end
       phase = "watch"; t0 = n
