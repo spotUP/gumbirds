@@ -13,6 +13,7 @@
 #define GF_POWER_DRAIN_FRAMES 36u       /* the power falls one step per this many frames, so slow mashing cannot top out */
 #define GF_AIM_SWEEP_FRAMES 45u         /* needle sweep GF_DEG_MIN -> GF_DEG_MAX; back is the same again */
 #define GF_AIM_TIMEOUT_FRAMES 180u      /* no press in the aim: throw at the current angle */
+#define GF_AIM_HOLD_FRAMES 30u          /* aim start: needle still and buttons ignored, so the hand can stop mashing before A */
 #define GF_DEG_MIN 15u
 #define GF_DEG_MAX 75u
 #define GF_FLAP_PRESS 10u               /* flap charge added per A / B press in flight */

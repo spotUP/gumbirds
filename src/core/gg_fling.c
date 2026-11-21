@@ -97,8 +97,9 @@ int gumfling_step(GgFling *f, uint8_t in)
         else if (f->clock % 60 == 0) f->sfx |= GF_SFX_TICK;
         break;
     case GF_AIM:
-        f->deg = gumfling_deg(f->t);
-        if (((in & IN_A) && !(prev & IN_A)) || f->t >= GF_AIM_TIMEOUT_FRAMES) {
+        if (f->t < GF_AIM_HOLD_FRAMES) { f->t++; break; }   /* power is set: a leftover mash press must not throw */
+        f->deg = gumfling_deg((uint16_t)(f->t - GF_AIM_HOLD_FRAMES));
+        if (((in & IN_A) && !(prev & IN_A)) || f->t >= GF_AIM_HOLD_FRAMES + GF_AIM_TIMEOUT_FRAMES) {
             launch_vel(f->power, f->deg, &f->vx, &f->vy);
             f->h = 0; f->x = 0; f->phase = GF_FLIGHT; f->flap = 0;
             f->h_cap = (int32_t)(((int64_t)f->vy * f->vy) / (2 * GF_GRAVITY));

@@ -13,7 +13,7 @@ static int shoot(GgFling *f, int mash, int wait)
     int i;
     for (i = 0; i < (int)GF_WINDUP_FRAMES && f->phase == GF_WINDUP; i++)
         gumfling_step(f, (uint8_t)((i < 2 * mash && !(i & 1)) ? ((i & 2) ? IN_B : IN_A) : 0));
-    for (i = 0; i < wait; i++) gumfling_step(f, 0);
+    for (i = 0; i < (int)GF_AIM_HOLD_FRAMES + wait; i++) gumfling_step(f, 0);
     return gumfling_step(f, IN_A);
 }
 
@@ -63,11 +63,17 @@ int main(void)
     fly(&f);
     CHECK(f.phase == GF_LANDED && f.dist > 0 && f.seq.best[0] == f.dist);
 
+    /* aim start hold: mash presses right after the clock ends do not throw, and the needle waits at the low limit */
+    gumfling_init(&f);
+    for (i = 0; i < (int)GF_WINDUP_FRAMES; i++) gumfling_step(&f, (uint8_t)((i & 1) ? 0 : IN_A));
+    for (i = 0; i < (int)GF_AIM_HOLD_FRAMES; i++) CHECK(gumfling_step(&f, (uint8_t)((i & 1) ? 0 : IN_A)) != GF_EV_LAUNCH && f.phase == GF_AIM && f.deg == GF_DEG_MIN);
+    CHECK(gumfling_step(&f, IN_A) == GF_EV_LAUNCH);
+
     /* no press: the throw goes at the current angle after the timeout */
     gumfling_init(&f);
     { int ev = 0;
       for (i = 0; i < (int)GF_WINDUP_FRAMES; i++) gumfling_step(&f, 0);
-      for (i = 0; i < (int)GF_AIM_TIMEOUT_FRAMES + 2 && !ev; i++) ev = gumfling_step(&f, 0);
+      for (i = 0; i < (int)(GF_AIM_HOLD_FRAMES + GF_AIM_TIMEOUT_FRAMES) + 2 && !ev; i++) ev = gumfling_step(&f, 0);
       CHECK(ev == GF_EV_LAUNCH && f.phase == GF_FLIGHT && !f.foul && f.deg == gumfling_deg(GF_AIM_TIMEOUT_FRAMES)); }
 
     /* more run-up power flies farther at the same angle */
