@@ -53,22 +53,6 @@ static inline void put(VramQueue *q, uint16_t fi, uint16_t cell) {
     q->fix_any = 1;
 }
 
-/* rain_cut as RAM entries: fix_want index offset (col * 32 + row), column, row, tile + 1; built once (3 slots per cell class) */
-typedef struct { int16_t off; int8_t dc, dr; uint8_t t1; } Cut;
-static Cut cutw[96 * 3];
-static uint8_t cutw_ok;
-static void cut_init(void) {
-    if (cutw_ok) return;
-    for (uint8_t ci = 0; ci < 96; ci++)
-        for (uint8_t k = 0; k < rain_cut_n[ci]; k++) {
-            const uint8_t *e = &rain_cut[ci * 9 + k * 3];
-            Cut *c = &cutw[ci * 3 + k];
-            c->dc = (int8_t)e[0]; c->dr = (int8_t)e[1]; c->t1 = (uint8_t)(e[2] + 1);
-            c->off = (int16_t)(e[0] * 32 + e[1]);
-        }
-    cutw_ok = 1;
-}
-
 static void release_all(Rain *r, VramQueue *q) {
     CELLW = (uint16_t)(r->pal << 12);
     for (uint16_t i = 0; i < r->n_list; i++) {
@@ -112,7 +96,6 @@ void rain_step(Rain *r, VramQueue *q, uint8_t active, uint8_t mode, int16_t scro
         for (uint8_t y = 0; y < RAIN_ROWS; y++) rok[y] = (uint8_t)!(hud >> y & 1u);
         ok_mode = mode;
     }
-    cut_init();
     uint8_t *now = r->now, *own = r->own;
     uint16_t *want = q->fix_want;
     uint16_t cells[RAIN_MAX_DROPS * 3], n_cells = 0;
@@ -121,7 +104,7 @@ void rain_step(Rain *r, VramQueue *q, uint8_t active, uint8_t mode, int16_t scro
         RainDrop d = r->drop[i];
         uint8_t near = d.kind >= 3, flag = (uint8_t)(near << 7);
         uint16_t ci = (uint16_t)((((uint16_t)d.kind << 3 | (d.px & 7)) << 1) | ((d.py >> 2) & 1));
-        const Cut *cut = &cutw[ci * 3];
+        const RainCut *cut = &rain_cutw[ci * 3];
         int16_t c0 = (int16_t)(d.px >> 3), r0 = (int16_t)(d.py >> 3);
         uint16_t base = (uint16_t)((c0 << 5) + r0 + 2);
         uint8_t inside = (uint16_t)c0 < RAIN_COLS - 1; /* every cut column is 0 or 1: no column test needed */

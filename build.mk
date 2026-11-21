@@ -105,6 +105,7 @@ $(BUILDDIR)/%.o: %.c
 
 %.elf:
 	$(M68KGCC) -o $@ $^ $(NGLDFLAGS) $(LDFLAGS)
+	@sh tools/check_stack_room.sh $(M68KGCC:%gcc=%nm) $@ $(STACK_ROOM_MIN) || { rm -f $@; exit 1; }
 
 $(PROM1): | $(ROM)
 	$(M68KOBJCOPY) -O binary -S -R .text2 --gap-fill 0xff --pad-to $(PROMSIZE) $< $@.tmp && dd if=$@.tmp of=$@.tmp conv=notrunc,swab status=none && mv $@.tmp $@
