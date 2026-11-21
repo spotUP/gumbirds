@@ -1,4 +1,4 @@
--- Gum Games Flap Dash check (make test-gum-flap-dash): UniBIOS 4.0, one coin, Down to the GUM GAMES row, A opens the list, Down four times picks Flap Dash, Start:
+-- Gum Games Flap Dash check (make test-gum-flap-dash): UniBIOS 4.0, one coin, Down to the PARTY event list, A opens the list, Down four times picks Flap Dash, Start:
 --   D1. the game is PLAYING in GAME_MODE_GUM with the dash running (gg_dash 1);
 --   D2. alternating A and B presses fly the bird: the HUD line (fix row 7) is lit and the first lap is counted;
 --   D3. the third lap ends the run: done set, score 800 (stage 3 + qualifying mark) or 300, the result shows, the flow reaches GAME_OVER and the record equals the run time.
@@ -51,10 +51,10 @@ emu.register_frame_done(function()
   if phase == "boot" then
     if n == 600 then phase = "start"; t0 = n; ss.begin(n) end
   elseif phase == "start" then
-    -- the shared sequence presses Down at +70..+78 (the GUM GAMES row); A at +80 opens the list and four Down taps (+86..+99) reach Flap Dash before Start at +100
+    -- the shared sequence presses Down at +70..+78 (the PARTY event list); A at +80 opens the list and four Down taps (+86..+99) reach Flap Dash before Start at +100
     local k = n - t0
-    pick:set_value(((k >= 86 and k < 88) or (k >= 90 and k < 92) or (k >= 94 and k < 96) or (k >= 98 and k < 100)) and 1 or 0); abtn:set_value((k >= 80 and k < 84) and 1 or 0) -- A opens the GUM GAMES list, four Downs reach Flap Dash (list order: Big Blow, Burst Race, Bubble Gather, Pop Drop, Flap Dash, Gum Fling)
     if ss.step(n, playing, 1) then phase = "dash"; t0 = n; pick:set_value(0) end
+    ss.menu(n - t0, 8, abtn, pick)
   elseif phase == "dash" then
     if b(O.mode) ~= K.gum or b(O.dash) ~= 1 then finish(false, string.format("mode %d dash %d, want GAME_MODE_GUM %d and dash 1", b(O.mode), b(O.dash), K.gum)) return end
     local k = (n - t0) % 3
@@ -73,7 +73,7 @@ emu.register_frame_done(function()
       if not (hud and lap1) then finish(false, string.format("hud lit %s, lap counted %s", tostring(hud), tostring(lap1))) return end
       if score ~= 300 and score ~= 800 then finish(false, "score " .. score .. ", want 300 or 800") return end
       if rec ~= frames or frames == 0 then finish(false, string.format("record %d, run time %d", rec, frames)) return end
-      finish(true, string.format("Flap Dash: GUM GAMES row + A, Down starts the dash; HUD lit, lap counted, 3 laps in %d frames, score %d, record saved", frames, score))
+      finish(true, string.format("Flap Dash: PARTY event list + A, Down starts the dash; HUD lit, lap counted, 3 laps in %d frames, score %d, record saved", frames, score))
     elseif n - t0 > 600 then finish(false, "result never led to game over") end
   end
 end)

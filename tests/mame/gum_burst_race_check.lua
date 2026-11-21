@@ -1,4 +1,4 @@
--- Gum Games Burst Race check (make test-gum-burst-race): UniBIOS 4.0, one coin, Up to the GUM GAMES row, A opens the list, Down picks Burst Race, Start:
+-- Gum Games Burst Race check (make test-gum-burst-race): UniBIOS 4.0, one coin, Up to the PARTY event list, A opens the list, Down picks Burst Race, Start:
 --   R1. the game is PLAYING in GAME_MODE_GUM with the race running (gg_race 1) and the intro hands over to the pump phase;
 --   R2. alternating A and B presses grow the player's bubble; both fix-layer power bars (rows 26 and 24, columns 12..27) show a filled first cell
 --       and an empty last cell;
@@ -71,10 +71,10 @@ emu.register_frame_done(function()
   if phase == "boot" then
     if n == 600 then phase = "start"; t0 = n; ss.begin(n) end
   elseif phase == "start" then
-    -- the shared sequence presses Down at +70..+78 (the GUM GAMES row); A at +80 opens the list, Down at +88..+95 picks Burst Race before Start at +100
+    -- the shared sequence presses Down at +70..+78 (the PARTY event list); A at +80 opens the list, Down at +88..+95 picks Burst Race before Start at +100
     local k = n - t0
-    pick:set_value((k >= 88 and k < 96) and 1 or 0); abtn:set_value((k >= 80 and k < 84) and 1 or 0) -- A opens the GUM GAMES list, Down picks
     if ss.step(n, playing, 1) then phase = "intro"; t0 = n; pick:set_value(0) end
+    ss.menu(n - t0, 5, abtn, pick)
   elseif phase == "intro" then
     if b(CARD) == 1 then   -- rules card: A is ignored for its first 30 frames, then one press dismisses it
       cardn = cardn + 1; t0 = n
@@ -127,7 +127,7 @@ emu.register_frame_done(function()
       if b(O.winner) ~= 0 then finish(false, "winner " .. b(O.winner) .. ", want 0 (the player)") return end
       if score ~= 900 then finish(false, "score " .. score .. ", want 900") return end
       if lit(7) < 8 then finish(false, "result row 7 lit " .. lit(7)) return end
-      finish(true, string.format("Burst Race: GUM GAMES row + Right starts the race; bubble grew to %d, both bars drawn, rival bird sprite on screen, both gum bubbles drawn; player burst first, score 900, status line lit", grew))
+      finish(true, string.format("Burst Race: PARTY event list + Right starts the race; bubble grew to %d, both bars drawn, rival bird sprite on screen, both gum bubbles drawn; player burst first, score 900, status line lit", grew))
     end
   end
 end)

@@ -65,25 +65,12 @@ int main(void)
     {
         Flow f;
         flow_init(&f, 0, 0);
-        f.mode = GAME_MODE_GUM; f.gg_event = GG_BIG_BLOW;
+        f.mode = GAME_MODE_PARTY;  /* merged PARTY list: sub_i 0 = Rule of the Round, 4 = Big Blow ... 10 = Poop the Man */
         flow_coin(&f);
         flow_step(&f, IN_A, 0, 0); flow_step(&f, 0, 0, 0);
-        left(&f);
-        CHECK(f.gg_event == GG_POOP_MAN);
-        left(&f); CHECK(f.gg_event == GG_FLING);
-        left(&f); CHECK(f.gg_event == GG_FLAP_DASH);
-        left(&f); CHECK(f.gg_event == GG_POP_DROP);
-        left(&f); CHECK(f.gg_event == GG_BUBBLE_GATHER);
-        left(&f); CHECK(f.gg_event == GG_BURST_RACE);
-        left(&f); CHECK(f.gg_event == GG_BIG_BLOW);
-        right(&f); CHECK(f.gg_event == GG_BURST_RACE);
-        right(&f); CHECK(f.gg_event == GG_BUBBLE_GATHER);
-        right(&f); CHECK(f.gg_event == GG_POP_DROP);
-        right(&f); CHECK(f.gg_event == GG_FLAP_DASH);
-        right(&f); CHECK(f.gg_event == GG_FLING);
-        right(&f); CHECK(f.gg_event == GG_POOP_MAN);
-        right(&f); CHECK(f.gg_event == GG_BIG_BLOW);
-        right(&f); right(&f);
+        left(&f); CHECK(f.gg_event == GG_POOP_MAN);
+        right(&f); CHECK(f.party_rule == PARTY_ROUND);
+        { int k; for (k = 0; k < 6; k++) right(&f); }
         CHECK(f.gg_event == GG_BUBBLE_GATHER);
         f.tables.gg_record[GG_BUBBLE_GATHER] = 9;
         flow_step(&f, 0, 1, 1);

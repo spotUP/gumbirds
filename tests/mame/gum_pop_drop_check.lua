@@ -1,4 +1,4 @@
--- Gum Games Pop Drop check (make test-gum-pop-drop): UniBIOS 4.0, one coin, Down to the GUM GAMES row, Right three times picks Pop Drop, Start:
+-- Gum Games Pop Drop check (make test-gum-pop-drop): UniBIOS 4.0, one coin, Down to the PARTY event list, Right three times picks Pop Drop, Start:
 --   P1. the game is PLAYING in GAME_MODE_GUM with Pop Drop running (gg_pop 1) and the HUD row (fix row 7) is lit;
 --   P2. the bird falls (depth grows); a platform is parked on the bird each frame, so three hits follow (one per stun) and the third is the crash;
 --   P0. the GET SET / GO! countdown runs (cd_t counts up from 0) and its first glyph column (slot 309, ARC_ELEM_SPRITE) is on screen while it does;
@@ -95,11 +95,11 @@ emu.register_frame_done(function()
   if phase == "boot" then
     if n == 600 then phase = "start"; t0 = n; ss.begin(n) end
   elseif phase == "start" then
-    -- the shared sequence presses Down at +70..+78 (the GUM GAMES row); Right taps at +80..+83, +88..+91 and +96..+99 reach Pop Drop (fourth event) before Start
+    -- the shared sequence presses Down at +70..+78 (the PARTY event list); Right taps at +80..+83, +88..+91 and +96..+99 reach Pop Drop (fourth event) before Start
     local k = n - t0
-    pick:set_value(((k >= 86 and k < 90) or (k >= 92 and k < 96) or (k >= 98 and k < 102)) and 1 or 0); abtn:set_value((k >= 80 and k < 84) and 1 or 0) -- A opens the GUM GAMES list, Down picks
     if (n - t0) == 50 then snap = {}; for s = 1, 110 do snap[s] = fix[0x8200 + s] or 0 end end   -- arena planes before the run (menu behind the list)
     if ss.step(n, playing, 1) then phase = "pop"; t0 = n; pick:set_value(0) end
+    ss.menu(n - t0, 7, abtn, pick)
   elseif phase == "pop" then
     fsamp.frame()
     if b(O.mode) ~= K.gum or b(O.pop) ~= 1 then finish(false, string.format("mode %d pop %d, want GAME_MODE_GUM %d and pop 1", b(O.mode), b(O.pop), K.gum)) return end
@@ -168,7 +168,7 @@ emu.register_frame_done(function()
       if depth == 0 or pscore < depth then finish(false, string.format("depth %d score %d", depth, pscore)) return end
       if rec ~= pscore then finish(false, string.format("record %d, fall score %d", rec, pscore)) return end
       phase = "restore"; t0 = n; abtn:set_value(0)
-      saved_msg = string.format("Pop Drop: GUM GAMES row + Right x3 starts it; countdown shown, HUD lit, 3 hits crash, depth %d, score %d, record saved; pool worst %d; worst %d sprites on line %d (limit %d), flush play %d us", depth, pscore, pool_peak, peak, peak_line, SB_LIMIT, us_play)
+      saved_msg = string.format("Pop Drop: PARTY event list + Right x3 starts it; countdown shown, HUD lit, 3 hits crash, depth %d, score %d, record saved; pool worst %d; worst %d sprites on line %d (limit %d), flush play %d us", depth, pscore, pool_peak, peak, peak_line, SB_LIMIT, us_play)
     elseif n - t0 > 1500 then finish(false, "result never led to game over") end
   elseif phase == "restore" then
     -- the sky stays through GAME_OVER; the restore starts when the flow leaves it. RESTORE_FRAMES frames from there cover the 8 restore frames plus the final SCB3 send.
