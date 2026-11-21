@@ -559,9 +559,13 @@ static void game_step_fling(Game *g, uint8_t input)
     Flier *h = &g->hero[0];
     int ev;
     input = gg_seq_input(&f->seq, input, g->input2);   /* 2P: whoever's turn it is throws */
+    h->flapped = 0;
     if (f->phase == GF_FLIGHT) {
         uint32_t step = (uint32_t)gumfling_scroll(f);
+        uint16_t presses = f->mash.count;
         ev = gumfling_fly(f, input);
+        h->flapped = f->mash.count != presses;   /* a counted flap press: wing beat (flier_anim) */
+        if (h->flapped) g->flaps[0]++;           /* and the flap sample (SE_FLAP) */
         camera_scroll(&g->camera, step);
         g->distance = f->x >> 16;
         h->vy = -f->vy;

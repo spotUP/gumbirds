@@ -59,6 +59,7 @@ if not (coin and start1 and up and abtn and bbtn and cbtn and pick) then finish(
 -- per attempt: mash A and B through the run-up, A once in the swinging aim, then the flight (frantic flap mash in attempt 2) and the landing
 local mode_prev_flight, last_fx, aim_t0 = false, 0, nil
 local cardn, maxlit, maxrow = 0, 0, -1
+local ground_top, lift, air = nil, {}, {}   -- per attempt: peak hero lift px, flight frames
 local n, phase, t0, hud, trips, attempts, lastphase = 0, "boot", 0, false, 0, 0, -1
 emu.register_frame_done(function()
   n = n + 1
@@ -66,7 +67,7 @@ emu.register_frame_done(function()
   local playing = b(O.state) == K.playing
   if playing then st.poke() end
   if phase == "boot" then
-    if n == 600 then phase = "start"; t0 = n; ss.begin(n) end
+    if n == (tonumber(os.getenv("FLING_COIN_AT") or "") or 600) then phase = "start"; t0 = n; ss.begin(n) end   -- FLING_COIN_AT: coin later (title / table / attract demo first)
   elseif phase == "start" then
     -- the shared sequence presses Down at +70..+78 (the GUM GAMES row); A at +80 opens the list, Downs at +84..+97 reach Gum Fling before Start at +100
     local k = n - t0
@@ -75,6 +76,14 @@ emu.register_frame_done(function()
   elseif phase == "fling" then
     if b(O.state) == K.over then phase = "check" return end
     if b(O.fling) ~= 1 then finish(false, "gg_fling not set") return end
+    if os.getenv("FLING_SPR_LOG") and n % 4 == 0 then   -- every shown sprite column: slot, x, top, height
+      local o = {}
+      for s = 1, 380 do
+        local w3 = fix[0x8200 + s] or 0
+        if (w3 & 0x3f) > 0 and (w3 & 0x40) == 0 then o[#o + 1] = string.format("%d:%d,%d,%d", s, (fix[0x8400 + s] or 0) >> 7, (496 - (w3 >> 7)) & 0x1ff, w3 & 0x3f) end
+      end
+      local df = io.open(os.getenv("FLING_SPR_LOG"), "a"); df:write(string.format("n=%d card=%d att=%d ph=%d x=%d ", n, b(K.card), attempts, b(O.phase), mem:read_u32(flow_addr + K.x) >> 16) .. table.concat(o, " ") .. "\n"); df:close()
+    end
     if b(K.card) == 1 then   -- rules card: A is ignored for its first 30 frames, then one press dismisses it
       cardn = cardn + 1
       abtn:set_value((cardn >= 40 and cardn < 44) and 1 or 0)
@@ -92,6 +101,9 @@ emu.register_frame_done(function()
     if ph == K.windup and lastphase ~= K.windup then t0 = n + (attempts == 0 and 61 or 0); attempts = attempts + 1 end   -- GET SET freezes the first windup for 60 frames
     lastphase = ph
     if attempts == 1 and ph == K.windup and n == t0 + 40 then st.shot() end
+    if os.getenv("FLING_SHOTS") and attempts == 1 and (n == t0 + 40 or (ph == 2 and (air[1] or 0) == 30)) then   -- debug shots into MAME's snap/ dir
+      manager.machine.screens[":screen"]:snapshot("fling_" .. n .. ".png")
+    end
     -- seam shot (stadium columns 21-22 of the 23 column plane): the last flight frame of attempt 1, field scroll logged next to it
     if attempts == 1 and mode_prev_flight and ph ~= 2 and os.getenv("STADIUM_SEAM_LOG") then
       local lf = io.open(os.getenv("STADIUM_SEAM_LOG"), "a"); lf:write("scroll " .. last_fx .. "\n"); lf:close(); st.shot((os.getenv("STADIUM_NAME") or "x"):gsub("%.png$", "") .. "_seam.png"); mode_prev_flight = false
@@ -102,13 +114,12 @@ emu.register_frame_done(function()
       for i = 0, 9 do local a = (323 + i) * 64; o[#o + 1] = string.format("%x/%x s3=%x", fix[a] or -1, fix[a + 1] or -1, fix[0x8200 + 323 + i] or -1) end
       local df = io.open(os.getenv("FLING_DUMP"), "a"); df:write("SCB1 n=" .. n .. " " .. table.concat(o, " | ") .. "\n"); df:close()
     end
-    if os.getenv("FLING_SPR_LOG") and mode == K.gum and n % 4 == 0 then   -- every shown sprite column: slot, x, top, height
-      local o = {}
-      for s = 1, 380 do
-        local w3 = fix[0x8200 + s] or 0
-        if (w3 & 0x3f) > 0 and (w3 & 0x40) == 0 then o[#o + 1] = string.format("%d:%d,%d,%d", s, (fix[0x8400 + s] or 0) >> 7, (496 - (w3 >> 7)) & 0x1ff, w3 & 0x3f) end
-      end
-      local df = io.open(os.getenv("FLING_SPR_LOG"), "a"); df:write(string.format("n=%d att=%d ph=%d x=%d ", n, attempts, ph, mem:read_u32(flow_addr + K.x) >> 16) .. table.concat(o, " ") .. "\n"); df:close()
+    do   -- hero lift: slot 257 top on the ground (wind-up) against its highest flight top, per attempt
+      local w3 = fix[0x8200 + 257] or 0
+      local top = (496 - (w3 >> 7)) & 0x1ff
+      if ph == K.windup then ground_top = top end
+      if ph == 2 and ground_top and ground_top - top > (lift[attempts] or 0) then lift[attempts] = ground_top - top end
+      if ph == 2 then air[attempts] = (air[attempts] or 0) + 1 end
     end
     local k = n - t0
     if mode == K.gum and ph == K.windup then
@@ -117,9 +128,9 @@ emu.register_frame_done(function()
       abtn:set_value(j < 2 and 1 or 0); bbtn:set_value((j >= 4 and j < 6) and 1 or 0); cbtn:set_value(0)
       aim_t0 = nil
     elseif mode == K.gum and ph == 1 then
-      -- the needle swings by itself; one frame of A after 20 frames stops it and launches
+      -- the needle swings by itself after the 30-frame hold (A in the hold is ignored); A 20 frames after the hold stops it mid range and launches
       aim_t0 = aim_t0 or n
-      bbtn:set_value(0); cbtn:set_value(0); abtn:set_value((n - aim_t0 >= 20 and n - aim_t0 < 22) and 1 or 0)
+      bbtn:set_value(0); cbtn:set_value(0); abtn:set_value((n - aim_t0 >= 50 and n - aim_t0 < 52) and 1 or 0)
     elseif mode == K.gum and ph == 2 and attempts == 2 then
       -- frantic flap mash in the flight of attempt 2 (an A or B press every 4 frames)
       local j = n % 8
@@ -135,9 +146,11 @@ emu.register_frame_done(function()
     if tube_n < 6 then finish(false, "power tube changed only " .. tube_n .. " times (fix rows 25-26), want >= 6") return end
     if dial_n < 3 then finish(false, "angle dial changed only " .. dial_n .. " times (fix columns 7..9 rows 24-26), want >= 3") return end
     if attempts < 3 then finish(false, string.format("only %d attempts seen", attempts)) return end
+    if (lift[1] or 0) < 24 then finish(false, string.format("hero lift %d px in attempt 1, want >= 24 (an aimed throw)", lift[1] or 0)) return end
+    if (air[2] or 0) * 100 < (air[1] or 0) * 110 then finish(false, string.format("flight %d frames with the flap mash (attempt 2), %d without, want +10 percent", air[2] or 0, air[1] or 0)) return end
     if best < 1 then finish(false, "best distance 0") return end
     if rec ~= best then finish(false, string.format("record %d, best distance %d", rec, best)) return end
     if score < 1 then finish(false, "score 0") return end
-    finish(true, string.format("Gum Fling: GUM GAMES row + A, Down starts it; %d attempts, never TRIP, best %d, score %d, record saved", attempts, best, score))
+    finish(true, string.format("Gum Fling: GUM GAMES row + A, Down starts it; %d attempts, never TRIP, best %d, score %d, record saved, lift %d px, flight %d frames / %d flapping", attempts, best, score, lift[1], air[1], air[2]))
   end
 end)

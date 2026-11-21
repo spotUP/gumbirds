@@ -16,11 +16,12 @@
 #define GF_AIM_HOLD_FRAMES 30u          /* aim start: needle still and buttons ignored, so the hand can stop mashing before A */
 #define GF_DEG_MIN 15u
 #define GF_DEG_MAX 75u
-#define GF_FLAP_PRESS 10u               /* flap charge added per A / B press in flight */
+#define GF_FLAP_PRESS 12u               /* flap charge added per A / B press in flight */
 #define GF_FLAP_DRAIN 1u                /* flap charge lost per frame, so only frantic mashing builds it */
 #define GF_FLAP_MAX 60u
 #define GF_FLAP_THRESH 30u              /* no lift at or below this charge */
-#define GF_FLAP_LIFT 60                 /* 16.16 vy gained per frame per charge step above the threshold (tuned: 10 presses/s +13 percent, 15/s +19) */
+#define GF_FLAP_CAP_MIN_PX 40          /* flap lift ceiling: the launch apex, at least this high (a 15 degree apex is ~13 px) */
+#define GF_FLAP_LIFT 90                 /* 16.16 vy gained per frame per charge step above the threshold (tuned with GF_FLAP_PRESS 12: 5 presses/s +0, 15/s about +25..30 percent distance) */
 /* Speed (owner 2026-11-20: "slow motion"): every launch speed is k = 1.5 times the old one and gravity k^2 (old 1350 -> 3038),
  * so the paths are the same curves flown in 1/1.5 of the time: same range (v^2/g), best-angle full-power flight about 137 frames, about 205 before.
  * The old vx cap of 2 px per frame was copied from CAM_MAX_STEP_PX, but the fling scroll is camera_scroll (no easing, no cap) and the
@@ -58,7 +59,7 @@ typedef struct {
     uint8_t more;                      /* gg_seq_attempt result of the last attempt: someone has a throw left */
     uint8_t sfx;                       /* GF_SFX_* bits */
     uint16_t clock, t, flap;
-    int32_t h_cap;                     /* 16.16 launch apex height: flapping never lifts above it */
+    int32_t h_cap;                     /* 16.16 flap ceiling: launch apex, at least GF_FLAP_CAP_MIN_PX */
     GgMash mash;
     GgSeq seq;
     int32_t vx, vy;                    /* 16.16 px per frame, vy up is positive */
