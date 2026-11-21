@@ -962,6 +962,7 @@ test-party-tug: cart bios
 	@set -e; T=$$(mktemp -d $(BUILDDIR)/test-run.XXXXXX); \
 	BRAWL_FLOW_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flow"{print $$1}') \
 	BRAWL_LASTUS_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_last_us"{print $$1}') BRAWL_TUGKNOT_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_tug_knot_x"{print $$1}') \
+	BRAWL_CPUOBJ_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_cpu_obj"{print $$1}') \
 	BRAWL_SNAP=$(TUG_SNAP) BRAWL_TUG_LAYOUT="$$($(M68KGCC) $(NGCFLAGS) -Ibuild -std=c99 -S -o - tests/mame/party_tug_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
 	BRAWL_RESULT=$$T/result.txt \
 	SDL_VIDEODRIVER=dummy nice -n 19 $(MAME) -window -nomaximize -video none -sound none -nothrottle -seconds_to_run 400 -noautosave -skip_gameinfo -hash $(ROM) -rp "$(UNIBIOS_DIR);$(ROM)" -bios unibios40 -nvram_directory $$T $(if $(TUG_SNAP),-snapshot_directory $(TUG_SNAP)) -autoboot_script tests/mame/party_tug_check.lua neogeo -cart1 $(GAMEROM) > $$T/mame.log 2>&1 || true; \
