@@ -3272,11 +3272,14 @@ static void screen_fade(u8 from, u8 to) {
 
 static void video_init(void) {
     gfx_init();
+    /* Palettes are built in the fade source and only reach palette RAM through the fade-up: queued, they cost ~24 vblanks of
+     * the coin entry (20 us a word) and the screen is black until the fade anyway. */
+    for (u16 i = 0; i < SCREEN_FADE_WORDS; i++) s_pal_full[i] = ((volatile u16 *)MMAP_PALBANK1)[i];
+    g_pal_shadow = s_pal_full;
     bg_backdrop_dark(1);
     /* Commit the fix clear FIRST, while palette 0 is still the BIOS zero: the budgeted queue flushes in order, so a clear
      * committed last left the BIOS tile 0x20 fill visible about 30 frames after a coin (tests/mame/unibios_check.lua, COIN1). */
-    gfx_cls();
-    gfx_commit_all();
+    gfx_cls_init();
     /* Fix layer palettes 0..FIX_PAL_COUNT-1 (generated with the font). */
     for (u8 s = 0; s < FIX_PAL_COUNT; s++)
         for (u8 i = 0; i < 16; i++) gfx_pal((u16)(s * 16 + i), fixfont_palettes[s][i]);
@@ -3327,7 +3330,7 @@ static void video_init(void) {
     g_draw_state = -1;
     gfx_commit_all();
     gfx_drain(); /* init is outside the per-frame budget: it blocks, one flush per vblank, until everything is written */
-    for (u16 i = 0; i < SCREEN_FADE_WORDS; i++) s_pal_full[i] = ((volatile u16 *)MMAP_PALBANK1)[i];
+    g_pal_shadow = 0;
     screen_fade(0, BG_FADE_MAX); /* the BIOS return leaves the palette black: fade up, no cut */
     bg_backdrop_dark(0); /* only now: nothing is drawn during the fade-up, so a lit backdrop alone would show as a blue screen; it comes with the first frame */
 }

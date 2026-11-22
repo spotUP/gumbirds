@@ -164,6 +164,15 @@ int main(void)
     vq_fix_fill(&q, 0x20);
     vq_fix_put(&q, 2, 3, 0x1041);
     CHECK(commit_all() == 0);
+    /* fill_runs: one run per column, nothing left dirty, a later same-cell put pushes nothing */
+    {
+        static VramQueue r; vq_init(&r);
+        CHECK(vq_fix_fill_runs(&r, 0x20) && vq_pending(&r) == VQ_FIX_COLS);
+        const VqOp *op = vq_peek(&r);
+        CHECK(op->kind == VQ_RUN && op->a == VQ_FIX_BASE && op->b == 1 && op->rows == VQ_FIX_ROWS && op->tiles[VQ_FIX_ROWS - 1] == 0x20);
+        vq_fix_put(&r, 2, 3, 0x20);
+        CHECK(vq_fix_commit(&r) && vq_pending(&r) == VQ_FIX_COLS);
+    }
     /* wipe: same hardware result as a fill, only cells that differ are pushed */
     vq_fix_wipe(&q, 0x20);
     CHECK(commit_all() == 1);

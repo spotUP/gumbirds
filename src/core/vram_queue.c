@@ -269,3 +269,18 @@ int vq_fix_commit_room(VramQueue *q, u16 max, u16 reserve) {
 }
 
 int vq_fix_commit(VramQueue *q) { return vq_fix_commit_n(q, 0xFFFFu); }
+
+/* Init path (video_init after a BIOS return): the whole layer as one run op per column, read from fix_hw at flush time. A commit of
+ * the same clear pushed 1280 word ops (18 us each), about 13 vblanks of the coin entry; 40 runs of 32 words take about 4. */
+int vq_fix_fill_runs(VramQueue *q, u16 cell) {
+    if (VQ_CAP - q->count < VQ_FIX_COLS) return 0;
+    for (u16 i = 0; i < VQ_FIX_COLS * VQ_FIX_ROWS; i++) q->fix_hw[i] = q->fix_want[i] = cell;
+    for (u16 x = 0; x < VQ_FIX_COLS; x++) {
+        q->fix_dirty[x] = 0;
+        VqOp op = { &q->fix_hw[x * VQ_FIX_ROWS], (u16)(VQ_FIX_BASE + x * VQ_FIX_ROWS), 1, 0, VQ_RUN, VQ_FIX_ROWS,
+                    (u16)(VQ_US_RUN + VQ_US_RUN_WORD * VQ_FIX_ROWS), 0 };
+        push(q, &op);
+    }
+    q->fix_any = 0;
+    return 1;
+}
