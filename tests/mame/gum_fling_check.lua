@@ -8,7 +8,7 @@ local result = os.getenv("BRAWL_RESULT")
 local L = {}
 for v in (os.getenv("BRAWL_BLOW_LAYOUT") or ""):gmatch("%d+") do L[#L + 1] = tonumber(v) end
 local O = { state = L[1], mode = L[2], fling = L[3], phase = L[4], dist = L[5], score = L[6], record = L[7], foul = L[8], best = L[9] }
-local K = { playing = L[10], gum = L[11], trip = L[12], over = L[13], gfend = L[14], windup = L[15], card = L[16], x = L[18] }
+local K = { playing = L[10], gum = L[11], trip = L[12], over = L[13], gfend = L[14], windup = L[15], card = L[16], x = L[18], h = L[19], power = L[20], deg = L[21] }
 local mem = manager.machine.devices[":maincpu"].spaces["program"]
 local st = dofile("tests/mame/stadium_snap.lua")(mem, flow_addr)
 local ports = manager.machine.ioport.ports
@@ -82,7 +82,7 @@ emu.register_frame_done(function()
         local w3 = fix[0x8200 + s] or 0
         if (w3 & 0x3f) > 0 and (w3 & 0x40) == 0 then o[#o + 1] = string.format("%d:%d,%d,%d", s, (fix[0x8400 + s] or 0) >> 7, (496 - (w3 >> 7)) & 0x1ff, w3 & 0x3f) end
       end
-      local df = io.open(os.getenv("FLING_SPR_LOG"), "a"); df:write(string.format("n=%d card=%d att=%d ph=%d x=%d ", n, b(K.card), attempts, b(O.phase), mem:read_u32(flow_addr + K.x) >> 16) .. table.concat(o, " ") .. "\n"); df:close()
+      local df = io.open(os.getenv("FLING_SPR_LOG"), "a"); df:write(string.format("n=%d card=%d att=%d ph=%d x=%d h=%d pw=%d deg=%d ", n, b(K.card), attempts, b(O.phase), mem:read_u32(flow_addr + K.x) >> 16, mem:read_u32(flow_addr + K.h) >> 16, b(K.power), b(K.deg)) .. table.concat(o, " ") .. "\n"); df:close()
     end
     if b(K.card) == 1 then   -- rules card: A is ignored for its first 30 frames, then one press dismisses it
       cardn = cardn + 1
@@ -130,7 +130,7 @@ emu.register_frame_done(function()
     elseif mode == K.gum and ph == 1 then
       -- the needle swings by itself after the 30-frame hold (A in the hold is ignored); A 20 frames after the hold stops it mid range and launches
       aim_t0 = aim_t0 or n
-      bbtn:set_value(0); cbtn:set_value(0); abtn:set_value((n - aim_t0 >= 50 and n - aim_t0 < 52) and 1 or 0)
+      bbtn:set_value(0); cbtn:set_value(0); abtn:set_value((b(K.deg) >= 30 and n - aim_t0 < 400 and n % 2 == 0) and 1 or 0)   -- A once the needle moves (frames are MAME frames, the game may run slower: never count them)
     elseif mode == K.gum and ph == 2 and attempts == 2 then
       -- frantic flap mash in the flight of attempt 2 (an A or B press every 4 frames)
       local j = n % 8
