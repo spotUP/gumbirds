@@ -87,8 +87,9 @@ void fling_field_step(const GgFling *f, u8 mood, int on, int show, int markers, 
     g_tick++;
     scroll = f->phase >= GF_FLIGHT ? (u32)(f->x >> 16) : 0;
     j0 = scroll >> 4;
-    for (u32 j = j0; j < j0 + COLS; j++) {
-        u8 s = (u8)(j % COLS), t = (u8)(k_seq[j & 31] - 'P');
+    u8 s = (u8)(j0 % COLS);   /* slot of column j, stepped below: a u32 % per column is a libgcc call on the 68000 */
+    for (u32 j = j0; j < j0 + COLS; j++, s = (u8)(s + 1 == COLS ? 0 : s + 1)) {
+        u8 t = (u8)(k_seq[j & 31] - 'P');
         if (tug && !scroll) for (u8 c = 0; c < 3; c++) if (j == k_tug_col[c]) t = (u8)(TUG_CODE + c);
         if (g_type[s] != t) {
             if (!loads) { pending = 1; g_t3[s] = 0; continue; }

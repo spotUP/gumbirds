@@ -539,6 +539,19 @@ static void game_step_dash(Game *g, uint8_t input)
     camera_follow(g);
 }
 
+/* Gum Fling: one grass field in GUM mode for the whole event (no scene cut). The hero stands at a fixed screen spot, the
+ * flight scrolls the camera and the field, and distance is the scroll at touch-down. */
+#define FLING_HERO_X   36   /* hero centre, left of the foul line at x 56 */
+#define FLING_GROUND_Y 160  /* screen y of the turf top (FLOOR_Y in tools/draw_fling_field.py) */
+/* The hero's stand on the field; game_step_fling sets it every step, start sets it too so the GET SET hold (no step) does not
+ * show the arena spawn spot (owner 2026-11-22: bird drawn at x 176, over the field). */
+static void fling_place_hero(Game *g)
+{
+    Flier *h = &g->hero[0];
+    h->x = FL_PX(FLING_HERO_X);
+    h->y = FL_PX(FLING_GROUND_Y) - flier_half_h(h) - g->fling.h;
+}
+
 void game_gg_start_fling(Game *g)
 {
     g->gg_fling = 1;
@@ -547,12 +560,9 @@ void game_gg_start_fling(Game *g)
     g->cpu_count = 0;
     gumfling_init(&g->fling);
     camera_init(&g->camera);
+    fling_place_hero(g);
 }
 
-/* Gum Fling: one grass field in GUM mode for the whole event (no scene cut). The hero stands at a fixed screen spot, the
- * flight scrolls the camera and the field, and distance is the scroll at touch-down. */
-#define FLING_HERO_X   36   /* hero centre, left of the foul line at x 56 */
-#define FLING_GROUND_Y 160  /* screen y of the turf top (FLOOR_Y in tools/draw_fling_field.py) */
 static void game_step_fling(Game *g, uint8_t input)
 {
     GgFling *f = &g->fling;
@@ -576,8 +586,7 @@ static void game_step_fling(Game *g, uint8_t input)
             camera_init(&g->camera);
         }
     }
-    h->x = FL_PX(FLING_HERO_X);
-    h->y = FL_PX(FLING_GROUND_Y) - flier_half_h(h) - f->h;
+    fling_place_hero(g);
     h->spawn_inv = 0;
     g->frame++;
     g->score = f->seq.points[0];

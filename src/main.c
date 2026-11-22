@@ -2377,6 +2377,13 @@ static void hero_and_mode(const FlowView *v) {
         g_cam_px = (u16)game_camera_px(v->game);
         g_cam_unwrapped = camera_unwrapped_px(&v->game->camera);
         edge_marker(v->game, game_flier_cam_px(v->game));
+        if (v->card) {   /* the rules card shows the world and its own example only: no bird or pool sprite under it (owner 2026-11-22, make test-gum-fling F4) */
+            hero_hide();
+            dead_release_all();
+            if (g_pool.live) pool_free_all();
+            pool_show();
+            return;
+        }
         if (v->game->gg_poop) { hero_hide(); poop_show(v->game); }
         else if (v->game->gg_pop) { hero_hide(); pop_show(v->game); }  /* no hero_show here: it queued the hero and hero_hide cleared it the same frame */
         else {
@@ -3510,6 +3517,10 @@ static void game_loop(void) {
         }
         sound_frame(&view);
         sound_tick();
+        /* First of the frame's sprite words: the title logo and Sootlings share slots 323.. with every mode's strips, and a hide queued after a
+         * mode entry's tile and stadium ops reached the hardware 8 frames late (Gum Fling rules card, slot 324 under it; tests/mame/gum_fling_check.lua F4). */
+        logo_step(view.state == FLOW_ATTRACT_TITLE && !bg_dark()); /* the logo has no palette fade: it leaves while a mood change holds the planes black and returns with the fade-in */
+        title_soot_step(view.state == FLOW_ATTRACT_TITLE);
         draw(&view);
         /* The result screen's fix scene covers the world: its steps wait, so the fill frames keep their budget. */
         if (view.state == FLOW_PLAYING && view.game && view.game->res.active) {
@@ -3591,8 +3602,6 @@ static void game_loop(void) {
                               trip_game ? sg->hero[0].x >> 16 : se->splosh_x, trip_game ? sg->trip_splat_y : 0,
                               trip_game ? game_flier_cam_px(sg) : g_cam_px); /* the trip flier lives in screen space (owner 2026-11-17: splat far from the death) */
             }
-            logo_step(view.state == FLOW_ATTRACT_TITLE && !bg_dark()); /* the logo has no palette fade: it leaves while a mood change holds the planes black and returns with the fade-in */
-            title_soot_step(view.state == FLOW_ATTRACT_TITLE);
             hazard_trip_anim(trip_game);
             /* Gum Trip drops the far and near background planes; arena and title show them. Dropped already in the entry hold (world
              * hidden): on the reveal frame it ran with the course start and wrapped past vblank. */
