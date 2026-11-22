@@ -3237,6 +3237,7 @@ static u8 s_pal_blk[SCREEN_FADE_BLOCKS];
 /* A pass scales the 4 bit channels through a 16 entry table built per step (no hardware 32 bit multiply: bg_fade_color per word, three software
  * multiplies, took ~15 frames a pass). The dark-bit LSBs are dropped while fading. The last step (level BG_FADE_MAX) writes the saved words
  * back, exact, and level 0 is black. Unused slots stay 0. */
+_Static_assert(BG_FADE_MAX % 4 == 0, "screen_fade steps 4 levels");
 static void screen_fade(u8 from, u8 to) {
     gfx_drain();
     if (to < from) for (u16 i = 0; i < SCREEN_FADE_WORDS; i++) s_pal_full[i] = ((volatile u16 *)MMAP_PALBANK1)[i];
@@ -3266,7 +3267,9 @@ static void screen_fade(u8 from, u8 to) {
             }
         }
         if (from == to) return;
-        from = from < to ? (u8)(from + 2) : (u8)(from - 2); /* BG_FADE_MAX is even: two levels a pass */
+        /* A pass costs ~2 frames, all of them with the frame counter frozen (unibios_check STALL_LIMIT): a fade takes 4 levels a pass
+         * (BG_FADE_MAX is a multiple of 4). */
+        from = from < to ? (u8)(from + 4) : (u8)(from - 4);
     }
 }
 
