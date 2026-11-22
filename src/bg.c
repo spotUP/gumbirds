@@ -432,16 +432,25 @@ void bg_pop_sky(u8 on, u32 dist) {
  * spreads over 4 frames. g_pal_flash is the level each storm palette (and the backdrop, entry STORM_PALETTE_COUNT) was last written at. */
 static u8 g_flash, g_pal_flash[STORM_PALETTE_COUNT + 1];
 void bg_flash(u8 idx) { g_flash = idx; }
+static u8 g_flash_cp = 0xFF, g_flash_cw, g_flash_c; /* palette, flash level and next colour of a palette cut by fade_late */
 static void flash_sync(void) {
     u8 want = g_flash, written = 0;
     if (g_bg_mood != GAME_MOOD_STORM) { memset(g_pal_flash, 0, sizeof g_pal_flash); return; }
     if (g_pal_flash[STORM_PALETTE_COUNT] != want) { gfx_pal(4095, g_dark ? 0 : rain_flash_color((g_hidden ? TRIP_BACKDROP : BACKDROP)[GAME_MOOD_STORM], want)); g_pal_flash[STORM_PALETTE_COUNT] = want; }
     for (u8 p = 0; p < STORM_PALETTE_COUNT; p++) {
         if (g_pal_flash[p] == want) continue;
-        if (written >= BG_FADE_PALS_PER_FRAME || fade_late()) return;
-        for (u8 c = 0; c < 16; c++) gfx_pal((u16)((STORM_PAL_SLOT + p) * 16 + c), rain_flash_color(storm_palettes[p][c], want));
+        if (written >= BG_FADE_PALS_PER_FRAME) return;
+        /* fade_late per colour, not per palette: one palette costs about 60 lines, and a palette started at 0x1B5 just under
+         * the late line ended at 0x1F3, past vblank (2 of 19 dropped storm frames, make test-rain). A cut palette resumes at
+         * the next colour in the next frame. */
+        if (g_flash_cp != p || g_flash_cw != want) { g_flash_cp = p; g_flash_cw = want; g_flash_c = 0; }
+        for (; g_flash_c < 16; g_flash_c++) {
+            if (fade_late()) return;
+            gfx_pal((u16)((STORM_PAL_SLOT + p) * 16 + g_flash_c), rain_flash_color(storm_palettes[p][g_flash_c], want));
+        }
         g_pal_flash[p] = want;
         written++;
+        g_flash_c = 0;
     }
 }
 

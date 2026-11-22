@@ -78,7 +78,7 @@ local function report()
   local msg = timing() .. "; " .. string.format("dropped storm frames %d; rain: calm cells %d, storm peak %d cells, worst line %d sprites at line %d (limit %d), flush max %d us (limit %d), flushes %d, deferred %d",
     stalls, calm_cells, peak_cells, worst, worst_line, SB_LIMIT, fs.us_max, FLUSH_LIMIT, fs.flushes, fs.sat)
   if peak_cells < MIN_CELLS then finish(false, "no rain in storm: " .. msg) return end
-  if worst > SB_LIMIT or fs.us_max > FLUSH_LIMIT then finish(false, msg) return end
+  if worst > SB_LIMIT or fs.us_max > FLUSH_LIMIT or stalls > 0 then finish(false, msg) return end
   finish(true, msg)
 end
 emu.register_frame_done(function() local ok_, err_ = pcall(function()

@@ -26,6 +26,7 @@ void vq_invalidate(VramQueue *q) {
     for (u16 i = 0; i < VQ_FIX_COLS * VQ_FIX_ROWS; i++) { q->fix_hw[i] = 0xFFFF; q->fix_want[i] = 0xFFFF; }
     for (u16 i = 0; i < VQ_FIX_COLS; i++) q->fix_dirty[i] = 0;
     q->fix_any = 0;
+    q->fix_col = 0;
     for (u16 i = 0; i < VQ_SCB_WORDS; i++) q->scb_valid[i] = 0;
     for (u16 i = 0; i < VQ_SPRITES; i++) q->strip[i].tiles = 0;
 }
@@ -261,11 +262,22 @@ static const uint8_t CTZ8[256] = {
  * changes about 70 cells a frame in short vertical streaks; one op per cell cost about 63 lines of logic frame and
  * pushed the commit past VQ_FIX_LINE_END (budget 0: no rain reached VRAM, make test-rain / test-vblank).
  * The budget still counts cells, so the flush time bound is unchanged. */
-int vq_fix_commit_n(VramQueue *q, u16 budget) {
+/* The cell budget alone did not bound the commit time: storm rain frames reached the commit at line 0x1BD with a 41 cell budget
+ * and ended at 0x1F2..0x1F8, past vblank (the dirty bit walk and the run ops cost more than a line a cell; 19 dropped frames in
+ * make test-rain). With lspc the commit reads the raster line before each dirty column and stops at VQ_FIX_LINE_END. Not per
+ * cell: a read per queued cell made the pool stress frames of make test-vblank miss every other vblank (665 of 1331) and froze
+ * the walk clip in make test-flier. */
+static int late(const volatile u16 *lspc) {
+    if (!lspc) return 0;
+    u16 l = VQ_RASTER_LINE(*lspc);
+    return l >= VQ_FIX_LINE_END && l < 0x1F0u;
+}
+static int fix_commit(VramQueue *q, u16 budget, const volatile u16 *lspc) {
     if (!q->fix_any) return 1;
-    for (u16 x = 0; x < VQ_FIX_COLS; x++) {
+    for (u16 n = 0, x = q->fix_col; n < VQ_FIX_COLS; n++, x = (u16)(x + 1 == VQ_FIX_COLS ? 0 : x + 1)) {
         uint32_t m = q->fix_dirty[x];
         if (!m) continue;
+        if (late(lspc)) { q->fix_col = (u8)x; return 1; }
         u16 i = (u16)(x * VQ_FIX_ROWS), r = 0;
         VqOp *op = 0;
         for (; m; m >>= 1, i++, r++) {
@@ -283,14 +295,14 @@ int vq_fix_commit_n(VramQueue *q, u16 budget) {
                 continue;
             }
             if (!op) {
-                if (!(op = tail_op(q))) { q->fix_dirty[x] = m << r; return 0; }
+                if (!(op = tail_op(q))) { q->fix_dirty[x] = m << r; q->fix_col = (u8)x; return 0; }
                 op->tiles = &q->fix_hw[i]; op->a = (u16)(VQ_FIX_BASE + i); op->b = 1; op->c = 0;
                 op->kind = VQ_RUN; op->rows = 0; op->cost = VQ_US_RUN; op->split = 0;
             }
             q->fix_hw[i] = q->fix_want[i];
             op->rows++;
             op->cost = (u16)(op->cost + VQ_US_RUN_WORD);
-            if (--budget == 0) { fix_run_close(q, op); q->fix_dirty[x] = (m >> 1) << (r + 1); return 1; }
+            if (--budget == 0) { fix_run_close(q, op); q->fix_dirty[x] = (m >> 1) << (r + 1); q->fix_col = (u8)x; return 1; }
         }
         if (op) fix_run_close(q, op);
         q->fix_dirty[x] = 0;
@@ -300,11 +312,13 @@ int vq_fix_commit_n(VramQueue *q, u16 budget) {
 }
 
 /* shortcut: counts ops, not VRAM words; the reserve is tuned in ops (gfx.c). Cells per commit <= ops, so room holds. */
-int vq_fix_commit_room(VramQueue *q, u16 max, u16 reserve) {
+int vq_fix_commit_n(VramQueue *q, u16 budget) { return fix_commit(q, budget, 0); }
+
+int vq_fix_commit_room(VramQueue *q, u16 max, u16 reserve, const volatile u16 *lspc) {
     u16 pend = vq_pending(q);
     if (pend + reserve >= VQ_CAP) return 1; /* no room above the reserve: the columns stay dirty for the next frame */
     u16 room = (u16)(VQ_CAP - reserve - pend);
-    return vq_fix_commit_n(q, room < max ? room : max);
+    return fix_commit(q, room < max ? room : max, lspc);
 }
 
 int vq_fix_commit(VramQueue *q) { return vq_fix_commit_n(q, 0xFFFFu); }

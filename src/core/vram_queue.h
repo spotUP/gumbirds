@@ -97,6 +97,7 @@ typedef struct {
     u16 fix_hw[VQ_FIX_COLS * VQ_FIX_ROWS];
     uint32_t fix_dirty[VQ_FIX_COLS];  /* per column, bit y: the wanted cell of row y changed since it was last queued (VQ_FIX_ROWS == 32) */
     u8 fix_any;                       /* some fix_dirty bit is set: a commit with no change returns at once (tests/host/test_vram_queue.c) */
+    u8 fix_col;                       /* column the next commit starts at: a cut commit resumes there, so the right columns are not starved */
     u16 scb_hw[VQ_SCB_WORDS];
     u8 scb_valid[VQ_SCB_WORDS];       /* 1: scb_hw[i] holds the VRAM word. A byte, not a bit: the bit test was a variable shift per word, ~2x the run loop (vblank-demo.md Part 6) */
     VqStripKey strip[VQ_SPRITES];
@@ -156,7 +157,9 @@ void vq_fix_clear(VramQueue *q, u8 x, u8 y, u8 w, u8 h, u16 cell);
 int vq_fix_commit(VramQueue *q);           /* queue the changed fix cells; 0 when the queue filled up (call again) */
 /* Same, but queues at most `budget` cells and returns 1 with the rest left dirty for the next call (a screen change spreads over frames). */
 int vq_fix_commit_n(VramQueue *q, u16 budget);
-int vq_fix_commit_room(VramQueue *q, u16 max, u16 reserve); /* budget = min(max, free slots - reserve): never fills the queue, so the logic frame cannot block */
+/* budget = min(max, free slots - reserve): never fills the queue, so the logic frame cannot block. lspc (REG_LSPCMODE, 0 on the host):
+ * the commit also stops once the raster reaches VQ_FIX_LINE_END, the rest stays dirty for the next frame. */
+int vq_fix_commit_room(VramQueue *q, u16 max, u16 reserve, const volatile u16 *lspc);
 /* The consumer side is inline: gfx_flush runs it in vblank, where a call per op cost more than the op's writes. */
 static inline const VqOp *vq_peek(const VramQueue *q) { return q->count ? &q->ops[q->head] : 0; }
 
