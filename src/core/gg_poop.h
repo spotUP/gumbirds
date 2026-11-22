@@ -20,8 +20,12 @@
 #define PM_COMBO_CAP 4u
 #define PM_STUN 45u
 #define PM_SCROLL 2                  /* street scroll, px per frame (walkers and berries move with it) */
-#define PM_FEET_Y 176                /* the city roof line the backdrop draws as ground (GROUND = 176 in assets/city/draw_city.py); walker feet bottom row is PM_FEET_Y - 1 */
-#define PM_PAVE_Y (PM_FEET_Y + 4)                   /* a poop lower than this hit the pavement */
+#define PM_BAND_Y 160                /* top of the walkway band the backdrop strip covers (rows 160..223, assets/poop_walk): a bird that touches it dies; walker feet stand inside it */
+#define PM_LANES 3                   /* depth lanes: back, middle, front; a higher lane draws in front (walker slots are ordered by lane) */
+#define PM_LANE_FEET_BACK 190        /* feet bottom row + 1 of each lane (owner 2026-11-22: feet inside the band, 3 depth lanes) */
+#define PM_LANE_FEET_MID 200
+#define PM_LANE_FEET_FRONT 212
+#define PM_PAVE_Y (PM_LANE_FEET_MID + 4)            /* a poop lower than this hit the pavement */
 #define PM_BIRD_Y_MIN 24
 #define PM_DROP_CD 12u               /* frames between two drops of one bird */
 #define PM_DEAD_FRAMES 90u
@@ -43,6 +47,7 @@
 #define PM_POOPS 6
 #define PM_WALKERS 7
 #define PM_SHOES 3
+#define PM_LANE_OF(i) ((i) < 2 ? 0 : (i) < 5 ? 1 : 2)   /* walker slot i stands in this lane: slot order = draw order = depth order */
 #define PM_BIRD_HALF_W 12
 #define PM_BIRD_HALF_H 10
 #define PM_HIT_FRAMES 30u            /* splat on the head, then the walker is angry */
@@ -57,7 +62,8 @@ enum { PM_POOP_FALL, PM_POOP_BOUNCE, PM_POOP_SPLAT };   /* SPLAT: lies on the pa
 #define PM_SFX_FLAP 2u               /* a bird flapped */
 #define PM_SFX_DEAD 4u               /* a bird died */
 
-typedef struct { int16_t x8, dx8; uint8_t kind, st, live, umb_prone, umb, owner; uint16_t t; } PmWalker;   /* x8 = centre in 1/8 px; dx8 = own speed relative to the street, 1/8 px per frame */
+static inline int pm_lane_feet(uint8_t lane) { return lane == 0 ? PM_LANE_FEET_BACK : lane == 1 ? PM_LANE_FEET_MID : PM_LANE_FEET_FRONT; }
+typedef struct { int16_t x8, dx8; uint8_t kind, st, live, umb_prone, umb, owner, lane; uint16_t t; } PmWalker;   /* x8 = centre in 1/8 px; dx8 = own speed relative to the street, 1/8 px per frame */
 typedef struct { int32_t x16, y16; int16_t vx16, vy16; uint8_t live, st, t, owner; } PmPoop;     /* centre and velocity in 1/16 px (per frame) */
 typedef struct { int16_t x, y; int8_t vx, vy; uint8_t live; } PmShoe;   /* px per frame */
 typedef struct {

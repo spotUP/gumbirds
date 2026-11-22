@@ -47,6 +47,7 @@
 #include "island.h"
 #include "trip_strip.h"
 #include "fling_field.h"
+#include "poop_walkway.h"
 #include "stadium_hw.h"
 #include "gum.h"
 #include "core/gum_view.h"
@@ -1648,6 +1649,7 @@ static u8 bg_pending(void) {
     u8 trip = world && g_flow.game.mode == GAME_MODE_TRIP;
     return g_bg_mood_busy || g_bg_mood != g_flow.game.mood || (world && !trip && !ground_field(&g_flow.game) && !hazard_preloaded())
         || (world && ground_field(&g_flow.game) && !fling_field_loaded())
+        || (world && poop_field(&g_flow.game) && !poop_walkway_loaded())
         || (world && stadium_on(&g_flow.game) && !stadium_hw_loaded())
         || (trip && game_trip_ready(&g_flow.game) && !(trip_strip_loaded() && g_trip_islands_loaded));
 }
@@ -2316,16 +2318,17 @@ static void poop_show_pieces(const Game *g) {
         const PoopAnim *a = &poop_anims[anim];
         const PoopFrame *f = &poop_frames[a->first_frame + first + n];
         int cx = w->x8 >> 3, flip = w->dx8 - PM_SCROLL * 8 < 0;   /* face the way it moves on screen: the backdrop does not scroll, so every walker drifts left */
-        pm_piece((u16)(PM_W_SLOT + k * 2), f, cx - 16, PM_FEET_Y - 48, 32, flip, (u16)(POOP_PAL_SLOT + f->palette));
+        int feet = pm_lane_feet(w->lane);
+        pm_piece((u16)(PM_W_SLOT + k * 2), f, cx - 16, feet - 48, 32, flip, (u16)(POOP_PAL_SLOT + f->palette));
         if (w->st != PM_WALK) {   /* head splat (draft rig: head x, top row, hit bob) lies on the head from the hit until the walker walks again */
             static const u8 hx[4] = { 4, 5, 5, 5 }, top[4] = { 0, 8, 6, 18 };
             const PoopFrame *s = pm_frame(POOP_ANIM_SPLAT_HEAD, w->st == PM_HIT ? n : 2);
             int bob = w->st == PM_HIT ? 2 - n : w->st == PM_FIST ? n : 0, off = hx[w->kind] + 1;
-            pm_piece((u16)(PM_H_SLOT + k), s, flip ? cx - 16 + 32 - off - 16 : cx - 16 + off, PM_FEET_Y - 48 + top[w->kind] + bob - 4, 16, flip, (u16)(POOP_PAL_SLOT + s->palette));
+            pm_piece((u16)(PM_H_SLOT + k), s, flip ? cx - 16 + 32 - off - 16 : cx - 16 + off, feet - 48 + top[w->kind] + bob - 4, 16, flip, (u16)(POOP_PAL_SLOT + s->palette));
         }
         if (w->umb && w->st == PM_WALK) {
             const PoopFrame *u = pm_frame((u8)(anim + 1), 2);
-            pm_piece((u16)(PM_U_SLOT + k * 2), u, cx - 16, PM_FEET_Y - 64, 32, flip, (u16)(POOP_PAL_SLOT + u->palette));
+            pm_piece((u16)(PM_U_SLOT + k * 2), u, cx - 16, feet - 64, 32, flip, (u16)(POOP_PAL_SLOT + u->palette));
         }
     }
     for (u8 k = 0; k < PM_POOPS; k++) {
@@ -3615,6 +3618,7 @@ static void game_loop(void) {
             u8 stadium = world_state(&view) && stadium_on(view.game);
             island_step(world && !trip && !stadium && !ground_field(view.game) && !pop_field(view.game) && !poop_field(view.game), g_cam_px); /* arena islands are not drawn in Gum Trip, on the stadium events, on the Gum Fling / Toss Gum field or in Pop Drop */
             fling_field_step(ground_field(view.game) ? seated(view.game) ? &g_idle_fling : &view.game->fling : 0, view.game ? view.game->mood : 0, world_state(&view), world, !(view.game && seated(view.game)), view.game && view.game->gg_tug); /* after island_step: it takes the island slots */
+            poop_walkway_step(poop_field(view.game) ? &view.game->poop : 0, view.game ? view.game->mood : 0, world_state(&view), world); /* after island_step: it takes the island slots */
             {   /* stadium stands: scores, result and wave edges from the event state */
                 static u8 s_fin;
                 const Game *sg = view.game;

@@ -96,6 +96,12 @@
 #define FLFIELD_MARKER_COUNT 16 /* foul line, then 10..150 M in steps of 10 (the 50 M slot holds the mark board) */
 #define FLFIELD_PUFF_SPRITE (FLING_ARC_SPRITE + FLING_ARC_COUNT)
 #define FLFIELD_PUFF_COUNT 2
+/* Poop the Man walkway (src/poop_walkway.c): the pavement band columns and one contact shadow per walker take the island slots (Poop draws no islands;
+ * island_relayout reloads them on leaving). The walkers draw in the pool slots above, so band and shadows sit behind them. */
+#define PWALK_STRIP_SPRITE ISLAND_SPRITE
+#define PWALK_STRIP_COUNT 20
+#define PWALK_SHADOW_SPRITE (PWALK_STRIP_SPRITE + PWALK_STRIP_COUNT)
+#define PWALK_SHADOW_COUNT 7
 #define LOGO_COUNT 28
 #define TITLE_SOOT_SPRITE (LOGO_SPRITE + LOGO_COUNT)
 #define TITLE_SOOT_COUNT 4

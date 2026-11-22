@@ -32,14 +32,16 @@ void gm_add_p2(GgPoop *p)
     p->seq.tickets[1] = 1;
 }
 
-static int walker_top(const PmWalker *w) { return PM_FEET_Y - walker_h[w->kind]; }
+static int walker_top(const PmWalker *w) { return pm_lane_feet(w->lane) - walker_h[w->kind]; }
 static int iabs(int v) { return v < 0 ? -v : v; }
 
 static void spawn_walker(GgPoop *p)
 {
     int i;
-    for (i = 0; i < PM_WALKERS; i++) if (!p->w[i].live) {
+    int lane = rng_range(&p->rng, PM_LANES);
+    for (i = 0; i < PM_WALKERS; i++) if (!p->w[i].live && PM_LANE_OF(i) == lane) {
         PmWalker *w = &p->w[i];
+        w->lane = (uint8_t)lane;
         w->live = 1; w->kind = (uint8_t)rng_range(&p->rng, 4); w->st = PM_WALK; w->t = 0; w->umb = 0; w->owner = 0;
         w->umb_prone = p->storm ? 1 : (uint8_t)(rng_range(&p->rng, 4) == 0);
         w->dx8 = (int16_t)(rng_range(&p->rng, 2) ? 6 : -6);
@@ -95,8 +97,8 @@ static void bird_step(GgPoop *p, int k, uint8_t in)
     if (b->x < 0) { b->x = 0; b->xf = 0; } else if (b->x > PM_W) { b->x = PM_W; b->xf = 0; }   /* the bird stays on screen */
     b->yf = (int16_t)(b->yf + b->vy16); b->y = (int16_t)(b->y + (b->yf >> 4)); b->yf &= 15;   /* arithmetic shift: floor for negatives */
     if (b->y < PM_BIRD_Y_MIN) { b->y = PM_BIRD_Y_MIN; if (b->vy16 < 0) b->vy16 = 0; }
-    if (b->y + PM_BIRD_HALF_H >= PM_FEET_Y) {   /* the pavement kills; invulnerable birds stop on it */
-        if (b->inv) { b->y = (int16_t)(PM_FEET_Y - PM_BIRD_HALF_H); b->vy16 = 0; }
+    if (b->y + PM_BIRD_HALF_H >= PM_BAND_Y) {   /* the pavement kills; invulnerable birds stop on it */
+        if (b->inv) { b->y = (int16_t)(PM_BAND_Y - PM_BIRD_HALF_H); b->vy16 = 0; }
         else { bird_kill(p, b); return; }
     }
     if (!b->inv) for (i = 0; i < PM_WALKERS; i++) {
