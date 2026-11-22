@@ -1,5 +1,5 @@
 -- PARTY Tug Gum check (target test-party-tug): UniBIOS 4.0, Arena 1P Start, the script sets the flow to Party mode with rule TUG and joins P2
--- (the join restarts the match into Tug Gum), then player 1 and player 2 both mash their pull button:
+-- (the join restarts the match into Tug Gum), then player 1 mashes A and player 2 pulls slowly (2P Tug is P1 against P2, so equal mashing never ends a round):
 --   G1. Tug Gum is running (mode GUM, gg_tug set) and the P2 Start press seated a second human (Tug.humans 2);
 --   G2. the strand is drawn (first strand sprite has a height) and its knot (main.c g_tug_knot_x) follows Tug.knot;
 --   G3. a snap happens and the left team wins two rounds (RESULT, wins 2 - 0);
@@ -95,10 +95,10 @@ local function birds_msg()
 end
 local function press(f, k, from) f:set_value((k >= from and (k - from) < 15) and 1 or 0) end
 local function shot(name) if snap and not snaps[name] then screen:snapshot(name .. ".png"); snaps[name] = true end end
-emu.register_frame_done(function()
+local function frame_body()
   if done then return end
   n = n + 1
-  if n > 30000 then finish(false, "watchdog in phase " .. phase .. " snap " .. tostring(seen_snap) .. " wins " .. b(O.wins) .. "-" .. b(O.wins + 1)) return end
+  if n > 22000 then finish(false, "watchdog in phase " .. phase .. " " .. (play_n > 0 and birds_msg() or "") .. " ph " .. b(O.phase) .. " knot " .. mem:read_i16(flow_addr + O.knot) .. " snap " .. tostring(seen_snap) .. " wins " .. b(O.wins) .. "-" .. b(O.wins + 1)) return end
   local k = n - t0
   if phase == "boot" then
     if mid and n == 590 then mem:write_u8(flow_addr + O.fmode, K.party); mem:write_u8(flow_addr + O.frule, K.tug) end
@@ -123,7 +123,7 @@ emu.register_frame_done(function()
     local us = mem:read_u16(lastus_addr)
     if us > us_play then us_play = us end
     abtn:set_value(k % 8 < 4 and 1 or 0)
-    a2btn:set_value(k % 8 >= 4 and 1 or 0)
+    a2btn:set_value(k % 24 < 4 and 1 or 0)   -- P2 is the right team (computer rival off in 2P): a slow pull keeps P1 winning 2 - 0
     local ph, knot, kx = b(O.phase), mem:read_i16(flow_addr + O.knot), mem:read_i16(knot_addr)
     -- the view may lag the logic by a frame, so the drawn knot only has to be on the same side and within a pull of Tug.knot / 4
     if ph == K.play and knot < -8 and kx ~= 0 and kx < 160 and math.abs(kx - 160 - knot / 4) <= 6 and ((fix[0x8200 + STRAND_SLOT] or 0) & 0x3f) > 0 then
@@ -152,4 +152,8 @@ emu.register_frame_done(function()
       end
     end
   end
+end
+emu.register_frame_done(function()
+  local ok, err = pcall(frame_body)
+  if not ok then finish(false, "script error: " .. tostring(err)) end
 end)
