@@ -1,4 +1,4 @@
--- Gum Games Poop the Man check (test-gum-poop): UniBIOS 4.0, one coin, Down to the PARTY event list, A opens the list, Down six times picks Poop the Man (last entry), Start:
+-- Gum Games Poop the Man check (test-gum-poop): UniBIOS 4.0, one coin, Down to PARTY, A opens the event list, ss.menu picks entry 10 (Poop the Man), Start:
 --   P1. the game is PLAYING in GAME_MODE_GUM with gg_poop 1 and the HUD (fix row 7) lit;
 --   P2. B pressed every 20 frames drops poops, A is tapped whenever the bird sinks below y 100 to stay up (flap): the bird rises (y falls) on at least 10 frames and splats start;
 --   P3. the event ends in GAME_OVER and the record in slot 6 is at least the score (higher is better);
@@ -59,7 +59,6 @@ emu.register_frame_done(function()
   if phase == "boot" then
     if n == 600 then phase = "start"; t0 = n; ss.begin(n) end
   elseif phase == "start" then
-    local k = n - t0   -- Down presses at +84, 87, 90, 93, 96, 99 (six), Start at +100 from the shared sequence
     if ss.step(n, playing, 1) then phase = "poop"; t0 = n; pick:set_value(0) end
     ss.menu(n - t0, 10, abtn, pick)
   elseif phase == "poop" then

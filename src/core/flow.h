@@ -119,7 +119,7 @@ void flow_step(Flow *f, uint8_t input, uint8_t start_pressed, uint32_t frame_cou
 
 void flow_coin(Flow *f);
 #define GG_PICK_COUNT 7
-uint8_t flow_gg_event(uint8_t i);      /* GG_* of GUM GAMES submenu line i (0..5) */
+uint8_t flow_gg_event(uint8_t i);      /* GG_* for gum event i (0..GG_PICK_COUNT-1) */
 const char *flow_gg_name(uint8_t i);   /* its on-screen name */
 #define PARTY_MENU_COUNT (PARTY_RULE_COUNT - 1 + GG_PICK_COUNT)   /* 11: RULE OF THE ROUND, ROOST RULE, TOSS GUM, TUG GUM, then the gum games */
 const char *flow_menu_name(uint8_t i);  /* on-screen name of PARTY submenu entry i */
