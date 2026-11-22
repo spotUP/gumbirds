@@ -178,16 +178,56 @@ static const unsigned short *near_code_cell(uint8_t k) { return k > NEAR_FLAT ? 
 
 /* stadium_far for rows 0..1 then stadium_near for rows 0..2 of one column, in one call: an idle side reads only the memos
  * (the five lookups per column, a third of the stand every frame, were most of a Gum Fling flight frame). */
+static uint8_t near_code(const unsigned short *c) { return (uint8_t)(c >= ST_UMB[0] && c <= ST_UMB[11] ? (c - ST_UMB[0]) / 2 + NEAR_FLAT + 1 : (c - &ST_NEAR[0][0][0][0]) / 2 + 1); }
+
+/* Near entry memo of the cheering, waving, winning and losing sides: code (as g_near_idle) per umbrella look, bird type and entry
+ * index into ST_CHEER (0..18), ST_WAVE (19..27) or ST_SLUMP (28..31). near_state and near_ptr per cell (32-bit int math, two calls)
+ * cost about 1.9 raster lines a cell, 40 lines of a cheer frame, and pushed Burst Race cheer frames past vblank (fling card 8). */
+#define ACT_WAVE 19
+#define ACT_SLUMP 28
+_Static_assert(sizeof ST_CHEER[0] / sizeof ST_CHEER[0][0] <= ACT_WAVE && ACT_WAVE + sizeof ST_WAVE[0] / sizeof ST_WAVE[0][0] <= ACT_SLUMP, "act memo index ranges");
+static uint8_t g_near_act[2][3][ACT_SLUMP + 4];
+
+/* one near cell of an active (non-idle) side: the entry index from mode and step; idle entries go through the idle memo */
+static StadiumCell near_active(const Stadium *s, int16_t r, int16_t col, int storm, int16_t p)
+{
+    char t = ST_NT[r][col];
+    int16_t type, ph, f, q, k = -1;
+    uint8_t *m;
+    if (t == 's') return cell(ST_AISLE);
+    if (t == 'e') return cell(ST_EMPTY);
+    type = (int16_t)(t - 'a'); ph = (int16_t)(ST_NP[r][col] - '0'); f = (int16_t)s->t[side_of(col)];
+    switch (s->mode[side_of(col)]) {
+    case STADIUM_CHEER:
+        q = (int16_t)(f - ST_CHEER_AT[side_of(col)] - (ph & 3));
+        if (q >= 0 && q < ST_CHEER_LEN[type]) k = q;
+        break;
+    case STADIUM_WAVE:
+        q = (int16_t)(f - 4 - (col * 2 + (2 - r) + (ph & 1)));
+        if (q >= 0 && q < ST_WAVE_LEN[type]) k = (int16_t)(ACT_WAVE + q);
+        break;
+    case STADIUM_WINNER:
+        q = (int16_t)((f - (col * 2 + (2 - r) + (ph & 1))) & 15);
+        if (q < ST_WAVE_LEN[type]) k = (int16_t)(ACT_WAVE + q);
+        break;
+    case STADIUM_LOSER: k = (int16_t)(ACT_SLUMP + (((f >> 3) + ph) & 3)); break;
+    default: break;
+    }
+    m = k < 0 ? &g_near_idle[r][col][p] : &g_near_act[storm && ST_NU[r][col] == '1'][type][k];
+    if (!*m) *m = near_code(near_ptr(s, r, col, storm));
+    return cell(near_code_cell(*m));
+}
+
 void stadium_column(const Stadium *s, int col, int storm, StadiumCell out[STADIUM_FAR_ROWS + STADIUM_NEAR_ROWS])
 {
     int r, p;
+    p = (s->t[side_of(col)] >> 1) & 7;
+    if (g_near_storm != (uint8_t)(storm != 0) + 1) { memset(g_near_idle, 0, sizeof g_near_idle); memset(g_near_act, 0, sizeof g_near_act); g_near_storm = (uint8_t)((storm != 0) + 1); }
     if (s->mode[side_of(col)] != STADIUM_IDLE) {
         for (r = 0; r < STADIUM_FAR_ROWS; r++) out[r] = stadium_far(s, r, col);
-        for (r = 0; r < STADIUM_NEAR_ROWS; r++) out[STADIUM_FAR_ROWS + r] = stadium_near(s, r, col, storm);
+        for (r = 0; r < STADIUM_NEAR_ROWS; r++) out[STADIUM_FAR_ROWS + r] = near_active(s, (int16_t)r, (int16_t)col, storm, (int16_t)p);
         return;
     }
-    p = (s->t[side_of(col)] >> 1) & 7;
-    if (g_near_storm != (uint8_t)(storm != 0) + 1) { memset(g_near_idle, 0, sizeof g_near_idle); g_near_storm = (uint8_t)((storm != 0) + 1); }
     for (r = 0; r < STADIUM_FAR_ROWS; r++) {
         uint8_t *m = &g_far_idle[r][col][p];
         if (ST_FB[r][col] == 'S') { out[r] = cell(ST_AISLE); continue; }
@@ -198,10 +238,7 @@ void stadium_column(const Stadium *s, int col, int storm, StadiumCell out[STADIU
         uint8_t *m = &g_near_idle[r][col][p];
         char t = ST_NT[r][col];
         if (t == 's' || t == 'e') { out[STADIUM_FAR_ROWS + r] = cell(t == 's' ? ST_AISLE : ST_EMPTY); continue; }
-        if (!*m) {
-            const unsigned short *c = near_ptr(s, r, col, storm);
-            *m = (uint8_t)(c >= ST_UMB[0] && c <= ST_UMB[11] ? (c - ST_UMB[0]) / 2 + NEAR_FLAT + 1 : (c - &ST_NEAR[0][0][0][0]) / 2 + 1);
-        }
+        if (!*m) *m = near_code(near_ptr(s, r, col, storm));
         out[STADIUM_FAR_ROWS + r] = cell(near_code_cell(*m));
     }
 }

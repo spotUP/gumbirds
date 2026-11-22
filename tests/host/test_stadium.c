@@ -44,6 +44,18 @@ int main(void)
             for (r = 0; r < STADIUM_NEAR_ROWS; r++) { StadiumCell x = stadium_near(&s, r, c, storm); CHECK(v[STADIUM_FAR_ROWS + r].top == x.top && v[STADIUM_FAR_ROWS + r].bot == x.bot); }
         }
     }
+    /* stadium_column for every mode pair (idle, cheer, wave, winner, loser) over 80 steps (winner wraps), both storm looks: the near
+     * entry memos of the active sides equal the per-cell lookups */
+    for (i = 0; i < 2 * 25 * 80; i++) {
+        StadiumCell v[STADIUM_FAR_ROWS + STADIUM_NEAR_ROWS];
+        int storm = i / (25 * 80), mp = (i / 80) % 25;
+        s.mode[0] = (uint8_t)(mp % 5); s.mode[1] = (uint8_t)(mp / 5); s.t[0] = s.t[1] = (uint16_t)(i % 80);
+        for (c = 0; c < STADIUM_COLS; c++) {
+            stadium_column(&s, c, storm, v);
+            for (r = 0; r < STADIUM_FAR_ROWS; r++) { StadiumCell x = stadium_far(&s, r, c); CHECK(v[r].top == x.top && v[r].bot == x.bot); }
+            for (r = 0; r < STADIUM_NEAR_ROWS; r++) { StadiumCell x = stadium_near(&s, r, c, storm); CHECK(v[STADIUM_FAR_ROWS + r].top == x.top && v[STADIUM_FAR_ROWS + r].bot == x.bot); }
+        }
+    }
     /* a score rise cheers its own side only, for a bounded time, then idles */
     stadium_reset(&s);
     stadium_set_scores(&s, 1, 0);
