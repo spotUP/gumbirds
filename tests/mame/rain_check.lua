@@ -2,6 +2,7 @@
 --   1. calm mood: for NOSTORM_FRAMES frames no fix cell uses palette slot RAIN_SLOT (VRAM 0x7000..0x74ff, word >> 12).
 --   2. storm: for STORM_FRAMES frames (past the first lightning gap) rain cells appear (peak >= MIN_CELLS), the worst sprites per screen line stay
 --      <= SB_LIMIT 90, the worst flush time (g_last_us, sampled by flush_sample.lua) stays <= FLUSH_LIMIT 1800 us. Prints worst line and flush us.
+-- The hero idles with its spawn protection held on (flay[26] spawn_inv), so the computer fliers cannot end the match early.
 -- Env: BRAWL_FLOW_ADDR, BRAWL_FRAME_ADDR, BRAWL_MOOD_ADDR, BRAWL_BUSY_ADDR, BRAWL_FLIER_LAYOUT, BRAWL_LASTUS_ADDR, BRAWL_DEFER_ADDR,
 --      BRAWL_FLUSHN_ADDR, BRAWL_RAIN_SLOT (decimal), BRAWL_RESULT.
 local function hex(name) return tonumber(os.getenv(name) or "", 16) end
@@ -10,7 +11,7 @@ local rain_slot, result = tonumber(os.getenv("BRAWL_RAIN_SLOT") or ""), os.geten
 local flay = {}
 for v in (os.getenv("BRAWL_FLIER_LAYOUT") or ""):gmatch("%d+") do flay[#flay + 1] = tonumber(v) end
 local S_PLAYING, GAME_MOOD_STORM = 3, 2
-local MIN_STORM_FRAMES = 475 -- past the first lightning gap (420) and its burst: a match that ends sooner (the idle bird is hit) still counts
+local MIN_STORM_FRAMES = 475 -- past the first lightning gap (420) and its burst: a match that ends sooner still counts (the hero is kept immune, so this is a fallback)
 local NOSTORM_FRAMES, STORM_FRAMES, SB_LIMIT, FLUSH_LIMIT, MIN_CELLS = 120, 900, 90, 1800, 20
 
 local mem   = manager.machine.devices[":maincpu"].spaces["program"]
@@ -96,6 +97,9 @@ emu.register_frame_done(function() local ok_, err_ = pcall(function()
   end
   if state ~= S_PLAYING and not (phase == "storm" and sframes >= MIN_STORM_FRAMES) then finish(false, "left PLAYING in phase " .. phase .. " after " .. sframes .. " storm frames") return end
   if state ~= S_PLAYING then report() return end
+  -- the idle hero is fair game once spawn protection (FLIER_SPAWN_INVINCIBLE 180) lapses: the computer fliers pop it ~250 storm frames in.
+  -- Keep it topped up (test side only) so the match outlasts STORM_FRAMES; the computers bounce off and keep their real AI motion.
+  if state == S_PLAYING then mem:write_u16(flow_addr + flay[26], 2) end
   if not rs.live() or busy ~= 0 then t = 0 return end
   t = t + 1
   if t < 5 then return end
