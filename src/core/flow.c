@@ -435,7 +435,7 @@ void flow_step(Flow *f, uint8_t input, uint8_t start_pressed, uint32_t frame_cou
                 if (n > f->tables.gg_record[GG_BUBBLE_GATHER]) { f->tables.gg_record[GG_BUBBLE_GATHER] = n; f->dirty = 1; }
             } else if (f->game.mode == GAME_MODE_GUM && (f->game.gg_race || f->game.gg_dash)) { /* Burst Race and Flap Dash: the fastest time is the record (lower is better, 0 = none) */
                 uint8_t ev = f->game.gg_race ? GG_BURST_RACE : GG_FLAP_DASH;
-                uint32_t t = f->game.gg_race ? f->game.race.seq.best[0] : f->game.dash.done ? f->game.dash.frames : 0;
+                uint32_t t = f->game.gg_race ? f->game.race.seq.best[0] : f->game.dash.done && !(f->game.dash.p2_is_cpu && f->game.dash.winner == 2) ? f->game.dash.frames : 0;   /* a computer winner never writes a human record */
                 if (t && (!f->tables.gg_record[ev] || t < f->tables.gg_record[ev])) { f->tables.gg_record[ev] = t; f->dirty = 1; }
             } else if (f->game.mode == GAME_MODE_GUM) { /* Big Blow: the best size is the event record */
                 uint32_t best = f->game.blow.seq.best[0];

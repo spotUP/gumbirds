@@ -513,7 +513,7 @@ static void draw_prompts(const Game *g, u8 show) {
         else if (g->gg_gather) { ev = IP_GATHER; ph = g->res.active ? IP_PHASE_OFF : IP_PHASE_PLAY; }
         else if (g->gg_poop) { ev = IP_POOP; ph = g->poop.phase; p2 = g->players == 2; }
         else if (g->gg_pop) { ev = IP_POP; ph = g->pop.phase; p2 = g->players == 2; }
-        else if (g->gg_dash) { ev = IP_DASH; ph = g->dash.done ? IP_PHASE_OFF : IP_PHASE_PLAY; }
+        else if (g->gg_dash) { ev = IP_DASH; ph = g->dash.done ? IP_PHASE_OFF : IP_PHASE_PLAY; p2 = g->dash.two; }
         else if (g->gg_race) { ev = IP_RACE; ph = g->race.phase; p2 = g->race.players == 2; }
         else { ev = IP_BLOW; ph = g->blow.phase; p2 = g->players == 2; }
     }
@@ -1990,11 +1990,22 @@ static void draw_fling(const Game *g) {
 /* Flap Dash on the fix layer: one status line (lap, seconds, qualifying mark), rewritten when the lap or the second changes. */
 static void draw_flap_dash(const GgDash *d) {
     u32 secs = d->frames / 60u;
-    u32 key = (u32)d->laps | (u32)d->done << 4 | secs << 8;
+    u32 key = (u32)d->laps | (u32)d->done << 4 | (u32)d->laps2 << 5 | (u32)d->winner << 9 | secs << 12;
     if (key == g_blow_key) return;
     g_blow_key = key;
     char line[BLOW_TEXT_W + 1], nb[10];
     u8 i = 0;
+    if (d->two) {   /* 2P: both lap counters, then who won */
+        const char *q = d->done ? (d->winner == 1 ? "PLAYER 1 WINS  TIME " : "PLAYER 2 WINS  TIME ") : "P1 LAP ";
+        while (q[i]) { line[i] = q[i]; i++; }
+        if (!d->done) { line[i++] = (char)('1' + d->laps); line[i++] = ' '; line[i++] = ' '; line[i++] = 'P'; line[i++] = '2'; line[i++] = ' '; line[i++] = 'L'; line[i++] = 'A'; line[i++] = 'P'; line[i++] = ' '; line[i++] = (char)('1' + d->laps2); line[i++] = ' '; line[i++] = ' '; line[i++] = 'T'; line[i++] = 'I'; line[i++] = 'M'; line[i++] = 'E'; line[i++] = ' '; }
+        put_number(nb, secs, 3);
+        for (u8 k = 0; nb[k] && i < BLOW_TEXT_W; k++) if (nb[k] != ' ') line[i++] = nb[k];
+        while (i < BLOW_TEXT_W) line[i++] = ' ';
+        line[BLOW_TEXT_W] = 0;
+        text((u8)((40 - BLOW_TEXT_W) / 2), BLOW_TEXT_ROW + 2, PAL_TEXT, line);
+        return;
+    }
     const char *p = d->done ? (d->frames <= gumdash_mark(0) ? "FINISHED  QUALIFIED  TIME " : "FINISHED  NOT QUALIFIED  TIME ") : "LAP ";
     while (p[i]) { line[i] = p[i]; i++; }
     if (!d->done) { line[i++] = (char)('1' + d->laps); line[i++] = ' '; line[i++] = 'O'; line[i++] = 'F'; line[i++] = ' '; line[i++] = (char)('0' + GD_LAPS); line[i++] = ' '; line[i++] = ' '; line[i++] = 'T'; line[i++] = 'I'; line[i++] = 'M'; line[i++] = 'E'; line[i++] = ' '; }
@@ -2428,7 +2439,7 @@ static void hero_and_mode(const FlowView *v) {
         }
         if (v->game->mode == GAME_MODE_TRIP) pool_sync_trip(v->game, game_trip_ready(v->game));
         pool_sync_cpus(v->game);
-        if (v->game->mode == GAME_MODE_ARCADE || v->game->mode == GAME_MODE_ARENA || v->game->gg_race || seated(v->game)) pool_sync_p2(v->game);
+        if (v->game->mode == GAME_MODE_ARCADE || v->game->mode == GAME_MODE_ARENA || v->game->gg_race || v->game->gg_dash || seated(v->game)) pool_sync_p2(v->game);
         if (v->game->mode == GAME_MODE_TRIP) pool_sync_rivals(v->game);
         human_leak_sync(v->game);
         if (g_pool_stress) pool_stress();

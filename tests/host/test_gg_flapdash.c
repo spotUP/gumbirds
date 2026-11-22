@@ -74,6 +74,49 @@ int main(void)
       for (i = 0; i < (int)GGCD_SET_FRAMES + 200; i++) game_step(&g, (uint8_t)((i % 6 == 0) ? ((i / 6) & 1 ? IN_A : IN_B) : 0));
       CHECK(g.dash.frames == 200 && g.hero[0].x != 0 && g.cpu_count == 0); }
 
+    /* 2P: join in the countdown, both birds step, same start line gap */
+    { Game g; game_reset(&g, 1); game_set_mode(&g, GAME_MODE_GUM); game_gg_start_dash(&g);
+      CHECK(game_can_join_p2(&g) && game_join_p2(&g) && g.players == 2 && g.dash.two);
+      CHECK(!game_can_join_p2(&g));
+      CHECK(g.hero[1].state < FLIER_DROWNED && g.hero[1].y == g.hero[0].y);
+      for (i = 0; i < (int)GGCD_SET_FRAMES + 120; i++) { g.input2 = (uint8_t)((i % 6 == 0) ? ((i / 6) & 1 ? IN_A : IN_B) : 0); game_step(&g, 0); }
+      CHECK(g.hero[1].x != g.hero[0].x && g.dash.laps2 == 0 && g.dash.mash2.count > 0 && g.dash.mash.count == 0 && g.dash.frames == 120); }
+
+    /* bump: overlapping birds both lose speed, nobody is moved by it; apart they do not */
+    { GgDash d2; Flier h2[2]; int32_t v;
+      gumdash_init(&d2, &h2[0]); gumdash_add_p2(&d2, &h2[0], &h2[1]);
+      h2[1].x = h2[0].x + FL_PX(4); h2[1].y = h2[0].y;
+      h2[0].vx = h2[1].vx = FL_PX(2); v = h2[0].vx;
+      gumdash_step2(&d2, h2, 0, 0);
+      CHECK(h2[0].vx < v && h2[1].vx < v && h2[0].vx > 0);
+      gumdash_init(&d2, &h2[0]); gumdash_add_p2(&d2, &h2[0], &h2[1]);
+      h2[1].x = h2[0].x + FL_PX(100); h2[0].vx = h2[1].vx = FL_PX(2);
+      gumdash_step2(&d2, h2, 0, 0);
+      CHECK(h2[0].vx >= FL_PX(2) - FL_PX(1) / 4 && h2[1].vx >= FL_PX(2) - FL_PX(1) / 4); }   /* only drag moved it */
+
+    /* 2P race: the faster masher finishes first and wins; the loser is still short of GD_LAPS; solo is untouched */
+    { GgDash d2; Flier h2[2]; uint32_t f;
+      gumdash_init(&d2, &h2[0]); gumdash_add_p2(&d2, &h2[0], &h2[1]);
+      h2[1].x = h2[0].x + FL_PX(60);   /* out of contact */
+      for (f = 1; f < 5000 && !d2.done; f++) {
+          uint8_t a = (f % 5 == 0) ? (uint8_t)(((f / 5) & 1) ? IN_A : IN_B) : 0, b = (f % 9 == 0) ? (uint8_t)(((f / 9) & 1) ? IN_A : IN_B) : 0;
+          gumdash_step2(&d2, h2, b, a);   /* P2 mashes faster */
+      }
+      CHECK(d2.done && d2.winner == 2 && d2.laps2 == GD_LAPS && d2.laps < GD_LAPS);
+      CHECK(gumdash_step2(&d2, h2, IN_A, IN_A) == 0);
+      /* solo through gumdash_step2 equals gumdash_step */
+      { GgDash a; Flier ha, hb[2]; gumdash_init(&a, &ha); gumdash_init(&d2, &hb[0]);
+        for (i = 0; i < 400; i++) { uint8_t in = (i % 7 == 0) ? IN_A : (i % 11 == 0 ? IN_B : 0); gumdash_step(&a, &ha, in); gumdash_step2(&d2, hb, in, IN_A); }
+        CHECK(a.frames == d2.frames && ha.x == hb[0].x && a.lap_dist == d2.lap_dist && !d2.two); } }
+
+    /* 2P through the game: the winner's points go to the winner's side, a computer P2 winner writes no human record */
+    { Flow f2; flow_init(&f2, 0, 0); f2.mode = GAME_MODE_GUM; f2.gg_event = GG_FLAP_DASH; flow_coin(&f2);
+      flow_step(&f2, IN_A, 0, 0); flow_step(&f2, 0, 0, 0); flow_step(&f2, 0, 1, 1);
+      CHECK(game_join_p2(&f2.game));
+      f2.game.dash.done = 1; f2.game.dash.frames = 700; f2.game.dash.winner = 2; f2.game.dash.p2_is_cpu = 1;
+      for (i = 0; i < (int)(GGCD_SET_FRAMES + GD_RESULT_FRAMES) + 2; i++) flow_step(&f2, 0, 0, 0);
+      CHECK(f2.tables.gg_record[GG_FLAP_DASH] == 0 && f2.game.res.two); }
+
     /* flow: Right four times from Big Blow picks Flap Dash (a fifth Right goes on to Gum Fling, a sixth wraps), Start runs it; a finished run ends the event after the result and keeps the best (lowest) time */
     {
         Flow f;
