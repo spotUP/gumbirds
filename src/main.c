@@ -3255,24 +3255,34 @@ static u8 g_coin_blipped;
  * non-zero word are faded and copied: the used ones are slots 0..75 plus slot 255, so a "highest non-zero index" range would cover all 4096. */
 #define SCREEN_FADE_WORDS 4096u
 #define SCREEN_FADE_BLOCKS 128u /* most palettes one fade handles (76 used; later ones are left untouched), s_pal_next is 4 KB */
-static u16 s_pal_full[SCREEN_FADE_WORDS];
+static u16 s_pal_full[SCREEN_FADE_BLOCKS * 16]; /* the saved words of the faded palettes only, in s_pal_blk order (RAM: a whole-bank copy cost 4 KB of stack room) */
 static u16 s_pal_next[SCREEN_FADE_BLOCKS * 16];
 static u8 s_pal_blk[SCREEN_FADE_BLOCKS];
+static u16 s_pal_nb;
+/* Save the non-zero palettes of the bank (at most SCREEN_FADE_BLOCKS, later ones are left untouched) for a fade. */
+static void screen_fade_save(void) {
+    const volatile u16 *bank = (const volatile u16 *)MMAP_PALBANK1;
+    s_pal_nb = 0;
+    for (u16 b = 0; b < SCREEN_FADE_WORDS / 16 && s_pal_nb < SCREEN_FADE_BLOCKS; b++) {
+        u16 *out = &s_pal_full[s_pal_nb * 16];
+        u16 any = 0;
+        for (u8 j = 0; j < 16; j++) any |= out[j] = bank[b * 16 + j];
+        if (any) s_pal_blk[s_pal_nb++] = (u8)b;
+    }
+}
 /* A pass scales the 4 bit channels through a 16 entry table built per step (no hardware 32 bit multiply: bg_fade_color per word, three software
  * multiplies, took ~15 frames a pass). The dark-bit LSBs are dropped while fading. The last step (level BG_FADE_MAX) writes the saved words
  * back, exact, and level 0 is black. Unused slots stay 0. */
 static void screen_fade(u8 from, u8 to) {
     gfx_drain();
-    if (to < from) for (u16 i = 0; i < SCREEN_FADE_WORDS; i++) s_pal_full[i] = ((volatile u16 *)MMAP_PALBANK1)[i];
-    u16 nb = 0;
-    for (u16 b = 0; b < SCREEN_FADE_WORDS / 16 && nb < SCREEN_FADE_BLOCKS; b++)
-        for (u8 j = 0; j < 16; j++) if (s_pal_full[b * 16 + j]) { s_pal_blk[nb++] = (u8)b; break; }
+    if (to < from) screen_fade_save();
+    const u16 nb = s_pal_nb;
     for (;;) {
         u16 lr[16], lg[16], lb[16]; /* channel value scaled by the level, already shifted into place */
         for (u8 v = 0; v < 16; v++) { u16 x = (u16)(v * from >> 4); lr[v] = (u16)(x << 8); lg[v] = (u16)(x << 4); lb[v] = x; }
         if (!from) { u32 *z = (u32 *)s_pal_next; for (u16 i = 0; i < nb * 8u; i++) z[i] = 0; } /* level 0 is black: no per-word pass, one frame sooner */
         else for (u16 k = 0; k < nb; k++) {
-            const u16 *in = &s_pal_full[s_pal_blk[k] * 16];
+            const u16 *in = &s_pal_full[k * 16];
             u16 *out = &s_pal_next[k * 16];
             if (from >= BG_FADE_MAX) { for (u8 j = 0; j < 16; j++) out[j] = in[j]; continue; }
             for (u8 j = 0; j < 16; j++) {
@@ -3353,7 +3363,7 @@ static void video_init(void) {
     g_draw_state = -1;
     gfx_commit_all();
     gfx_drain(); /* init is outside the per-frame budget: it blocks, one flush per vblank, until everything is written */
-    for (u16 i = 0; i < SCREEN_FADE_WORDS; i++) s_pal_full[i] = ((volatile u16 *)MMAP_PALBANK1)[i];
+    screen_fade_save();
     screen_fade(0, BG_FADE_MAX); /* the BIOS return leaves the palette black: fade up, no cut */
     bg_backdrop_dark(0); /* only now: nothing is drawn during the fade-up, so a lit backdrop alone would show as a blue screen; it comes with the first frame */
 }
