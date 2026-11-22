@@ -7,7 +7,7 @@
 --       flush time g_last_us (play, and the 14 frames after Pop Drop ends = the 8 restore frames) is printed and stays <= 1800 us (GFX_FLUSH_BUDGET_US);
 --   P6. after Pop Drop ends (attract), SCB3 words 1..110 equal the arena snapshot taken before the run: plane slots shown again, sky and cloud words gone.
 --   P7. the burst gum skin (rag, slot 349 PD_RAG_SLOT in src/main.c) is on screen while the bird falls: SCB3 height 2 tiles (rag_seen);
---   P3. the run ends: the result shows, A leaves it, the flow reaches GAME_OVER, the record equals the fall score.
+--   P3. the run ends: the result shows, A leaves it, the flow leaves PLAYING (no GAME OVER for a minigame), the record equals the fall score.
 -- Env: BRAWL_LASTUS_ADDR (hex, g_last_us), BRAWL_FLOW_ADDR (hex), BRAWL_BLOW_LAYOUT (gum_pop_drop_probe.c output), BRAWL_RESULT.
 local flow_addr = tonumber(os.getenv("BRAWL_FLOW_ADDR"), 16)
 local result = os.getenv("BRAWL_RESULT")
@@ -148,7 +148,7 @@ emu.register_frame_done(function()
     if n - t0 > 6000 then finish(false, "run never reached the result") end
   elseif phase == "result" then
     abtn:set_value(((n - t0) % 4) == 0 and 1 or 0)
-    if b(O.state) == K.over then
+    if b(O.state) ~= K.playing then
       local depth, pscore, rec = mem:read_u16(flow_addr + O.depth), mem:read_u16(flow_addr + O.pscore), mem:read_u32(flow_addr + O.record)
       if peak > SB_LIMIT then finish(false, string.format("sprites per line %d on line %d, limit %d", peak, peak_line, SB_LIMIT)) return end
       if us_play > FLUSH_LIMIT then finish(false, string.format("flush %d us in play, limit %d", us_play, FLUSH_LIMIT)) return end
@@ -169,7 +169,7 @@ emu.register_frame_done(function()
       if rec ~= pscore then finish(false, string.format("record %d, fall score %d", rec, pscore)) return end
       phase = "restore"; t0 = n; abtn:set_value(0)
       saved_msg = string.format("Pop Drop: PARTY event list + Right x3 starts it; countdown shown, HUD lit, 3 hits crash, depth %d, score %d, record saved; pool worst %d; worst %d sprites on line %d (limit %d), flush play %d us", depth, pscore, pool_peak, peak, peak_line, SB_LIMIT, us_play)
-    elseif n - t0 > 1500 then finish(false, "result never led to game over") end
+    elseif n - t0 > 1500 then finish(false, "result never led out of PLAYING") end
   elseif phase == "restore" then
     -- the sky stays through GAME_OVER; the restore starts when the flow leaves it. RESTORE_FRAMES frames from there cover the 8 restore frames plus the final SCB3 send.
     if not left_n and b(O.state) ~= K.over then left_n = n end
