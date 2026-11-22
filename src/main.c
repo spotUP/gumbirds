@@ -2266,15 +2266,15 @@ static void pop_show_pieces(const Game *g) {
 /* Poop the Man (gg_poop.h): screen-space view, no camera. Birds use the Pop Drop fall frames in the Pop Drop bird slots; walkers, umbrellas, poops,
  * shoes and the berry (assets/poop) sit in the pool range slots, which Pop Drop's hide bookkeeping (g_pd_new/g_pd_shown) already tracks. */
 #define PM_W_SLOT PD_BACK                    /* 7 walkers x 2 columns */
-#define PM_U_SLOT (PM_W_SLOT + PM_WALKERS * 2)   /* 7 umbrellas x 2 */
-#define PM_P_SLOT (PM_U_SLOT + PM_WALKERS * 2)   /* 6 poops */
+#define PM_U_SLOT (PM_W_SLOT + PM_WALKERS * 2)   /* 7 umbrellas x 3 (the open canopy is 36 wide) */
+#define PM_P_SLOT (PM_U_SLOT + PM_WALKERS * 3)   /* 6 poops */
 #define PM_S_SLOT (PM_P_SLOT + PM_POOPS)         /* 3 shoes */
 #define PM_H_SLOT (PM_S_SLOT + PM_SHOES)                /* 7 head splats x 1 column */
 _Static_assert(PM_H_SLOT + PM_WALKERS <= PD_BACK + PD_BACK_N, "Poop the Man slots overflow the Pop Drop hide range");
 
 /* One poop frame; (ox, oy) = top left of its sheet cell (cw wide), the opaque box sits pad_left / pad_top inside it. */
 static void pm_piece(u16 slot, const PoopFrame *f, int ox, int oy, int cw, int flip, u16 pal) {
-    int x = flip ? ox + cw - f->pad_left - f->tiles_w * 16 : ox + f->pad_left;
+    int x = flip ? ox + cw + f->pad_left - f->tiles_w * 16 : ox - f->pad_left;   /* pad_left = art inset inside the tiles */
     if (!camera_visible(x, f->tiles_w * 16)) return;
     const u16 *t = &poop_tile_index[f->tile_offset];
     for (u8 c = 0; c < f->tiles_w; c++)
@@ -2328,7 +2328,7 @@ static void poop_show_pieces(const Game *g) {
         }
         if (w->umb && w->st == PM_WALK) {
             const PoopFrame *u = pm_frame((u8)(anim + 1), 2);
-            pm_piece((u16)(PM_U_SLOT + k * 2), u, cx - 16, feet - 64, 32, flip, (u16)(POOP_PAL_SLOT + u->palette));
+            pm_piece((u16)(PM_U_SLOT + k * 3), u, flip ? cx - 20 : cx - 16, feet - 64, 36, flip, (u16)(POOP_PAL_SLOT + u->palette));
         }
     }
     for (u8 k = 0; k < PM_POOPS; k++) {
