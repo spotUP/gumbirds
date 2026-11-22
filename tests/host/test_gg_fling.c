@@ -18,10 +18,11 @@ static int shoot(GgFling *f, int mash, int wait)
 }
 
 /* flight with a flap press every `period` frames (0 = none) */
-static void fly_flap(GgFling *f, int period)
+static int fly_flap(GgFling *f, int period)
 {
     int g;
     for (g = 0; g < 4000 && f->phase == GF_FLIGHT; g++) gumfling_fly(f, (uint8_t)(period && g % period == 0 ? ((g / period) & 1 ? IN_A : IN_B) : 0));
+    return g;   /* flight frames */
 }
 static void fly(GgFling *f) { fly_flap(f, 0); }
 
@@ -155,7 +156,7 @@ int main(void)
         CHECK(best_half < (int)GF_MARK_PX);
     }
 
-    /* flapping in flight: A / B presses at a rate; only frantic mashing lengthens the flight (gain over the no-flap distance) */
+    /* flapping in flight (owner 2026-11-20/21): only frantic mashing lengthens the flight. Mid angle: 5/s under +5 percent, 15/s +20..35. */
     {
         static const int period[] = { 0, 12, 6, 4 };   /* none, 5, 10, 15 presses per second */
         uint32_t d0 = 0, d[4];
@@ -166,9 +167,23 @@ int main(void)
             if (!k) d0 = f.dist;
             printf("flap %2d/s: %u px, gain %d.%d%%\n", period[k] ? 60 / period[k] : 0, (unsigned)f.dist, (int)((d[k] - d0) * 100 / d0), (int)((d[k] - d0) * 1000 / d0 % 10));
         }
-        CHECK(d[1] * 100 <= d0 * 103);
-        CHECK(d[2] * 100 >= d0 * 110 && d[2] * 100 <= d0 * 115);
-        CHECK(d[3] * 100 <= d0 * 122 && d[3] >= d[2]);
+        CHECK(d[1] * 100 < d0 * 105);
+        CHECK(d[2] >= d[1] && d[3] >= d[2]);
+        CHECK(d[3] * 100 >= d0 * 120 && d[3] * 100 <= d0 * 135);
+    }
+    /* every throw angle, the flat 15 degree one too: 12 presses/s keeps the bird up visibly longer; 5/s barely */
+    {
+        static const int wait[] = { 0, 10, 22, 34, 45 };   /* aim frames after the hold: 15 .. 75 degrees */
+        int w;
+        for (w = 0; w < 5; w++) {
+            int t0, t5, t12;
+            gumfling_init(&f); shoot(&f, 100, wait[w]); t0 = fly_flap(&f, 0);
+            gumfling_init(&f); shoot(&f, 100, wait[w]); t5 = fly_flap(&f, 12);
+            gumfling_init(&f); shoot(&f, 100, wait[w]); t12 = fly_flap(&f, 5);
+            printf("flap at %u deg: flight %d frames, 5/s %d, 12/s %d\n", (unsigned)f.deg, t0, t5, t12);
+            CHECK(t12 * 100 >= t0 * 110);
+            CHECK(t5 * 100 <= t0 * 105);
+        }
     }
 
     /* flight time: full power at 45 degrees stays up about 137 frames (about 205 before the 1.5 times speed-up) */
@@ -210,14 +225,12 @@ int main(void)
     {
         Flow fl;
         flow_init(&fl, 0, 0);
-        fl.mode = GAME_MODE_GUM; fl.gg_event = GG_BIG_BLOW;
+        fl.mode = GAME_MODE_PARTY;  /* merged PARTY list: sub_i 0 = Rule of the Round, 4 = Big Blow ... 10 = Poop the Man */
         flow_coin(&fl);
         flow_step(&fl, IN_A, 0, 0); flow_step(&fl, 0, 0, 0); /* A opens the GUM GAMES list */
         flow_step(&fl, IN_UP, 0, 0); flow_step(&fl, 0, 0, 0);
         CHECK(fl.gg_event == GG_POOP_MAN);
-        flow_step(&fl, IN_DOWN, 0, 0); flow_step(&fl, 0, 0, 0);
-        CHECK(fl.gg_event == GG_BIG_BLOW);
-        for (i = 0; i < 5; i++) { flow_step(&fl, IN_DOWN, 0, 0); flow_step(&fl, 0, 0, 0); }
+        flow_step(&fl, IN_UP, 0, 0); flow_step(&fl, 0, 0, 0);
         CHECK(fl.gg_event == GG_FLING);
         flow_step(&fl, 0, 1, 1);
         CHECK(fl.state == FLOW_PLAYING && fl.game.gg_fling && fl.game.players == 1);

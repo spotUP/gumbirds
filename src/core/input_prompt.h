@@ -7,7 +7,7 @@
  *   MASH   caps press down one after the other (a single cap pulses)
  *   PRESS  caps glow together, press once
  * The stick item (left right sweep) comes first when the event steers. */
-enum { IP_BLOW, IP_RACE, IP_GATHER, IP_DASH, IP_POP, IP_FLING, IP_TOSS, IP_EVENTS };
+enum { IP_BLOW, IP_RACE, IP_GATHER, IP_DASH, IP_POP, IP_FLING, IP_TOSS, IP_POOP, IP_EVENTS };
 enum { IP_STYLE_NONE, IP_STYLE_MASH, IP_STYLE_PRESS };
 #define IP_PHASE_PLAY 0u   /* Gather and Dash have no phase enum: PLAY while the run is on, OFF once it is over */
 #define IP_PHASE_OFF 1u

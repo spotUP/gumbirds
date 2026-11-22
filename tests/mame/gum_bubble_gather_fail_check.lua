@@ -1,4 +1,4 @@
--- Gum Games Bubble Gather check (make test-gum-bubble-gather-fail): UniBIOS 4.0, one coin, Down to the GUM GAMES row, Right twice picks Bubble Gather, Start:
+-- Gum Games Bubble Gather check (make test-gum-bubble-gather-fail): UniBIOS 4.0, one coin, Down to the PARTY event list, Right twice picks Bubble Gather, Start:
 --   B1. the game is PLAYING in GAME_MODE_GUM with the gather running (gg_gather 1);
 --   B2. the hero stays idle for the whole 45 s clock: HUD line (fix row 7) lit, fewer than GG_GATHER_QUALIFY (12) bubbles caught;
 --   B3. not qualified: the result shows, A leaves it, GAME_OVER, score == caught * 300 (no +500 qualify bonus), record == caught.
@@ -52,10 +52,10 @@ emu.register_frame_done(function()
   if phase == "boot" then
     if n == 600 then phase = "start"; t0 = n; ss.begin(n) end
   elseif phase == "start" then
-    -- the shared sequence presses Down at +70..+78 (the GUM GAMES row); Right taps at +80..+83 and +88..+91 reach Bubble Gather (third event) before Start at +100
+    -- the shared sequence presses Down at +70..+78 (the PARTY event list); Right taps at +80..+83 and +88..+91 reach Bubble Gather (third event) before Start at +100
     local k = n - t0
-    pick:set_value(((k >= 86 and k < 90) or (k >= 94 and k < 98)) and 1 or 0); abtn:set_value((k >= 80 and k < 84) and 1 or 0) -- A opens the GUM GAMES list, Down picks
     if ss.step(n, playing, 1) then phase = "gather"; t0 = n; pick:set_value(0) end
+    ss.menu(n - t0, 6, abtn, pick)
   elseif phase == "gather" then
     if b(O.mode) ~= K.gum or b(O.gather) ~= 1 then finish(false, string.format("mode %d gather %d, want GAME_MODE_GUM %d and gather 1", b(O.mode), b(O.gather), K.gum)) return end
     if lit(7) >= 8 then hud = true end

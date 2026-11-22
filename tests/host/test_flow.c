@@ -567,7 +567,7 @@ static void test_mode_select(void)
     memset(&r, 0, sizeof r);
     flow_init(&r.f, NULL, 0);
     CHECK(r.f.state == FLOW_ATTRACT_TITLE && r.f.mode == GAME_MODE_ARENA);   /* default arena */
-    /* five entries Arena, Gum Trip, Arcade, Party, Gum Games: Down steps forward, Up back, both wrap */
+    /* four entries Arena, Gum Trip, Arcade, Party: Down steps forward, Up back, both wrap */
     rig_press(&r, IN_DOWN);
     CHECK(r.f.mode == GAME_MODE_TRIP);
     rig_press(&r, IN_DOWN);
@@ -575,11 +575,7 @@ static void test_mode_select(void)
     rig_press(&r, IN_DOWN);
     CHECK(r.f.mode == GAME_MODE_PARTY);
     rig_press(&r, IN_DOWN);
-    CHECK(r.f.mode == GAME_MODE_GUM);
-    rig_press(&r, IN_DOWN);
     CHECK(r.f.mode == GAME_MODE_ARENA);
-    rig_press(&r, IN_UP);
-    CHECK(r.f.mode == GAME_MODE_GUM);
     rig_press(&r, IN_UP);
     CHECK(r.f.mode == GAME_MODE_PARTY);
     rig_press(&r, IN_UP);
@@ -600,9 +596,9 @@ static void test_mode_select(void)
     CHECK(r.f.mode == GAME_MODE_ARCADE);
     rig_press(&r, IN_DOWN);
     CHECK(r.f.mode == GAME_MODE_PARTY);
-    /* PARTY row: A opens the rule list, Up/Down move its cursor (wrapping), Left/Right do nothing, B goes back with the row kept */
+    /* PARTY row: A opens the one event list (11 entries), Up/Down move its cursor (wrapping), Left/Right do nothing, B goes back with the row kept */
     flow_coin(&r.f); /* list open */
-    CHECK(r.f.party_rule == PARTY_ROUND && !r.f.sub_open);
+    CHECK(r.f.party_rule == PARTY_ROUND && !r.f.sub_open && r.f.sub_i == 0);
     rig_press(&r, IN_RIGHT); rig_press(&r, IN_LEFT);
     CHECK(r.f.party_rule == PARTY_ROUND && !r.f.sub_open && r.f.mode == GAME_MODE_PARTY); /* the old picker is gone */
     rig_press(&r, IN_A);
@@ -610,35 +606,46 @@ static void test_mode_select(void)
     rig_press(&r, IN_DOWN); CHECK(r.f.party_rule == PARTY_ROOST && r.f.mode == GAME_MODE_PARTY);
     rig_press(&r, IN_DOWN); CHECK(r.f.party_rule == PARTY_TOSS);
     rig_press(&r, IN_DOWN); CHECK(r.f.party_rule == PARTY_TUG);
-    rig_press(&r, IN_DOWN); CHECK(r.f.party_rule == PARTY_ROUND);
-    rig_press(&r, IN_UP); CHECK(r.f.party_rule == PARTY_TUG);
     rig_press(&r, IN_UP); CHECK(r.f.party_rule == PARTY_TOSS);
     rig_press(&r, IN_RIGHT); CHECK(r.f.party_rule == PARTY_TOSS && r.f.sub_open);
     {
         FlowView v;
         flow_view(&r.f, &v);
-        CHECK(v.party_rule == PARTY_TOSS && v.sub_open);
+        CHECK(v.party_rule == PARTY_TOSS && v.sub_open && v.sub_i == 2);
     }
     rig_press(&r, IN_B);
     CHECK(!r.f.sub_open && r.f.mode == GAME_MODE_PARTY && r.f.party_rule == PARTY_TOSS && r.f.state == FLOW_ATTRACT_TITLE);
     rig_press(&r, IN_A); CHECK(r.f.sub_open);
-    /* GUM GAMES row: the same pattern over the six events in on-screen order; Down at the list end wraps */
-    rig_press(&r, IN_B);
-    rig_press(&r, IN_DOWN);
-    CHECK(r.f.mode == GAME_MODE_GUM && !r.f.sub_open);
-    r.f.gg_event = GG_BIG_BLOW;
-    rig_press(&r, IN_RIGHT); CHECK(r.f.gg_event == GG_BIG_BLOW && !r.f.sub_open);
-    rig_press(&r, IN_A); CHECK(r.f.sub_open);
+    /* the whole list in order, then the wrap; a gum game under the cursor makes the mode GUM, back on a party rule PARTY again */
     {
-        static const uint8_t want[7] = { GG_BURST_RACE, GG_BUBBLE_GATHER, GG_POP_DROP, GG_FLAP_DASH, GG_FLING, GG_POOP_MAN, GG_BIG_BLOW };
+        static const char *const want_name[PARTY_MENU_COUNT] = { "RULE OF THE ROUND", "ROOST RULE", "TOSS GUM", "TUG GUM", "BIG BLOW", "BURST RACE", "BUBBLE GATHER", "POP DROP", "FLAP DASH", "GUM FLING", "POOP THE MAN" };
+        static const uint8_t want_gg[7] = { GG_BIG_BLOW, GG_BURST_RACE, GG_BUBBLE_GATHER, GG_POP_DROP, GG_FLAP_DASH, GG_FLING, GG_POOP_MAN };
         int i;
-        for (i = 0; i < 7; i++) { rig_press(&r, IN_DOWN); CHECK(r.f.gg_event == want[i] && r.f.mode == GAME_MODE_GUM); }
-        rig_press(&r, IN_UP); CHECK(r.f.gg_event == GG_POOP_MAN);
-        for (i = 0; i < 7; i++) CHECK(flow_gg_event((uint8_t)i) == (i < 3 ? i : i == 3 ? GG_POP_DROP : i == 4 ? GG_FLAP_DASH : i == 5 ? GG_FLING : GG_POOP_MAN));
+        CHECK(PARTY_MENU_COUNT == 11);
+        for (i = 0; i < PARTY_MENU_COUNT; i++) CHECK(strcmp(flow_menu_name((uint8_t)i), want_name[i]) == 0);
+        for (i = 0; i < 7; i++) CHECK(flow_gg_event((uint8_t)i) == want_gg[i]);
+        rig_press(&r, IN_DOWN); CHECK(r.f.sub_i == 3 && r.f.mode == GAME_MODE_PARTY);
+        for (i = 0; i < 7; i++) { rig_press(&r, IN_DOWN); CHECK(r.f.sub_i == 4 + i && r.f.gg_event == want_gg[i] && r.f.mode == GAME_MODE_GUM); }
+        rig_press(&r, IN_DOWN); CHECK(r.f.sub_i == 0 && r.f.party_rule == PARTY_ROUND && r.f.mode == GAME_MODE_PARTY); /* wraps */
+        rig_press(&r, IN_UP); CHECK(r.f.sub_i == 10 && r.f.gg_event == GG_POOP_MAN && r.f.mode == GAME_MODE_GUM);
     }
     rig_press(&r, IN_B);
-    CHECK(!r.f.sub_open && r.f.mode == GAME_MODE_GUM && r.f.gg_event == GG_POOP_MAN);
-    rig_press(&r, IN_UP); CHECK(r.f.mode == GAME_MODE_PARTY && r.f.party_rule == PARTY_TOSS); /* Start below plays PARTY as before */
+    CHECK(!r.f.sub_open && r.f.mode == GAME_MODE_PARTY && r.f.gg_event == GG_POOP_MAN && r.f.sub_i == 10);
+    rig_press(&r, IN_A); CHECK(r.f.sub_open && r.f.mode == GAME_MODE_GUM);
+    rig_press(&r, IN_UP); rig_press(&r, IN_UP); rig_press(&r, IN_UP); rig_press(&r, IN_UP); rig_press(&r, IN_UP); rig_press(&r, IN_UP); rig_press(&r, IN_UP);
+    rig_press(&r, IN_UP); CHECK(r.f.sub_i == 2 && r.f.party_rule == PARTY_TOSS && r.f.mode == GAME_MODE_PARTY); /* Start below plays Toss Gum as before */
+    rig_press(&r, IN_B);
+    /* a gum game started from the merged row runs as GAME_MODE_GUM and its record table is the GUM table */
+    {
+        Rig q;
+        memset(&q, 0, sizeof q);
+        flow_init(&q.f, NULL, 0);
+        flow_coin(&q.f);
+        rig_press(&q, IN_UP); CHECK(q.f.mode == GAME_MODE_PARTY);
+        rig_press(&q, IN_A); rig_press(&q, IN_UP); CHECK(q.f.sub_i == 10);
+        rig_begin(&q, 0);
+        CHECK(q.f.state == FLOW_PLAYING && q.f.game.mode == GAME_MODE_GUM && q.f.game.gg_poop);
+    }
     /* Start plays PARTY as arena (P2 can join), tagged with the rule; game over scores into table 3 with the tag */
     rig_begin(&r, 0);
     /* Toss Gum has no how-to demo: it starts at once as a GUM-mode toss tagged with the rule; P2 joins before the first burst */
@@ -698,7 +705,7 @@ static void test_mode_select(void)
     /* Start with ARCADE highlighted begins the arcade run through the real path */
     memset(&r, 0, sizeof r);
     flow_init(&r.f, NULL, 0);
-    rig_press(&r, IN_UP); rig_press(&r, IN_UP); rig_press(&r, IN_UP);   /* Up wraps through GUM GAMES and PARTY */
+    rig_press(&r, IN_UP); rig_press(&r, IN_UP);   /* Up wraps through PARTY */
     CHECK(r.f.mode == GAME_MODE_ARCADE);
     rig_begin(&r, 0);
     CHECK(r.f.state == FLOW_PLAYING && r.f.game.mode == GAME_MODE_ARCADE && r.f.game.arc.stage == 1);

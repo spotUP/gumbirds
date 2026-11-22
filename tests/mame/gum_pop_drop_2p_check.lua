@@ -1,4 +1,4 @@
--- Gum Games Pop Drop 2P check (make test-gum-pop-drop-2p): UniBIOS 4.0, one coin, the GUM GAMES row, Right three times picks Pop Drop, Start;
+-- Gum Games Pop Drop 2P check (make test-gum-pop-drop-2p): UniBIOS 4.0, one coin, the PARTY event list, Right three times picks Pop Drop, Start;
 -- then a second coin and P2 Start in the GET SET countdown (the real join path, game_can_join_p2):
 --   Q1. Game.players 2 and pop.seq.players 2 after the join;
 --   Q2. both birds fall at once: 60 fall frames with neither crashed, the P2 bird (slot 350, PD_BIRD2_SLOT in src/main.c) and its rag
@@ -70,8 +70,8 @@ emu.register_frame_done(function()
     if n == 600 then phase = "start"; t0 = n; ss.begin(n) end
   elseif phase == "start" then
     local k = n - t0
-    pick:set_value(((k >= 86 and k < 90) or (k >= 92 and k < 96) or (k >= 98 and k < 102)) and 1 or 0); abtn:set_value((k >= 80 and k < 84) and 1 or 0)
     if ss.step(n, playing, 1) then phase = "join"; t0 = n; pick:set_value(0) end
+    ss.menu(n - t0, 7, abtn, pick)
   elseif phase == "join" then
     local k = n - t0
     if b(O.mode) ~= K.gum or b(O.pop) ~= 1 then finish(false, "not in Pop Drop after Start") return end
