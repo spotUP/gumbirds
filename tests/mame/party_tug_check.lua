@@ -1,11 +1,11 @@
 -- PARTY Tug Gum check (target test-party-tug): UniBIOS 4.0, Arena 1P Start, the script sets the flow to Party mode with rule TUG and joins P2
--- (the join restarts the match into Tug Gum), then player 1 mashes A and player 2 never pulls:
+-- (the join restarts the match into Tug Gum), then player 1 and player 2 both mash their pull button:
 --   G1. Tug Gum is running (mode GUM, gg_tug set) and the P2 Start press seated a second human (Tug.humans 2);
 --   G2. the strand is drawn (first strand sprite has a height) and its knot (main.c g_tug_knot_x) follows Tug.knot;
 --   G3. a snap happens and the left team wins two rounds (RESULT, wins 2 - 0);
 --   G4. the winner line is on the fix layer: its first letter is the P tile that PULL showed in the play prompt;
 --   G6. all four birds are drawn: the hero sprite, the P2 body (pool object P2_OBJ_BODY) and the two computer partners' pool
---       objects (main.c g_cpu_obj) each have a sprite height on most play frames (owner bug 2026-11-21: one computer bird missing in 2P);
+--       objects (main.c g_cpu_obj) each have a sprite height AND non-zero SCB1 tile words on most play frames, and never a height with empty tiles (owner bug 2026-11-21: one computer bird missing in 2P);
 --   G5. sprites per line (tests/mame/sprite_line_count.lua) stay <= 96 and flush time g_last_us <= 1800 us.
 -- BRAWL_SNAP=<dir> writes tug_play.png, tug_snap.png and tug_result.png.
 -- Env: BRAWL_FLOW_ADDR, BRAWL_LASTUS_ADDR, BRAWL_TUGKNOT_ADDR, BRAWL_CPUOBJ_ADDR (hex), BRAWL_TUG_LAYOUT (party_tug_probe.c output), BRAWL_RESULT, BRAWL_SNAP.
@@ -34,7 +34,7 @@ local function field(tag, match)
 end
 local coin, start1 = field(":AUDIO_COIN", "Coin 1"), field(":edge:joy:START", "1 Player Start")
 local start2 = field(":edge:joy:START", "2 Players Start") or field(":edge:joy:START", "2 Player")
-local abtn = field(":edge:joy:JOY1", "P1 A")
+local abtn, a2btn = field(":edge:joy:JOY1", "P1 A"), field(":edge:joy:JOY2", "P2 A")
 local ss = dofile("tests/mame/start_seq.lua")(coin, start1, nil)
 local fsamp = dofile("tests/mame/flush_sample.lua")(mem)
 local function b(o) return mem:read_u8(flow_addr + o) end
@@ -54,24 +54,38 @@ local function finish(ok, msg)
   print("BRAWL_TEST " .. (ok and "PASS " or "FAIL ") .. msg)
   manager.machine:exit()
 end
-if not (coin and start1 and start2 and abtn) then finish(false, "missing ports") end
+if not (coin and start1 and start2 and abtn and a2btn) then finish(false, "missing ports") end
 if not (lastus_addr and knot_addr and cpuobj_addr and K.tug and O.p2st) then finish(false, "missing g_last_us / g_tug_knot_x / g_cpu_obj / PARTY_TUG / probe layout") end
 
 local n, phase, t0 = 0, "boot", 0
 local peak, peak_line, us_play, knot_ok, seen_snap, play_p, res_n, snaps = 0, 0, 0, 0, false, 0, 0, {}
 local drawn, play_n = { 0, 0, 0, 0 }, 0   -- frames with a sprite height: hero, P2 body, computer 0, computer 1
 local function tall(s) return ((fix[0x8200 + s] or 0) & 0x3f) > 0 end
+-- tiles(first, count): true when a sprite of the body has a height and at least one non-zero tile word (SCB1 word 2r, attr 2r+1) in its rows
+local function tiles(first, count)
+  for s = first, first + count - 1 do
+    local h = (fix[0x8200 + s] or 0) & 0x3f
+    for r = 0, h - 1 do if (fix[s * 64 + 2 * r] or 0) ~= 0 then return true end end
+  end
+  return false
+end
+local SEATS = { "hero", "p2", "cpu0", "cpu1" }
+local lost = {}   -- seat -> first play frame (1-based count) with a height but no tile words
 local where = ""
 local function at(s) return string.format("s%d y%d x%d t%x", s, (fix[0x8200 + s] or 0) >> 7, (fix[0x8400 + s] or 0) >> 7, fix[s * 64] or 0) end
 local function bodies()
   play_n = play_n + 1
   local o0, o1 = mem:read_u8(cpuobj_addr), mem:read_u8(cpuobj_addr + 1)
   where = at(HERO_SPRITE) .. " / " .. at(POOL_BASE + 3 * P2_OBJ) .. " / " .. at(POOL_BASE + 3 * o0) .. " / " .. at(POOL_BASE + 3 * o1)
-  if tall(HERO_SPRITE) then drawn[1] = drawn[1] + 1 end
-  if tall(POOL_BASE + 3 * P2_OBJ) then drawn[2] = drawn[2] + 1 end
+  local function seat(j, first, count)
+    if tall(first) and tiles(first, count) then drawn[j] = drawn[j] + 1
+    elseif tall(first) and not lost[j] then lost[j] = play_n end
+  end
+  seat(1, HERO_SPRITE, 1)
+  seat(2, POOL_BASE + 3 * P2_OBJ, 3)
   for i = 0, 1 do
     local o = mem:read_u8(cpuobj_addr + i)
-    if o ~= 0xff and tall(POOL_BASE + 3 * o) then drawn[3 + i] = drawn[3 + i] + 1 end
+    if o ~= 0xff then seat(3 + i, POOL_BASE + 3 * o, 3) end
   end
 end
 local function birds_msg()
@@ -109,6 +123,7 @@ emu.register_frame_done(function()
     local us = mem:read_u16(lastus_addr)
     if us > us_play then us_play = us end
     abtn:set_value(k % 8 < 4 and 1 or 0)
+    a2btn:set_value(k % 8 >= 4 and 1 or 0)
     local ph, knot, kx = b(O.phase), mem:read_i16(flow_addr + O.knot), mem:read_i16(knot_addr)
     -- the view may lag the logic by a frame, so the drawn knot only has to be on the same side and within a pull of Tug.knot / 4
     if ph == K.play and knot < -8 and kx ~= 0 and kx < 160 and math.abs(kx - 160 - knot / 4) <= 6 and ((fix[0x8200 + STRAND_SLOT] or 0) & 0x3f) > 0 then
@@ -125,13 +140,14 @@ emu.register_frame_done(function()
         shot("tug_result")
         local w0, w1 = b(O.wins), b(O.wins + 1)
         if not seen_snap then finish(false, "result without a snap") return end
-        for j = 1, 4 do if drawn[j] * 2 < play_n then finish(false, birds_msg()) return end end
+        for j = 1, 4 do if lost[j] then finish(false, SEATS[j] .. " lost its tiles on play frame " .. lost[j] .. " of " .. play_n .. " (height set, tile words all zero); " .. birds_msg()) return end end
+        for j = 1, 4 do if drawn[j] * 2 < play_n then finish(false, SEATS[j] .. " drawn with height and tiles on " .. drawn[j] .. " of " .. play_n .. " play frames; " .. birds_msg()) return end end
         if w0 ~= 2 or w1 ~= 0 then finish(false, "rounds " .. w0 .. " - " .. w1 .. ", want 2 - 0 for the mashing left team") return end
         if knot_ok < 20 then finish(false, "strand knot followed Tug.knot on " .. knot_ok .. " frames only") return end
         if play_p == 0 or cell(TEXT_COL, TEXT_ROW) ~= play_p then finish(false, "winner line not shown: tile " .. cell(TEXT_COL, TEXT_ROW) .. ", P is " .. play_p) return end
         if peak > SB_LIMIT then finish(false, string.format("%d sprites on line %d, limit %d", peak, peak_line, SB_LIMIT)) return end
         if us_play > FLUSH_LIMIT then finish(false, string.format("flush %d us, limit %d", us_play, FLUSH_LIMIT)) return end
-        finish(true, string.format("Tug Gum: 2 humans, player 1 mashes, snap seen, rounds 2 - 0, winner line shown, knot drawn on %d frames; %s; worst %d sprites on line %d (limit %d); flush max %d us (limit %d); %d frames",
+        finish(true, string.format("Tug Gum: 2 humans, both mash, snap seen, rounds 2 - 0, winner line shown, knot drawn on %d frames; %s; worst %d sprites on line %d (limit %d); flush max %d us (limit %d); %d frames",
           knot_ok, birds_msg(), peak, peak_line, SB_LIMIT, us_play, FLUSH_LIMIT, n - t0))
       end
     end
