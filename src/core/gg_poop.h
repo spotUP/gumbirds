@@ -15,7 +15,7 @@
  * p->phase is the event phase for the prompt helper: PM_PLAY (rules card and countdown run before, in game.c), PM_RESULT, PM_DONE. */
 #define PM_W 320
 #define PM_CLOCK 3600u               /* 60 s */
-#define PM_RESULT_FRAMES 150u
+#define PM_RESULT_FRAMES 1u          /* the event result screen holds the totals; a frozen arena here read as a stall (owner 2026-11-22) */
 #define PM_BASE 100u
 #define PM_COMBO_CAP 4u
 #define PM_STUN 45u

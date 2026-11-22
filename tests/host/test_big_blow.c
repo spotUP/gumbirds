@@ -69,7 +69,10 @@ int main(void)
         f.game.blow.seq.best[0] = 52;
         f.game.blow.phase = GG_BLOW_END;
         flow_step(&f, 0, 0, 0);
-        CHECK(f.state == FLOW_GAME_OVER && f.tables.gg_record[GG_BIG_BLOW] == 52 && f.dirty);
+        CHECK(f.state == FLOW_PLAYING && f.game.res.active && f.game.res.ev);   /* the event ends on its result screen, not GAME OVER */
+        for (int i = 0; i < 40; i++) flow_step(&f, 0, 0, 0);
+        flow_step(&f, IN_A, 0, 0);
+        CHECK(f.state != FLOW_PLAYING && f.state != FLOW_GAME_OVER && f.tables.gg_record[GG_BIG_BLOW] == 52 && f.dirty);
     }
     printf("test_big_blow: %d failures\n", fails);
     return fails != 0;

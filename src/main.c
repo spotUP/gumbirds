@@ -3523,8 +3523,8 @@ static void game_loop(void) {
             g_flow.dirty = 0;
             g_bram_unsaved = 1;
         }
-        if (g_flow.state == FLOW_GAME_OVER) g_game_ended = 1;
-        else if (g_game_ended && g_flow.state <= FLOW_ATTRACT_DEMO) {
+        if (g_flow.ended) { g_flow.ended = 0; g_game_ended = 1; }   /* GAME OVER, or a minigame's result screen left straight to the title */
+        if (g_game_ended && g_flow.state <= FLOW_ATTRACT_DEMO) {
             g_game_ended = 0;
             screen_fade(BG_FADE_MAX, 0); /* fade down, not a hard cut to the BIOS black */
             bios_return_sync();
@@ -3594,7 +3594,7 @@ static void game_loop(void) {
         if (view.state == FLOW_PLAYING && view.game && view.game->res.active) {
             /* Bonus result screen (it covers the world): hide the strip and load the next stage's strip tiles once the fill is done,
              * so the stage entry frame's hazard start only places it (two banks there cost about 113 lines, reports/stage-spike.md). */
-            if (g_res_filled == RESV_W * RESV_H && !view.game->gg_gather) { /* GUM mode has no next stage: arc.stage is not its stage */
+            if (g_res_filled == RESV_W * RESV_H && view.game->mode == GAME_MODE_ARCADE) { /* only the arcade has a next stage: arc.stage is not a minigame's stage */
                 hazard_step(0, g_cam_px);
                 hazard_game_restart(world_get(world_of_stage(arc_next_stage(view.game->arc.stage)))->hazard);
                 hazard_preload();

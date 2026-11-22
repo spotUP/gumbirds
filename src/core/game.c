@@ -252,9 +252,23 @@ static void game_step_poop(Game *g, uint8_t input);
 static void game_step_fling(Game *g, uint8_t input);
 static void game_step_toss(Game *g, uint8_t input);
 static void game_step_tug(Game *g, uint8_t input);
+static void score_add(Game *g, uint32_t pts);
+/* The result screen's frame: a tally adds its points; the screen going away ends the game. */
+static void res_tick(Game *g, uint8_t input)
+{
+    uint32_t add;
+    g->res.events = res_step(&g->res, &add, (uint8_t)(input & IN_A));
+    if (add) {
+        score_add(g, add);
+        g->res.score_shown = g->score;
+    }
+    if (!g->res.active) g->over = 1;
+}
+
 void game_step(Game *g, uint8_t input)
 {
     g->cd_ev = 0;
+    if (g->res.active && g->res.ev) { g->frame++; res_tick(g, input); return; }   /* a minigame's result screen (game_end_event): the event itself has ended */
     if ((g->gg_fling || g->gg_gather || g->gg_pop || g->gg_poop || g->gg_dash) && g->cd_t < GGCD_END) {
         int frozen = g->cd_t < GGCD_SET_FRAMES;
         cd_tick(g);
@@ -284,6 +298,18 @@ void game_step(Game *g, uint8_t input)
 }
 
 static void match_start(Game *g);
+int game_end_event(Game *g, uint8_t ev)
+{
+    if (!g->over || g->res.ev || g->res.active || g->gg_gather || !(g->mode == GAME_MODE_GUM || g->gg_toss || g->gg_tug)) return 0;
+    g->over = 0;
+    res_start_event(&g->res, ev, g->score);
+    if (g->players == 2) {
+        g->res.two = 1;
+        g->res.score2 = g->lives[1].score;
+    }
+    return 1;
+}
+
 int game_begin(Game *g)
 {
     if (g->mode == GAME_MODE_TRIP || g->mode == GAME_MODE_GUM || g->over || g->cpu_count) return 0;
@@ -1038,13 +1064,7 @@ static void game_step_gather(Game *g, uint8_t input)
     Flier *f = &g->hero[0];
     g->frame++;
     if (g->res.active) {
-        uint32_t add;
-        g->res.events = res_step(&g->res, &add, (uint8_t)(input & IN_A));
-        if (add) {
-            score_add(g, add);
-            g->res.score_shown = g->score;
-        }
-        if (!g->res.active) g->over = 1;
+        res_tick(g, input);
     } else {
         FlierInput in;
         int cx = (int)(f->x >> 16), cy = (int)(f->y >> 16), armed;
