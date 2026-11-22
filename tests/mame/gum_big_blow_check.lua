@@ -1,4 +1,4 @@
--- Gum Games Big Blow check (make test-gum-big-blow): UniBIOS 4.0, one coin, Up to the GUM GAMES row (the list wraps up from ARENA), Start:
+-- Gum Games Big Blow check (make test-gum-big-blow): UniBIOS 4.0, one coin, Up to the PARTY event list (the list wraps up from ARENA), Start:
 --   G1. the game is PLAYING in GAME_MODE_GUM and the intro hands over to the blow phase;
 --   G2. alternating A and B presses (A and B reach the mash counter in this mode) grow the bubble: size rises and the fix-layer power bar
 --       (gum tube, fix rows 25-26, columns 11..28, 32 steps) shows a filled first cell and an empty last cell and its tiles change with the size (>= 10 distinct looks);
@@ -20,6 +20,7 @@ local function field(tag, match)
   if not p then return nil end
   for fname, f in pairs(p.fields) do if fname:find(match, 1, true) then return f end end
 end
+local mA, mP = field(":edge:joy:JOY1", "P1 A"), field(":edge:joy:JOY1", "P1 Down")
 local coin, start1, up = field(":AUDIO_COIN", "Coin 1"), field(":edge:joy:START", "1 Player Start"), field(":edge:joy:JOY1", "P1 Up")
 local abtn, bbtn = field(":edge:joy:JOY1", "P1 A"), field(":edge:joy:JOY1", "P1 B")
 local ss = dofile("tests/mame/start_seq.lua")(coin, start1, up)
@@ -68,6 +69,7 @@ emu.register_frame_done(function()
     if n == 600 then phase = "start"; t0 = n; ss.begin(n) end
   elseif phase == "start" then
     if ss.step(n, playing, 1) then phase = "intro"; t0 = n end
+    ss.menu(n - t0, 4, mA, mP)
   elseif phase == "intro" then
     if b(O.mode) ~= K.gum then finish(false, "mode " .. b(O.mode) .. ", want GAME_MODE_GUM " .. K.gum) return end
     if b(O.phase) == K.play then phase = "blow"; t0 = n
@@ -103,7 +105,7 @@ emu.register_frame_done(function()
     if n - t0 > 400 then finish(false, "next attempt never began") return end
     if b(O.phase) == K.intro then
       if b(O.tickets) ~= 2 then finish(false, "tickets " .. b(O.tickets) .. " after the first attempt, want 2") return end
-      finish(true, string.format("Big Blow: GUM GAMES row starts the event; bubble grew to %d, bar drawn; qualified at size %d, score 800, result rows lit, 2 tickets left", grew, b(O.last)))
+      finish(true, string.format("Big Blow: PARTY event list starts the event; bubble grew to %d, bar drawn; qualified at size %d, score 800, result rows lit, 2 tickets left", grew, b(O.last)))
     end
   end
 end)

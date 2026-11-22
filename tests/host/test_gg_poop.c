@@ -119,7 +119,7 @@ int main(void)
     {
         Flow f;
         flow_init(&f, 0, 0);
-        f.mode = GAME_MODE_GUM; f.gg_event = GG_BIG_BLOW;
+        f.mode = GAME_MODE_PARTY;  /* merged PARTY list: sub_i 0 = Rule of the Round, 4 = Big Blow ... 10 = Poop the Man */
         flow_coin(&f);
         flow_step(&f, IN_A, 0, 0); flow_step(&f, 0, 0, 0);
         flow_step(&f, IN_UP, 0, 0); flow_step(&f, 0, 0, 0);

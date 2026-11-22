@@ -1,4 +1,4 @@
--- Gum Games Bubble Gather check (make test-gum-bubble-gather): UniBIOS 4.0, one coin, Down to the GUM GAMES row, Right twice picks Bubble Gather, Start:
+-- Gum Games Bubble Gather check (make test-gum-bubble-gather): UniBIOS 4.0, one coin, Down to the PARTY event list, Right twice picks Bubble Gather, Start:
 --   B1. the game is PLAYING in GAME_MODE_GUM with the gather running (gg_gather 1);
 --   B2. the hero is moved onto live bubbles each frame: the HUD line (fix row 7) is lit and at least one bubble is caught;
 --   B3. the run ends: the result shows, A leaves it, the flow reaches GAME_OVER, score >= caught * 300 and the record equals the caught count.
@@ -52,10 +52,10 @@ emu.register_frame_done(function()
   if phase == "boot" then
     if n == 600 then phase = "start"; t0 = n; ss.begin(n) end
   elseif phase == "start" then
-    -- the shared sequence presses Down at +70..+78 (the GUM GAMES row); Right taps at +80..+83 and +88..+91 reach Bubble Gather (third event) before Start at +100
+    -- the shared sequence presses Down at +70..+78 (the PARTY event list); Right taps at +80..+83 and +88..+91 reach Bubble Gather (third event) before Start at +100
     local k = n - t0
-    pick:set_value(((k >= 86 and k < 90) or (k >= 94 and k < 98)) and 1 or 0); abtn:set_value((k >= 80 and k < 84) and 1 or 0) -- A opens the GUM GAMES list, Down picks
     if ss.step(n, playing, 1) then phase = "gather"; t0 = n; pick:set_value(0) end
+    ss.menu(n - t0, 6, abtn, pick)
   elseif phase == "gather" then
     if b(O.mode) ~= K.gum or b(O.gather) ~= 1 then finish(false, string.format("mode %d gather %d, want GAME_MODE_GUM %d and gather 1", b(O.mode), b(O.gather), K.gum)) return end
     if lit(7) >= 8 then hud = true end
@@ -82,7 +82,7 @@ emu.register_frame_done(function()
       local want = maxcaught * 300 + (maxcaught >= 12 and 500 or 0) -- 12 of 20 qualifies: +500 (GG_GATHER_QUALIFY, GG_QUALIFY_POINTS)
       if score < want then finish(false, string.format("score %d for %d caught, want >= %d", score, maxcaught, want)) return end
       if rec ~= maxcaught then finish(false, string.format("record %d, caught %d", rec, maxcaught)) return end
-      finish(true, string.format("Bubble Gather: GUM GAMES row + Right x2 starts it; HUD lit, %d caught, score %d, record saved", maxcaught, score))
+      finish(true, string.format("Bubble Gather: PARTY event list + Right x2 starts it; HUD lit, %d caught, score %d, record saved", maxcaught, score))
     elseif n - t0 > 1500 then finish(false, "result never led to game over") end
   end
 end)
