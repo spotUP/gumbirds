@@ -43,15 +43,15 @@ int main(void)
     /* head hits: hat 200, then bald with streak 2 = 100*3*2, streak caps at x4 */
     clean(&p);
     walker(&p, 0, PM_HAT, 200);
-    poop_at(&p, 0, 200, 170);
+    poop_at(&p, 0, 200, 130);
     gm_step(&p, 0, 0);
     CHECK(p.b[0].score == 200 && p.b[0].streak == 1 && p.last_hit_pts_ev == 1 && p.w[0].st == PM_HIT);
     walker(&p, 1, PM_BALD, 100);
-    poop_at(&p, 0, 100, 180);   /* bald top = 216 - 40 = 176 */
+    poop_at(&p, 0, 100, 140);   /* bald top = 176 - 40 = 136 */
     gm_step(&p, 0, 0);
     CHECK(p.b[0].score == 200 + 600 && p.b[0].streak == 2);
     p.b[0].streak = 4; walker(&p, 2, PM_WOMAN, 150);
-    poop_at(&p, 0, 150, 176);   /* woman top 174 */
+    poop_at(&p, 0, 150, 136);   /* woman top 134 */
     gm_step(&p, 0, 0);
     CHECK(p.b[0].score == 800 + 400 && p.b[0].streak == 5);   /* x4 cap, counter keeps counting */
 
@@ -73,7 +73,7 @@ int main(void)
     clean(&p);
     walker(&p, 0, PM_HAT, 96); p.w[0].umb_prone = 1; p.w[0].umb = 1;   /* bird at x 96 keeps it open */
     p.b[0].streak = 2;
-    poop_at(&p, 0, 96, 158);   /* hat top 168, umbrella band 156..164 */
+    poop_at(&p, 0, 96, 118);   /* hat top 128, umbrella band 116..124 */
     gm_step(&p, 0, 0);
     CHECK(p.b[0].score == 0 && p.b[0].streak == 0 && p.poop[0].st == PM_POOP_BOUNCE && p.w[0].st == PM_WALK && (p.sfx & PM_SFX_BOUNCE));
 
@@ -109,6 +109,25 @@ int main(void)
         CHECK(p.b[0].drop_t == 1);
     }
 
+    /* walkers stand on the backdrop ground line (city GROUND 176), poop splats just below it */
+    CHECK(PM_FEET_Y == 176 && PM_PAVE_Y > PM_FEET_Y && PM_SPAWN_Y + PM_BIRD_HALF_H < PM_FEET_Y);
+
+    /* free flight: the bird reaches both screen edges and the top; no stick holds x */
+    clean(&p);
+    {
+        int n, top = -1, xs = p.b[0].x;
+        for (i = 0; i < 4; i++) gm_step(&p, 0, 0);
+        CHECK(p.b[0].x == xs);
+        p.b[0].x = PM_W / 2;
+        for (n = 0; n < 400 && p.b[0].x < PM_W; n++) { p.b[0].y = 100; gm_step(&p, IN_RIGHT, 0); }
+        printf("right edge in %d frames\n", n); CHECK(n <= 220 && p.b[0].x == PM_W);
+        for (n = 0; n < 600 && p.b[0].x > 0; n++) { p.b[0].y = 100; gm_step(&p, IN_LEFT, 0); }
+        printf("full width left in %d frames\n", n); CHECK(n <= 400 && p.b[0].x == 0);
+        p.b[0].y = 150; p.b[0].vy16 = 0; p.b[0].flap_cd = 0; p.b[0].prev_in = 0;
+        for (n = 0; n < 400 && p.b[0].y > PM_BIRD_Y_MIN; n++) { gm_step(&p, n % 10 == 0 ? IN_A : 0, 0); p.b[0].inv = 9; }
+        top = n; printf("top in %d frames\n", top); CHECK(top <= 300 && p.b[0].y == PM_BIRD_Y_MIN);
+    }
+
     /* gravity: no flap = it falls; a flap press rises; stick up does not lift */
     clean(&p);
     {
@@ -129,7 +148,7 @@ int main(void)
     clean(&p);
     p.b[0].score = 300; p.b[0].streak = 3;
     walker(&p, 0, PM_KID, p.b[0].x + PM_SCROLL);
-    p.b[0].y = 180;
+    p.b[0].y = 140;
     gm_step(&p, 0, 0);
     CHECK(p.b[0].dead == PM_DEAD_FRAMES && p.b[0].streak == 0 && p.b[0].score == 300 && (p.sfx & PM_SFX_DEAD));
     p.w[0].live = 0;
@@ -139,7 +158,7 @@ int main(void)
         CHECK(p.b[0].y > y0 && p.b[0].drop_t == 0 && p.b[0].vy16 > 0);
         for (i = 0; i < (int)PM_DEAD_FRAMES - 50; i++) gm_step(&p, 0, 0);
         CHECK(p.b[0].dead == 0 && p.b[0].y == PM_SPAWN_Y && p.b[0].inv == PM_INV_FRAMES);
-        walker(&p, 1, PM_HAT, p.b[0].x + PM_SCROLL); p.b[0].y = 170;   /* invulnerable: a walker does not kill */
+        walker(&p, 1, PM_HAT, p.b[0].x + PM_SCROLL); p.b[0].y = 130;   /* invulnerable: a walker does not kill */
         gm_step(&p, 0, 0);
         CHECK(p.b[0].dead == 0);
         p.w[1].live = 0;
@@ -165,7 +184,7 @@ int main(void)
     clean(&p);
     gm_add_p2(&p);
     walker(&p, 0, PM_HAT, 220);
-    poop_at(&p, 1, 220, 170);
+    poop_at(&p, 1, 220, 130);
     gm_step(&p, 0, 0);
     CHECK(p.b[1].score == 200 && p.b[0].score == 0);
 
