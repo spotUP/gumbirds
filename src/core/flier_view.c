@@ -19,7 +19,8 @@ static uint8_t steady_clip(const Flier *f, const FlierClips *c)
     if (f->state >= FLIER_FALLING) return c->fall;
     if (f->on_ground) {
         int32_t vx = f->vx < 0 ? -f->vx : f->vx;
-        return vx >= FLIER_WALK_MIN_VX ? c->walk : c->breathe;
+        if (vx >= FLIER_WALK_MIN_VX) return c->walk; /* walking stays side-on */
+        return f->balloons == 0 ? c->breathe_front : c->breathe;
     }
     return f->balloons == 0 ? c->idle : c->fly;
 }

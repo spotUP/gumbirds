@@ -9,10 +9,11 @@
  *                  or settle) keeps running: the wingbeat shows on the swung body (flap_r / flap_l, picked per step by
  *                  the sway table) and when it ends the sway carries on where it is
  *   settle         one shot when the flier turns in the air (the rest_fl / rest_fr foot-lag pendulum)
- *   idle           no balloons (also on a parachute)         fall   dead and falling
+ *   idle           no balloons (also on a parachute): the front-face clip idle_front      fall   dead and falling
  *   pop2 / pop1    one shot, played when the 2nd / last balloon pops (a pop from 2 to 0 plays pop1)
  *   inflate        one shot, played when a balloon is gained and when a flier first shows (not with 0 balloons)
  *   walk / land / breathe  ground clips: walk while the flier moves, breathe while it stands, land is a one shot on touch-down
+ *   breathe_front  standing with no balloons (the gumless bird faces the player; holds come from the sheet ticks)
  *   pump           the landing blow-up, drawn by progress (flier_pump_frame), not played by time
  * A one shot plays to its end, then the steady clip of the moment takes over; falling cuts an inflate short.
  * Each frame lasts its number of 60 Hz ticks. The sprite is mirrored when the flier faces left.
@@ -30,6 +31,7 @@ typedef struct {
     uint8_t walk, land, breathe;                                      /* ground clip numbers */
     const uint8_t *sway;   /* per sheet frame: 0 body centred, 1 swung right, 2 swung left */
     uint8_t flap_r, flap_l; /* the flap clip on a body swung right / left, frame for frame */
+    uint8_t breathe_front;  /* standing with no balloons: the bird faces the player (idle is its airborne twin, idle_front) */
 } FlierClips;
 
 typedef struct {
