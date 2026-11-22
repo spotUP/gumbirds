@@ -23,6 +23,7 @@ void res_start(Result *r, int caught, int number, int perfect, uint32_t score)
     r->active = 1;
     r->phase = P_POPPED;
     r->wait = 20;
+    r->idle = 0;
     r->caught = (uint8_t)caught;
     r->perfect = perfect ? 1 : 0;
     r->show = r->vanished = r->ticket = 0;
@@ -159,8 +160,8 @@ static uint8_t res_phase(Result *r, uint32_t *add, uint8_t press)
             r->wait = 1;
         }
         break;
-    default: /* P_WAIT: the totals stay up until the player presses */
-        if (press) r->active = 0;
+    default: /* P_WAIT: the totals stay up until the player presses or RES_IDLE_FRAMES pass */
+        if (press || ++r->idle >= RES_IDLE_FRAMES) r->active = 0;
         return ev;
     }
     r->phase++;

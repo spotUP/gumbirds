@@ -67,10 +67,8 @@ int main(void)
             int frames = 0;
             res_start(&r, sets[si][0], 2, sets[si][1], 0);
             while (r.active && frames < 5000) { res_step(&r, &add, 0); sum += add; frames++; }
-            CHECK(r.active);                     /* still up after 5000 frames without a press */
+            CHECK(!r.active && frames < 5000);   /* the idle timeout ends it with no press */
             CHECK(r.total_left == 0 && r.score_shown == sum && sum == (uint32_t)sets[si][0] * 500u + (sets[si][1] ? 15000u : 0u));
-            res_step(&r, &add, 1);
-            CHECK(!r.active && add == 0);       /* the press ends it, nothing more added */
         }
     }
     /* score added once: total_left plus the sum of adds equals the total at every frame */
@@ -171,6 +169,23 @@ int main(void)
             for (k = 0; k < 5; k++) CHECK(r.wheel[k] == r.digit[k] * 16);
             CHECK(r.digit[0] * 10000u + r.digit[1] * 1000u + r.digit[2] * 100u + r.digit[3] * 10u + r.digit[4] == r.total_left);
         }
+    }
+    /* idle timeout: an event result with no press leaves after RES_IDLE_FRAMES in the hold, never early; an A press still leaves at once */
+    {
+        Result r;
+        uint32_t add;
+        int n = 0;
+        res_start_event(&r, 1, 500);
+        while (r.active && n < RES_EVENT_SKIP + 2) { res_step(&r, &add, 0); n++; }
+        CHECK(r.active); /* past the press-ignore window, still holding */
+        n = 0;
+        while (r.active && n < RES_IDLE_FRAMES * 2) { res_step(&r, &add, 0); n++; }
+        CHECK(!r.active && n + RES_EVENT_SKIP + 2 >= RES_IDLE_FRAMES + RES_EVENT_SKIP - 3 && n + RES_EVENT_SKIP + 2 <= RES_IDLE_FRAMES + RES_EVENT_SKIP + 3);
+        res_start_event(&r, 1, 500);
+        for (n = 0; n < RES_EVENT_SKIP + RES_IDLE_FRAMES / 2; n++) res_step(&r, &add, 0);
+        CHECK(r.active); /* half the timeout: no early skip */
+        res_step(&r, &add, 1);
+        CHECK(!r.active); /* A before the timeout */
     }
     printf("test_result: %d checks, %d failures\n", checks, failures);
     return failures ? 1 : 0;
