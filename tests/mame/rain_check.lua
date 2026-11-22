@@ -72,10 +72,11 @@ end
 local rs = (#flay >= 23) and dofile("tests/mame/round_skip.lua")(mem, flow_addr, flay) or nil
 local n, phase, fc0, t = 0, "boot", nil, 0
 local calm_cells, calm_frames, peak_cells, sframes, worst, worst_line = 0, 0, 0, 0, 0, 0
+local last_fc, stalls = nil, 0 -- stalls: storm emulated frames in which g_frame_counter did not advance (a dropped frame)
 local function report()
   print("BRAWL_TIMING " .. timing())
-  local msg = timing() .. "; " .. string.format("rain: calm cells %d, storm peak %d cells, worst line %d sprites at line %d (limit %d), flush max %d us (limit %d), flushes %d, deferred %d",
-    calm_cells, peak_cells, worst, worst_line, SB_LIMIT, fs.us_max, FLUSH_LIMIT, fs.flushes, fs.sat)
+  local msg = timing() .. "; " .. string.format("dropped storm frames %d; rain: calm cells %d, storm peak %d cells, worst line %d sprites at line %d (limit %d), flush max %d us (limit %d), flushes %d, deferred %d",
+    stalls, calm_cells, peak_cells, worst, worst_line, SB_LIMIT, fs.us_max, FLUSH_LIMIT, fs.flushes, fs.sat)
   if peak_cells < MIN_CELLS then finish(false, "no rain in storm: " .. msg) return end
   if worst > SB_LIMIT or fs.us_max > FLUSH_LIMIT then finish(false, msg) return end
   finish(true, msg)
@@ -121,6 +122,8 @@ emu.register_frame_done(function() local ok_, err_ = pcall(function()
     if le then acc("storm", le) end
     if t_rs and t_re then acc("rain", (t_re - t_rs) * 1e6) end
     if rain_addr then acc("drops", mem:read_u8(rain_addr + 768)); acc("owned", mem:read_u16(rain_addr + 774)) end
+    if last_fc and fc == last_fc then stalls = stalls + 1 end
+    last_fc = fc
     fs.frame()
     sframes = sframes + 1
     if sframes < STORM_FRAMES then return end

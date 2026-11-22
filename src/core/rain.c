@@ -96,57 +96,69 @@ void rain_step(Rain *r, VramQueue *q, uint8_t active, uint8_t mode, int16_t scro
         for (uint8_t y = 0; y < RAIN_ROWS; y++) rok[y] = (uint8_t)!(hud >> y & 1u);
         ok_mode = mode;
     }
+    /* pointer walks and native-width locals: the struct-copy and byte-counter form spilled to the stack and cost ~90 raster lines a storm frame */
     uint8_t *now = r->now, *own = r->own;
     uint16_t *want = q->fix_want;
-    uint16_t cells[RAIN_MAX_DROPS * 3], n_cells = 0;
-    uint8_t keep = 0;
-    for (uint8_t i = 0; i < r->n; i++) {
-        RainDrop d = r->drop[i];
-        uint8_t near = d.kind >= 3, flag = (uint8_t)(near << 7);
-        uint16_t ci = (uint16_t)((((uint16_t)d.kind << 3 | (d.px & 7)) << 1) | ((d.py >> 2) & 1));
+    uint16_t cells[RAIN_MAX_DROPS * 3], *cp = cells;
+    const RainDrop *s = r->drop, *se = s + r->n;
+    RainDrop *o = r->drop; /* kept drops are written back in place, o never passes s */
+    for (; s < se; s++) {
+        unsigned kind = s->kind;
+        int px = s->px, py = s->py;
+        unsigned near = kind >= 3, flag = near << 7;
+        unsigned ci = ((kind << 3 | (px & 7)) << 1) | ((py >> 2) & 1);
         const RainCut *cut = &rain_cutw[ci * 3];
-        int16_t c0 = (int16_t)(d.px >> 3), r0 = (int16_t)(d.py >> 3);
-        uint16_t base = (uint16_t)((c0 << 5) + r0 + 2);
-        uint8_t inside = (uint16_t)c0 < RAIN_COLS - 1; /* every cut column is 0 or 1: no column test needed */
-        for (uint8_t k = rain_cut_n[ci]; k; k--, cut++) {
-            if (!rok[r0 + cut->dr]) continue;
-            if (!inside && (uint16_t)(c0 + cut->dc) >= RAIN_COLS) continue;
-            uint16_t fi = (uint16_t)(base + cut->off);
-            uint8_t v = now[fi];
-            if (!v) cells[n_cells++] = fi;
-            if (!v || near || !(v & 0x80)) now[fi] = (uint8_t)(cut->t1 | flag);
+        int c0 = px >> 3, r0 = py >> 3;
+        uint8_t *nb = now + (c0 << 5) + r0 + 2;
+        const uint8_t *rk = rok + r0;
+        unsigned inside = (unsigned)c0 < RAIN_COLS - 1; /* every cut column is 0 or 1: no column test needed */
+        for (unsigned k = rain_cut_n[ci]; k; k--, cut++) {
+            if (!rk[cut->dr]) continue;
+            if (!inside && (unsigned)(c0 + cut->dc) >= RAIN_COLS) continue;
+            uint8_t *np = nb + cut->off;
+            unsigned v = *np;
+            if (!v) *cp++ = (uint16_t)(np - now);
+            if (!v || near || !(v & 0x80)) *np = (uint8_t)(cut->t1 | flag);
         }
-        d.px = (int16_t)(d.px - rain_move[d.kind][0]);
-        d.py = (int16_t)(d.py + rain_move[d.kind][1]);
+        const int8_t *mv = rain_move[kind];
+        int acc = s->acc;
+        px -= mv[0];
+        py += mv[1];
         if (scroll_px > 0) { /* extra left steps of this drop's own lattice step (2 near, 1 far per px of speed) */
-            int16_t step = (int16_t)(rain_move[d.kind][0] * (near ? 2 : 1));
-            d.acc = (int16_t)(d.acc + scroll_px);
-            while (d.acc >= step) { d.acc = (int16_t)(d.acc - step); d.px = (int16_t)(d.px - step); }
+            int step = near ? mv[0] * 2 : mv[0];
+            acc += scroll_px;
+            while (acc >= step) { acc -= step; px -= step; }
         }
-        int16_t end = (int16_t)(d.end_row * 8);
-        if (d.py < (end < H ? end : H) && d.px > -16) r->drop[keep++] = d;
+        int end = s->end_row * 8;
+        if (py < (end < H ? end : H) && px > -16) {
+            uint8_t er = s->end_row;
+            o->px = (int16_t)px; o->py = (int16_t)py; o->kind = (uint8_t)kind; o->end_row = er; o->acc = (int16_t)acc;
+            o++;
+        }
     }
-    r->n = keep;
+    r->n = (uint8_t)(o - r->drop);
     /* blank cells that stopped holding rain, then write the new ones: only free cells (or ours) are taken */
-    for (uint16_t i = 0; i < r->n_list; i++) {
-        uint16_t c = r->list[i];
+    const uint16_t cwb = CELLW;
+    for (const uint16_t *lp = r->list, *le = lp + r->n_list; lp < le; lp++) {
+        unsigned c = *lp;
         if (now[c]) continue;
-        if (want[c] == CELL(own[c] - 1)) put(q, c, BLANK);
+        if (want[c] == (uint16_t)(cwb | (RAIN_FIX_BASE + own[c] - 1))) put(q, (uint16_t)c, BLANK);
         own[c] = 0;
     }
-    uint16_t nl = 0;
-    for (uint16_t i = 0; i < n_cells; i++) {
-        uint16_t c = cells[i], w = want[c];
-        uint8_t t = now[c] & 0x7F;
-        uint16_t cw = CELL(t - 1);
+    uint16_t *lo = r->list;
+    for (const uint16_t *ip = cells; ip < cp; ip++) {
+        unsigned c = *ip, w = want[c];
+        unsigned t = now[c] & 0x7F;
+        unsigned cw = (uint16_t)(cwb | (RAIN_FIX_BASE + t - 1));
         now[c] = 0;
         if (w != cw) {
-            if (!FREE(w) && !(own[c] && w == CELL(own[c] - 1))) { own[c] = 0; continue; } /* text or HUD owns it */
-            put(q, c, cw);
+            if (!FREE(w) && !(own[c] && w == (uint16_t)(cwb | (RAIN_FIX_BASE + own[c] - 1)))) { own[c] = 0; continue; } /* text or HUD owns it */
+            put(q, (uint16_t)c, (uint16_t)cw);
         }
-        own[c] = t;
-        r->list[nl++] = c;
+        own[c] = (uint8_t)t;
+        *lo++ = (uint16_t)c;
     }
+    uint16_t nl = (uint16_t)(lo - r->list);
     r->n_list = nl;
 }
 
