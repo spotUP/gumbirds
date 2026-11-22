@@ -12,6 +12,7 @@
 #include <stddef.h>
 #include "camera.h"
 #include "gumgames.h"
+#include "cpu_opponent.h"
 #include "tuning.h"
 #include "rng.h"
 #include "flier.h"
@@ -106,6 +107,8 @@ typedef struct {
     uint8_t mood;        /* background mood (GAME_MOOD_*) the screen shows; game_reset keeps it, game_next_mood changes it */
     uint8_t over;        /* 1 when the player flier is DROWNED or GONE */
     uint8_t players;     /* 1 or 2 humans in play (game_reset sets 1) */
+    uint8_t cpu_level;   /* CPU_* : 1 player with a computer P2 (cpu_opponent.h); flow sets it after game_reset, CPU_OFF = none */
+    Cpu opp;             /* the computer P2 state (cpu_opponent.h) */
     uint8_t input2;      /* player 2 input byte (main.c sets it like start_in); unused while players == 1 */
     uint8_t credits;     /* credits banked (main.c sets it from the BIOS each frame); the arcade continue needs one */
     uint8_t round_winner;/* Arena two-player round end: BannerWinner (P1, P2 or computer) for the round clear banner */
@@ -204,6 +207,8 @@ void game_set_mode(Game *g, uint8_t mode);
 void game_step(Game *g, uint8_t input);
 /* Start the Gum Games Flap Dash: one hero on the arena ring, no computer fliers (call after game_set_mode). */
 void game_gg_start_dash(Game *g);
+/* P2 input byte of the computer for the game now running; Game.cpu_level is the pick (CPU_OFF = none). 0 for games with no behaviour yet (cpu_opponent.c). */
+uint8_t cpu_input(Game *g);
 void game_gg_start_poop(Game *g);   /* Gum Games Poop the Man (gg_poop.h) */
 void game_gg_start_pop(Game *g);   /* Gum Games Pop Drop: free fall (gg_popdrop.h) */
 /* Start the Gum Games Bubble Gather: the Arcade bonus stage (layout 24, ArcBonus, result screen) with one hero (call after game_set_mode). */

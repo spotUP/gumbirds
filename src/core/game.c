@@ -268,6 +268,7 @@ static void res_tick(Game *g, uint8_t input)
 void game_step(Game *g, uint8_t input)
 {
     g->cd_ev = 0;
+    if (g->cpu_level && g->players == 1 && g->cd_t >= GGCD_END) g->input2 = cpu_input(g);   /* the computer is P2: same input path, after GO */
     if (g->res.active && g->res.ev) { g->frame++; res_tick(g, input); return; }   /* a minigame's result screen (game_end_event): the event itself has ended */
     if ((g->gg_fling || g->gg_gather || g->gg_pop || g->gg_poop || g->gg_dash) && g->cd_t < GGCD_END) {
         int frozen = g->cd_t < GGCD_SET_FRAMES;
