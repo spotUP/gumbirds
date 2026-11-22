@@ -111,8 +111,12 @@ int vq_vram_word(VramQueue *q, u16 addr, u16 val) {
 
 int vq_vram_run(VramQueue *q, u16 addr, u16 mod, const u16 *src, u8 n) {
     if (!n || !mod) return 1;   /* nothing to write; 0 would make gfx RETRY wait forever */
-    VqOp op = { src, addr, mod, 0, VQ_RUN, n, (u16)(VQ_US_RUN + VQ_US_RUN_WORD * n), 0 };
-    return push(q, &op);
+    VqOp *op = tail_op(q);   /* filled in place, no stack op copied (Burst Race cheer frames, fling card 8) */
+    if (!op) return 0;
+    op->tiles = src; op->a = addr; op->b = mod; op->c = 0; op->kind = VQ_RUN; op->rows = n;
+    op->cost = (u16)(VQ_US_RUN + VQ_US_RUN_WORD * n); op->split = 0;
+    q->count++;
+    return 1;
 }
 
 u8 vq_strips(VramQueue *q, u16 first, u8 cols, u8 rows, const u16 *tiles, u16 base, u16 attr) {
