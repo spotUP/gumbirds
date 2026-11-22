@@ -103,6 +103,7 @@ int gumfling_step(GgFling *f, uint8_t in)
             launch_vel(f->power, f->deg, &f->vx, &f->vy);
             f->h = 0; f->x = 0; f->phase = GF_FLIGHT; f->flap = 0;
             f->h_cap = (int32_t)(((int64_t)f->vy * f->vy) / (2 * GF_GRAVITY));
+            if (f->h_cap < FL_PX(GF_FLAP_CAP_MIN_PX)) f->h_cap = FL_PX(GF_FLAP_CAP_MIN_PX);   /* a flat throw can still be mashed up */
             f->sfx |= GF_SFX_THROW;
             return GF_EV_LAUNCH;
         }
