@@ -1,6 +1,6 @@
 -- Small Sootling reachability (make test-small-sootling): the 24 x 32 sheet is what the real ROM draws for the player.
 -- Spec numbers are written out here (not read from the build) so a stale sheet fails:
---   art 24 x 32, 88 tiles in the Sootling C-ROM range (gum-mouth v4 sheet, 100 frames with the sway flap frames; bubbles are a separate gum sprite; the pre-v4 sheet had 304), sprite 32 wide (2 columns),
+--   art 24 x 32, 112 tiles in the Sootling C-ROM range (gum-mouth v4 sheet with the sway flap frames and the front-face frames, +24 tiles in 2784250; bubbles are a separate gum sprite; the pre-v4 sheet had 304), sprite 32 wide (2 columns),
 --   hit box offset 14 ((32 - 24) / 2 + box first column 10).
 -- Timeline: coin, start, wait for PLAYING, settle on the island, flap 8 times, settle again. Checks:
 --   1. probe values (what the ROM was built with) equal the spec numbers; g_soot_range holds the same tile count;
@@ -21,7 +21,7 @@ local function nums(name) local t = {} for v in (os.getenv(name) or ""):gmatch("
 local flay, slay = nums("BRAWL_FLIER_LAYOUT"), nums("BRAWL_SOOT_LAYOUT")
 local O_STATE, O_X, O_Y, O_VX, O_GROUND = flay[1], flay[6], flay[7], flay[8], flay[12]
 local P_ART_W, P_ART_H, P_TILES, P_SPRITE_W, P_BOX_DX, HERO, HALF_W, HALF_H16, ARENA_W, SCREEN_W, POOL_BASE, POOL_COUNT = table.unpack(slay)
-local SPEC = { art_w = 24, art_h = 32, tiles = 88, sprite_w = 32, box_dx = 14 }
+local SPEC = { art_w = 24, art_h = 32, tiles = 112, sprite_w = 32, box_dx = 14 }
 local FLOW_PLAYING = 3
 
 local mem   = manager.machine.devices[":maincpu"].spaces["program"]
