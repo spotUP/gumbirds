@@ -278,7 +278,7 @@ static const GgCard gg_cards[GG_PICK_COUNT] = {
             { { "MASH A+B", "FOR POWER" }, { "A LOCKS", "THE ANGLE" }, { "MASH TO", "FLAP" } },
             { "SAFE ANGLE: 15 TO 75 DEGREES", "TAKE TURNS: 3 THROWS EACH" } },
     [6] = { "POOP ON THE WALKERS' HEADS FOR POINTS",
-            { { "STICK TO FLY", "OVER THE STREET" }, { "A DROPS POOP", "5 SHOTS, BERRY +3" }, { "HITS IN A ROW", "SCORE MORE" } },
+            { { "A FLAPS, B DROPS", "POOP ON WALKERS" }, { "HITS IN A ROW", "SCORE MORE" }, { "TOUCH A WALKER", "OR STREET: OUT" } },
             { "UMBRELLAS BLOCK, ANGRY SHOES STUN", "60 SECONDS, 1 OR 2 PLAYERS" } },
 };
 const GgCard *flow_gg_card(uint8_t event)
