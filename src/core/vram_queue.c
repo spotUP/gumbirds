@@ -109,6 +109,12 @@ int vq_vram_word(VramQueue *q, u16 addr, u16 val) {
     return push(q, &op);
 }
 
+int vq_vram_run(VramQueue *q, u16 addr, u16 mod, const u16 *src, u8 n) {
+    if (!n || !mod) return 1;   /* nothing to write; 0 would make gfx RETRY wait forever */
+    VqOp op = { src, addr, mod, 0, VQ_RUN, n, (u16)(VQ_US_RUN + VQ_US_RUN_WORD * n), 0 };
+    return push(q, &op);
+}
+
 u8 vq_strips(VramQueue *q, u16 first, u8 cols, u8 rows, const u16 *tiles, u16 base, u16 attr) {
     VqStripKey *k = &q->strip[first];
     u16 cost = (u16)(VQ_US_STRIP + VQ_US_ROW * rows);

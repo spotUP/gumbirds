@@ -113,6 +113,7 @@ void gfx_drain(void) {
 
 void gfx_word_push(u16 addr, u16 val) { RETRY(vq_scb_word_push(&g_gfx_q, addr, val)); }
 void gfx_vram_word(u16 addr, u16 val) { RETRY(vq_vram_word(&g_gfx_q, addr, val)); }
+void gfx_vram_run(u16 addr, u16 mod, const u16 *src, u8 n) { RETRY(vq_vram_run(&g_gfx_q, addr, mod, src, n)); }
 void gfx_strip(u16 sprite, const u16 *tiles, u16 base, u8 rows, u16 attr) { RETRY(vq_strip(&g_gfx_q, sprite, tiles, base, rows, attr)); }
 void gfx_scb_run(u16 addr, u16 mod, const u16 *vals, u8 n) { RETRY(vq_scb_run(&g_gfx_q, addr, mod, vals, n)); }
 void gfx_scb_ramp(u16 addr, u8 n, u8 split, u16 v1, u16 v2) { RETRY(vq_scb_ramp(&g_gfx_q, addr, n, split, v1, v2)); }

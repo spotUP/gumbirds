@@ -31,6 +31,7 @@ void gfx_word_push(u16 addr, u16 val); /* gfx_word without the dedupe test */
  * thoughts/shared/research/2026-11-09_test-laser-hit-fix.md, section Loop 60 Hz fix). */
 static inline void gfx_word(u16 addr, u16 val) { if (!vq_scb_same(&g_gfx_q, addr, val)) gfx_word_push(addr, val); }
 void gfx_vram_word(u16 addr, u16 val); /* one unshadowed VRAM word (a tile word of a loaded strip) */
+void gfx_vram_run(u16 addr, u16 mod, const u16 *src, u8 n); /* unshadowed strided run, src read at flush (vq_vram_run) */
 void gfx_strip(u16 sprite, const u16 *tiles, u16 base, u8 rows, u16 attr);
 /* Strided SCB2..SCB4 run (vq_scb_run): vals[k] goes to addr + k * mod, one queue op for all changed words. For
  * per-frame words of many sprites at a fixed stride, e.g. the head SCB3/SCB4 of every pool object. */

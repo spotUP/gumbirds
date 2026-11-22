@@ -73,7 +73,7 @@ local card_leak, card_leak_n = nil, 0   -- first sprite shown under the rules ca
 local function finish(ok, msg)
   if done then return end
   done = true
-  msg = msg .. rate_text() .. st.peak_text(); if ok and st.peak_max() > 96 then ok = false end   -- stadium_snap.lua: sprites per line over every slot
+  msg = msg .. rate_text() .. st.peak_text() .. st.busy_text(); if ok and (st.peak_max() > 96 or st.busy_bad()) then ok = false end   -- stadium_snap.lua: sprites per line over every slot, crowd busy vblanks
   local f = io.open(result, "w"); f:write((ok and "PASS " or "FAIL ") .. msg .. "\n"); f:close()
   print("BRAWL_TEST " .. (ok and "PASS " or "FAIL ") .. msg)
   manager.machine:exit()

@@ -17,6 +17,7 @@
 #define DYN 10
 #define PAL_BASE (STADIUM_PAL_SLOT + STADIUM_PALETTE_COUNT)
 _Static_assert(FIRST + 2 * COLS_MAX + TOWER_SPRITES <= SPRITE_RESERVED + 111, "stands overrun the parallax plane slots");
+_Static_assert(21 % STADIUM_STEP_FRAMES == 0 && COLS_MAX - 21 <= 21, "columns 21.. reuse the runs of columns 0..");
 _Static_assert(STADIUM_TILE_BASE + STADIUM_TILE_COUNT <= 0x10000, "stand tile numbers need the attribute's tile high bits");
 
 /* dynamic cells: {group, row} of far row 0 top/seat, far row 1 top/seat, near row 0, near row 1, near row 2 */
@@ -24,9 +25,12 @@ static const u8 k_dyn[DYN][2] = {{1, 0}, {1, 1}, {0, 3}, {0, 4}, {1, 3}, {1, 4},
 
 static Stadium g_st;
 static u8 g_on, g_vis, g_ready, g_mood, g_fling, g_cols, g_load, g_phase, g_passes, g_step, g_warm;
-static u16 g_pairs[2][21][GROUP_ROWS][2];          /* strip pairs {tile, attribute}: the queue reads them at flush time, so they stay */
+/* strip pairs {absolute tile, attribute}: the SCB1 words of columns 0..20 (strip loads and crowd runs read them at flush time, so
+ * they stay). The crowd cells are written in place, so this is also the dedupe shadow of the crowd tiles. */
+static u16 g_pairs[2][21][GROUP_ROWS][2];
 static u16 g_tpairs[TOWER_SPRITES][2][2];
-static u16 g_cell[COLS_MAX][DYN], g_dig[STADIUM_DIGITS];
+static u16 g_dig[STADIUM_DIGITS];
+static u8 g_wrap[COLS_MAX - 21][2][2];   /* {first, last} changed row per group of columns 0..: column c + 21 shows the same crowd */
 static u16 g_s3[2 * COLS_MAX + TOWER_SPRITES], g_s4[2 * COLS_MAX + TOWER_SPRITES];
 
 static u16 attr_of(u8 pal, u8 flip) { return (u16)(((PAL_BASE + pal) << 8) | (flip ? 1 : 0)); }
@@ -36,7 +40,7 @@ static void build_pairs(u8 mood) {
         for (u8 c = 0; c < 21; c++)
             for (u8 r = 0; r < GROUP_ROWS; r++) {
                 u8 p = ST_LP[mood][g][c][r];
-                g_pairs[g][c][r][0] = ST_LT[mood][g][c][r];
+                g_pairs[g][c][r][0] = (u16)(STADIUM_TILE_BASE + ST_LT[mood][g][c][r]);
                 g_pairs[g][c][r][1] = attr_of(p & 127, p >> 7);
             }
     for (u8 t = 0; t < TOWER_SPRITES; t++) {
@@ -55,13 +59,29 @@ static void hide_all(void) {
 static u16 sprite_of(u8 g, u8 c) { return (u16)(FIRST + g * g_cols + c); }
 static void put(u8 g, u8 c, u8 row, u16 tile) { gfx_vram_word((u16)(ADDR_SCB1 + sprite_of(g, c) * 64 + row * 2), (u16)(STADIUM_TILE_BASE + tile)); }
 
+/* One queued run per group of a column: rows lo..hi of the SCB1 tile words (stride 2, unchanged rows between rewritten with their
+ * own value). A cheer changed up to 56 cells a frame, one word op each: 1 ms of flush plus the puts, busy vblanks (fling card 7). */
+static void run_out(u8 g, u8 c, u8 lo, u8 hi) {
+    if (lo <= hi) gfx_vram_run((u16)(ADDR_SCB1 + sprite_of(g, c) * 64 + lo * 2), 2, &g_pairs[g][c % 21][lo][0], (u8)(hi - lo + 1));
+}
+
 static void write_column(u8 c) {
     StadiumCell v[DYN / 2];
-    stadium_column(&g_st, c % 21, g_mood == GAME_MOOD_STORM, v);
-    for (u8 r = 0; r < DYN / 2; r++) {
-        u16 *w = &g_cell[c][2 * r];
-        if (w[0] != v[r].top) { put(k_dyn[2 * r][0], c, k_dyn[2 * r][1], v[r].top); w[0] = v[r].top; }
-        if (w[1] != v[r].bot) { put(k_dyn[2 * r + 1][0], c, k_dyn[2 * r + 1][1], v[r].bot); w[1] = v[r].bot; }
+    u8 lo[2] = {GROUP_ROWS, GROUP_ROWS}, hi[2] = {0, 0};
+    if (c >= 21) {   /* same phase as c - 21 (21 % STADIUM_STEP_FRAMES == 0), which ran first this frame and updated the shared pairs */
+        for (u8 g = 0; g < 2; g++) run_out(g, c, g_wrap[c - 21][g][0], g_wrap[c - 21][g][1]);
+        return;
+    }
+    stadium_column(&g_st, c, g_mood == GAME_MOOD_STORM, v);
+    for (u8 k = 0; k < DYN; k++) {
+        u8 g = k_dyn[k][0], r = k_dyn[k][1];
+        u16 t = (u16)(STADIUM_TILE_BASE + ((k & 1) ? v[k >> 1].bot : v[k >> 1].top));
+        u16 *w = &g_pairs[g][c][r][0];
+        if (*w != t) { *w = t; if (r < lo[g]) lo[g] = r; if (r > hi[g]) hi[g] = r; }
+    }
+    for (u8 g = 0; g < 2; g++) {
+        run_out(g, c, lo[g], hi[g]);
+        if (c < COLS_MAX - 21) { g_wrap[c][g][0] = lo[g]; g_wrap[c][g][1] = hi[g]; }
     }
 }
 
@@ -82,7 +102,6 @@ void stadium_hw_step(int on, int show, u8 mood, int fling, int scroll) {
         if (!g_on) { stadium_reset(&g_st); stadium_wave(&g_st); g_step = 0; g_warm = 0; }
         g_on = 1; g_vis = g_ready = 0; g_mood = mood; g_fling = (u8)(fling != 0); g_cols = fling ? STADIUM_FLING_COLS : STADIUM_COLS;
         g_load = g_phase = g_passes = 0;
-        for (u8 c = 0; c < COLS_MAX; c++) for (u8 k = 0; k < DYN; k++) g_cell[c][k] = 0;
         for (u8 i = 0; i < STADIUM_DIGITS; i++) g_dig[i] = 0xFFFF;
         build_pairs(mood);
         gfx_sprite_unchained(FIRST, (u8)(2 * g_cols + TOWER_SPRITES));
@@ -97,7 +116,7 @@ void stadium_hw_step(int on, int show, u8 mood, int fling, int scroll) {
             for (u8 i = 0; i < 16; i++) gfx_pal((u16)((PAL_BASE + ST_PAL_FIRST[mood] + g_load) * 16 + i), p[i]);
         } else {
             u8 s = (u8)(g_load - npal);
-            if (s < 2 * g_cols) gfx_strip_attr((u16)(FIRST + s), &g_pairs[s / g_cols][(s % g_cols) % 21][0][0], STADIUM_TILE_BASE, GROUP_ROWS);
+            if (s < 2 * g_cols) gfx_strip_attr((u16)(FIRST + s), &g_pairs[s / g_cols][(s % g_cols) % 21][0][0], 0, GROUP_ROWS);
             else gfx_strip_attr((u16)(FIRST + s), &g_tpairs[s - 2 * g_cols][0][0], STADIUM_TILE_BASE, 2);
         }
         g_load++; loads--;

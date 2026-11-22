@@ -1052,6 +1052,7 @@ test-gum-big-blow: cart bios
 	BRAWL_FLOW_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flow"{print $$1}') \
 	BRAWL_BLOW_LAYOUT="$$($(M68KGCC) $(NGCFLAGS) -Ibuild -std=c99 -S -o - tests/mame/gum_big_blow_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
 	BRAWL_RESULT=$$T/result.txt \
+	STADIUM_ST_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_st"{print $$1}') STADIUM_VBBUSY_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_vb_busy"{print $$1}') \
 	SDL_VIDEODRIVER=dummy nice -n 19 $(MAME) -window -nomaximize -video none -sound none -nothrottle -seconds_to_run 300 -noautosave -skip_gameinfo -hash $(ROM) -rp "$(UNIBIOS_DIR);$(ROM)" -bios unibios40 -nvram_directory $$T -autoboot_script tests/mame/gum_big_blow_check.lua neogeo -cart1 $(GAMEROM) > $$T/mame.log 2>&1 || true; \
 	if [ ! -f $$T/result.txt ]; then tail -n 15 $$T/mame.log; echo "[FAIL] no result from Big Blow Lua script"; exit 1; fi; \
 	cat $$T/result.txt; \
@@ -1066,6 +1067,7 @@ test-gum-burst-race: cart bios
 	BRAWL_FLOW_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flow"{print $$1}') \
 	BRAWL_SNAP=$(RACE_SNAP) BRAWL_BLOW_LAYOUT="$$($(M68KGCC) $(NGCFLAGS) -Ibuild -std=c99 -S -o - tests/mame/gum_burst_race_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
 	BRAWL_RESULT=$$T/result.txt \
+	STADIUM_ST_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_st"{print $$1}') STADIUM_VBBUSY_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_vb_busy"{print $$1}') \
 	SDL_VIDEODRIVER=dummy nice -n 19 $(MAME) -window -nomaximize -video none -sound none -nothrottle -seconds_to_run 300 -noautosave -skip_gameinfo -hash $(ROM) -rp "$(UNIBIOS_DIR);$(ROM)" -bios unibios40 -nvram_directory $$T $(if $(RACE_SNAP),-snapshot_directory $(RACE_SNAP)) -autoboot_script tests/mame/gum_burst_race_check.lua neogeo -cart1 $(GAMEROM) > $$T/mame.log 2>&1 || true; \
 	if [ ! -f $$T/result.txt ]; then tail -n 15 $$T/mame.log; echo "[FAIL] no result from Burst Race Lua script"; exit 1; fi; \
 	cat $$T/result.txt; \
@@ -1107,6 +1109,7 @@ test-gum-burst-race-2p: cart bios
 	BRAWL_FLOW_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flow"{print $$1}') \
 	BRAWL_BLOW_LAYOUT="$$($(M68KGCC) $(NGCFLAGS) -Ibuild -std=c99 -S -o - tests/mame/gum_burst_race_2p_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
 	BRAWL_RESULT=$$T/result.txt \
+	STADIUM_ST_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_st"{print $$1}') STADIUM_VBBUSY_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_vb_busy"{print $$1}') \
 	SDL_VIDEODRIVER=dummy nice -n 19 $(MAME) -window -nomaximize -video none -sound none -nothrottle -seconds_to_run 300 -noautosave -skip_gameinfo -hash $(ROM) -rp "$(UNIBIOS_DIR);$(ROM)" -bios unibios40 -nvram_directory $$T -autoboot_script tests/mame/gum_burst_race_2p_check.lua neogeo -cart1 $(GAMEROM) > $$T/mame.log 2>&1 || true; \
 	if [ ! -f $$T/result.txt ]; then tail -n 15 $$T/mame.log; echo "[FAIL] no result from Burst Race 2P Lua script"; exit 1; fi; \
 	cat $$T/result.txt; \
@@ -1198,6 +1201,7 @@ test-gum-fling: cart bios
 	BRAWL_VBBUSY_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_vb_busy"{print $$1}') \
 	BRAWL_BLOW_LAYOUT="$$($(M68KGCC) $(NGCFLAGS) -Ibuild -std=c99 -S -o - tests/mame/gum_fling_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
 	BRAWL_RESULT=$$T/result.txt \
+	STADIUM_ST_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_st"{print $$1}') STADIUM_VBBUSY_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_vb_busy"{print $$1}') \
 	SDL_VIDEODRIVER=dummy nice -n 19 $(MAME) -window -nomaximize -video none -sound none -nothrottle -seconds_to_run 300 -noautosave -skip_gameinfo -hash $(ROM) -rp "$(UNIBIOS_DIR);$(ROM)" -bios unibios40 -nvram_directory $$T -autoboot_script tests/mame/gum_fling_check.lua neogeo -cart1 $(GAMEROM) > $$T/mame.log 2>&1 || true; \
 	if [ ! -f $$T/result.txt ]; then tail -n 15 $$T/mame.log; echo "[FAIL] no result from Gum Fling Lua script"; exit 1; fi; \
 	cat $$T/result.txt; \

@@ -11,6 +11,7 @@ for v in (os.getenv("BRAWL_BLOW_LAYOUT") or ""):gmatch("%d+") do L[#L + 1] = ton
 local O = { state = L[1], mode = L[2], race = L[3], phase = L[4], size0 = L[5], size1 = L[6], winner = L[7], score = L[8], players = L[9], rplayers = L[10] }
 local K = { playing = L[11], gum = L[12], intro = L[13], play = L[14], res = L[15], card = L[16] }
 local mem = manager.machine.devices[":maincpu"].spaces["program"]
+local st = dofile("tests/mame/stadium_snap.lua")(mem, flow_addr)
 local ports = manager.machine.ioport.ports
 local function field(tag, match)
   local p = ports[tag]
@@ -39,6 +40,7 @@ local done = false
 local function finish(ok, msg)
   if done then return end
   done = true
+  msg = msg .. st.peak_text() .. st.busy_text(); if ok and (st.peak_max() > 96 or st.busy_bad()) then ok = false end   -- stadium_snap.lua: sprites per line, crowd busy vblanks
   local f = io.open(result, "w"); f:write((ok and "PASS " or "FAIL ") .. msg .. "\n"); f:close()
   print("BRAWL_TEST " .. (ok and "PASS " or "FAIL ") .. msg)
   manager.machine:exit()
@@ -50,6 +52,7 @@ emu.register_frame_done(function()
   n = n + 1
   if n > 30000 then finish(false, "watchdog in phase " .. phase) return end
   local playing = b(O.state) == K.playing
+  if playing then st.poke() end
   if phase == "boot" then
     if n == 600 then phase = "start"; t0 = n; ss.begin(n) end
   elseif phase == "start" then

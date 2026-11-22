@@ -168,6 +168,15 @@ int main(void)
     CHECK(vq_pal(&q, 5, 1) && vq_pal(&q, 5, 1) && vq_pending(&q) == 2 && total_cost() == 2 * VQ_US_PAL);
     CHECK(vq_vram_word(&q, 0, 1) && vq_vram_word(&q, 0, 1) && vq_pending(&q) == 2);
     (void)total_cost();
+    {   /* vq_vram_run: one unshadowed strided run, source read at flush; an empty run queues nothing and reports done */
+        static const u16 src[6] = { 7, 0, 8, 0, 9, 0 };
+        VramQueue a;
+        vq_init(&a);
+        CHECK(vq_vram_run(&a, 0x0106, 2, src, 3) && vq_pending(&a) == 1);
+        CHECK(vq_peek(&a)->kind == VQ_RUN && vq_peek(&a)->tiles == src && vq_peek(&a)->a == 0x0106 && vq_peek(&a)->b == 2 && vq_peek(&a)->rows == 3);
+        CHECK(vq_cost(vq_peek(&a)) == VQ_US_RUN + 3 * VQ_US_RUN_WORD);
+        CHECK(vq_vram_run(&a, 0x0106, 2, src, 0) && vq_vram_run(&a, 0x0106, 0, src, 3) && vq_pending(&a) == 1);
+    }
     /* fix layer: a clear plus the same text is no hardware change after the first commit */
     vq_fix_fill(&q, 0x20);
     vq_fix_put(&q, 2, 3, 0x1041);

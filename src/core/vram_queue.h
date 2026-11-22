@@ -133,6 +133,10 @@ int vq_scb_ramp(VramQueue *q, u16 addr, u8 n, u8 split, u16 v1, u16 v2);
 /* The words a VQ_RAMP op makes the flush write (out[op->rows]); the host tests compare them with the model. */
 void vq_ramp_expand(const VqOp *op, u16 *out);
 int vq_vram_word(VramQueue *q, u16 addr, u16 val);  /* unshadowed single word (e.g. a star tile) */
+/* Unshadowed strided run (VQ_RUN): src[k * mod] goes to addr + k * mod, read at flush time, so src must hold its values until
+ * the flush. One op for several words, e.g. the changed crowd rows of a stand column (SCB1 tile words, mod 2). 0 when the
+ * queue is full; n or mod 0 queues nothing and returns 1. */
+int vq_vram_run(VramQueue *q, u16 addr, u16 mod, const u16 *src, u8 n);
 int vq_strip(VramQueue *q, u16 sprite, const u16 *tiles, u16 base, u8 rows, u16 attr);
 /* One column whose tiles carry their own attribute (palette): `pairs` holds `rows` {tile, attribute} pairs. For art
  * that uses several palettes in one column, written once at init, so there is no dedupe key. */
