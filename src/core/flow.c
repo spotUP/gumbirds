@@ -414,7 +414,6 @@ void flow_step(Flow *f, uint8_t input, uint8_t start_pressed, uint32_t frame_cou
             break;
         }
         game_step(&f->game, input);
-        if (f->game.over && game_end_event(&f->game, event_title(f))) break;   /* a minigame shows its results first, never GAME OVER */
         if (f->game.over) {
             f->last_players = f->game.players;
             f->last_score[0] = f->game.score;
@@ -442,6 +441,7 @@ void flow_step(Flow *f, uint8_t input, uint8_t start_pressed, uint32_t frame_cou
                 uint32_t best = f->game.blow.seq.best[0];
                 if (best > f->tables.gg_record[GG_BIG_BLOW]) { f->tables.gg_record[GG_BIG_BLOW] = best; f->dirty = 1; }
             }
+            if (game_end_event(&f->game, event_title(f))) break;   /* a minigame shows its results first, never GAME OVER; records are already saved above */
             f->ended = 1;
             if (!f->game.res.ev) enter(f, FLOW_GAME_OVER);
             else if (!next_entry(f, 0)) enter(f, FLOW_ATTRACT_TITLE);   /* the result screen was the end screen */
