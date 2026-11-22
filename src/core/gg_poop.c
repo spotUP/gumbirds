@@ -70,7 +70,7 @@ static void bird_kill(GgPoop *p, PmBird *b)
 static void bird_step(GgPoop *p, int k, uint8_t in)
 {
     PmBird *b = &p->b[k];
-    int i, vx = PM_BIRD_VX;
+    int i, vx = 0;
     int flap = (in & IN_A) && !(b->prev_in & IN_A), drop = (in & IN_B) && !(b->prev_in & IN_B);
     if (b->drop_t && b->drop_t < 255) b->drop_t++;
     if (b->flap_t && b->flap_t < 255) b->flap_t++;
@@ -85,14 +85,14 @@ static void bird_step(GgPoop *p, int k, uint8_t in)
         return;
     }
     if (b->stun) { b->stun--; return; }
-    if (in & IN_LEFT) vx = 8;
-    if (in & IN_RIGHT) vx = 40;
+    if (in & IN_LEFT) vx = -PM_BIRD_VX;
+    if (in & IN_RIGHT) vx = PM_BIRD_VX;
     b->vy16 = (int16_t)(b->vy16 + PM_GRAVITY);
     if (flap && !b->flap_cd) { b->vy16 = -PM_FLAP_VY; b->flap_cd = PM_FLAP_CD; b->flap_t = 1; p->sfx |= PM_SFX_FLAP; }
     if (b->vy16 > PM_FALL_MAX) b->vy16 = PM_FALL_MAX;
     if (b->vy16 < -PM_RISE_MAX) b->vy16 = -PM_RISE_MAX;
     b->xf = (int16_t)(b->xf + vx); b->x = (int16_t)(b->x + (b->xf >> 4)); b->xf &= 15;
-    if (b->x >= PM_W) b->x = (int16_t)(b->x - PM_W);
+    if (b->x < 0) { b->x = 0; b->xf = 0; } else if (b->x > PM_W) { b->x = PM_W; b->xf = 0; }   /* the bird stays on screen */
     b->yf = (int16_t)(b->yf + b->vy16); b->y = (int16_t)(b->y + (b->yf >> 4)); b->yf &= 15;   /* arithmetic shift: floor for negatives */
     if (b->y < PM_BIRD_Y_MIN) { b->y = PM_BIRD_Y_MIN; if (b->vy16 < 0) b->vy16 = 0; }
     if (b->y + PM_BIRD_HALF_H >= PM_FEET_Y) {   /* the pavement kills; invulnerable birds stop on it */

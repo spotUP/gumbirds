@@ -4,8 +4,8 @@
 #include "gumgames.h"
 #include "rng.h"
 
-/* Gum Games event Poop the Man (pure logic, owner plan 2026-11-20). Scrolling city street: the birds fly free over it (they always drift
- * right, stick left/right trims the speed; gravity pulls them down and A (press edge) is a flap, like every other mode; stick up/down does
+/* Gum Games event Poop the Man (pure logic, owner plan 2026-11-20). Scrolling city street: the birds fly free over it (stick left/right steers at
+ * PM_BIRD_VX, no stick holds x, the arena flier's top air speed; gravity pulls them down and A (press edge) is a flap, like every other mode; stick up/down does
  * nothing), B drops one poop that keeps the bird's forward speed (lead the target); no ammo, only a PM_DROP_CD frame cooldown per bird.
  * A bird that touches a walker body (full cell box, any state) or the pavement dies: streak ends, score kept, it falls off screen, respawns at
  * mid-height after PM_DEAD_FRAMES with PM_INV_FRAMES of invulnerability (blink). Input is ignored while dead. Walkers cross the street both ways
@@ -20,14 +20,14 @@
 #define PM_COMBO_CAP 4u
 #define PM_STUN 45u
 #define PM_SCROLL 2                  /* street scroll, px per frame (walkers and berries move with it) */
-#define PM_FEET_Y 216
-#define PM_PAVE_Y 220                /* a poop lower than this hit the pavement */
+#define PM_FEET_Y 176                /* the city roof line the backdrop draws as ground (GROUND = 176 in assets/city/draw_city.py); walker feet bottom row is PM_FEET_Y - 1 */
+#define PM_PAVE_Y (PM_FEET_Y + 4)                   /* a poop lower than this hit the pavement */
 #define PM_BIRD_Y_MIN 24
 #define PM_DROP_CD 12u               /* frames between two drops of one bird */
 #define PM_DEAD_FRAMES 90u
 #define PM_INV_FRAMES 60u
 #define PM_BODY_HALF_W 8             /* walker body half width for the bird touch (bird half width PM_BIRD_HALF_W is added) */
-#define PM_BIRD_VX 24                /* 1/16 px per frame: base drift 1.5 px, Left 0.5, Right 2.5 */
+#define PM_BIRD_VX 27                /* 1/16 px per frame sideways while Left / Right is held (FLIER_TOP_AIR_SPEED 1.667 px); no stick = no drift */
 #define PM_GRAVITY 1                 /* 1/16 px per frame per frame (flier.c gravity 3413/65536 px scaled to 1/16 px, rounded) */
 #define PM_FLAP_VY 14                /* A press sets vy to this much upward (1/16 px per frame) */
 #define PM_FLAP_CD 9u                /* FLIER_FLAP_COOLDOWN */
