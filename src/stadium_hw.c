@@ -56,16 +56,12 @@ static u16 sprite_of(u8 g, u8 c) { return (u16)(FIRST + g * g_cols + c); }
 static void put(u8 g, u8 c, u8 row, u16 tile) { gfx_vram_word((u16)(ADDR_SCB1 + sprite_of(g, c) * 64 + row * 2), (u16)(STADIUM_TILE_BASE + tile)); }
 
 static void write_column(u8 c) {
-    u8 cc = (u8)(c % 21), storm = g_mood == GAME_MOOD_STORM;
     StadiumCell v[DYN / 2];
-    v[0] = stadium_far(&g_st, 0, cc);
-    v[1] = stadium_far(&g_st, 1, cc);
-    v[2] = stadium_near(&g_st, 0, cc, storm);
-    v[3] = stadium_near(&g_st, 1, cc, storm);
-    v[4] = stadium_near(&g_st, 2, cc, storm);
-    for (u8 k = 0; k < DYN; k++) {
-        u16 t = (k & 1) ? v[k >> 1].bot : v[k >> 1].top;
-        if (g_cell[c][k] != t) { put(k_dyn[k][0], c, k_dyn[k][1], t); g_cell[c][k] = t; }
+    stadium_column(&g_st, c % 21, g_mood == GAME_MOOD_STORM, v);
+    for (u8 r = 0; r < DYN / 2; r++) {
+        u16 *w = &g_cell[c][2 * r];
+        if (w[0] != v[r].top) { put(k_dyn[2 * r][0], c, k_dyn[2 * r][1], v[r].top); w[0] = v[r].top; }
+        if (w[1] != v[r].bot) { put(k_dyn[2 * r + 1][0], c, k_dyn[2 * r + 1][1], v[r].bot); w[1] = v[r].bot; }
     }
 }
 

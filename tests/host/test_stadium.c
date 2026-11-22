@@ -32,6 +32,18 @@ int main(void)
             CHECK(x.top == a[r][c][i & 15].top && x.bot == a[r][c][i & 15].bot);
         }
     }
+    /* stadium_column (idle memos, any mode, both storm looks, storm toggled) equals the per-cell lookups */
+    for (i = 0; i < 4 * 48; i++) {
+        StadiumCell v[STADIUM_FAR_ROWS + STADIUM_NEAR_ROWS];
+        int storm = (i / 48) & 1;
+        s.mode[0] = (uint8_t)(i < 96 ? STADIUM_IDLE : STADIUM_CHEER); s.mode[1] = (uint8_t)(i & 4 ? STADIUM_IDLE : STADIUM_WAVE);
+        s.t[0] = s.t[1] = (uint16_t)(i % 48);
+        for (c = 0; c < STADIUM_COLS; c++) {
+            stadium_column(&s, c, storm, v);
+            for (r = 0; r < STADIUM_FAR_ROWS; r++) { StadiumCell x = stadium_far(&s, r, c); CHECK(v[r].top == x.top && v[r].bot == x.bot); }
+            for (r = 0; r < STADIUM_NEAR_ROWS; r++) { StadiumCell x = stadium_near(&s, r, c, storm); CHECK(v[STADIUM_FAR_ROWS + r].top == x.top && v[STADIUM_FAR_ROWS + r].bot == x.bot); }
+        }
+    }
     /* a score rise cheers its own side only, for a bounded time, then idles */
     stadium_reset(&s);
     stadium_set_scores(&s, 1, 0);

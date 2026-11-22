@@ -108,18 +108,20 @@ static const signed char *far_block_entry(uint8_t mode, int f, int row, int bc, 
 
 static StadiumCell cell(const unsigned short *p) { StadiumCell c; c.top = p[0]; c.bot = p[1]; return c; }
 
-StadiumCell stadium_near(const Stadium *s, int row, int col, int storm)
+static const unsigned short *near_ptr(const Stadium *s, int row, int col, int storm)
 {
     char t = ST_NT[row][col];
     signed char pose, dy;
     int type;
-    if (t == 's') return cell(ST_AISLE);
-    if (t == 'e') return cell(ST_EMPTY);
+    if (t == 's') return ST_AISLE;
+    if (t == 'e') return ST_EMPTY;
     type = t - 'a';
     near_state(s->mode[side_of(col)], s->t[side_of(col)], row, col, type, &pose, &dy);
-    if (storm && ST_NU[row][col] == '1') return cell(ST_UMB[dy + 10]);     /* umbrella birds hop with the umbrella */
-    return cell(ST_NEAR[type][pose][dy + 10]);
+    if (storm && ST_NU[row][col] == '1') return ST_UMB[dy + 10];     /* umbrella birds hop with the umbrella */
+    return ST_NEAR[type][pose][dy + 10];
 }
+
+StadiumCell stadium_near(const Stadium *s, int row, int col, int storm) { return cell(near_ptr(s, row, col, storm)); }
 
 /* Far cell lookup: ST_FAR_TILE index + 1, or FAR_NONE. An idle far cell depends on (f >> 1) & 7 only, so its result
  * is kept per cell and phase (g_far_idle, 0 = not known yet): the 4 bird lookups and the key search ran for a third of
@@ -165,6 +167,43 @@ StadiumCell stadium_far(const Stadium *s, int row, int col)
     m = &g_far_idle[row][col][(f >> 1) & 7];
     if (!*m) *m = far_index(row, col, f, 0);
     return far_cell(*m);
+}
+
+/* Near idle memo: code 1..216 = ST_NEAR flattened + 1, 217..228 = ST_UMB + 217, 0 = not known yet. Keyed on storm: a mood
+ * change clears it. */
+#define NEAR_FLAT (3 * 6 * 12)
+static uint8_t g_near_idle[STADIUM_NEAR_ROWS][STADIUM_COLS][8], g_near_storm;
+
+static const unsigned short *near_code_cell(uint8_t k) { return k > NEAR_FLAT ? ST_UMB[k - NEAR_FLAT - 1] : (&ST_NEAR[0][0][0])[k - 1]; }
+
+/* stadium_far for rows 0..1 then stadium_near for rows 0..2 of one column, in one call: an idle side reads only the memos
+ * (the five lookups per column, a third of the stand every frame, were most of a Gum Fling flight frame). */
+void stadium_column(const Stadium *s, int col, int storm, StadiumCell out[STADIUM_FAR_ROWS + STADIUM_NEAR_ROWS])
+{
+    int r, p;
+    if (s->mode[side_of(col)] != STADIUM_IDLE) {
+        for (r = 0; r < STADIUM_FAR_ROWS; r++) out[r] = stadium_far(s, r, col);
+        for (r = 0; r < STADIUM_NEAR_ROWS; r++) out[STADIUM_FAR_ROWS + r] = stadium_near(s, r, col, storm);
+        return;
+    }
+    p = (s->t[side_of(col)] >> 1) & 7;
+    if (g_near_storm != (uint8_t)(storm != 0) + 1) { memset(g_near_idle, 0, sizeof g_near_idle); g_near_storm = (uint8_t)((storm != 0) + 1); }
+    for (r = 0; r < STADIUM_FAR_ROWS; r++) {
+        uint8_t *m = &g_far_idle[r][col][p];
+        if (ST_FB[r][col] == 'S') { out[r] = cell(ST_AISLE); continue; }
+        if (!*m) *m = far_index(r, col, s->t[side_of(col)], 0);
+        out[r] = far_cell(*m);
+    }
+    for (r = 0; r < STADIUM_NEAR_ROWS; r++) {
+        uint8_t *m = &g_near_idle[r][col][p];
+        char t = ST_NT[r][col];
+        if (t == 's' || t == 'e') { out[STADIUM_FAR_ROWS + r] = cell(t == 's' ? ST_AISLE : ST_EMPTY); continue; }
+        if (!*m) {
+            const unsigned short *c = near_ptr(s, r, col, storm);
+            *m = (uint8_t)(c >= ST_UMB[0] && c <= ST_UMB[11] ? (c - ST_UMB[0]) / 2 + NEAR_FLAT + 1 : (c - &ST_NEAR[0][0][0][0]) / 2 + 1);
+        }
+        out[STADIUM_FAR_ROWS + r] = cell(near_code_cell(*m));
+    }
 }
 
 void stadium_far_warm(int row, int col)
