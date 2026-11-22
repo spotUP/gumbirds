@@ -11,7 +11,7 @@ local L = {}
 for v in (os.getenv("BRAWL_PARTY_LAYOUT") or ""):gmatch("%d+") do L[#L + 1] = tonumber(v) end
 local O = { flow = L[1], frule = L[2], rule = L[3], twist = L[4], rs = L[5], mode = L[6] }
 local K = { playing = L[7], round = L[8], rs_round = L[9], rs_go = L[10], arena = L[11] }
-O.howto = L[12]
+O.howto = L[12]; O.mood = L[13]
 local mem = manager.machine.devices[":maincpu"].spaces["program"]
 local ports = manager.machine.ioport.ports
 local function field(tag, match)
@@ -50,6 +50,7 @@ emu.register_frame_done(function()
   n = n + 1
   if n > 30000 then finish(false, "watchdog in phase " .. phase) return end
   local playing = b(O.flow) == K.playing
+  if playing and phase ~= "start" then mem:write_u8(flow_addr + O.mood, 0) end -- pin calm: storm rain lights fix cells on the banner rows
   if phase == "boot" then
     if n == 600 then phase = "start"; t0 = n; ss.begin(n) end
   elseif phase == "start" then
