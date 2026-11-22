@@ -65,12 +65,10 @@ int main(void)
     {
         Flow f;
         flow_init(&f, 0, 0);
-        f.mode = GAME_MODE_GUM;
-        f.gg_event = GG_BIG_BLOW;
+        f.mode = GAME_MODE_PARTY;  /* merged PARTY list: sub_i 0 = Rule of the Round, 4 = Big Blow ... 10 = Poop the Man */
         flow_coin(&f);
         flow_step(&f, IN_A, 0, 0); flow_step(&f, 0, 0, 0); /* A opens the GUM GAMES list */
-        flow_step(&f, IN_DOWN, 0, 0);
-        flow_step(&f, 0, 0, 0);
+        { int k; for (k = 0; k < 5; k++) { flow_step(&f, IN_DOWN, 0, 0); flow_step(&f, 0, 0, 0); } }
         CHECK(f.gg_event == GG_BURST_RACE);
         f.tables.gg_record[GG_BURST_RACE] = 90;
         flow_step(&f, 0, 1, 1);

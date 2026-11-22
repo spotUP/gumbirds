@@ -71,7 +71,8 @@ typedef struct {
     uint8_t entry_h;         /* human whose ranking score the name entry is taking (P1 then P2) */
     uint8_t gg_event;        /* GG_* event under the GUM GAMES submenu cursor; kept across runs */
     uint8_t party_rule;      /* PARTY_* under the PARTY submenu cursor; kept across runs */
-    uint8_t sub_open;        /* 1 while the GUM GAMES / PARTY submenu is open on the title (A opens, B closes, Up/Down move, Start or a credited A starts) */
+    uint8_t sub_i;           /* PARTY submenu cursor: 0..PARTY_MENU_COUNT-1, party rules first, then the gum games; kept across runs */
+    uint8_t sub_open;        /* 1 while the PARTY submenu is open on the title (A opens, B closes, Up/Down move, Start or a credited A starts) */
     uint8_t last_rule;       /* PARTY_* of the last real run: tag of its PARTY table entry */
     uint8_t howto;           /* 1 while the PARTY how-to demo runs inside FLOW_PLAYING (computer bird, no rounds); A or Start ends it */
     uint8_t howto_a2;        /* P2 A held last frame (press edge for the how-to skip) */
@@ -100,7 +101,8 @@ typedef struct {
     uint8_t party_rule;      /* PARTY_* highlighted on the PARTY row */
     uint8_t gg_event;        /* GG_* picked on the GUM GAMES row */
     uint8_t select_open;     /* title: mode select opened by a start press */
-    uint8_t sub_open;        /* title: the submenu of the GUM GAMES (gg_event) or PARTY (party_rule) row is open */
+    uint8_t sub_i;           /* title: PARTY submenu cursor */
+    uint8_t sub_open;        /* title: the PARTY submenu is open */
     uint8_t howto;           /* PLAYING: the PARTY how-to demo is running (draw the overlay for party_rule of game) */
     const GgCard *card;      /* PLAYING: the Gum Games rules card to draw, NULL = none */
     uint16_t card_t;
@@ -119,11 +121,15 @@ void flow_coin(Flow *f);
 #define GG_PICK_COUNT 7
 uint8_t flow_gg_event(uint8_t i);      /* GG_* of GUM GAMES submenu line i (0..5) */
 const char *flow_gg_name(uint8_t i);   /* its on-screen name */
+#define PARTY_MENU_COUNT (PARTY_RULE_COUNT - 1 + GG_PICK_COUNT)   /* 11: RULE OF THE ROUND, ROOST RULE, TOSS GUM, TUG GUM, then the gum games */
+const char *flow_menu_name(uint8_t i);  /* on-screen name of PARTY submenu entry i */
+const char *flow_menu_goal(uint8_t i);  /* party rule goal line, NULL for a gum game */
 /* Rules card shown before GET SET (layout A "banner and strip"): goal line, three control steps of two lines, two rule lines.
  * One row per GUM GAMES event next to gg_names; NULL for an event without a card yet. */
 #define GG_CARD_FRAMES 600u      /* the card ends by itself after 10 seconds */
 #define GG_CARD_IGNORE 30u       /* A held or mashed from the menu does not skip it in the first half second */
 const GgCard *flow_gg_card(uint8_t event);
+const GgCard *flow_menu_card(uint8_t i);  /* rules card of PARTY submenu entry i, NULL for a party rule or an event without a card */
 int flow_a_opens_submenu(const Flow *f);
 void flow_view(const Flow *f, FlowView *v);
 

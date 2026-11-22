@@ -9,6 +9,7 @@ static void enter(Flow *f, FlowState s)
         }
         f->title_mood = f->game.mood;
     }
+    if (s == FLOW_ATTRACT_TITLE && f->mode == GAME_MODE_GUM) f->mode = GAME_MODE_PARTY; /* the merged PARTY row: GUM is only the mode of a gum game under the open submenu cursor */
     f->state = (uint8_t)s;
     f->timer = 0;
     f->reset_hold = 0;
@@ -16,8 +17,15 @@ static void enter(Flow *f, FlowState s)
     f->sub_open = 0;
 }
 
+/* The PARTY row plays the event under the submenu cursor (sub_i): a gum game runs as GAME_MODE_GUM. */
+static void title_resolve(Flow *f)
+{
+    if (f->mode == GAME_MODE_PARTY && f->sub_i >= PARTY_RULE_COUNT - 1) f->mode = GAME_MODE_GUM;
+}
+
 static void start_game(Flow *f, uint32_t seed, int demo)
 {
+    if (!demo) title_resolve(f);
     game_reset(&f->game, seed);
     if (demo) {
         game_set_mode(&f->game, f->demo_mode); /* each demo plays the next mode; the title highlight (f->mode) is untouched */
@@ -52,6 +60,7 @@ static void start_game(Flow *f, uint32_t seed, int demo)
  * any other mode starts at once. The demo runs as FLOW_PLAYING with howto set and no round phases. */
 static void start_title_game(Flow *f, uint32_t seed)
 {
+    title_resolve(f);
     if (f->mode != GAME_MODE_PARTY || f->party_rule == PARTY_TOSS || f->party_rule == PARTY_TUG) {   /* Toss Gum and Tug Gum have no how-to demo */
         start_game(f, seed, 0);
         f->gg_card = f->mode == GAME_MODE_GUM && flow_gg_card(f->gg_event);
@@ -92,6 +101,7 @@ void flow_init(Flow *f, const uint8_t *image, size_t len)
     f->credit_hold = 0;
     f->mode = GAME_MODE_ARENA;
     f->party_rule = PARTY_ROUND;
+    f->sub_i = 0;
     f->last_rule = PARTY_NONE;
     f->input_prev = 0;
     f->reset_flash = 0;
@@ -247,6 +257,18 @@ static const char *const gg_names[GG_PICK_COUNT] = { "BIG BLOW", "BURST RACE", "
 uint8_t flow_gg_event(uint8_t i) { return gg_order[i]; }
 const char *flow_gg_name(uint8_t i) { return gg_names[i]; }
 
+/* PARTY submenu (owner 2026-11-21): the party rules, then the gum games in gg_order. One list, one cursor (sub_i). */
+const char *flow_menu_name(uint8_t i) { return i < PARTY_RULE_COUNT - 1 ? game_party_name((uint8_t)(i + 1)) : gg_names[i - (PARTY_RULE_COUNT - 1)]; }
+const char *flow_menu_goal(uint8_t i) { return i < PARTY_RULE_COUNT - 1 ? game_party_goal((uint8_t)(i + 1)) : 0; }
+const GgCard *flow_menu_card(uint8_t i) { return i < PARTY_RULE_COUNT - 1 ? 0 : flow_gg_card(gg_order[i - (PARTY_RULE_COUNT - 1)]); }
+
+/* The cursor entry becomes the pick: party_rule or gg_event, and the mode (PARTY, or GUM for a gum game) so the title table follows. */
+static void menu_sync(Flow *f)
+{
+    if (f->sub_i < PARTY_RULE_COUNT - 1) { f->party_rule = (uint8_t)(f->sub_i + 1); f->mode = GAME_MODE_PARTY; }
+    else { f->gg_event = gg_order[f->sub_i - (PARTY_RULE_COUNT - 1)]; f->mode = GAME_MODE_GUM; }
+}
+
 /* Rules cards in gg_order order (owner 2026-11-17: Gum Fling first, the other events get theirs later). */
 static const GgCard gg_cards[GG_PICK_COUNT] = {
     [1] = { "BLOW YOUR BUBBLE BIGGER THAN THE RIVAL",
@@ -256,7 +278,7 @@ static const GgCard gg_cards[GG_PICK_COUNT] = {
             { { "MASH A+B", "FOR POWER" }, { "A LOCKS", "THE ANGLE" }, { "MASH TO", "FLAP" } },
             { "SAFE ANGLE: 15 TO 75 DEGREES", "TAKE TURNS: 3 THROWS EACH" } },
     [6] = { "POOP ON THE WALKERS' HEADS FOR POINTS",
-            { { "STICK TO FLY", "OVER THE STREET" }, { "A DROPS POOP", "5 SHOTS, BERRY +3" }, { "HITS IN A ROW", "SCORE MORE" } },
+            { { "A FLAPS, B DROPS", "POOP ON WALKERS" }, { "HITS IN A ROW", "SCORE MORE" }, { "TOUCH A WALKER", "OR STREET: OUT" } },
             { "UMBRELLAS BLOCK, ANGRY SHOES STUN", "60 SECONDS, 1 OR 2 PLAYERS" } },
 };
 const GgCard *flow_gg_card(uint8_t event)
@@ -266,32 +288,28 @@ const GgCard *flow_gg_card(uint8_t event)
     return 0;
 }
 
-/* 1 when A on the title would open a submenu (GUM GAMES or PARTY row, list open, submenu closed): the caller must not take a credit for that A. */
+/* 1 when A on the title would open the submenu (PARTY row, list open, submenu closed): the caller must not take a credit for that A. */
 int flow_a_opens_submenu(const Flow *f)
 {
-    return f->state == FLOW_ATTRACT_TITLE && f->select_open && !f->sub_open && (f->mode == GAME_MODE_GUM || f->mode == GAME_MODE_PARTY);
+    return f->state == FLOW_ATTRACT_TITLE && f->select_open && !f->sub_open && f->mode == GAME_MODE_PARTY;
 }
 
-/* Title mode select: a press edge steps through Arena, Gum Trip, Arcade, Party, Gum Games: Down forward, Up back, both wrap (both on one frame: forward). A held stick does not repeat.
- * With the submenu open (GUM GAMES events or PARTY rules) Up/Down move its cursor (gg_event / party_rule, wrapping) and B closes it; Left/Right do nothing. */
+/* Title mode select: a press edge steps through Arena, Gum Trip, Arcade, Party: Down forward, Up back, both wrap (both on one frame: forward). A held stick does not repeat.
+ * With the PARTY submenu open (party rules and gum games, PARTY_MENU_COUNT entries) Up/Down move its cursor sub_i (wrapping) and B closes it; Left/Right do nothing. */
 static void title_mode_select(Flow *f, uint8_t input, uint8_t b_edge)
 {
     uint8_t edge = (uint8_t)(input & ~f->input_prev & (IN_UP | IN_DOWN));
     if (f->sub_open) {
-        if (b_edge) f->sub_open = 0;
-        else if (!edge) return;
-        else if (f->mode == GAME_MODE_GUM) {
-            uint8_t i = 0;
-            while (gg_order[i] != f->gg_event) i++;
-            i = (edge & IN_DOWN) ? (uint8_t)(i == GG_PICK_COUNT - 1 ? 0 : i + 1) : (uint8_t)(i == 0 ? GG_PICK_COUNT - 1 : i - 1);
-            f->gg_event = gg_order[i];
-        } else if (edge & IN_DOWN) f->party_rule = f->party_rule == PARTY_RULE_COUNT - 1 ? PARTY_ROUND : (uint8_t)(f->party_rule + 1);
-        else f->party_rule = f->party_rule == PARTY_ROUND ? PARTY_RULE_COUNT - 1 : (uint8_t)(f->party_rule - 1);
+        if (b_edge) { f->sub_open = 0; f->mode = GAME_MODE_PARTY; }
+        else if (edge) {
+            f->sub_i = (edge & IN_DOWN) ? (uint8_t)(f->sub_i == PARTY_MENU_COUNT - 1 ? 0 : f->sub_i + 1) : (uint8_t)(f->sub_i == 0 ? PARTY_MENU_COUNT - 1 : f->sub_i - 1);
+            menu_sync(f);
+        }
         return;
     }
     if (edge) {
-        if (edge & IN_DOWN) f->mode = f->mode == GAME_MODE_GUM ? GAME_MODE_ARENA : (uint8_t)(f->mode + 1);
-        else f->mode = f->mode == GAME_MODE_ARENA ? GAME_MODE_GUM : (uint8_t)(f->mode - 1);
+        if (edge & IN_DOWN) f->mode = f->mode == GAME_MODE_PARTY ? GAME_MODE_ARENA : (uint8_t)(f->mode + 1);
+        else f->mode = f->mode == GAME_MODE_ARENA ? GAME_MODE_PARTY : (uint8_t)(f->mode - 1);
     }
 }
 
@@ -321,7 +339,7 @@ void flow_step(Flow *f, uint8_t input, uint8_t start_pressed, uint32_t frame_cou
         /* banked credits keep the mode list open, however the title was entered (a game end resets select_open) */
         if (f->credit_hold) f->select_open = 1;
         title_reset_combo(f, input);
-        if (a_edge && !start_pressed && flow_a_opens_submenu(f)) f->sub_open = 1; /* before the cursor logic: this A only opens */
+        if (a_edge && !start_pressed && flow_a_opens_submenu(f)) { f->sub_open = 1; menu_sync(f); } /* before the cursor logic: this A only opens */
         else title_mode_select(f, input, b_edge);
         if (f->select_open) f->highlight = -1; /* the mode list covers the highlighted table's rows (owner 2026-11-17) */
         if (start_pressed && (input & FLOW_RESET_COMBO) != FLOW_RESET_COMBO) {
@@ -460,6 +478,7 @@ void flow_view(const Flow *f, FlowView *v)
     v->sub_open = f->sub_open;
     v->gg_event = f->gg_event;
     v->party_rule = f->party_rule;
+    v->sub_i = f->sub_i;
     v->select_open = f->select_open;
     v->howto = f->howto;
     v->card = f->gg_card ? flow_gg_card(f->gg_event) : 0;

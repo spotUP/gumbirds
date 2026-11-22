@@ -505,8 +505,10 @@ static void draw_prompts(const Game *g, u8 show) {
     if (show) {
         p1 = 1;
         if (g->gg_toss) { ev = IP_TOSS; ph = g->toss.phase; p1 = g->toss.carrier == 0; p2 = g->toss.humans == 2 && g->toss.carrier == 2; }
-        else if (g->gg_fling) { ev = IP_FLING; ph = g->fling.phase; p1 = g->fling.seq.turn == 0; p2 = g->fling.seq.players == 2 && g->fling.seq.turn == 1; }
+        else if (g->gg_fling) { ev = IP_FLING; ph = g->fling.phase; p1 = g->fling.seq.turn == 0; p2 = g->fling.seq.players == 2 && g->fling.seq.turn == 1;
+            if (ph == GF_AIM && g->fling.t < GF_AIM_HOLD_FRAMES) p1 = p2 = 0; }   /* aim hold: A is ignored, so no A prompt yet */
         else if (g->gg_gather) { ev = IP_GATHER; ph = g->res.active ? IP_PHASE_OFF : IP_PHASE_PLAY; }
+        else if (g->gg_poop) { ev = IP_POOP; ph = g->poop.phase; p2 = g->players == 2; }
         else if (g->gg_pop) { ev = IP_POP; ph = g->pop.phase; p2 = g->players == 2; }
         else if (g->gg_dash) { ev = IP_DASH; ph = g->dash.done ? IP_PHASE_OFF : IP_PHASE_PLAY; }
         else if (g->gg_race) { ev = IP_RACE; ph = g->race.phase; p2 = g->race.players == 2; }
@@ -1637,6 +1639,7 @@ static u8 g_trip_islands_loaded;
 /* The Gum Fling grass field also hosts Toss Gum: one gate for both. The field reads the Fling state only for the flight scroll and landing puff; Toss Gum passes an idle one. */
 static u8 ground_field(const Game *g) { return g && (g->gg_fling || g->gg_toss || g->gg_tug); }
 static u8 pop_field(const Game *g) { return g && g->gg_pop; }
+static u8 poop_field(const Game *g) { return g && g->gg_poop; }   /* Poop the Man draws no water floor and no islands */
 static const GgFling g_idle_fling;   /* all zero: wind-up phase, no scroll */
 static u8 bg_pending(void) {
     u8 world = g_flow.state == FLOW_PLAYING || g_flow.state == FLOW_ATTRACT_DEMO;
@@ -1941,7 +1944,7 @@ static void draw_fling(const Game *g) {
         text((u8)((40 - 12) / 2), BLOW_TEXT_ROW + 3, PAL_HIGH, line);
     }
     {   /* control hint under the HUD rows */
-        const char *h = f->phase == GF_WINDUP ? "MASH A AND B" : f->phase == GF_AIM ? "PRESS A" : f->phase == GF_FLIGHT ? "MASH A AND B TO FLAP" : "";
+        const char *h = f->phase == GF_WINDUP ? "MASH A AND B" : f->phase == GF_AIM ? (f->t < GF_AIM_HOLD_FRAMES ? "" : "PRESS A") : f->phase == GF_FLIGHT ? "MASH A AND B TO FLAP" : "";
         i = fling_put(line, 0, h);
         while (i < BLOW_TEXT_W) line[i++] = ' ';
         line[BLOW_TEXT_W] = 0;
@@ -2231,8 +2234,7 @@ static void pop_show_pieces(const Game *g) {
 #define PM_U_SLOT (PM_W_SLOT + PM_WALKERS * 2)   /* 7 umbrellas x 2 */
 #define PM_P_SLOT (PM_U_SLOT + PM_WALKERS * 2)   /* 6 poops */
 #define PM_S_SLOT (PM_P_SLOT + PM_POOPS)         /* 3 shoes */
-#define PM_B_SLOT (PM_S_SLOT + PM_SHOES)         /* berry */
-#define PM_H_SLOT (PM_B_SLOT + 1)                /* 7 head splats x 1 column */
+#define PM_H_SLOT (PM_S_SLOT + PM_SHOES)                /* 7 head splats x 1 column */
 _Static_assert(PM_H_SLOT + PM_WALKERS <= PD_BACK + PD_BACK_N, "Poop the Man slots overflow the Pop Drop hide range");
 
 /* One poop frame; (ox, oy) = top left of its sheet cell (cw wide), the opaque box sits pad_left / pad_top inside it. */
@@ -2252,8 +2254,13 @@ static const PoopFrame *pm_frame(u8 anim, u16 n) {
 
 static void poop_show_bird(const GgPoop *p, const Game *g, u8 i, u16 slot, u16 pal) {
     const PmBird *b = &p->b[i];
-    const PopdropFrame *f = pd_frame(b->stun ? POPDROP_ANIM_BONK : POPDROP_ANIM_FALL0, (u16)(g->frame >> 3));
-    if (b->stun && (g->frame & 2)) return;   /* stunned: blink */
+    u8 hurt = b->stun || b->dead;   /* dead: the stun pose, falling off screen */
+    u16 n = (u16)(g->frame >> 3);
+    u8 anim = hurt ? POPDROP_ANIM_BONK : b->flap_t && b->flap_t < 12 ? POPDROP_ANIM_HOP : POPDROP_ANIM_FALL0;   /* flap: the Pop Drop hop frames */
+    if (anim == POPDROP_ANIM_HOP) n = b->flap_t <= 3 ? 2 : b->flap_t <= 7 ? 3 : 1;   /* pump, wings level, wings high */
+    const PopdropFrame *f = pd_frame(anim, n);
+    if ((b->stun || (b->inv && !b->dead)) && (g->frame & 2)) return;   /* stunned or invulnerable: blink */
+    if (b->y > 232) return;
     int sx = b->x - f->tiles_w * 8, top = b->y - f->tiles_h * 8;
     if (!camera_visible(sx, f->tiles_w * 16)) return;
     const u16 *t = &popdrop_tile_index[f->tile_offset];
@@ -2275,7 +2282,7 @@ static void poop_show_pieces(const Game *g) {
         else { first = (u8)(2 * nw + 5); n = (u8)(w->t < 20 ? 0 : w->t < 28 ? 1 : 2); }
         const PoopAnim *a = &poop_anims[anim];
         const PoopFrame *f = &poop_frames[a->first_frame + first + n];
-        int cx = w->x8 >> 3, flip = w->dx8 < 0;
+        int cx = w->x8 >> 3, flip = w->dx8 - PM_SCROLL * 8 < 0;   /* face the way it moves on screen: the backdrop does not scroll, so every walker drifts left */
         pm_piece((u16)(PM_W_SLOT + k * 2), f, cx - 16, PM_FEET_Y - 48, 32, flip, (u16)(POOP_PAL_SLOT + f->palette));
         if (w->st != PM_WALK) {   /* head splat (draft rig: head x, top row, hit bob) lies on the head from the hit until the walker walks again */
             static const u8 hx[4] = { 4, 5, 5, 5 }, top[4] = { 0, 8, 6, 18 };
@@ -2300,10 +2307,6 @@ static void poop_show_pieces(const Game *g) {
         const PoopFrame *f = pm_frame(POOP_ANIM_SHOE, (u16)(g->frame >> 2));
         pm_piece((u16)(PM_S_SLOT + k), f, s->x - 8, s->y - 8, 16, 0, (u16)(POOP_PAL_SLOT + f->palette));
     }
-    if (p->berry.live) {
-        const PoopFrame *f = pm_frame(POOP_ANIM_BERRY, (u16)(g->frame >> 3));
-        pm_piece(PM_B_SLOT, f, p->berry.x - 8, p->berry.y - 8, 16, 0, (u16)(POOP_PAL_SLOT + f->palette));
-    }
     if (p->phase != PM_PLAY) return;
     poop_show_bird(p, g, 0, PD_BIRD_SLOT, POPDROP_PAL_SLOT);
     if (p->seq.players > 1) poop_show_bird(p, g, 1, PD_BIRD2_SLOT, SOOT_P2_PAL_SLOT);
@@ -2320,11 +2323,11 @@ static void poop_show(const Game *g) {
     }
 }
 
-/* Poop the Man on the fix layer: per bird score, shots left (berries refill them) and seconds left. */
+/* Poop the Man on the fix layer: per bird score and seconds left. */
 static void draw_poop_man(const Game *g) {
     const GgPoop *p = &g->poop;
     u16 left = (u16)((p->timer < PM_CLOCK ? PM_CLOCK - p->timer : 0) / 60u);
-    u32 key = left | (u32)p->b[0].ammo << 8 | (u32)p->b[1].ammo << 12 | (p->b[0].score & 0x3FFFu) << 16 | (u32)p->phase << 30 | 1u << 29;
+    u32 key = left | (p->b[0].score & 0x3FFFu) << 16 | (u32)p->phase << 30 | 1u << 29;
     if (p->seq.players > 1) key ^= (p->b[1].score & 0xFFu) << 24;
     if (key == g_blow_key) return;
     g_blow_key = key;
@@ -2335,9 +2338,6 @@ static void draw_poop_man(const Game *g) {
         while (s[n]) { line[n] = s[n]; n++; }
         put_number(nb, p->b[i].score, 6);
         for (u8 k = 0; nb[k] && n < BLOW_TEXT_W; k++) if (nb[k] != ' ') line[n++] = nb[k];
-        s = "  AMMO ";
-        for (u8 k = 0; s[k] && n < BLOW_TEXT_W; k++) line[n++] = s[k];
-        line[n++] = (char)('0' + p->b[i].ammo);
         if (i == 0) {
             s = "  TIME ";
             for (u8 k = 0; s[k] && n < BLOW_TEXT_W; k++) line[n++] = s[k];
@@ -2544,7 +2544,8 @@ static void hud_side(u8 side, u8 kind, u32 score, u8 balloons, u8 lives, u8 show
 #define TITLE_GG_GOAL_ROW 21  /* Gum Games picker: goal of the event under the cursor */
 #define TITLE_SELECT_ROW 23   /* rows 23 to 27: the mode select, drawn only while it is open */
 #define TITLE_PLAYERS_ROW 28   /* the players line; the PARTY and Gum Games goal line takes its row while the list is open on those rows */
-#define TITLE_GOAL_ROW 28     /* goal line, cols 2..37, under the last list row (27); credits row 29 */
+#define SUB_ROWS 7            /* lines of the PARTY submenu window, rows 23..29 */
+#define TITLE_GOAL_ROW 28    /* goal line, cols 2..37, under the last list row (27); credits row 29 */
 #define TITLE_CREDIT_ROW 29
 #define TITLE_BLINK_ON 3      /* the plate line shows for 3 of every 5 logo animation steps */
 #define BIOS_COMPULSION_S ((volatile u8 *)0x10fdda) /* BIOS_COMPULSION_TIMER, BCD seconds; 0x10fddb counts its frames */
@@ -2636,32 +2637,27 @@ static void sub_line(u8 row, u8 on, const char *name) {
     gfx_text_backed(17, row, on ? PAL_HIGH : PAL_TEXT, buf);
 }
 
-static void draw_mode_select(u8 open, u8 mode, u8 rule, u8 event, u8 sub) {
-    u8 sel = mode == GAME_MODE_PARTY ? rule : event;
+static void draw_mode_select(u8 open, u8 mode, u8 sel, u8 sub) {
     u8 key = open ? (u8)(1 + mode + (sub ? 8 + sel * 8 : 0)) : 0; /* the submenu cursor is part of the key: the view redraws when it moves */
     if (key == g_title.select) return;
     g_title.select = key;
     g_title.players_cr = 0xFF; /* the goal line shares the players row: redraw it after any change */
-    { /* Gum Games picker: the goal of the event under the cursor, from its rules card (flow.c gg_cards); the six events fill the rows below */
-        const GgCard *gc = (open && sub && mode == GAME_MODE_GUM) ? flow_gg_card(event) : 0;
-        if (gc) title_line(TITLE_GG_GOAL_ROW, PAL_TEXT, gc->goal); else text(2, TITLE_GG_GOAL_ROW, PAL_TEXT, BANNER_BLANK);
+    { /* PARTY submenu: the goal of the entry under the cursor (a party rule's goal line, or the rules card goal of a gum game) above the list */
+        const GgCard *gc = (open && sub) ? flow_menu_card(sel) : 0;
+        const char *pg = (open && sub) ? flow_menu_goal(sel) : 0;
+        if (gc) title_line(TITLE_GG_GOAL_ROW, PAL_TEXT, gc->goal); else if (pg) title_line(TITLE_GG_GOAL_ROW, PAL_TEXT, pg); else text(2, TITLE_GG_GOAL_ROW, PAL_TEXT, BANNER_BLANK);
     }
     if (!open) { text(15, TITLE_SELECT_ROW, PAL_TEXT, "          "); text(15, TITLE_SELECT_ROW + 1, PAL_TEXT, "          "); text(15, TITLE_SELECT_ROW + 2, PAL_TEXT, "          "); text(15, TITLE_SELECT_ROW + 3, PAL_TEXT, "                          "); text(15, TITLE_SELECT_ROW + 4, PAL_TEXT, "          "); text(2, TITLE_GOAL_ROW, PAL_TEXT, "                                    "); return; }
-    if (sub && mode == GAME_MODE_GUM) { /* six events on rows 23..28 (the goal row) */
-        for (u8 i = 0; i < GG_PICK_COUNT; i++) sub_line((u8)(TITLE_SELECT_ROW + i), flow_gg_event(i) == event, flow_gg_name(i));
+    if (sub) { /* PARTY_MENU_COUNT entries in a window of SUB_ROWS lines on rows 23..29 that scrolls to keep the cursor in view */
+        u8 top = sel < SUB_ROWS / 2 ? 0 : sel + SUB_ROWS / 2 >= PARTY_MENU_COUNT ? PARTY_MENU_COUNT - SUB_ROWS : sel - SUB_ROWS / 2;
+        for (u8 i = 0; i < SUB_ROWS; i++) sub_line((u8)(TITLE_SELECT_ROW + i), (u8)(top + i) == sel, flow_menu_name((u8)(top + i)));
         return;
     }
-    if (sub) { /* PARTY rules on rows 23..25, blank rows after, the picked rule's goal line on the goal row */
-        for (u8 r = PARTY_ROUND; r < PARTY_RULE_COUNT; r++) sub_line((u8)(TITLE_SELECT_ROW + r - PARTY_ROUND), r == rule, game_party_name(r));
-        for (u8 r = PARTY_RULE_COUNT - 1; r < 5; r++) text(2, (u8)(TITLE_SELECT_ROW + r), PAL_TEXT, BANNER_BLANK);
-        title_line(TITLE_GOAL_ROW, PAL_TEXT, game_party_goal(rule));
-        return;
-    }
-    static const char *const names[5] = { "ARENA", "GUM TRIP", "ARCADE", "PARTY", "GUM GAMES" };
-    static const u8 order[5] = { GAME_MODE_ARENA, GAME_MODE_TRIP, GAME_MODE_ARCADE, GAME_MODE_PARTY, GAME_MODE_GUM };
-    for (u8 i = 0; i < 5; i++) sub_line((u8)(TITLE_SELECT_ROW + i), order[i] == mode, names[i]);
-    if (mode == GAME_MODE_PARTY) title_line(TITLE_GOAL_ROW, PAL_TEXT, "A TO CHOOSE A RULE");
-    else if (mode == GAME_MODE_GUM) title_line(TITLE_GOAL_ROW, PAL_TEXT, "A TO CHOOSE A GAME");
+    static const char *const names[4] = { "ARENA", "GUM TRIP", "ARCADE", "PARTY" };
+    static const u8 order[4] = { GAME_MODE_ARENA, GAME_MODE_TRIP, GAME_MODE_ARCADE, GAME_MODE_PARTY };
+    for (u8 i = 0; i < 4; i++) sub_line((u8)(TITLE_SELECT_ROW + i), order[i] == mode, names[i]);
+    text(2, TITLE_SELECT_ROW + 4, PAL_TEXT, BANNER_BLANK);
+    if (mode == GAME_MODE_PARTY) title_line(TITLE_GOAL_ROW, PAL_TEXT, "A TO CHOOSE AN EVENT");
     else text(2, TITLE_GOAL_ROW, PAL_TEXT, BANNER_BLANK);
 }
 
@@ -2696,7 +2692,7 @@ static void draw_title(const FlowView *v) {
             if (line == TL_PRESS) g_title_press_draws++;
         }
     }
-    draw_mode_select(v->select_open, v->mode, v->party_rule, v->gg_event, v->sub_open);
+    draw_mode_select(v->select_open, v->mode, v->sub_i, v->sub_open);
 }
 
 /* Attract how-to-play overlay (fix layer, bottom left: cols 1..13, rows 21..26; the title's reserved cells are rows 3, 22-25 from col 11 on, row 29, so only
@@ -3474,7 +3470,8 @@ static void game_loop(void) {
             if (pm->b[0].drop_t == 1 || pm->b[1].drop_t == 1) sound_play_sfx(SND_SFX_FLING_THROW);
             if (pm->last_hit_pts_ev) sound_play_sfx(SND_SFX_FLING_LAND);
             if (pm->sfx & PM_SFX_BOUNCE) sound_play_sfx(SND_SFX_BUMP);
-            if (pm->sfx & PM_SFX_BERRY) sound_play_sfx(SND_SFX_PICKUP);
+            if (pm->sfx & PM_SFX_FLAP) sound_play_sfx(SND_SFX_FLAP_A);
+            if (pm->sfx & PM_SFX_DEAD) sound_play_sfx(SND_SFX_FLING_FOUL);
             g_flow.game.poop.sfx = 0;
             if (pm->b[0].stun == PM_STUN || pm->b[1].stun == PM_STUN) sound_play_sfx(SND_SFX_FLING_FOUL);
         }
@@ -3483,15 +3480,15 @@ static void game_loop(void) {
             g_flow.game.toss.sfx = 0;
             if (te & GT_SFX_TOSS) sound_play_sfx(SND_SFX_FLING_THROW);
             if (te & GT_SFX_BURST) sound_play_sfx(SND_SFX_FLING_FOUL);
-            if (te & GT_SFX_WIN) sound_play_sfx(SND_SFX_FLING_LAND);
+            if (te & GT_SFX_WIN) sound_play_sfx(SND_SFX_FLING_WIN);
         }
         if (view.game && view.state == FLOW_PLAYING && g_flow.game.gg_tug && g_flow.game.tug.sfx) { /* Tug Gum sounds (Fling samples) */
             u8 te = g_flow.game.tug.sfx;
             g_flow.game.tug.sfx = 0;
             if (te & GTG_SFX_PULL) sound_play_sfx(SND_SFX_FLING_RUNUP_1);
             if (te & GTG_SFX_LETGO) sound_play_sfx(SND_SFX_FLING_THROW);
-            if (te & GTG_SFX_SNAP) sound_play_sfx(SND_SFX_FLING_FOUL);
-            if (te & GTG_SFX_WIN) sound_play_sfx(SND_SFX_FLING_LAND);
+            if (te & GTG_SFX_SNAP) sound_play_sfx(SND_SFX_FLING_WIN);   /* the snap ends a won round: the foul buzzer read as an error (owner 2026-11-21) */
+            if (te & GTG_SFX_WIN) sound_play_sfx(SND_SFX_FLING_WIN);
         }
         if (view.game && view.state == FLOW_PLAYING && g_flow.game.gg_fling && g_flow.game.fling.sfx) { /* Gum Fling sounds */
             u8 fe = g_flow.game.fling.sfx;
@@ -3530,14 +3527,14 @@ static void game_loop(void) {
             u8 world = world_shown(&view);
             u8 trip = world && view.game->mode == GAME_MODE_TRIP;
             u8 trip_game = (world || view.state == FLOW_GAME_OVER) && view.game && view.game->mode == GAME_MODE_TRIP;
-            hazard_step((world || view.state == FLOW_GAME_OVER) && !trip_game && !ground_field(view.game) && !pop_field(view.game), g_cam_px); /* the hazard strip is the arena's floor; Gum Trip has its own, Pop Drop shows only its platforms */
+            hazard_step((world || view.state == FLOW_GAME_OVER) && !trip_game && !ground_field(view.game) && !pop_field(view.game) && !poop_field(view.game), g_cam_px); /* the hazard strip is the arena's floor; Gum Trip has its own, Pop Drop shows only its platforms */
             if (g_bg_paused && world_state(&view) && view.game->mode != GAME_MODE_TRIP && !ground_field(view.game)) hazard_preload(); /* the reveal frame then only places it */
             /* arcade only: elements kill, so they must be seen (worst scanline with them is checked in tests/host/test_sprite_budget.c) */
             /* Bonus first: on the frame it ends it parks slot 323, which the stage elements share and draw right after. */
             arcade_bonus_step(world && ((view.game->mode == GAME_MODE_ARCADE && view.game->arc.state == ARC_BONUS) || (view.game->mode == GAME_MODE_GUM && view.game->gg_gather)) && !view.game->res.active ? view.game : 0);
             arcade_elems_step(world && view.game->mode == GAME_MODE_ARCADE && view.game->arc.state != ARC_BONUS ? view.game : 0); /* the bonus shows no stage elements: hidden once on entry */
             u8 stadium = world_state(&view) && stadium_on(view.game);
-            island_step(world && !trip && !stadium && !ground_field(view.game) && !pop_field(view.game), g_cam_px); /* arena islands are not drawn in Gum Trip, on the stadium events, on the Gum Fling / Toss Gum field or in Pop Drop */
+            island_step(world && !trip && !stadium && !ground_field(view.game) && !pop_field(view.game) && !poop_field(view.game), g_cam_px); /* arena islands are not drawn in Gum Trip, on the stadium events, on the Gum Fling / Toss Gum field or in Pop Drop */
             fling_field_step(ground_field(view.game) ? seated(view.game) ? &g_idle_fling : &view.game->fling : 0, view.game ? view.game->mood : 0, world_state(&view), world, !(view.game && seated(view.game)), view.game && view.game->gg_tug); /* after island_step: it takes the island slots */
             {   /* stadium stands: scores, result and wave edges from the event state */
                 static u8 s_fin;

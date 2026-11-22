@@ -1,5 +1,5 @@
-/* test_gg_poop.c - Gum Games Poop the Man: drop and ammo, head hit scoring (hat x2, bald x3, combo cap x4), pavement miss, umbrella bounce, shoe stun,
- * berry refill, 60 s timer and result, 2P, flow wiring. */
+/* test_gg_poop.c - Gum Games Poop the Man: flap physics, drop cooldown, walker and pavement death, respawn, head hit scoring (hat x2, bald x3, combo cap x4), pavement miss, umbrella bounce, shoe stun,
+ * 60 s timer and result, 2P, flow wiring. */
 #include <stdio.h>
 #include "gg_poop.h"
 #include "game.h"
@@ -85,19 +85,73 @@ int main(void)
     CHECK(p.b[0].stun == PM_STUN && p.b[0].streak == 0 && !p.shoe[0].live);
     {
         int16_t x0 = p.b[0].x;
-        gm_step(&p, IN_A, 0);
-        CHECK(p.b[0].x == x0 && p.b[0].ammo == PM_AMMO);   /* stunned: no move, no drop */
+        gm_step(&p, IN_B, 0);
+        CHECK(p.b[0].x == x0 && p.b[0].drop_t == 0);   /* stunned: no move, no drop */
         for (i = 0; i < (int)PM_STUN; i++) gm_step(&p, 0, 0);
         CHECK(p.b[0].stun == 0);
     }
 
-    /* ammo: five drops, later presses do nothing; a berry refills 3 */
+    /* no ammo: drops are limited only by the cooldown */
     clean(&p);
-    for (i = 0; i < 8; i++) { gm_step(&p, IN_A, 0); gm_step(&p, 0, 0); }
-    CHECK(p.b[0].ammo == 0);
-    p.berry.live = 1; p.berry.x = (int16_t)(p.b[0].x + PM_SCROLL); p.berry.y = p.b[0].y;
+    {
+        int drops = 0;
+        for (i = 0; i < 120; i++) {
+            p.b[0].y = 60; p.b[0].vy16 = 0;
+            gm_step(&p, (i & 1) ? 0 : IN_B, 0);
+            if (p.b[0].drop_t == 1) drops++;
+        }
+        CHECK(drops >= 8 && drops <= 120 / (int)PM_DROP_CD + 1);   /* far past the old 5 shots, never faster than the cooldown */
+        clean(&p); p.b[0].y = 60;
+        gm_step(&p, IN_B, 0); gm_step(&p, 0, 0); gm_step(&p, IN_B, 0);   /* second press 2 frames later: inside the cooldown */
+        CHECK(p.b[0].drop_t == 3);
+        for (i = 0; i < (int)PM_DROP_CD; i++) gm_step(&p, 0, 0);
+        p.b[0].y = 60; gm_step(&p, IN_B, 0);
+        CHECK(p.b[0].drop_t == 1);
+    }
+
+    /* gravity: no flap = it falls; a flap press rises; stick up does not lift */
+    clean(&p);
+    {
+        int16_t y0 = p.b[0].y;
+        for (i = 0; i < 10; i++) gm_step(&p, 0, 0);
+        CHECK(p.b[0].y > y0);
+        p.b[0].y = 100; p.b[0].yf = 0; p.b[0].vy16 = 0;
+        gm_step(&p, IN_A, 0);
+        CHECK(p.b[0].vy16 < 0 && (p.sfx & PM_SFX_FLAP));
+        for (i = 0; i < 6; i++) gm_step(&p, 0, 0);
+        CHECK(p.b[0].y < 100);
+        p.b[0].y = 100; p.b[0].vy16 = 0;
+        gm_step(&p, IN_UP, 0);
+        CHECK(p.b[0].vy16 > 0);
+    }
+
+    /* walker touch kills: streak ends, score kept, input ignored while dead, respawn mid-height with invulnerability */
+    clean(&p);
+    p.b[0].score = 300; p.b[0].streak = 3;
+    walker(&p, 0, PM_KID, p.b[0].x + PM_SCROLL);
+    p.b[0].y = 180;
     gm_step(&p, 0, 0);
-    CHECK(p.b[0].ammo == PM_BERRY_AMMO && !p.berry.live && (p.sfx & PM_SFX_BERRY));
+    CHECK(p.b[0].dead == PM_DEAD_FRAMES && p.b[0].streak == 0 && p.b[0].score == 300 && (p.sfx & PM_SFX_DEAD));
+    p.w[0].live = 0;
+    {
+        int16_t y0 = p.b[0].y;
+        for (i = 0; i < 50; i++) gm_step(&p, IN_A | IN_B, 0);   /* the death kick rises a few frames, then it falls; input is ignored */
+        CHECK(p.b[0].y > y0 && p.b[0].drop_t == 0 && p.b[0].vy16 > 0);
+        for (i = 0; i < (int)PM_DEAD_FRAMES - 50; i++) gm_step(&p, 0, 0);
+        CHECK(p.b[0].dead == 0 && p.b[0].y == PM_SPAWN_Y && p.b[0].inv == PM_INV_FRAMES);
+        walker(&p, 1, PM_HAT, p.b[0].x + PM_SCROLL); p.b[0].y = 170;   /* invulnerable: a walker does not kill */
+        gm_step(&p, 0, 0);
+        CHECK(p.b[0].dead == 0);
+        p.w[1].live = 0;
+        for (i = 0; i < (int)PM_INV_FRAMES; i++) { p.b[0].y = 60; gm_step(&p, 0, 0); }
+        CHECK(p.b[0].inv == 0);
+    }
+    /* falling onto the pavement kills too */
+    clean(&p);
+    p.b[0].y = PM_FEET_Y - PM_BIRD_HALF_H - 1;
+    p.b[0].vy16 = PM_FALL_MAX;
+    gm_step(&p, 0, 0); gm_step(&p, 0, 0);
+    CHECK(p.b[0].dead);
 
     /* timer, result, done; record points = score */
     clean(&p);
@@ -119,7 +173,7 @@ int main(void)
     {
         Flow f;
         flow_init(&f, 0, 0);
-        f.mode = GAME_MODE_GUM; f.gg_event = GG_BIG_BLOW;
+        f.mode = GAME_MODE_PARTY;  /* merged PARTY list: sub_i 0 = Rule of the Round, 4 = Big Blow ... 10 = Poop the Man */
         flow_coin(&f);
         flow_step(&f, IN_A, 0, 0); flow_step(&f, 0, 0, 0);
         flow_step(&f, IN_UP, 0, 0); flow_step(&f, 0, 0, 0);

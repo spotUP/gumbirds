@@ -1017,7 +1017,7 @@ test-party-name: cart bios
 	cat $$T/result.txt; \
 	if grep -q '^PASS' $$T/result.txt; then rm -rf $$T; echo "[OK] make test-party-name passed"; else echo "[FAIL] make test-party-name, log kept in $$T"; exit 1; fi
 
-# Gum Games Big Blow (tests/mame/gum_big_blow_check.lua): UniBIOS, one coin, Up to the GUM GAMES row, Start: A/B mashing grows the bubble and the power bar,
+# Gum Games Big Blow (tests/mame/gum_big_blow_check.lua): UniBIOS, one coin, Up to the PARTY row, A opens the event list, Start: A/B mashing grows the bubble and the power bar,
 # the result shows a qualifying mark, the score and a spent ticket. `make test-gum-big-blow` alone.
 test-gum-big-blow: cart bios
 	@if [ ! -f "$(UNIBIOS)" ]; then echo "[FAIL] UNIBIOS file not found: $(UNIBIOS)"; exit 1; fi
@@ -1031,7 +1031,7 @@ test-gum-big-blow: cart bios
 	cat $$T/result.txt; \
 	if grep -q '^PASS' $$T/result.txt; then rm -rf $$T; echo "[OK] make test-gum-big-blow passed"; else echo "[FAIL] make test-gum-big-blow, log kept in $$T"; exit 1; fi
 
-# Gum Games Burst Race (tests/mame/gum_burst_race_check.lua): UniBIOS, one coin, Up to the GUM GAMES row, Right picks the event, Start: A/B mashing grows the bubble and both power bars,
+# Gum Games Burst Race (tests/mame/gum_burst_race_check.lua): UniBIOS, one coin, Up to the PARTY row, A opens the event list, Right picks the event, Start: A/B mashing grows the bubble and both power bars,
 # the player bursts first and scores 900. `make test-gum-burst-race` alone.
 test-gum-burst-race: cart bios
 	@if [ ! -f "$(UNIBIOS)" ]; then echo "[FAIL] UNIBIOS file not found: $(UNIBIOS)"; exit 1; fi
@@ -1045,7 +1045,7 @@ test-gum-burst-race: cart bios
 	cat $$T/result.txt; \
 	if grep -q '^PASS' $$T/result.txt; then rm -rf $$T; echo "[OK] make test-gum-burst-race passed"; else echo "[FAIL] make test-gum-burst-race, log kept in $$T"; exit 1; fi
 
-# Gum Games Flap Dash (tests/mame/gum_flap_dash_check.lua): UniBIOS, one coin, Up to the GUM GAMES row, Left once (wraps) picks the event, Start: A/B mashing flies three laps,
+# Gum Games Flap Dash (tests/mame/gum_flap_dash_check.lua): UniBIOS, one coin, Up to the PARTY row, A opens the event list, Left once (wraps) picks the event, Start: A/B mashing flies three laps,
 # the HUD, the lap count, the score and the saved record are checked. `make test-gum-flap-dash` alone.
 test-gum-flap-dash: cart bios
 	@if [ ! -f "$(UNIBIOS)" ]; then echo "[FAIL] UNIBIOS file not found: $(UNIBIOS)"; exit 1; fi
@@ -1059,7 +1059,7 @@ test-gum-flap-dash: cart bios
 	cat $$T/result.txt; \
 	if grep -q '^PASS' $$T/result.txt; then rm -rf $$T; echo "[OK] make test-gum-flap-dash passed"; else echo "[FAIL] make test-gum-flap-dash, log kept in $$T"; exit 1; fi
 
-# Gum Games Bubble Gather (tests/mame/gum_bubble_gather_check.lua): UniBIOS, one coin, Up to the GUM GAMES row, Right twice picks the event, Start: the hero is parked on live bubbles;
+# Gum Games Bubble Gather (tests/mame/gum_bubble_gather_check.lua): UniBIOS, one coin, Up to the PARTY row, A opens the event list, Right twice picks the event, Start: the hero is parked on live bubbles;
 # the HUD, the caught count, the score and the saved record are checked. `make test-gum-bubble-gather` alone.
 test-gum-bubble-gather: cart bios
 	@if [ ! -f "$(UNIBIOS)" ]; then echo "[FAIL] UNIBIOS file not found: $(UNIBIOS)"; exit 1; fi
@@ -1099,7 +1099,7 @@ test-gum-bubble-gather-fail: cart bios
 	cat $$T/result.txt; \
 	if grep -q '^PASS' $$T/result.txt; then rm -rf $$T; echo "[OK] make test-gum-bubble-gather-fail passed"; else echo "[FAIL] make test-gum-bubble-gather-fail, log kept in $$T"; exit 1; fi
 
-# Gum Games Pop Drop (tests/mame/gum_pop_drop_check.lua): UniBIOS, one coin, Up to the GUM GAMES row, Right three times picks the event, Start: a platform is parked on the bird (three hits crash it);
+# Gum Games Pop Drop (tests/mame/gum_pop_drop_check.lua): UniBIOS, one coin, Up to the PARTY row, A opens the event list, Right three times picks the event, Start: a platform is parked on the bird (three hits crash it);
 # the HUD, the crash, the depth score and the saved record are checked. `make test-gum-pop-drop` alone.
 test-gum-pop-drop: cart bios
 	@if [ ! -f "$(UNIBIOS)" ]; then echo "[FAIL] UNIBIOS file not found: $(UNIBIOS)"; exit 1; fi
@@ -1161,7 +1161,7 @@ test-flush-arena: cart bios
 	SDL_VIDEODRIVER=dummy nice -n 19 $(MAME) -window -nomaximize -video none -sound none -nothrottle -seconds_to_run 200 -noautosave -skip_gameinfo -hash $(ROM) -rp "$(UNIBIOS_DIR);$(ROM)" -bios unibios40 -nvram_directory $$T -autoboot_script tests/mame/flush_arena_baseline.lua neogeo -cart1 $(GAMEROM) > $$T/mame.log 2>&1 || true; \
 	if [ ! -f $$T/result.txt ]; then tail -n 15 $$T/mame.log; echo "[FAIL] no result"; exit 1; fi; cat $$T/result.txt
 
-# Gum Games Gum Fling (tests/mame/gum_fling_check.lua): UniBIOS, one coin, Up to the GUM GAMES row, Left once wraps to the event, Start: A/B mashed, C held and released;
+# Gum Games Gum Fling (tests/mame/gum_fling_check.lua): UniBIOS, one coin, Up to the PARTY row, A opens the event list, Left once wraps to the event, Start: A/B mashed, C held and released;
 # the TRIP flight, the best distance, the score and the saved record are checked. `make test-gum-fling` alone.
 test-gum-fling: cart bios
 	@if [ ! -f "$(UNIBIOS)" ]; then echo "[FAIL] UNIBIOS file not found: $(UNIBIOS)"; exit 1; fi
