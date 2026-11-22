@@ -97,7 +97,7 @@ local function load_tables(path)
   end
   local function clip(name) return tonumber((assert(src:match("#define SOOTLING_CLIP_" .. name .. " (%d+)"), name))) end
   return { first = list("SOOTLING_TABLE_CLIP_FIRST"), count = list("SOOTLING_TABLE_CLIP_COUNT"), ticks = list("SOOTLING_TABLE_FRAME_TICKS"),
-    flap = clip("FLAP"), flap_r = clip("FLAP_R"), flap_l = clip("FLAP_L"), fly = clip("FLY"), walk = clip("WALK"), breathe = clip("BREATHE") }
+    flap = clip("FLAP"), flap_r = clip("FLAP_R"), flap_l = clip("FLAP_L"), fly = clip("FLY"), walk = clip("WALK"), breathe = clip("BREATHE"), breathe_front = clip("BREATHE_FRONT") }
 end
 local T = load_tables(os.getenv("BRAWL_SOOT_TABLES"))
 local CLIP_WALK, CLIP_BREATHE = T.walk, T.breathe
@@ -497,7 +497,7 @@ emu.register_frame_done(function() local ok_, err_ = pcall(function()
     end
     if tick == WV_SETTLE + WV_WALK_FRAMES + WV_STOP_FRAMES then
       local bal = mem:read_u8(flow_addr + O_BAL)
-      local want = CLIP_BREATHE   -- one breathe clip for any balloon count
+      local want = bal == 0 and T.breathe_front or CLIP_BREATHE   -- no balloons: the front-face breathe clip
       if clip ~= want then finish(false, string.format("walk: after stopping the clip is %d with %d balloons, want %s", clip, bal, tostring(want))) return end
       cpu_report = cpu_report .. string.format("; stopped into breathing clip %d (%d balloons)", clip, bal)
       phase = "flap"; tick = 0
