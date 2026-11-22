@@ -658,6 +658,7 @@ test-reach-party:
 # Run by make test; `make test-vblank` alone re-runs only this check.
 test-vblank: cart
 	@set -e; T=$$(mktemp -d $(BUILDDIR)/test-run.XXXXXX); \
+	BRAWL_FLIER_LAYOUT="$$($(M68KGCC) -std=c99 -S -o - tests/mame/flier_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')" \
 	BRAWL_FLOW_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flow"{print $$1}') \
 	BRAWL_FRAME_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_frame_counter"{print $$1}') \
 	BRAWL_PALMAX_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_pal_words_frame_max"{print $$1}') \

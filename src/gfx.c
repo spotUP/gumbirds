@@ -117,7 +117,11 @@ void gfx_strip(u16 sprite, const u16 *tiles, u16 base, u8 rows, u16 attr) { RETR
 void gfx_scb_run(u16 addr, u16 mod, const u16 *vals, u8 n) { RETRY(vq_scb_run(&g_gfx_q, addr, mod, vals, n)); }
 void gfx_scb_ramp(u16 addr, u8 n, u8 split, u16 v1, u16 v2) { RETRY(vq_scb_ramp(&g_gfx_q, addr, n, split, v1, v2)); }
 void gfx_strip_attr(u16 sprite, const u16 *pairs, u16 base, u8 rows) { RETRY(vq_strip_attr(&g_gfx_q, sprite, pairs, base, rows)); }
-void gfx_pal(u16 idx, u16 val) { RETRY(vq_pal(&g_gfx_q, idx, val)); }
+void (*g_pal_shadow)(u16 idx, u16 val);
+void gfx_pal(u16 idx, u16 val) {
+    if (g_pal_shadow) { g_pal_shadow(idx, val); return; } /* video_init: palettes go to the fade source, not through ~24 vblanks of queue */
+    RETRY(vq_pal(&g_gfx_q, idx, val));
+}
 
 _Static_assert(FIXFONT_BLANK == SROM_EMPTY_TILE, "the font keeps the ngdevkit blank tile");
 
@@ -148,6 +152,7 @@ void gfx_center_blank(u8 y, u8 h, u8 w, u8 pal) {
 }
 
 void gfx_cls(void) { vq_fix_fill(&g_gfx_q, SROM_EMPTY_TILE); }
+void gfx_cls_init(void) { RETRY(vq_fix_fill_runs(&g_gfx_q, SROM_EMPTY_TILE)); }
 void gfx_cls_busy(void) { vq_fix_wipe(&g_gfx_q, SROM_EMPTY_TILE); } /* the layer is mostly written (result screen over) */
 
 void gfx_commit(void) {

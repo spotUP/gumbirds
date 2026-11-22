@@ -1,3 +1,4 @@
+local FLAY = {}; for v in (os.getenv("BRAWL_FLIER_LAYOUT") or ""):gmatch("%d+") do FLAY[#FLAY + 1] = tonumber(v) end
 -- Headless vblank-write reachability check (make test-vblank). Runs the real game (coin, start, run with
 -- scrolling) and taps every access to the LSPC VRAM registers (0x3C0000-0x3C000F: VRAMADDR, VRAMRW, VRAMMOD)
 -- and every palette RAM write (0x400000-0x401FFF). For each write it reads screen:vblank() and the screen
@@ -433,6 +434,9 @@ emu.register_frame_done(function()
   end
   -- demo runs measure the shipped demo; pool stress belongs to the play run only
   if not DEMO_RUN and not stress_frame and A_PFRAMES and counting and mem:read_u16(A_PFRAMES) > 0 then stress_frame = n + 30 end
+  -- Calm mood (Game.mood 0) all through PLAYING (a mid-stress mood change drops steps): the world mood follows the game rng, so a start frame shifted by a faster coin entry
+  -- can draw a storm world, whose rain fix traffic (about 44 words a frame) is not what this pool-stress gate measures. test-rain covers storm.
+  if FLAY[28] and not DEMO_RUN and mem:read_u8(flow_addr + O_STATE) == STATE_PLAYING then mem:write_u8(flow_addr + FLAY[28], 0) end
   if n == stress_frame and A_STRESS then
     pool_frames_before = mem:read_u16(A_PFRAMES)
     mem:write_u16(A_BACKLOG, 0)
