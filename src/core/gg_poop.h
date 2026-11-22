@@ -56,7 +56,7 @@
 enum { PM_PLAY, PM_RESULT, PM_DONE };
 enum { PM_HAT, PM_BALD, PM_WOMAN, PM_KID };
 enum { PM_WALK, PM_HIT, PM_FIST, PM_THROW };   /* walker states (art: walk, hit, fist, throw) */
-enum { PM_POOP_FALL, PM_POOP_BOUNCE, PM_POOP_SPLAT };   /* SPLAT: lies on the pavement PM_SPLAT_FRAMES, scrolling with the street */
+enum { PM_POOP_FALL, PM_POOP_BOUNCE, PM_POOP_SPLAT };   /* SPLAT: lies on the pavement PM_SPLAT_FRAMES, where it landed (the ground does not scroll) */
 #define PM_SPLAT_FRAMES 30u
 #define PM_SFX_BOUNCE 1u             /* GgPoop.sfx bits raised by gm_step for the view (throw, head hit and shoe hit are read from the bird / last_hit fields) */
 #define PM_SFX_FLAP 2u               /* a bird flapped */
