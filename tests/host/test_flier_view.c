@@ -10,10 +10,10 @@ static const uint8_t k_loop[] = SOOTLING_TABLE_CLIP_LOOP;
 static const uint8_t k_ticks[] = SOOTLING_TABLE_FRAME_TICKS;
 static const uint8_t k_sway[] = SOOTLING_TABLE_SWAY;
 static const FlierClips clips = { k_first, k_count, k_loop, k_ticks,
-    SOOTLING_CLIP_FLAP, SOOTLING_CLIP_FLY, SOOTLING_CLIP_SETTLE, SOOTLING_CLIP_IDLE, SOOTLING_CLIP_PUMP,
+    SOOTLING_CLIP_FLAP, SOOTLING_CLIP_FLY, SOOTLING_CLIP_SETTLE, SOOTLING_CLIP_IDLE_FRONT, SOOTLING_CLIP_PUMP,
     SOOTLING_CLIP_INFLATE, SOOTLING_CLIP_FALL, SOOTLING_CLIP_POP2, SOOTLING_CLIP_POP1,
     SOOTLING_CLIP_WALK, SOOTLING_CLIP_LAND, SOOTLING_CLIP_BREATHE,
-    k_sway, SOOTLING_CLIP_FLAP_R, SOOTLING_CLIP_FLAP_L };
+    k_sway, SOOTLING_CLIP_FLAP_R, SOOTLING_CLIP_FLAP_L, SOOTLING_CLIP_BREATHE_FRONT };
 
 static int bad;
 static void check(int ok, const char *what, int got, int want)
@@ -69,9 +69,10 @@ static void start_air(Flier *f, FlierAnim *a, int b)
  * macros and the generated tables. */
 static void ground_tests(int b)
 {
-    static const int breathe_hold[4] = { FLIER_BREATHE_HOLD_0, FLIER_BREATHE_HOLD_1, FLIER_BREATHE_HOLD_2, FLIER_BREATHE_HOLD_3 };
-    const int walk = SOOTLING_CLIP_WALK, land = SOOTLING_CLIP_LAND, breathe = SOOTLING_CLIP_BREATHE;
-    const int air = b == 0 ? SOOTLING_CLIP_IDLE : SOOTLING_CLIP_FLY;
+    static const int knob_hold[4] = { FLIER_BREATHE_HOLD_0, FLIER_BREATHE_HOLD_1, FLIER_BREATHE_HOLD_2, FLIER_BREATHE_HOLD_3 };
+    /* no gum: the bird stands facing the player (breathe_front, held by the sheet ticks, not the knobs) */
+    const int walk = SOOTLING_CLIP_WALK, land = SOOTLING_CLIP_LAND, breathe = b == 0 ? SOOTLING_CLIP_BREATHE_FRONT : SOOTLING_CLIP_BREATHE;
+    const int air = b == 0 ? SOOTLING_CLIP_IDLE_FRONT : SOOTLING_CLIP_FLY;
     char what[64];
     Flier f;
     FlierAnim a;
@@ -84,10 +85,10 @@ static void ground_tests(int b)
     if (b) run(&a, &f, clip_ticks(SOOTLING_CLIP_INFLATE), &flip);
 
     /* standing: breathing frames with their holds, then wraps */
-    check(k_count[breathe] == 4, "breathe has 4 frames", k_count[breathe], 4);
+    check(k_count[breathe] == (b == 0 ? 6 : 4), "breathe frame count", k_count[breathe], b == 0 ? 6 : 4);
     for (cycle = 0; cycle < 2; cycle++)
-        for (k = 0; k < 4; k++)
-            for (i = 0; i < breathe_hold[k]; i++) {
+        for (k = 0; k < k_count[breathe]; k++)
+            for (i = 0; i < (b == 0 ? k_ticks[k_first[breathe] + k] : knob_hold[k]); i++) {
                 fr = flier_anim_step(&a, &f, &clips, &flip);
                 sprintf(what, "b%d breathe frame %d step %d", b, k, i);
                 check(fr == k_first[breathe] + k, what, fr, k_first[breathe] + k);
@@ -287,8 +288,8 @@ int main(void)
     uint8_t fr;
 
     /* sheet facts: the gum-mouth v4 sheet (14 clips, 100 frames: 12 clips plus flap_r / flap_l; pop2 has 7 frames for the bubble bob) replaced the 105 frame sootling sheet */
-    check(SOOTLING_FRAMES == 100, "frame count", SOOTLING_FRAMES, 100);
-    check(SOOTLING_CLIP_COUNT == 14, "clip count", SOOTLING_CLIP_COUNT, 14);
+    check(SOOTLING_FRAMES == 114, "frame count", SOOTLING_FRAMES, 114);
+    check(SOOTLING_CLIP_COUNT == 16, "clip count", SOOTLING_CLIP_COUNT, 16);
     /* the pipeline pads art to whole 16 px tiles: 24 px art is still 2 strips (src/vram_layout.h SOOT_COLUMNS) */
     check(SOOTLING_ART_W == 24 && SOOTLING_ART_H == 32, "art size", SOOTLING_ART_W, 24);
     /* SOOTLING_MAX_COLUMNS lives in the ngdevkit-typed sprites header, not in the host-includable tables header: 17..32 px is exactly 2 strips */
@@ -326,10 +327,11 @@ int main(void)
     fr = run(&a, &f, 1, &flip);
     check(fr == k_first[SOOTLING_CLIP_POP1], "pop1 on 1 to 0", fr, k_first[SOOTLING_CLIP_POP1]);
     fr = run(&a, &f, clip_ticks(SOOTLING_CLIP_POP1), &flip);
-    check(fr == k_first[SOOTLING_CLIP_IDLE], "idle with no balloons", fr, k_first[SOOTLING_CLIP_IDLE]);
+    check(fr == k_first[SOOTLING_CLIP_IDLE_FRONT], "idle with no balloons", fr, k_first[SOOTLING_CLIP_IDLE_FRONT]);
+    check(k_count[SOOTLING_CLIP_IDLE_FRONT] == 8, "front idle has 8 frames", k_count[SOOTLING_CLIP_IDLE_FRONT], 8);
     for (i = 0; i < 200; i++) {
         fr = flier_anim_step(&a, &f, &clips, &flip);
-        if (!in_clip(fr, SOOTLING_CLIP_IDLE)) { check(0, "idle loops in clip", fr, k_first[SOOTLING_CLIP_IDLE]); break; }
+        if (!in_clip(fr, SOOTLING_CLIP_IDLE_FRONT)) { check(0, "idle loops in clip", fr, k_first[SOOTLING_CLIP_IDLE_FRONT]); break; }
     }
 
     /* 2 -> 0 plays pop1 */
