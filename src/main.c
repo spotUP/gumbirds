@@ -37,6 +37,8 @@
 #include "gen/flingmeter_tiles.h"
 #include "gen/inputprompt_tiles.h"
 #include "core/input_prompt.h"
+#include "gen/rain_tiles.h"
+#include "core/rain.h"
 #include "gfx.h"
 #include "sprite_slots.h"
 #include "vram_layout.h"
@@ -1655,6 +1657,28 @@ static u8 trip_building(void) {
 }
 static u8 world_state(const FlowView *v) { return (v->state == FLOW_PLAYING || v->state == FLOW_ATTRACT_DEMO) && v->game; }
 static u8 world_shown(const FlowView *v) { return world_state(v) && !g_bg_hold; }
+/* Storm rain (src/core/rain.c): fix layer drops in every storm-mood world, Pop Drop and the Gum Fling field excepted. The rain palette is its own fix
+ * slot (RAIN_PAL_SLOT); the burst colour is written while a lightning flash lasts. */
+static Rain g_rain;
+static u8 g_rain_pal = 2; /* 0 normal, 1 burst, 2 not written yet */
+static s32 g_rain_cam;
+static void rain_pal_put(u8 burst) {
+    const u16 *p = burst ? rain_burst_palette : rain_palette;
+    for (u8 i = 0; i < 5; i++) gfx_pal((u16)(RAIN_PAL_SLOT * 16 + 1 + i), p[i]);
+    g_rain_pal = burst;
+}
+static void rain_frame(const FlowView *v) {
+    const Game *g = v->game;
+    u8 on = world_shown(v) && g && g_bg_mood == GAME_MOOD_STORM && !g_bg_mood_busy && !ground_field(g) && !pop_field(g);
+    u8 trip = g && g->mode == GAME_MODE_TRIP;
+    s32 d = g_cam_unwrapped - g_rain_cam;
+    g_rain_cam = g_cam_unwrapped;
+    if (on && g_rain_pal != rain_burst_active(&g_rain)) rain_pal_put(rain_burst_active(&g_rain));
+    /* no fix budget left this frame (late raster line): rain holds still instead of adding fix writes the commit cannot take */
+    if (on && g_rain.was_active && !vq_fix_line_budget(VQ_RASTER_LINE(*REG_LSPCMODE))) { bg_flash(rain_flash_index(&g_rain)); return; }
+    rain_step(&g_rain, &g_gfx_q, on, trip ? RAIN_MODE_TRIP : stadium_on(g) ? RAIN_MODE_STADIUM : RAIN_MODE_ARENA, trip && d > 0 && d < 16 ? (s16)d : 0);
+    bg_flash(rain_flash_index(&g_rain));
+}
 
 static void put_number(char *out, u32 v, int width);
 /* GET SET / GO! (gg_countdown.h): the glyph frames of the word, centred, in the arcade stage element slots (no Gum Games event draws those).
@@ -3231,24 +3255,34 @@ static u8 g_coin_blipped;
  * non-zero word are faded and copied: the used ones are slots 0..75 plus slot 255, so a "highest non-zero index" range would cover all 4096. */
 #define SCREEN_FADE_WORDS 4096u
 #define SCREEN_FADE_BLOCKS 128u /* most palettes one fade handles (76 used; later ones are left untouched), s_pal_next is 4 KB */
-static u16 s_pal_full[SCREEN_FADE_WORDS];
+static u16 s_pal_full[SCREEN_FADE_BLOCKS * 16]; /* the saved words of the faded palettes only, in s_pal_blk order (RAM: a whole-bank copy cost 4 KB of stack room) */
 static u16 s_pal_next[SCREEN_FADE_BLOCKS * 16];
 static u8 s_pal_blk[SCREEN_FADE_BLOCKS];
+static u16 s_pal_nb;
+/* Save the non-zero palettes of the bank (at most SCREEN_FADE_BLOCKS, later ones are left untouched) for a fade. */
+static void screen_fade_save(void) {
+    const volatile u16 *bank = (const volatile u16 *)MMAP_PALBANK1;
+    s_pal_nb = 0;
+    for (u16 b = 0; b < SCREEN_FADE_WORDS / 16 && s_pal_nb < SCREEN_FADE_BLOCKS; b++) {
+        u16 *out = &s_pal_full[s_pal_nb * 16];
+        u16 any = 0;
+        for (u8 j = 0; j < 16; j++) any |= out[j] = bank[b * 16 + j];
+        if (any) s_pal_blk[s_pal_nb++] = (u8)b;
+    }
+}
 /* A pass scales the 4 bit channels through a 16 entry table built per step (no hardware 32 bit multiply: bg_fade_color per word, three software
  * multiplies, took ~15 frames a pass). The dark-bit LSBs are dropped while fading. The last step (level BG_FADE_MAX) writes the saved words
  * back, exact, and level 0 is black. Unused slots stay 0. */
 static void screen_fade(u8 from, u8 to) {
     gfx_drain();
-    if (to < from) for (u16 i = 0; i < SCREEN_FADE_WORDS; i++) s_pal_full[i] = ((volatile u16 *)MMAP_PALBANK1)[i];
-    u16 nb = 0;
-    for (u16 b = 0; b < SCREEN_FADE_WORDS / 16 && nb < SCREEN_FADE_BLOCKS; b++)
-        for (u8 j = 0; j < 16; j++) if (s_pal_full[b * 16 + j]) { s_pal_blk[nb++] = (u8)b; break; }
+    if (to < from) screen_fade_save();
+    const u16 nb = s_pal_nb;
     for (;;) {
         u16 lr[16], lg[16], lb[16]; /* channel value scaled by the level, already shifted into place */
         for (u8 v = 0; v < 16; v++) { u16 x = (u16)(v * from >> 4); lr[v] = (u16)(x << 8); lg[v] = (u16)(x << 4); lb[v] = x; }
         if (!from) { u32 *z = (u32 *)s_pal_next; for (u16 i = 0; i < nb * 8u; i++) z[i] = 0; } /* level 0 is black: no per-word pass, one frame sooner */
         else for (u16 k = 0; k < nb; k++) {
-            const u16 *in = &s_pal_full[s_pal_blk[k] * 16];
+            const u16 *in = &s_pal_full[k * 16];
             u16 *out = &s_pal_next[k * 16];
             if (from >= BG_FADE_MAX) { for (u8 j = 0; j < 16; j++) out[j] = in[j]; continue; }
             for (u8 j = 0; j < 16; j++) {
@@ -3310,6 +3344,8 @@ static void video_init(void) {
     for (u8 i = 0; i < ARCADE_PALETTE_COUNT; i++)
         for (u8 c = 0; c < 16; c++) gfx_pal((u16)((ARCADE_PAL_SLOT + i) * 16 + c), arcade_palettes[i][c]);
     for (u8 c = 0; c < 16; c++) gfx_pal((u16)(ATTRACT_PAL_SLOT * 16 + c), attract_icon_palette[c]);
+    rain_init(&g_rain, RAIN_PAL_SLOT);
+    rain_pal_put(0);
     for (u8 c = 0; c < 16; c++) gfx_pal((u16)(PROMPT_PAL_SLOT * 16 + c), inputprompt_palette[c]);
     bg_load_palettes();
     gfx_word(ADDR_SCB3 + SPRITE_RESERVED, 0); /* sprite 0 is never visible (src/sprite_slots.h): nothing else writes this slot */
@@ -3327,7 +3363,7 @@ static void video_init(void) {
     g_draw_state = -1;
     gfx_commit_all();
     gfx_drain(); /* init is outside the per-frame budget: it blocks, one flush per vblank, until everything is written */
-    for (u16 i = 0; i < SCREEN_FADE_WORDS; i++) s_pal_full[i] = ((volatile u16 *)MMAP_PALBANK1)[i];
+    screen_fade_save();
     screen_fade(0, BG_FADE_MAX); /* the BIOS return leaves the palette black: fade up, no cut */
     bg_backdrop_dark(0); /* only now: nothing is drawn during the fade-up, so a lit backdrop alone would show as a blue screen; it comes with the first frame */
 }
@@ -3615,6 +3651,7 @@ static void game_loop(void) {
          * round, a demo rematch, an arcade world change) it fades: the planes dim to black, swap in the dark, brighten, and the game runs on. */
         bg_set_mood(g_flow.game.mood, (u8)(world_state(&view) && g_bg_hold));
         bg_pop_sky((u8)((world_state(&view) || view.state == FLOW_GAME_OVER) && pop_field(view.game)), view.game ? view.game->pop.dist : 0); /* Pop Drop: summer sky instead of the arena planes (1P, 2P, demo) */
+        rain_frame(&view);
         bg_update(g_cam_unwrapped); /* the planes loop on the unwrapped camera (arena and Gum Trip alike) */
         g_bg_held = (u8)(world_state(&view) && g_bg_hold); /* test sentinel: this frame kept the world hidden */
         if (world_shown(&view) && bg_bare()) g_bg_late++; /* the world over the flat lit backdrop: a cut swap in play */

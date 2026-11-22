@@ -70,12 +70,23 @@ static u16 total_cost(void)
     return n;
 }
 
+/* Fix cells in the queued ops (adjacent changed rows share one VQ_RUN op), without popping. */
+static u16 fix_cells(void)
+{
+    u16 n = 0;
+    for (u16 k = 0; k < q.count; k++) {
+        const VqOp *op = &q.ops[(q.head + k) % VQ_CAP];
+        n = (u16)(n + (op->kind == VQ_RUN ? op->rows : 1));
+    }
+    return n;
+}
+
 /* Commit the fix layer, draining the queue whenever it fills; returns the number of cells written. */
 static int commit_all(void)
 {
     int n = 0;
-    while (!vq_fix_commit(&q)) { n += vq_pending(&q); (void)total_cost(); }
-    n += vq_pending(&q);
+    while (!vq_fix_commit(&q)) { n += fix_cells(); (void)total_cost(); }
+    n += fix_cells();
     (void)total_cost();
     return n;
 }
@@ -242,22 +253,36 @@ int main(void)
     {
         int frames = 0, total = 0;
         while (frames < 64) {
-            u16 before = vq_pending(&q);
-            CHECK(vq_fix_commit_room(&q, 128, 200));
-            CHECK(vq_pending(&q) <= VQ_CAP - 200 || vq_pending(&q) == before);
-            total += vq_pending(&q) - before;
+            u16 before = fix_cells();
+            CHECK(vq_fix_commit_room(&q, 128, 200, 0));
+            CHECK(vq_pending(&q) <= VQ_CAP - 200 || fix_cells() == before);
+            total += fix_cells() - before;
             (void)total_cost();
             frames++;
             if (vq_pending(&q) == 0 && total == VQ_FIX_COLS * VQ_FIX_ROWS) break;
         }
         CHECK(total == VQ_FIX_COLS * VQ_FIX_ROWS && frames == 10);
     }
+    /* past VQ_FIX_LINE_END the commit queues nothing and keeps the cells; the next commit resumes at the column it stopped in */
+    {
+        volatile u16 lspc = (u16)(VQ_FIX_LINE_END << 7);
+        q.fix_col = 0; /* the budget loop above left a cut column behind */
+        vq_fix_put(&q, 3, 4, 0x1201); vq_fix_put(&q, 30, 4, 0x1202);
+        u16 p = vq_pending(&q);
+        CHECK(vq_fix_commit_room(&q, 128, 0, &lspc) && vq_pending(&q) == p && q.fix_dirty[3] && q.fix_dirty[30]);
+        CHECK(vq_fix_commit_n(&q, 1) && q.fix_dirty[3] == 0 && q.fix_dirty[30]); /* budget cut after column 3 */
+        vq_fix_put(&q, 2, 4, 0x1203);
+        CHECK(vq_fix_commit_n(&q, 1) && q.fix_dirty[30] == 0 && q.fix_dirty[2]); /* resumes at 3, not at 0 */
+        lspc = (u16)(0x1F0u << 7); /* a frame that starts in vblank is early, not late */
+        CHECK(vq_fix_commit_room(&q, 128, 0, &lspc) && q.fix_dirty[2] == 0);
+        (void)commit_all();
+    }
     /* a queue already full to the reserve takes no cells and keeps the columns dirty */
     vq_fix_fill(&q, 0x31);
     for (u16 i = 0; i < 190; i++) vq_pal(&q, i, i);
-    CHECK(vq_fix_commit_room(&q, 128, 200) && vq_pending(&q) == 190); /* no room above the reserve */
+    CHECK(vq_fix_commit_room(&q, 128, 200, 0) && vq_pending(&q) == 190); /* no room above the reserve */
     (void)total_cost();
-    CHECK(vq_fix_commit_room(&q, 128, 200) && vq_pending(&q) == 128);
+    CHECK(vq_fix_commit_room(&q, 128, 200, 0) && fix_cells() == 128);
     (void)total_cost();
     (void)commit_all();
     /* font maps: plain, backed, tall (two rows), space and unknown are the blank tile 255 */

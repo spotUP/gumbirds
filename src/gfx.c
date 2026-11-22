@@ -152,7 +152,7 @@ void gfx_cls_busy(void) { vq_fix_wipe(&g_gfx_q, SROM_EMPTY_TILE); } /* the layer
 
 void gfx_commit(void) {
     u16 max = vq_fix_line_budget(VQ_RASTER_LINE(*REG_LSPCMODE)); /* a late heavy frame leaves cells dirty for the next one */
-    if (max) RETRY(vq_fix_commit_room(&g_gfx_q, max, VQ_FIX_RESERVE));
+    if (max) RETRY(vq_fix_commit_room(&g_gfx_q, max, VQ_FIX_RESERVE, REG_LSPCMODE));
 }
 void gfx_commit_all(void) { RETRY(vq_fix_commit(&g_gfx_q)); }
 

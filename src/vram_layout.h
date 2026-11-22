@@ -119,7 +119,9 @@ _Static_assert((POOP_TILE_BASE & 7) == 0, "poop tile base is not 8-aligned");
 _Static_assert(ATTRACT_PAL_SLOT < 16, "fix layer palettes are 4 bits: the overlay palette must be slot 0..15");
 #define PROMPT_PAL_SLOT (FIX_PAL_COUNT + 1) /* input prompt caps (build/gen/inputprompt_tiles.h), written once at boot: the attract slot holds the meter palette during events, so prompts need their own */
 _Static_assert(PROMPT_PAL_SLOT < 16, "fix layer palettes are 4 bits: the prompt palette must be slot 0..15");
-#define OBS_PAL_SLOT (ATTRACT_PAL_SLOT + 2) /* after the overlay slot and the prompt slot */
+#define RAIN_PAL_SLOT (PROMPT_PAL_SLOT + 1) /* storm rain fix tiles (build/gen/rain_tiles.h): 5 entries, H B T F e. Slot 12 (after the prompt slot 11): not 0..9 (font), 10 (attract/meter), 11 (prompts) */
+_Static_assert(RAIN_PAL_SLOT < 16, "fix layer palettes are 4 bits: the rain palette must be slot 0..15");
+#define OBS_PAL_SLOT (ATTRACT_PAL_SLOT + 3) /* after the overlay, prompt and rain slots */
 #define CITY_PAL_SLOT (OBS_PAL_SLOT + OBS_PALETTE_COUNT)
 #define DUSK_PAL_SLOT (CITY_PAL_SLOT + CITY_PALETTE_COUNT) /* dusk mood planes; both moods stay loaded, a mood change rewrites only the strips (src/bg.c) */
 #define STORM_PAL_SLOT (DUSK_PAL_SLOT + DUSK_PALETTE_COUNT) /* storm mood planes, resident like dusk */
