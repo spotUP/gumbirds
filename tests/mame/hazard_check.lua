@@ -167,6 +167,8 @@ local function reset_kind() -- end the game
 end
 emu.register_frame_done(function()
   n = n + 1
+  -- Calm mood (Game.mood 0) all through PLAYING, as vblank_check: the mood follows the game rng, which a faster coin entry shifted; storm rain would be drawn over the hazard strip this gate hashes. test-rain covers storm.
+  if flay[28] and mem:read_u8(flow_addr + O_STATE) == STATE_PLAYING then mem:write_u8(flow_addr + flay[28], 0) end
   if q3.on and q3.end_n and n >= q3.end_n then q3.on = false end
   if not START_AT then
     if phase == "next_round" then -- the poke won the round: wait for the new round's strip (g_hazard_matches counts strip starts)

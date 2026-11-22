@@ -20,7 +20,6 @@ local flay = {}
 for v in (os.getenv("BRAWL_FLIER_LAYOUT") or ""):gmatch("%d+") do flay[#flay + 1] = tonumber(v) end
 local S_PLAYING = 3
 local PALRAM, BACKDROP = 0x400000, 0x400000 + 4095 * 2
-local MAX_WINS = 6
 local GAME_MOOD_STORM, SB_LIMIT, STORM_FRAMES = 2, 90, 120
 
 local mem   = manager.machine.devices[":maincpu"].spaces["program"]
@@ -92,15 +91,17 @@ emu.register_frame_done(function() local ok_, err_ = pcall(function()
   if not rs.live() or busy ~= 0 then t = 0 return end
   t = t + 1
   if t < 5 then return end
+  -- Moods are forced (Game.mood poke, like the storm phase): the world mood follows the game rng, which a faster coin entry shifted, so a random pair may never show both dusk and moon.
   if phase == "live" then
+    if mood ~= 0 then mem:write_u8(flow_addr + flay[28], 0); t = 0 return end
     mood_a, back_a = mood, mem:read_u16(BACKDROP)
     local bad = pal_mismatch()
     if bad then finish(false, "dusk palette not resident in mood " .. mood .. ": " .. bad) return end
     rs.win(); wins = 1; phase = "next"; t = 0
   elseif phase == "next" then
     if mood == mood_a then
-      if wins >= MAX_WINS then finish(false, "mood stayed " .. mood .. " after " .. wins .. " won rounds") return end
-      rs.win(); wins = wins + 1; t = 0
+      if t > 300 then finish(false, "mood stayed " .. mood .. " 300 frames after the moon poke") return end
+      mem:write_u8(flow_addr + flay[28], 1)
       return
     end
     back_b, mood_b = mem:read_u16(BACKDROP), mood
