@@ -1662,6 +1662,7 @@ static u8 world_shown(const FlowView *v) { return world_state(v) && !g_bg_hold; 
 static Rain g_rain;
 static u8 g_rain_pal = 2; /* 0 normal, 1 burst, 2 not written yet */
 static s32 g_rain_cam;
+u16 g_rain_lines = 64; /* rain_step cost in raster lines, measured each storm frame (rain_frame); 64 until the first measurement */
 static void rain_pal_put(u8 burst) {
     const u16 *p = burst ? rain_burst_palette : rain_palette;
     for (u8 i = 0; i < 5; i++) gfx_pal((u16)(RAIN_PAL_SLOT * 16 + 1 + i), p[i]);
@@ -1674,9 +1675,17 @@ static void rain_frame(const FlowView *v) {
     s32 d = g_cam_unwrapped - g_rain_cam;
     g_rain_cam = g_cam_unwrapped;
     if (on && g_rain_pal != rain_burst_active(&g_rain)) rain_pal_put(rain_burst_active(&g_rain));
-    /* no fix budget left this frame (late raster line): rain holds still instead of adding fix writes the commit cannot take */
-    if (on && g_rain.was_active && !vq_fix_line_budget(VQ_RASTER_LINE(*REG_LSPCMODE))) { bg_flash(rain_flash_index(&g_rain)); return; }
+    /* rain_step itself must end before VQ_FIX_LINE_END: a storm frame that reached it late ran it into vblank and skipped the flush
+     * (make test-scroll, 75 of 99 skipped steps had the PC in rain_step; thoughts/spot/2026-11-22-rain-fix.md). Lines left (one fix
+     * cell a line) at or under rain_step's own measured cost: rain holds still this frame. */
+    u16 l0 = VQ_RASTER_LINE(*REG_LSPCMODE);
+    if (on && g_rain.was_active && vq_fix_line_budget(l0) <= g_rain_lines) { bg_flash(rain_flash_index(&g_rain)); return; }
     rain_step(&g_rain, &g_gfx_q, on, trip ? RAIN_MODE_TRIP : stadium_on(g) ? RAIN_MODE_STADIUM : RAIN_MODE_ARENA, trip && d > 0 && d < 16 ? (s16)d : 0);
+    u16 l1 = VQ_RASTER_LINE(*REG_LSPCMODE);
+    if (on && l0 >= 0x110u && l1 > l0) { /* cost: worst recent step, decays a line a frame so a light stretch frees the gate again */
+        u16 c = (u16)(l1 - l0);
+        g_rain_lines = c > g_rain_lines ? c : (u16)(g_rain_lines - (g_rain_lines > c));
+    }
     bg_flash(rain_flash_index(&g_rain));
 }
 
