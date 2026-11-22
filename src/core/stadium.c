@@ -85,11 +85,11 @@ static void near_state(uint8_t mode, int f, int r, int c, int type, signed char 
 
 /* far_state() of the exporter for one far block: the cheer, wave and win entries depend on the block only, so they are
  * looked up once; a bird whose entry is out of range (or idle) takes its own idle phase. Same result as one lookup per bird. */
-static const signed char *far_block_entry(uint8_t mode, int f, int row, int bc, int bp)
+static const signed char *far_block_entry(uint8_t mode, int16_t f, int16_t row, int16_t bc, int16_t bp)
 {
     static const signed char rest[2] = {0, 0};   /* the slump: pose A, no hop */
     static const uint8_t mod3[10] = {0, 1, 2, 0, 1, 2, 0, 1, 2, 0};
-    int q, lag = bc * 2 + 4 + (1 - row);
+    int16_t q, lag = (int16_t)(bc * 2 + 4 + (1 - row));
     switch (mode) {
     case STADIUM_CHEER:
         q = f - ST_CHEER_AT[bc >= STADIUM_SIDE_COLS] - mod3[bp];
@@ -153,12 +153,12 @@ static StadiumCell far_cell(uint8_t k) { StadiumCell none = {0, 0}; return k == 
 
 StadiumCell stadium_far(const Stadium *s, int row, int col)
 {
-    int f;
+    int16_t f;
     const signed char *be;
     uint8_t *m;
     if (ST_FB[row][col] == 'S') return cell(ST_AISLE);
-    f = s->t[side_of(col)];
-    be = far_block_entry(s->mode[side_of(col)], f, row, col, ST_FP[row][col] - '0');
+    f = (int16_t)s->t[side_of(col)];
+    be = far_block_entry(s->mode[side_of(col)], f, (int16_t)row, (int16_t)col, (int16_t)(ST_FP[row][col] - '0'));
     if (be) {   /* cheer, wave, winner, loser: every bird of the block takes be, so the result depends on block and be only */
         m = &g_far_be[ST_FB[row][col] - 'A'][(be[0] + 1) | ((be[1] + 8) << 3)];
         if (!*m) *m = far_index(row, col, f, be);
