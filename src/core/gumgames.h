@@ -70,7 +70,6 @@ void gg_blow_step(GgBlow *b, uint8_t in1, uint8_t in2);
 
 /* Burst Race (event 2): head-to-head, both sides mash A/B (the Big Blow pump); the first bubble to reach GG_BLOW_MAX bursts and wins.
  * P1 against a computer bird, or P1 against P2 in a 2P game. One heat, no tickets. Record = winning time in frames (lower is better). */
-#define GG_RACE_CPU_PERIOD 5u          /* the computer bird presses every 5th frame (about 0.6 size per frame net of the leak) */
 #define GG_RACE_CLOCK 1800u            /* two idle humans: after 30 s the bigger bubble wins, a tie goes to P1 */
 #define GG_RACE_INTRO_FRAMES 150u
 #define GG_RACE_RIVAL_GAP 48           /* px from the player's bird to the computer / P2 bird */

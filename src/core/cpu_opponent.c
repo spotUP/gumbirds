@@ -36,8 +36,23 @@ uint8_t cpu_flapdash(Cpu *c, const Flier *bird)
     return in;
 }
 
+uint8_t cpu_burstrace(Cpu *c, const GgRace *r)
+{
+    const CpuLevel *l = cpu_level(c->level);
+    uint8_t in = 0;
+    if (r->phase != GG_RACE_PLAY) return 0;
+    if (c->t < 0xFFFFu) c->t++;   /* the cue is the GO */
+    if (c->since < 0xFF) c->since++;
+    if (c->since >= l->period) {
+        if (cpu_act(c, 1)) { in = c->flip ? IN_A : IN_B; c->flip ^= 1; }
+        c->since = 0;   /* a fumbled press still costs the hands their beat */
+    }
+    return in;
+}
+
 uint8_t cpu_input(Game *g)
 {
     if (g->gg_dash) return cpu_flapdash(&g->opp, &g->hero[1]);
+    if (g->gg_race) return cpu_burstrace(&g->opp, &g->race);
     return 0;   /* next game: one case here */
 }

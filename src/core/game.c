@@ -124,7 +124,7 @@ int game_join_p2(Game *g)
     if (g->mode == GAME_MODE_GUM && g->gg_poop) { g->players = 2; gm_add_p2(&g->poop); return 1; }
     if (g->mode == GAME_MODE_GUM && g->gg_dash) { g->players = 2; g->cpu_level = CPU_OFF; g->dash.p2_is_cpu = 0; return 1; }   /* the computer bird is already on the course: a human takes its seat */
     if (g->mode == GAME_MODE_GUM && g->gg_pop) { g->players = 2; gp_add_p2(&g->pop, &g->hero[0], &g->hero[1]); return 1; }
-    if (g->mode == GAME_MODE_GUM) { g->players = g->race.players = 2; return 1; }
+    if (g->mode == GAME_MODE_GUM) { g->players = g->race.players = 2; g->cpu_level = CPU_OFF; return 1; }
     if (g->mode == GAME_MODE_ARENA) return 0; /* Arena joins through flow_join_p2: a fresh match */
     g->players = 2;
     arc_lives_start(&g->lives[1]);
@@ -498,6 +498,8 @@ void game_gg_start_race(Game *g)
 {
     g->gg_race = 1;
     gg_race_start(&g->race, 1);
+    g->cpu_level = CPU_NORMAL;   /* 1P races a Normal computer bird; a human P2 Start in the intro takes its seat */
+    cpu_init(&g->opp, CPU_NORMAL, g->rng.s);
     player_spawn_h(g, 1);   /* the computer or P2 bird stands beside the player, facing it; its pump frame follows race.size[1] (game_step_gum) */
     /* The camera stays put in this event (game_step_gum): centre the pair on the screen, not on the arena spawn point that sits at its left edge. */
     g->hero[0].x = camera_centre_x(g) - FL_PX(GG_RACE_RIVAL_GAP / 2);

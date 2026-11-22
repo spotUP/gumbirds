@@ -112,6 +112,30 @@ CHECK(wins >= 12);
         }
     }
 
+    /* 1P Burst Race: the Normal computer pumps through input2, wins an idle heat with no score or record time, replays per seed, and a human join cancels it */
+    {
+        static Game g;
+        uint32_t seed, fr[2] = {0, 0}, wins = 0;
+        int k, pass;
+        for (seed = 1; seed <= 20; seed++) {
+            game_reset(&g, seed); g.mode = GAME_MODE_GUM; game_gg_start_race(&g);
+            CHECK(g.cpu_level == CPU_NORMAL && g.players == 1);
+            for (k = 0; k < 3000 && g.race.phase != GG_RACE_END; k++) game_step(&g, 0);
+            if (g.race.winner == 1) { CHECK(g.score == 0 && g.race.seq.best[0] == 0 && g.race.last_points == 0); wins++; }
+        }
+        CHECK(wins == 20);
+        for (pass = 0; pass < 2; pass++) {
+            game_reset(&g, 7); g.mode = GAME_MODE_GUM; game_gg_start_race(&g);
+            for (k = 0; k < 3000 && g.race.phase != GG_RACE_RESULT; k++) game_step(&g, 0);
+            fr[pass] = g.race.frames;
+        }
+        CHECK(fr[0] == fr[1] && fr[0] > 60 && fr[0] < 400);
+        game_reset(&g, 5); g.mode = GAME_MODE_GUM; game_gg_start_race(&g);
+        CHECK(game_can_join_p2(&g) && game_join_p2(&g) && g.cpu_level == CPU_OFF && g.race.players == 2);
+        for (k = 0; k < 400; k++) { game_step(&g, 0); CHECK(g.input2 == 0); }
+        CHECK(g.race.size[1] == 0 && g.race.phase == GG_RACE_PLAY);
+    }
+
     printf(fails ? "cpu_opponent: %d FAILED\n" : "cpu_opponent: all passed\n", fails);
     return fails != 0;
 }
