@@ -6,7 +6,7 @@
 -- peak_max() is the maximum, peak_text() a result suffix.
 -- Crowd busy (with STADIUM_ST_ADDR = g_st of src/stadium_hw.c, STADIUM_VBBUSY_ADDR = g_vb_busy, hex): poke() counts the busy vblanks
 -- (frame logic overran) on frames where a side cheers or waves and the crowd animates (Stadium.t moved in the last 3 frames, so the
--- strip load on mode entry is not counted). busy_bad() is true when any was seen; busy_text() a result suffix.
+-- strip load on mode entry is not counted). busy_bad(ceiling) is true when more than ceiling (default 0) were seen; busy_text() a result suffix.
 local line_count = dofile(((debug and debug.getinfo and debug.getinfo(1, "S").source:match("^@(.*)/[^/]*$")) or "tests/mame") .. "/sprite_line_count.lua")
 return function(mem, flow_addr)
   local mood, off = tonumber(os.getenv("STADIUM_MOOD") or ""), tonumber(os.getenv("STADIUM_MOOD_OFF") or "")
@@ -34,7 +34,7 @@ return function(mem, flow_addr)
     end
     pbusy = b
   end
-  function H.busy_bad() return st_addr ~= nil and busy_addr ~= nil and (abusy > 0 or act == 0) end
+  function H.busy_bad(ceiling) return st_addr ~= nil and busy_addr ~= nil and (abusy > (ceiling or 0) or act == 0) end
   function H.busy_text()
     if not (st_addr and busy_addr) then return " [crowd busy: STADIUM_ST_ADDR / STADIUM_VBBUSY_ADDR missing]" end
     local k = {}
