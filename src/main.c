@@ -2377,6 +2377,13 @@ static void hero_and_mode(const FlowView *v) {
         g_cam_px = (u16)game_camera_px(v->game);
         g_cam_unwrapped = camera_unwrapped_px(&v->game->camera);
         edge_marker(v->game, game_flier_cam_px(v->game));
+        if (v->card) {   /* the rules card shows the world and its own example only: no bird or pool sprite under it (owner 2026-11-22, make test-gum-fling F4) */
+            hero_hide();
+            dead_release_all();
+            if (g_pool.live) pool_free_all();
+            pool_show();
+            return;
+        }
         if (v->game->gg_poop) { hero_hide(); poop_show(v->game); }
         else if (v->game->gg_pop) { hero_hide(); pop_show(v->game); }  /* no hero_show here: it queued the hero and hero_hide cleared it the same frame */
         else {
