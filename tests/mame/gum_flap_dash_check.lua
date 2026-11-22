@@ -68,12 +68,13 @@ emu.register_frame_done(function()
       phase = "result"; t0 = n
     elseif n - t0 > 4000 then finish(false, string.format("run never finished (laps %d, frames %d)", b(O.laps), mem:read_u32(flow_addr + O.frames))) end
   elseif phase == "result" then
-    if b(O.state) == K.over then
+    abtn:set_value(((n - t0) > 40 and (n - t0) % 4 == 0) and 1 or 0)   -- the result screen waits for A
+    if b(O.state) ~= K.playing then
       local frames, score, rec = mem:read_u32(flow_addr + O.frames), mem:read_u32(flow_addr + O.score), mem:read_u32(flow_addr + O.record)
       if not (hud and lap1) then finish(false, string.format("hud lit %s, lap counted %s", tostring(hud), tostring(lap1))) return end
       if score ~= 300 and score ~= 800 then finish(false, "score " .. score .. ", want 300 or 800") return end
       if rec ~= frames or frames == 0 then finish(false, string.format("record %d, run time %d", rec, frames)) return end
       finish(true, string.format("Flap Dash: PARTY event list + A, Down starts the dash; HUD lit, lap counted, 3 laps in %d frames, score %d, record saved", frames, score))
-    elseif n - t0 > 600 then finish(false, "result never led to game over") end
+    elseif n - t0 > 900 then finish(false, "result never led out of PLAYING") end
   end
 end)

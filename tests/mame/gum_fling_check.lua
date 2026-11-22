@@ -100,7 +100,7 @@ emu.register_frame_done(function()
     if ss.step(n, playing, 1) then phase = "fling"; t0 = n; pick:set_value(0) end
     ss.menu(n - t0, 9, abtn, pick)
   elseif phase == "fling" then
-    if b(O.state) == K.over then phase = "check" return end
+    if b(O.state) ~= K.playing then phase = "check" return end
     if b(O.fling) ~= 1 then finish(false, "gg_fling not set") return end
     if os.getenv("FLING_SPR_LOG") and n % 4 == 0 then   -- every shown sprite column: slot, x, top, height
       local o = {}
@@ -173,6 +173,8 @@ emu.register_frame_done(function()
       -- frantic flap mash in the flight of attempt 2 (an A or B press every 4 frames)
       local j = n % 8
       abtn:set_value(j == 0 and 1 or 0); bbtn:set_value(j == 4 and 1 or 0); cbtn:set_value(0)
+    elseif ph == K.gfend then
+      abtn:set_value(n % 4 == 0 and 1 or 0); bbtn:set_value(0); cbtn:set_value(0)   -- the result screen waits for A
     else
       abtn:set_value(0); bbtn:set_value(0); cbtn:set_value(0)
     end
