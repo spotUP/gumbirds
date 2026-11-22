@@ -41,6 +41,7 @@ void gfx_scb_ramp(u16 addr, u8 n, u8 split, u16 v1, u16 v2);  /* VQ_RAMP: words 
 /* One column with a per-tile attribute: `pairs` = rows x {tile, attribute}; for init-time art that mixes palettes in a column. */
 void gfx_strip_attr(u16 sprite, const u16 *pairs, u16 base, u8 rows);
 void gfx_pal(u16 idx, u16 val);
+extern void (*g_pal_shadow)(u16 idx, u16 val); /* non-zero: gfx_pal calls this instead of queueing the palette write (video_init, screen black) */
 void gfx_text(u8 x, u8 y, u8 pal, const char *s);
 /* One fix cell: S-ROM tile number with palette pal (goes through the fix shadow, so an unchanged cell sends nothing). */
 void gfx_fix_tile(u8 x, u8 y, u8 pal, u16 tile);
@@ -53,6 +54,7 @@ void gfx_center_text(u8 y, u8 pal, const char *s);
 /* The cells gfx_center_text of a w-space string writes on rows y..y+h-1, in one vq_fix_clear pass. */
 void gfx_center_blank(u8 y, u8 h, u8 w, u8 pal);
 void gfx_cls(void);
+void gfx_cls_init(void); /* gfx_cls queued as column runs and committed at once (init only, queue near empty) */
 void gfx_cls_busy(void); /* same screen as gfx_cls, cheaper when most of the layer is written */
 void gfx_commit_all(void);          /* commit every changed fix cell now (init and reset paths, outside the frame budget) */
 void gfx_commit(void);              /* fold the fix layer changes into the queue (end of the frame's logic) */

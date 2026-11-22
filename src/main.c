@@ -3270,9 +3270,25 @@ static void screen_fade_save(void) {
         if (any) s_pal_blk[s_pal_nb++] = (u8)b;
     }
 }
+static u8 s_pal_slot[SCREEN_FADE_WORDS / 16]; /* palette block -> index in s_pal_full, 0xFF: not shadowed (video_init only) */
+/* gfx_pal hook while video_init builds the palettes: a written block gets a compact slot (seeded from palette RAM so unwritten words keep their
+ * BIOS value), later blocks past SCREEN_FADE_BLOCKS are left untouched like in screen_fade_save. */
+static void pal_shadow_set(u16 idx, u16 val) {
+    const u16 b = idx >> 4;
+    u8 k = s_pal_slot[b];
+    if (k == 0xFF) {
+        if (s_pal_nb >= SCREEN_FADE_BLOCKS) return;
+        k = (u8)s_pal_nb++;
+        s_pal_slot[b] = k;
+        s_pal_blk[k] = (u8)b;
+        for (u8 j = 0; j < 16; j++) s_pal_full[k * 16 + j] = ((volatile u16 *)MMAP_PALBANK1)[b * 16 + j];
+    }
+    s_pal_full[k * 16 + (idx & 15)] = val;
+}
 /* A pass scales the 4 bit channels through a 16 entry table built per step (no hardware 32 bit multiply: bg_fade_color per word, three software
  * multiplies, took ~15 frames a pass). The dark-bit LSBs are dropped while fading. The last step (level BG_FADE_MAX) writes the saved words
  * back, exact, and level 0 is black. Unused slots stay 0. */
+_Static_assert(BG_FADE_MAX % 4 == 0, "screen_fade steps 4 levels");
 static void screen_fade(u8 from, u8 to) {
     gfx_drain();
     if (to < from) screen_fade_save();
@@ -3300,17 +3316,23 @@ static void screen_fade(u8 from, u8 to) {
             }
         }
         if (from == to) return;
-        from = from < to ? (u8)(from + 2) : (u8)(from - 2); /* BG_FADE_MAX is even: two levels a pass */
+        /* A pass costs ~2 frames, all of them with the frame counter frozen (unibios_check STALL_LIMIT): a fade takes 4 levels a pass
+         * (BG_FADE_MAX is a multiple of 4). */
+        from = from < to ? (u8)(from + 4) : (u8)(from - 4);
     }
 }
 
 static void video_init(void) {
     gfx_init();
+    /* Palettes are built in the fade source and only reach palette RAM through the fade-up: queued, they cost ~24 vblanks of
+     * the coin entry (20 us a word) and the screen is black until the fade anyway. */
+    for (u16 b = 0; b < SCREEN_FADE_WORDS / 16; b++) s_pal_slot[b] = 0xFF;
+    s_pal_nb = 0;
+    g_pal_shadow = pal_shadow_set;
     bg_backdrop_dark(1);
     /* Commit the fix clear FIRST, while palette 0 is still the BIOS zero: the budgeted queue flushes in order, so a clear
      * committed last left the BIOS tile 0x20 fill visible about 30 frames after a coin (tests/mame/unibios_check.lua, COIN1). */
-    gfx_cls();
-    gfx_commit_all();
+    gfx_cls_init();
     /* Fix layer palettes 0..FIX_PAL_COUNT-1 (generated with the font). */
     for (u8 s = 0; s < FIX_PAL_COUNT; s++)
         for (u8 i = 0; i < 16; i++) gfx_pal((u16)(s * 16 + i), fixfont_palettes[s][i]);
@@ -3363,7 +3385,7 @@ static void video_init(void) {
     g_draw_state = -1;
     gfx_commit_all();
     gfx_drain(); /* init is outside the per-frame budget: it blocks, one flush per vblank, until everything is written */
-    screen_fade_save();
+    g_pal_shadow = 0; /* the compact fade source already holds every palette: screen_fade(0, ..) needs no save */
     screen_fade(0, BG_FADE_MAX); /* the BIOS return leaves the palette black: fade up, no cut */
     bg_backdrop_dark(0); /* only now: nothing is drawn during the fade-up, so a lit backdrop alone would show as a blue screen; it comes with the first frame */
 }
