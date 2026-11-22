@@ -83,9 +83,10 @@ static void gfx_swap_step(void) {
     }
 }
 
+volatile u16 g_vb_busy; /* test sentinel: vblanks that found the main thread still running its frame logic (a real overrun) */
 void rom_callback_VBlank(void) {
     gfx_swap_step();
-    if (g_parked) gfx_flush();
+    if (g_parked) gfx_flush(); else g_vb_busy++;
     g_vb_flag = 1;
 }
 

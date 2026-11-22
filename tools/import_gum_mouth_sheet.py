@@ -57,19 +57,28 @@ assert all(len(b) == len(fr) for c, _, fr in CLIPS for b in [GUM_BOB.get(c)] if 
 SWAY_FLAP = {"f1": "%s_f1", "f2": "%s_f2", "f3": "%s_f3", "f4": "%s_f4", "d1": "%s_f3", "d2": "%sp", "blast": "%sp", "puff": "%sp", "rest": "%s"}
 CLIPS += [("flap_" + s[0].lower(), 0, [(SWAY_FLAP[n] % s, t) for n, t in CLIPS[0][2]]) for s in ("R1", "L1")]
 # shortcut: the deep swings R2 / L2 show the R1 / L1 wing frames under a wingbeat, draw R2 / L2 wing frames if the jump shows.
+# Gumless bird facing the player (take A, assets/flier/gum_mouth/frames_front.txt): standing and in the air / on the parachute.
+# Appended last so every older sheet frame keeps its number. Ticks are the owner-approved draft timing.
+CLIPS += [("idle_front", 1, [("A_air_mid", 6), ("A_air_up", 6), ("A_air_mid", 6), ("A_air_down", 6), ("A_air_mid", 6), ("A_air_up", 6),
+                             ("A_air_blink", 6), ("A_air_down", 6)]),
+          ("breathe_front", 1, [("A_stand_rest", 24), ("A_stand_in", 20), ("A_stand_rest", 24), ("A_stand_in", 20), ("A_stand_rest", 10),
+                                ("A_stand_blink", 6)])]
 SWAY = {"R1": 1, "R1p": 1, "R2": 1, "L1": 2, "L1p": 2, "L2": 2}   # per frame: 0 centred, 1 swung right, 2 swung left
 
 
 def load_frames():
     rows, grip, name = {}, {}, None
-    for line in open(os.path.join(SRC, "frames_B.txt")):
-        line = line.strip()
-        if line.startswith("="):
-            head = line.strip("= ").split("@")
-            name = head[0].strip()
-            rows[name], grip[name] = [], int(head[1])
-        elif line and not line.startswith("#"):
-            rows[name].append(line)
+    for fn in ("frames_B.txt", "frames_front.txt"):
+        for line in open(os.path.join(SRC, fn)):
+            line = line.strip()
+            if line.startswith("="):
+                head = line.strip("= ").split("@")
+                name = head[0].strip()
+                if name in rows:
+                    sys.exit("[ERROR] frame %s typed twice" % name)
+                rows[name], grip[name] = [], int(head[1]) if fn == "frames_B.txt" else GRIP_COL   # front grids: '@' is a row, no gum
+            elif line and not line.startswith("#"):
+                rows[name].append(line)
     for n, r in rows.items():
         if len(r) > H or any(len(x) != W or not set(x) <= set(CH + ".") for x in r):
             sys.exit("[ERROR] frame %s: bad grid" % n)
@@ -103,7 +112,7 @@ def main():
                     px[ox + x, oy + y + shift] = CH.index(c) + 1
         gum_dx.append(grip[name] - GRIP_COL)
         gum_dy.append(shift - hang_shift + bob[n])
-        gum_show.append(0 if name in ("strain", "burst") and not keep[n] else 1)   # the gum is gone in the pop poses, except pop2
+        gum_show.append(0 if name.startswith("A_") or (name in ("strain", "burst") and not keep[n]) else 1)   # the gum is gone in the pop poses, except pop2
         sway.append(SWAY.get(name.split("_")[0], 0))   # R1_f1 .. L1_f4 are swung like R1 / L1
     img.save(os.path.join(OUT, "sheet.png"))
     anims, first = [], 0

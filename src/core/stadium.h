@@ -34,7 +34,10 @@ void stadium_finish(Stadium *s, int winner);
 void stadium_step(Stadium *s);
 /* The head-room and seat tile of near cell (row 0..2, column) / far cell (row 0..1, column; row 0 = the upper far row). */
 StadiumCell stadium_near(const Stadium *s, int row, int col, int storm);
+/* out = stadium_far rows 0..1, then stadium_near rows 0..2 of col: one call per column, an idle side from memos */
+void stadium_column(const Stadium *s, int col, int storm, StadiumCell out[STADIUM_FAR_ROWS + STADIUM_NEAR_ROWS]);
 StadiumCell stadium_far(const Stadium *s, int row, int col);
+void stadium_far_warm(int row, int col);   /* fills the idle result of one far cell for every phase: spreads the first lookups over the load frames */
 /* The four scoreboard digit tiles (tens/ones P1, tens/ones P2). */
 void stadium_digit_tiles(const Stadium *s, uint16_t out[STADIUM_DIGITS]);
 /* Stand x offset in px (0 .. -48) for a Gum Fling field scroll. */
