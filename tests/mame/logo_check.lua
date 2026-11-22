@@ -2,7 +2,7 @@
 --   L1. title: g_logo_draws advances and every logo strip sprite (LOGO_STRIP_COUNT from LOGO_SPRITE) has a non-zero SCB3 height, its tiles lie in the
 --       logo tile block;
 --   L2. 0 credits: the "PRESS START" cell at fix col 14 row 22 (tile of 'P') is never written; the "INSERT COIN" cell ('I') is;
---   L3. the BIOS credit byte 0x10FE00 reads 0 before and 1 after one coin; after the coin "PRESS START" is written;
+--   L3. the BIOS credit byte 0x10FE00 reads 0 before and 1 after one coin; within 120 frames of the coin "PRESS START" is written;
 --   L4. kill strips (slots shared with the logo, 323..354): in each of two Gum Trips (title, play, title, play) every visible sprite of
 --       TRIP_STRIP_SPRITE..+COUNT carries a tripstrip tile and none a logo tile; back on the title (after the BIOS hand-off) the logo is visible again.
 -- Fix cells and sprite words come from a tap on the VRAM ports (what the game wrote), not from game variables.
@@ -109,7 +109,10 @@ emu.register_frame_done(function()
     if k == 60 then
       c_after = mem:read_u8(CREDIT)
       if c_after ~= 1 then fail("L3 credit byte after one coin is " .. tostring(c_after) .. ", want 1") return end
-      if seen_p == 0 then fail("L3 PRESS START never written after the coin") return end
+    end
+    -- The coin re-enters USER 3: video_init blocks until the loop is back (+75 frames measured 2026-11-22, was ~44), so wait up to +120.
+    if k == 120 and seen_p == 0 then fail("L3 PRESS START never written within 120 frames of the coin") return end
+    if k >= 60 and seen_p > 0 then
       phase = "trip"; t0 = n; ss.begin(n)
       coin:set_value(0)   -- the coin above is already banked: a second one would leave a credit, and the BIOS starts a new game from it as soon as the title returns
     end

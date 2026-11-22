@@ -3555,8 +3555,9 @@ static void game_loop(void) {
         sound_tick();
         /* First of the frame's sprite words: the title logo and Sootlings share slots 323.. with every mode's strips, and a hide queued after a
          * mode entry's tile and stadium ops reached the hardware 8 frames late (Gum Fling rules card, slot 324 under it; tests/mame/gum_fling_check.lua F4). */
-        logo_step(view.state == FLOW_ATTRACT_TITLE && !bg_dark()); /* the logo has no palette fade: it leaves while a mood change holds the planes black and returns with the fade-in */
-        title_soot_step(view.state == FLOW_ATTRACT_TITLE);
+        /* Only the hides go first: the show runs after the world steps below, as a step there writes 0 to slot 323 once on the title's
+         * first frames and would land over a show queued before it (test-logo L1). */
+        if (view.state != FLOW_ATTRACT_TITLE || bg_dark()) { logo_step(0); title_soot_step(0); }
         draw(&view);
         /* The result screen's fix scene covers the world: its steps wait, so the fill frames keep their budget. */
         if (view.state == FLOW_PLAYING && view.game && view.game->res.active) {
@@ -3638,6 +3639,8 @@ static void game_loop(void) {
                               trip_game ? sg->hero[0].x >> 16 : se->splosh_x, trip_game ? sg->trip_splat_y : 0,
                               trip_game ? game_flier_cam_px(sg) : g_cam_px); /* the trip flier lives in screen space (owner 2026-11-17: splat far from the death) */
             }
+            logo_step(view.state == FLOW_ATTRACT_TITLE && !bg_dark()); /* the logo has no palette fade: it leaves while a mood change holds the planes black and returns with the fade-in */
+            title_soot_step(view.state == FLOW_ATTRACT_TITLE);
             hazard_trip_anim(trip_game);
             /* Gum Trip drops the far and near background planes; arena and title show them. Dropped already in the entry hold (world
              * hidden): on the reveal frame it ran with the course start and wrapped past vblank. */
