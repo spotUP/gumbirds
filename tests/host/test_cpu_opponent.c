@@ -112,6 +112,37 @@ CHECK(wins >= 12);
         }
     }
 
+    /* 1P Big Blow: the computer takes the P2 turns at Normal; a human Start takes them over; a computer win writes no record */
+    {
+        static Game g; static Flow f;
+        uint32_t seed, best1 = 0, best1b = 0, qual = 0;
+        int k;
+        for (seed = 1; seed <= 20; seed++) {   /* an idle human: the computer plays its 3 turns, never bursts, mostly qualifies */
+            game_reset(&g, seed); game_set_mode(&g, GAME_MODE_GUM); game_gg_start_blow(&g);
+            CHECK(g.cpu_level == CPU_NORMAL && g.players == 1 && g.blow.seq.players == 2);
+            for (k = 0; k < 20000 && !g.over; k++) game_step(&g, 0);
+            CHECK(g.over && g.blow.seq.best[0] == 0 && g.score == 0);
+            if (g.blow.seq.best[1] >= 48) qual++;
+            if (seed == 3) best1 = g.blow.seq.best[1];
+        }
+        CHECK(qual >= 12);
+        game_reset(&g, 3); game_set_mode(&g, GAME_MODE_GUM); game_gg_start_blow(&g);
+        for (k = 0; k < 20000 && !g.over; k++) game_step(&g, 0);
+        best1b = g.blow.seq.best[1];
+        CHECK(best1 == best1b && best1 > 0);   /* same seed replays */
+        game_reset(&g, 5); game_set_mode(&g, GAME_MODE_GUM); game_gg_start_blow(&g);
+        CHECK(game_can_join_p2(&g) && game_join_p2(&g));
+        CHECK(g.cpu_level == CPU_OFF && g.players == 2 && !game_can_join_p2(&g));
+        for (k = 0; k < 20000 && !g.over; k++) game_step(&g, 0);
+        CHECK(g.over && g.blow.seq.best[1] == 0);   /* nobody feeds P2 now */
+        flow_init(&f, NULL, 0);
+        game_reset(&f.game, 5); game_set_mode(&f.game, GAME_MODE_GUM); game_gg_start_blow(&f.game);
+        f.state = FLOW_PLAYING; f.gg_card = 0; f.howto = 0;
+        f.game.blow.seq.best[1] = 60; f.game.blow.phase = GG_BLOW_END; f.game.over = 1;
+        flow_step(&f, 0, 0, 1);
+        CHECK(f.tables.gg_record[GG_BIG_BLOW] == 0);
+    }
+
     printf(fails ? "cpu_opponent: %d FAILED\n" : "cpu_opponent: all passed\n", fails);
     return fails != 0;
 }

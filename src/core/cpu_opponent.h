@@ -33,4 +33,8 @@ int cpu_act(Cpu *c, int want);
 /* Flap Dash: flap when the computer's bird sits below GD_CPU_TARGET_Y, after `delay` frames of seeing it low, at most one press per `period` frames, each press fumbled with miss_pct. */
 #define CPU_DASH_TARGET_Y FL_PX(110)
 uint8_t cpu_flapdash(Cpu *c, const Flier *bird);
+#include "gumgames.h"
+/* Big Blow: on its own turn it pumps (alternating A and B, one press per `period` frames, each fumbled with miss_pct, after `delay` frames) until the bubble reaches CPU_BLOW_TARGET, then lets it leak and tops it up. */
+#define CPU_BLOW_TARGET 54u   /* above the qualifying size 48, below the burst at GG_BLOW_MAX */
+uint8_t cpu_bigblow(Cpu *c, const GgBlow *b);
 #endif
