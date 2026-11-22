@@ -513,7 +513,7 @@ static void draw_prompts(const Game *g, u8 show) {
         else if (g->gg_gather) { ev = IP_GATHER; ph = g->res.active ? IP_PHASE_OFF : IP_PHASE_PLAY; }
         else if (g->gg_poop) { ev = IP_POOP; ph = g->poop.phase; p2 = g->players == 2; }
         else if (g->gg_pop) { ev = IP_POP; ph = g->pop.phase; p2 = g->players == 2; }
-        else if (g->gg_dash) { ev = IP_DASH; ph = g->dash.done ? IP_PHASE_OFF : IP_PHASE_PLAY; p2 = g->dash.two; }
+        else if (g->gg_dash) { ev = IP_DASH; ph = g->dash.done ? IP_PHASE_OFF : IP_PHASE_PLAY; p2 = g->dash.two && !g->dash.p2_is_cpu; }
         else if (g->gg_race) { ev = IP_RACE; ph = g->race.phase; p2 = g->race.players == 2; }
         else { ev = IP_BLOW; ph = g->blow.phase; p2 = g->players == 2; }
     }
@@ -855,8 +855,8 @@ static void pool_sync_p2(const Game *g) {
         if (obj_pool_is_live(&g_pool, P2_OBJ_BODY)) { g_pool.obj[P2_OBJ_BODY].flags |= POOL_F_BLINK; g_pool.obj[P2_OBJ_CHUTE].flags |= POOL_F_BLINK; }
         return;
     }
-    if (g->players < 2 && !g->gg_race) return;
-    u8 cpu = g->gg_race && g->players < 2;   /* Burst Race against the computer: the rival sheet and palette */
+    if (g->players < 2 && !g->gg_race && !(g->gg_dash && g->dash.two)) return;
+    u8 cpu = (g->gg_race || g->gg_dash) && g->players < 2;   /* Burst Race against the computer: the rival sheet and palette */
     if (cpu != g_p2_cpu) { g_p2_cpu = cpu; g_pool_drawn[P2_OBJ_BODY] = 0; }
     const Flier *fl = &g->hero[1];
     if (!obj_pool_is_live(&g_pool, P2_OBJ_BODY)) {

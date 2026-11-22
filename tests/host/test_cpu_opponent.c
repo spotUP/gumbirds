@@ -3,6 +3,7 @@
 #include "cpu_opponent.h"
 #include "gg_flapdash.h"
 #include "game.h"
+#include "flow.h"
 
 static int fails;
 #define CHECK(c) do { if (!(c)) { printf("FAIL line %d: %s\n", __LINE__, #c); fails++; } } while (0)
@@ -73,8 +74,42 @@ int main(void)
         g.cpu_level = CPU_HARD; cpu_init(&g.opp, CPU_HARD, 9);
         for (i = 0; i < 600; i++) { game_step(&g, 0); if (g.input2) presses++; }
         CHECK(presses > 10);
-        game_reset(&g, 1); game_gg_start_dash(&g);
+        game_reset(&g, 1); game_gg_start_dash(&g); g.cpu_level = CPU_OFF;
         for (i = 0; i < 600; i++) { game_step(&g, 0); CHECK(g.input2 == 0); }
+    }
+
+    /* 1P Flap Dash races a computer bird automatically; a human Start takes it over; a computer win writes no record */
+    {
+        static Game g; static Flow f;
+        uint32_t fin = 0, fin2 = 0, run;
+        int k;
+        uint32_t wins = 0, seed;
+        for (seed = 1; seed <= 20; seed++) {   /* an idle human: the computer finishes most runs (a fumbled flap can drown it) and wins with score 0 */
+            game_reset(&g, seed); g.mode = GAME_MODE_GUM; game_gg_start_dash(&g);
+            CHECK(g.cpu_level == CPU_NORMAL && g.dash.p2_is_cpu && g.dash.two && g.players == 1);
+            for (k = 0; k < 6000 && !g.dash.done; k++) game_step(&g, 0);
+            if (g.dash.done) { CHECK(g.dash.winner == 2 && g.score == 0); wins++; }
+            if (seed == 3) fin = g.dash.frames;
+        }
+CHECK(wins >= 12);
+        game_reset(&g, 3); g.mode = GAME_MODE_GUM; game_gg_start_dash(&g);
+        for (k = 0; k < 6000 && !g.dash.done; k++) game_step(&g, 0);
+        fin2 = g.dash.frames;
+        CHECK(fin == fin2);   /* same seed replays */
+        game_reset(&g, 5); g.mode = GAME_MODE_GUM; game_gg_start_dash(&g);
+        CHECK(game_can_join_p2(&g) && game_join_p2(&g));
+        CHECK(g.cpu_level == CPU_OFF && !g.dash.p2_is_cpu && g.players == 2);
+        for (k = 0; k < 200; k++) game_step(&g, 0);
+        CHECK(g.input2 == 0 && g.dash.laps2 == 0);   /* nobody feeds P2 now */
+        /* record: a computer win writes none, a human win does */
+        for (run = 1; run <= 2; run++) {
+            flow_init(&f, NULL, 0);
+            game_reset(&f.game, 5); f.game.mode = GAME_MODE_GUM; game_gg_start_dash(&f.game);
+            f.state = FLOW_PLAYING; f.gg_card = 0; f.howto = 0;
+            f.game.dash.done = 1; f.game.dash.frames = 1234; f.game.dash.winner = (uint8_t)run; f.game.over = 1;
+            flow_step(&f, 0, 0, 1);
+            CHECK(f.tables.gg_record[GG_FLAP_DASH] == (run == 1 ? 1234u : 0u));
+        }
     }
 
     printf(fails ? "cpu_opponent: %d FAILED\n" : "cpu_opponent: all passed\n", fails);

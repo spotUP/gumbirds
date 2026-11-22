@@ -87,7 +87,7 @@ int game_can_join_p2(const Game *g)
     if (g->mode == GAME_MODE_GUM && g->gg_poop)   /* Poop the Man: P2 joins during the countdown */
         return g->players == 1 && g->poop.phase == PM_PLAY && g->poop.timer == 0 && g->cd_t < GGCD_END;
     if (g->mode == GAME_MODE_GUM && g->gg_dash)   /* Flap Dash: P2 joins before the first stroke (rules card, GET SET, GO!) */
-        return g->players == 1 && !g->dash.two && g->dash.frames == 0 && g->cd_t < GGCD_END;
+        return g->players == 1 && (!g->dash.two || g->dash.p2_is_cpu) && g->dash.frames == 0 && g->cd_t < GGCD_END;
     if (g->mode == GAME_MODE_GUM && g->gg_pop)   /* Pop Drop: P2 joins during the first fall's countdown */
         return g->players == 1 && g->pop.phase == PD_FALL && g->pop.seq.tickets[0] == 1 && g->pop.timer == 0 && g->cd_t < GGCD_END;
     if (g->mode == GAME_MODE_GUM) return g->gg_race && g->race.phase == GG_RACE_INTRO && g->players == 1;   /* Burst Race: P2 joins in the intro */
@@ -122,7 +122,7 @@ int game_join_p2(Game *g)
     if (g->gg_tug) { g->players = g->tug.humans = 2; return 1; }
     if (g->mode == GAME_MODE_GUM && g->gg_fling) { g->players = 2; gumfling_add_p2(&g->fling); return 1; }
     if (g->mode == GAME_MODE_GUM && g->gg_poop) { g->players = 2; gm_add_p2(&g->poop); return 1; }
-    if (g->mode == GAME_MODE_GUM && g->gg_dash) { g->players = 2; gumdash_add_p2(&g->dash, &g->hero[0], &g->hero[1]); return 1; }
+    if (g->mode == GAME_MODE_GUM && g->gg_dash) { g->players = 2; g->cpu_level = CPU_OFF; g->dash.p2_is_cpu = 0; return 1; }   /* the computer bird is already on the course: a human takes its seat */
     if (g->mode == GAME_MODE_GUM && g->gg_pop) { g->players = 2; gp_add_p2(&g->pop, &g->hero[0], &g->hero[1]); return 1; }
     if (g->mode == GAME_MODE_GUM) { g->players = g->race.players = 2; return 1; }
     if (g->mode == GAME_MODE_ARENA) return 0; /* Arena joins through flow_join_p2: a fresh match */
@@ -271,7 +271,7 @@ static void res_tick(Game *g, uint8_t input)
 void game_step(Game *g, uint8_t input)
 {
     g->cd_ev = 0;
-    if (g->cpu_level && g->players == 1 && g->cd_t >= GGCD_END) g->input2 = cpu_input(g);   /* the computer is P2: same input path, after GO */
+    if (g->cpu_level && g->players == 1 && g->cd_t >= GGCD_SET_FRAMES) g->input2 = cpu_input(g);   /* the computer is P2: same input path, from the moment play runs (GO! frames included) */
     if (g->res.active && g->res.ev) { g->frame++; res_tick(g, input); return; }   /* a minigame's result screen (game_end_event): the event itself has ended */
     if ((g->gg_fling || g->gg_gather || g->gg_pop || g->gg_poop || g->gg_dash) && g->cd_t < GGCD_END) {
         int frozen = g->cd_t < GGCD_SET_FRAMES;
@@ -512,6 +512,9 @@ void game_gg_start_dash(Game *g)
     g->players = 1;
     g->cpu_count = 0;
     gumdash_init(&g->dash, &g->hero[0]);
+    gumdash_add_p2(&g->dash, &g->hero[0], &g->hero[1]);   /* 1P races a computer bird at Normal; a human P2 Start before the first stroke takes it over */
+    g->cpu_level = CPU_NORMAL; g->dash.p2_is_cpu = 1;
+    cpu_init(&g->opp, CPU_NORMAL, g->rng.s);
     camera_init(&g->camera);
 }
 
@@ -564,7 +567,7 @@ static void game_step_dash(Game *g, uint8_t input)
     GgDash *d = &g->dash;
     if (gumdash_step2(d, g->hero, input, g->input2)) {
         uint32_t pts = gg_points(GD_LAPS, d->frames <= gumdash_mark(0));   /* stage = laps, qualified on the first-loop mark */
-        if (g->players == 2) { g->score = d->winner == 1 ? pts : 0; g->lives[1].score = d->winner == 2 ? pts : 0; }   /* the result screen ranks by these */
+        if (g->players == 2 || d->p2_is_cpu) { g->score = d->winner == 1 ? pts : 0; g->lives[1].score = d->winner == 2 ? pts : 0; }   /* the result screen ranks by these */
         else g->score = pts;
     }
     if (d->done && ++d->end_t >= GD_RESULT_FRAMES) g->over = 1;
