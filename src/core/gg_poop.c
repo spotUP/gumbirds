@@ -113,7 +113,7 @@ static void poop_end_streak(GgPoop *p, const PmPoop *o) { p->b[o->owner].streak 
 static void poop_step(GgPoop *p, PmPoop *o)
 {
     int i, x, y;
-    if (o->st == PM_POOP_SPLAT) { o->x16 -= PM_SCROLL * 16; if (++o->t >= PM_SPLAT_FRAMES) o->live = 0; return; }
+    if (o->st == PM_POOP_SPLAT) { if (++o->t >= PM_SPLAT_FRAMES) o->live = 0; return; }
     if (o->st == PM_POOP_BOUNCE) {   /* bounced off an umbrella: arcs up and away, harmless */
         o->vy16 = (int16_t)(o->vy16 + 4);
         o->x16 += o->vx16; o->y16 += o->vy16;

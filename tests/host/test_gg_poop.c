@@ -62,10 +62,10 @@ int main(void)
     poop_at(&p, 0, 40, PM_PAVE_Y);
     gm_step(&p, 0, 0);
     CHECK(p.b[0].score == 0 && p.b[0].streak == 0 && p.poop[0].live && p.poop[0].st == PM_POOP_SPLAT && p.splat_n == 1);
-    {   /* the pavement splat scrolls with the street, holds PM_SPLAT_FRAMES, then clears */
+    {   /* the pavement splat stays where it landed, holds PM_SPLAT_FRAMES, then clears */
         int32_t x0 = p.poop[0].x16;
         for (int i = 0; i < (int)PM_SPLAT_FRAMES - 2; i++) gm_step(&p, 0, 0);
-        CHECK(p.poop[0].live && p.poop[0].x16 < x0);
+        CHECK(p.poop[0].live && p.poop[0].x16 == x0);
         gm_step(&p, 0, 0); gm_step(&p, 0, 0);
         CHECK(!p.poop[0].live);
     }
