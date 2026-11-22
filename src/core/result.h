@@ -39,6 +39,7 @@ typedef struct {
     uint32_t total_left;   /* tally still to add; shown as the total */
     uint32_t score_shown;
     uint8_t two;           /* player 2 is in: the screen shows both totals */
+    uint8_t ev;            /* 0 the arcade bonus stage; else a minigame's result: 1 + its PARTY menu index (flow_menu_name), the title row shows its name */
     uint32_t score2;       /* player 2 total, already paid (game.c) */
     /* Moving parts (sprites, main.c draw_result_fx). All of it follows the fields above; none of it changes the timing. */
     uint16_t t;            /* frames since the start */
@@ -56,6 +57,10 @@ void res_start(Result *r, int caught, int number, int perfect, uint32_t score);
 /* One frame. Returns RES_EV_* bits; *add gets the points to add to the score this frame (multiple of 100, usually 0).
  * press: a new A or Start press this frame (an edge, so a button held from the tally does not skip the hold). */
 uint8_t res_step(Result *r, uint32_t *add, uint8_t press);
+/* A minigame's result (owner 2026-11-22: every event ends here, never on GAME OVER): its name and the score, no bubble tally;
+ * the screen holds until the player presses, the first RES_EVENT_SKIP frames ignore presses. ev: see Result.ev. */
+#define RES_EVENT_SKIP 30
+void res_start_event(Result *r, uint8_t ev, uint32_t score);
 /* Bubble i this frame: 0 hidden, else 1 + sprite frame (0 whole, 1..3 pop); *x, *y = centre in cage window pixels. */
 uint8_t res_bubble(const Result *r, int i, int *x, int *y);
 

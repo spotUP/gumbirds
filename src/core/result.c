@@ -32,6 +32,7 @@ void res_start(Result *r, int caught, int number, int perfect, uint32_t score)
     r->total_left = (uint32_t)caught * r->each;
     r->score_shown = score;
     r->two = 0;
+    r->ev = 0;
     r->score2 = 0;
     r->t = 0;
     r->pop_cur = 0;
@@ -40,6 +41,14 @@ void res_start(Result *r, int caught, int number, int perfect, uint32_t score)
     for (i = 0; i < RES_SLOTS; i++) r->pop[i] = 0;
     for (i = 0; i < 5; i++) r->wheel[i] = 0;
     set_digits(r);
+}
+
+void res_start_event(Result *r, uint8_t ev, uint32_t score)
+{
+    res_start(r, 0, 1, 0, score);
+    r->ev = ev;
+    r->phase = P_WAIT;
+    r->wait = RES_EVENT_SKIP;
 }
 
 /* One frame of the moving parts. ev and d are this frame's events and tally points. */

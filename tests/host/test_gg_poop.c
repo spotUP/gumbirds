@@ -1,3 +1,4 @@
+#include <string.h>
 /* test_gg_poop.c - Gum Games Poop the Man: flap physics, drop cooldown, walker and pavement death, respawn, head hit scoring (hat x2, bald x3, combo cap x4), pavement miss, umbrella bounce, shoe stun,
  * 60 s timer and result, 2P, flow wiring. */
 #include <stdio.h>
@@ -201,7 +202,15 @@ int main(void)
         flow_step(&f, 0, 1, 1);
         CHECK(f.state == FLOW_PLAYING && f.game.gg_poop);
         f.game.poop.b[0].score = 900; f.game.poop.timer = PM_CLOCK - 1;
-        for (i = 0; i < (int)GGCD_SET_FRAMES + (int)PM_RESULT_FRAMES + (int)GG_CARD_FRAMES + 400 && f.state == FLOW_PLAYING; i++) flow_step(&f, 0, 0, 0);
+        for (i = 0; i < (int)GGCD_SET_FRAMES + (int)PM_RESULT_FRAMES + (int)GG_CARD_FRAMES + 400 && !f.game.res.active; i++) {
+            flow_step(&f, 0, 0, 0);
+            CHECK(f.state == FLOW_PLAYING);   /* minigame ends on the result screen, never GAME OVER or the title first (owner 2026-11-22) */
+        }
+        CHECK(f.game.res.active && f.game.res.ev && strcmp(flow_menu_name((uint8_t)(f.game.res.ev - 1)), "POOP THE MAN") == 0);
+        for (i = 0; i < 600; i++) flow_step(&f, 0, 0, 0);
+        CHECK(f.state == FLOW_PLAYING && f.game.res.active);   /* it holds until a press */
+        flow_step(&f, IN_A, 0, 0);
+        CHECK(f.state != FLOW_PLAYING && f.state != FLOW_GAME_OVER && f.ended);   /* A leaves it for name entry or the title, never GAME OVER */
         CHECK(f.tables.gg_record[GG_POOP_MAN] >= 900);
     }
 

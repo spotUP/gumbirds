@@ -257,6 +257,16 @@ static const char *const gg_names[GG_PICK_COUNT] = { "BIG BLOW", "BURST RACE", "
 uint8_t flow_gg_event(uint8_t i) { return gg_order[i]; }
 const char *flow_gg_name(uint8_t i) { return gg_names[i]; }
 
+/* Result screen title of the minigame being played: 1 + its PARTY menu index (Result.ev, flow_menu_name). */
+static uint8_t event_title(const Flow *f)
+{
+    uint8_t i;
+    if (f->game.gg_toss) return PARTY_TOSS;
+    if (f->game.gg_tug) return PARTY_TUG;
+    for (i = 0; i < GG_PICK_COUNT; i++) if (gg_order[i] == f->gg_event) return (uint8_t)(PARTY_RULE_COUNT + i);
+    return 0;
+}
+
 /* PARTY submenu (owner 2026-11-21): the party rules, then the gum games in gg_order. One list, one cursor (sub_i). */
 const char *flow_menu_name(uint8_t i) { return i < PARTY_RULE_COUNT - 1 ? game_party_name((uint8_t)(i + 1)) : gg_names[i - (PARTY_RULE_COUNT - 1)]; }
 const char *flow_menu_goal(uint8_t i) { return i < PARTY_RULE_COUNT - 1 ? game_party_goal((uint8_t)(i + 1)) : 0; }
@@ -404,6 +414,7 @@ void flow_step(Flow *f, uint8_t input, uint8_t start_pressed, uint32_t frame_cou
             break;
         }
         game_step(&f->game, input);
+        if (f->game.over && game_end_event(&f->game, event_title(f))) break;   /* a minigame shows its results first, never GAME OVER */
         if (f->game.over) {
             f->last_players = f->game.players;
             f->last_score[0] = f->game.score;
@@ -431,7 +442,9 @@ void flow_step(Flow *f, uint8_t input, uint8_t start_pressed, uint32_t frame_cou
                 uint32_t best = f->game.blow.seq.best[0];
                 if (best > f->tables.gg_record[GG_BIG_BLOW]) { f->tables.gg_record[GG_BIG_BLOW] = best; f->dirty = 1; }
             }
-            enter(f, FLOW_GAME_OVER);
+            f->ended = 1;
+            if (!f->game.res.ev) enter(f, FLOW_GAME_OVER);
+            else if (!next_entry(f, 0)) enter(f, FLOW_ATTRACT_TITLE);   /* the result screen was the end screen */
         }
         break;
     case FLOW_GAME_OVER:

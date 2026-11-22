@@ -99,7 +99,10 @@ int main(void)
         CHECK(f.state == FLOW_PLAYING && f.game.gg_dash);
         f.game.dash.done = 1; f.game.dash.frames = 1000; f.game.dash.laps = GD_LAPS;
         for (i = 0; i < (int)(GGCD_SET_FRAMES + GD_RESULT_FRAMES) + 2; i++) flow_step(&f, 0, 0, 0);
-        CHECK(f.state == FLOW_GAME_OVER && f.tables.gg_record[GG_FLAP_DASH] == 900);
+        CHECK(f.state == FLOW_PLAYING && f.game.res.active && f.game.res.ev);   /* the event ends on its result screen, not GAME OVER */
+        for (int k = 0; k < 40; k++) flow_step(&f, 0, 0, 0);
+        flow_step(&f, IN_A, 0, 0);
+        CHECK(f.state != FLOW_PLAYING && f.state != FLOW_GAME_OVER && f.tables.gg_record[GG_FLAP_DASH] == 900);
         flow_init(&f, 0, 0);
         f.mode = GAME_MODE_GUM; f.gg_event = GG_FLAP_DASH;
         flow_coin(&f);

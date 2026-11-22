@@ -77,7 +77,10 @@ int main(void)
         f.game.race.seq.best[0] = 120;
         f.game.race.phase = GG_RACE_END;
         flow_step(&f, 0, 0, 0);
-        CHECK(f.state == FLOW_GAME_OVER && f.tables.gg_record[GG_BURST_RACE] == 90);
+        CHECK(f.state == FLOW_PLAYING && f.game.res.active && f.game.res.ev);   /* the event ends on its result screen, not GAME OVER */
+        for (int k = 0; k < 40; k++) flow_step(&f, 0, 0, 0);
+        flow_step(&f, IN_A, 0, 0);
+        CHECK(f.state != FLOW_PLAYING && f.state != FLOW_GAME_OVER && f.tables.gg_record[GG_BURST_RACE] == 90);
         flow_init(&f, 0, 0);
         f.mode = GAME_MODE_GUM; f.gg_event = GG_BURST_RACE;
         flow_coin(&f);

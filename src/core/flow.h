@@ -82,6 +82,7 @@ typedef struct {
     ScoreTables tables;      /* one table per GameMode (score_table.h) */
     Game game;
     NameEntry entry;
+    uint8_t ended;           /* set when a real game ends (main.c returns to the BIOS once the attract is reached, then clears it) */
 } Flow;
 
 typedef struct {

@@ -214,6 +214,9 @@ void game_gg_start_race(Game *g);
 /* Attract demo: builds a pending arena or arcade match (match_start: stage, elements, rivals) without stepping it and returns 1;
  * else 0. The demo has no ROUND banner freeze to carry that frame, so the flow steps the game from the next frame. */
 int game_begin(Game *g);
+/* A minigame (GUM event, PARTY toss or tug) that just set over shows its result screen instead (res_start_event with ev): over is
+ * cleared and comes back when the player leaves the screen. Returns 1 when it started the screen, 0 for any other game (Bubble Gather has its own tally) or a second call. */
+int game_end_event(Game *g, uint8_t ev);
 /* Gum Trip step: A flaps, left/right steer. Order per frame: trip_hit_floor_y, flier_step (no wrap, island floor),
  * trip_step (scroll carry, clamp, gum), tripgen_advance (trip px), trip_collide (pickups, hazards, strips; bits in
  * trip_events); then distance, score and over are taken from the trip. */

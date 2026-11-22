@@ -1,4 +1,5 @@
 #include "result_view.h"
+#include "flow.h"
 #include "gen/fix_font.h"
 #include "gen/result_scene.h"
 
@@ -47,7 +48,12 @@ static uint16_t plate(uint8_t pal, int ch) { return text(pal, ch ? (char)ch : ' 
 uint16_t result_cell(const Result *r, uint8_t col, uint8_t row)
 {
     int ch = 0;
-    if (row == 2 && in(col, 13, 25)) return plate(FIXFONT_PAL_GOLD, str_cell("BONUS STAGE", 14, col));
+    if (row == 2 && in(col, 13, 25)) {
+        const char *t = r->ev ? flow_menu_name((uint8_t)(r->ev - 1)) : "BONUS STAGE";
+        uint8_t len = 0;
+        while (t[len]) len++;
+        return plate(FIXFONT_PAL_GOLD, str_cell(t, (uint8_t)(13 + (len < 13 ? (13 - len) / 2 : 0)), col));  /* centred on the 13-cell plate */
+    }
     if (row == 4 && in(col, 9, 30)) {
         if ((r->show & RES_SHOW_POPPED) && in(col, 10, 18)) {  /* "NN POPPED" */
             uint8_t i = (uint8_t)(col - 10);
@@ -59,7 +65,7 @@ uint16_t result_cell(const Result *r, uint8_t col, uint8_t row)
         }
         return plate(FIXFONT_PAL_WHITE, 0);
     }
-    if (row == 7 && in(col, 27, 33)) return plate(FIXFONT_PAL_GOLD, str_cell("TOTAL", 28, col));
+    if (row == 7 && in(col, 27, 33)) return plate(FIXFONT_PAL_GOLD, r->ev ? 0 : str_cell("TOTAL", 28, col));  /* a minigame has no tally */
     if (row == 13 && in(col, 25, 32)) {  /* "NN X MMM" */
         uint8_t i = (uint8_t)(col - 25);
         if (!(r->show & RES_SHOW_TOTAL)) return plate(FIXFONT_PAL_PINK, 0);
