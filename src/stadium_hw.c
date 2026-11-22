@@ -23,7 +23,7 @@ _Static_assert(STADIUM_TILE_BASE + STADIUM_TILE_COUNT <= 0x10000, "stand tile nu
 static const u8 k_dyn[DYN][2] = {{1, 0}, {1, 1}, {0, 3}, {0, 4}, {1, 3}, {1, 4}, {0, 6}, {0, 7}, {1, 5}, {1, 6}};
 
 static Stadium g_st;
-static u8 g_on, g_vis, g_ready, g_mood, g_fling, g_cols, g_load, g_phase, g_passes, g_step;
+static u8 g_on, g_vis, g_ready, g_mood, g_fling, g_cols, g_load, g_phase, g_passes, g_step, g_warm;
 static u16 g_pairs[2][21][GROUP_ROWS][2];          /* strip pairs {tile, attribute}: the queue reads them at flush time, so they stay */
 static u16 g_tpairs[TOWER_SPRITES][2][2];
 static u16 g_cell[COLS_MAX][DYN], g_dig[STADIUM_DIGITS];
@@ -83,7 +83,7 @@ void stadium_hw_step(int on, int show, u8 mood, int fling, int scroll) {
     }
     if (mood > GAME_MOOD_STORM) mood = GAME_MOOD_MOON;
     if (!g_on || mood != g_mood || (u8)(fling != 0) != g_fling) {
-        if (!g_on) { stadium_reset(&g_st); stadium_wave(&g_st); g_step = 0; }
+        if (!g_on) { stadium_reset(&g_st); stadium_wave(&g_st); g_step = 0; g_warm = 0; }
         g_on = 1; g_vis = g_ready = 0; g_mood = mood; g_fling = (u8)(fling != 0); g_cols = fling ? STADIUM_FLING_COLS : STADIUM_COLS;
         g_load = g_phase = g_passes = 0;
         for (u8 c = 0; c < COLS_MAX; c++) for (u8 k = 0; k < DYN; k++) g_cell[c][k] = 0;
@@ -106,6 +106,7 @@ void stadium_hw_step(int on, int show, u8 mood, int fling, int scroll) {
         }
         g_load++; loads--;
     }
+    if (g_warm < STADIUM_FAR_ROWS * STADIUM_COLS) { stadium_far_warm(g_warm / STADIUM_COLS, g_warm % STADIUM_COLS); g_warm++; }   /* one cell a frame from entry */
     if (g_load >= units) {
         /* one crowd step per STADIUM_STEP_FRAMES frames; each frame rewrites the columns of its phase (c % 3 == phase) */
         if (!g_phase) stadium_step(&g_st);
