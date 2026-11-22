@@ -67,7 +67,8 @@ local function rate_text()
     local r = rate[k]
     if r then t[#t + 1] = string.format("%s %d/%d busy %d", k, r.g, r.m, r.b) end
   end
-  return " [game/MAME frames " .. table.concat(t, ", ") .. "]"
+  local ma = tonumber(os.getenv("BRAWL_MOOD_ADDR") or "", 16)   -- g_bg_mood at finish: separates a storm world (rain fix traffic) from a calm one
+  return " [game/MAME frames " .. table.concat(t, ", ") .. "]" .. (ma and (" [mood " .. mem:read_u8(ma) .. "]") or "")
 end
 local card_leak, card_leak_n = nil, 0   -- first sprite shown under the rules card outside the allowed set, and the frames with one
 local function finish(ok, msg)
