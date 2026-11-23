@@ -190,6 +190,7 @@ void game_next_mood(Game *g);
 void game_set_hazard(Game *g, uint8_t kind);
 /* Arcade: player 2 joins now (players = 2, fresh lives, spawn beside player 1). The drop-in parachute and the credit are later phases. */
 void game_start_p2(Game *g);
+int game_join_restarts(const Game *g);   /* 1 = a P2 join now restarts the event (GO! frames, Toss/Tug round 1) */
 int game_can_join_p2(const Game *g);
 /* Lives, continues and per-human scores run: the arcade, and an Arena match with two humans (versus). */
 int game_lives_mode(const Game *g);

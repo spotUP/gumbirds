@@ -98,6 +98,14 @@ int game_can_join_p2(const Game *g)
            g->cpu_count > 0 && (g->players == 1 || g->lives[1].state == ARC_LIFE_ENDED);
 }
 
+/* A P2 join that restarts the event (flow_join_p2): the GO! frames of a Gum Games countdown, and all of round 1 in Toss and Tug (no countdown there).
+ * GET SET and the intro windows stay a plain seat takeover: nothing has been played yet. */
+int game_join_restarts(const Game *g)
+{
+    if (g->mode == GAME_MODE_ARENA || !game_can_join_p2(g)) return 0;
+    return g->gg_toss || g->gg_tug || (g->cd_t >= GGCD_SET_FRAMES && g->cd_t < GGCD_END);
+}
+
 /* A flier drops in on its parachute from the top at world x (the P2 join, and the Roost Rule respawn). It flies out on its first flap. */
 static void chute_drop(Game *g, Flier *f, ArcPump *p, int32_t x)
 {

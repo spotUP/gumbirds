@@ -90,6 +90,10 @@ int flow_join_p2(Flow *f, uint32_t seed)
 {
     Game *g = &f->game;
     if (f->state != FLOW_PLAYING || !game_can_join_p2(g)) return 0;
+    if (game_join_restarts(g)) {   /* GO! (or Toss and Tug round 1): the human would inherit computer progress, so the event starts over for two humans */
+        start_game(f, seed, 0);
+        return game_join_p2(g);
+    }
     if (g->mode != GAME_MODE_ARENA) return game_join_p2(g);
     start_game(f, seed, 0);
     arc_lives_start(&g->lives[0]);
