@@ -230,6 +230,36 @@ CHECK(wins >= 12);
             CHECK(f.tables.gg_record[GG_POP_DROP] == (run == 1 ? 0u : 200u));
         }
     }
+    /* 1P Gum Fling: the computer takes the P2 throws at Normal; a human Start takes them over; a computer win writes no record */
+    {
+        static Game g; static Flow f;
+        uint32_t seed, best1 = 0, best1b = 0, far = 0;
+        int k;
+        for (seed = 1; seed <= 20; seed++) {   /* an idle human: the computer throws its 3 attempts */
+            game_reset(&g, seed); game_set_mode(&g, GAME_MODE_GUM); game_gg_start_fling(&g);
+            CHECK(g.cpu_level == CPU_NORMAL && g.players == 1 && g.fling.seq.players == 2);
+            for (k = 0; k < 40000 && !g.over; k++) game_step(&g, 0);
+            CHECK(g.over && g.score == g.fling.seq.points[0]);
+            if (g.fling.seq.best[1] >= GF_MARK_PX) far++;
+            if (seed == 3) best1 = g.fling.seq.best[1];
+        }
+        CHECK(far >= 10);
+        game_reset(&g, 3); game_set_mode(&g, GAME_MODE_GUM); game_gg_start_fling(&g);
+        for (k = 0; k < 40000 && !g.over; k++) game_step(&g, 0);
+        best1b = g.fling.seq.best[1];
+        CHECK(best1 == best1b && best1 > 0);   /* same seed replays */
+        game_reset(&g, 5); game_set_mode(&g, GAME_MODE_GUM); game_gg_start_fling(&g);
+        CHECK(game_can_join_p2(&g) && game_join_p2(&g));
+        CHECK(g.cpu_level == CPU_OFF && g.players == 2 && !game_can_join_p2(&g));
+        for (k = 0; k < 40000 && !g.over; k++) game_step(&g, 0);
+        CHECK(g.over && g.fling.seq.best[1] == g.fling.seq.best[0]);   /* nobody feeds P2 now: both idle throws match */
+        flow_init(&f, NULL, 0);
+        game_reset(&f.game, 5); game_set_mode(&f.game, GAME_MODE_GUM); game_gg_start_fling(&f.game);
+        f.state = FLOW_PLAYING; f.gg_card = 0; f.howto = 0;
+        f.game.fling.seq.best[0] = 100; f.game.fling.seq.best[1] = 300; f.game.fling.phase = GF_END; f.game.over = 1;
+        flow_step(&f, 0, 0, 1);
+        CHECK(f.tables.gg_record[GG_FLING] == 0);
+    }
 
     printf(fails ? "cpu_opponent: %d FAILED\n" : "cpu_opponent: all passed\n", fails);
     return fails != 0;

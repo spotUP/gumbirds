@@ -508,7 +508,7 @@ static void draw_prompts(const Game *g, u8 show) {
     if (show) {
         p1 = 1;
         if (g->gg_toss) { ev = IP_TOSS; ph = g->toss.phase; p1 = g->toss.carrier == 0; p2 = g->toss.humans == 2 && g->toss.carrier == 2; }
-        else if (g->gg_fling) { ev = IP_FLING; ph = g->fling.phase; p1 = g->fling.seq.turn == 0; p2 = g->fling.seq.players == 2 && g->fling.seq.turn == 1;
+        else if (g->gg_fling) { ev = IP_FLING; ph = g->fling.phase; p1 = g->fling.seq.turn == 0; p2 = g->fling.seq.players == 2 && g->fling.seq.turn == 1 && !g->cpu_level;
             if (ph == GF_AIM && g->fling.t < GF_AIM_HOLD_FRAMES) p1 = p2 = 0; }   /* aim hold: A is ignored, so no A prompt yet */
         else if (g->gg_gather) { ev = IP_GATHER; ph = g->res.active ? IP_PHASE_OFF : IP_PHASE_PLAY; }
         else if (g->gg_poop) { ev = IP_POOP; ph = g->poop.phase; p2 = g->players == 2; }

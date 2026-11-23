@@ -47,4 +47,8 @@ uint8_t cpu_bubblegather(Cpu *c, const Flier *bird, const ArcBonus *b);
 #define CPU_POP_EASE 8   /* the wanted speed is the distance to the gap over this many frames */
 #include "gg_popdrop.h"
 uint8_t cpu_popdrop(Cpu *c, const GgPop *p, const Flier *bird);
+#include "gg_fling.h"
+/* Gum Fling: on its turn it mashes the run-up and the flight flap like Burst Race (one press per `period`, fumbled with miss_pct), then stops the needle `delay` frames into the aim at CPU_FLING_DEG; a miss_pct roll makes the throw sloppy (needle stopped at once, a flat low throw). */
+#define CPU_FLING_DEG 45u
+uint8_t cpu_gumfling(Cpu *c, const GgFling *f);
 #endif

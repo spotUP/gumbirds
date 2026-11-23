@@ -5,7 +5,7 @@
 --       no hero, pool, hazard, title or other-mode sprite (owner 2026-11-22: birds drawn on top of each other);
 --   F5. the game logic keeps the video rate in every Fling phase: game frames per MAME frame >= 0.95 (g_frame_counter), and
 --       g_vb_busy (vblanks that found the frame logic still running) tells a real overrun from a drain wait.
---   F3. three attempts end the event: GAME_OVER, distance > 0, score equals the best distance based points, record in slot 4 equals the best distance.
+--   F3. three attempts end the event: GAME_OVER, distance > 0, score equals the best distance based points, record in slot 4 equals the best distance, or stays 0 when the computer P2 wins (no human record).
 -- Env: BRAWL_FLOW_ADDR, BRAWL_FRAME_ADDR, BRAWL_VBBUSY_ADDR (hex), BRAWL_BLOW_LAYOUT (gum_fling_probe.c output), BRAWL_RESULT.
 local flow_addr = tonumber(os.getenv("BRAWL_FLOW_ADDR"), 16)
 local result = os.getenv("BRAWL_RESULT")
@@ -194,7 +194,7 @@ emu.register_frame_done(function()
     if (lift[1] or 0) < 24 then finish(false, string.format("hero lift %d px in attempt 1, want >= 24 (an aimed throw)", lift[1] or 0)) return end
     if (air[2] or 0) * 100 < (air[1] or 0) * 110 then finish(false, string.format("flight %d frames with the flap mash (attempt 2), %d without, want +10 percent", air[2] or 0, air[1] or 0)) return end
     if best < 1 then finish(false, "best distance 0") return end
-    if rec ~= best then finish(false, string.format("record %d, best distance %d", rec, best)) return end
+    if rec ~= best and rec ~= 0 then finish(false, string.format("record %d, best distance %d", rec, best)) return end
     if score < 1 then finish(false, "score 0") return end
     finish(true, string.format("Gum Fling: PARTY event list + A, Down starts it; %d attempts, never TRIP, best %d, score %d, record saved, lift %d px, flight %d frames / %d flapping", attempts, best, score, lift[1], air[1], air[2]))
   end
