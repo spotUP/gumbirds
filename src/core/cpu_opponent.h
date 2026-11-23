@@ -43,4 +43,10 @@ uint8_t cpu_burstrace(Cpu *c, const GgRace *r);
 uint8_t cpu_bigblow(Cpu *c, const GgBlow *b);
 /* Bubble Gather: fly at the nearest live bubble (steer by the seam-wrapped dx, flap while the bird is below it), after `delay` frames of seeing it, at most one flap per `period` frames, each flap fumbled with miss_pct. */
 uint8_t cpu_bubblegather(Cpu *c, const Flier *bird, const ArcBonus *b);
+#include "gg_poop.h"
+/* Poop the Man: hold the street height, steer over the nearest umbrella-free walker's predicted spot, drop when under it, after `delay` frames per target; a per-target aim error (miss_pct) offsets the aim. */
+#define CPU_POOP_HOVER_Y 92
+#define CPU_POOP_HEAD_H 40   /* mean walker cell height: the head box sits near the top */
+#define CPU_POOP_AIM_ERR 14
+uint8_t cpu_poopman(Cpu *c, const GgPoop *p);
 #endif
