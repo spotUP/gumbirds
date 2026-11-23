@@ -8,7 +8,7 @@ local result = os.getenv("BRAWL_RESULT")
 local idx = tonumber(os.getenv("EV"))
 local L = {}
 for v in (os.getenv("BRAWL_BLOW_LAYOUT") or ""):gmatch("%d+") do L[#L + 1] = tonumber(v) end
-local O = { state = L[1], players = L[3], cpu = L[4], cd = L[5], card = L[6] }
+local O = { state = L[1], players = L[3], cpu = L[4], cd = L[5], card = L[6], frame = L[19] }
 local mem = manager.machine.devices[":maincpu"].spaces["program"]
 local ports = manager.machine.ioport.ports
 local function field(tag, match)
@@ -30,7 +30,7 @@ local function finish(ok, msg)
   manager.machine:exit()
 end
 if not (coin and start1 and start2 and up and abtn and pick and idx) then finish(false, "missing ports or EV") end
-local n, phase, t0, pressed = 0, "boot", 0, nil
+local n, phase, t0, pressed, f0, f1 = 0, "boot", 0, nil, 0, 0
 emu.register_frame_done(function()
   n = n + 1
   if n > 4000 then finish(false, string.format("event %d: watchdog in phase %s, players %d", idx, phase, b(O.players))) return end
@@ -45,10 +45,13 @@ emu.register_frame_done(function()
     local cd = mem:read_u16(flow_addr + O.cd)
     abtn:set_value((k >= 40 and k < 46) and 1 or 0)   -- dismiss the rules card (ignored in its first 30 frames)
     coin:set_value((k >= 2 and k < 10) and 1 or 0)
-    if not pressed and ((idx <= 3 and k >= 30) or (idx > 3 and cd >= 62 and cd < 90 and b(O.card) == 0)) then pressed = k end
+    if not pressed and ((idx <= 3 and k >= 30) or (idx > 3 and cd >= 62 and cd < 90 and b(O.card) == 0)) then pressed = k; f0 = mem:read_u32(flow_addr + O.frame) end
     start2:set_value((pressed and k >= pressed and k < pressed + 8) and 1 or 0)
+    if pressed and k == pressed + 10 then f1 = mem:read_u32(flow_addr + O.frame) end   -- sampled early: 40 frames of a restarted event could pass the old count (Toss/Tug press at frame 30)
     if pressed and k == pressed + 40 then
       if b(O.players) ~= 2 or b(O.cpu) ~= L[18] then finish(false, string.format("event %d: P2 Start at frame %d (countdown %d): Game.players %d cpu_level %d, want 2 and %d", idx, pressed, cd, b(O.players), b(O.cpu), L[18])) return end
+      -- GO! join (events 4..10 pressed at cd 62..90, Toss/Tug in round 1): the event restarted, so Game.frame (zeroed by game_reset) is below its value at the press
+      if f1 >= f0 then finish(false, string.format("event %d: no restart after the join: Game.frame %d at the press, %d 10 frames later", idx, f0, f1)) return end
       finish(true, string.format("event %d: P2 took the computer seat (players 2, cpu off) with Start at frame %d", idx, pressed))
     end
   end
