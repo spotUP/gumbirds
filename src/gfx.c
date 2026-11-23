@@ -130,10 +130,6 @@ void gfx_fix_tile(u8 x, u8 y, u8 pal, u16 tile) { vq_fix_put(&g_gfx_q, x, y, (u1
 u16 gfx_fix_clear_shadowed(u8 x, u8 y, u8 w, u8 h, u16 *shadow, u16 cell) { return vq_fix_clear_shadowed(&g_gfx_q, x, y, w, h, shadow, cell); }
 void gfx_text(u8 x, u8 y, u8 pal, const char *s) { vq_fix_text(&g_gfx_q, x, y, (u16)(pal << 12), fixfont_map, s); }
 void gfx_text_backed(u8 x, u8 y, u8 pal, const char *s) { vq_fix_text(&g_gfx_q, x, y, (u16)(pal << 12), fixfont_map_backed, s); }
-/* Backed text on a plate panel: a space is the plate fill, not the transparent blank (it would punch a hole in the panel). Same rule as result_view.c. */
-void gfx_text_plated(u8 x, u8 y, u8 pal, const char *s) {
-    for (; *s; s++, x++) gfx_fix_tile(x, y, pal, *s == ' ' ? FIXFONT_PLATE_FILL : fixfont_map_backed[(u8)*s]);
-}
 /* Tall text is two tiles high: top half on row y, bottom half on row y + 1. */
 static void text_tall(u8 x, u8 y, u8 pal, const u16 *top, const u16 *bottom, const char *s) {
     vq_fix_text(&g_gfx_q, x, y, (u16)(pal << 12), top, s);
