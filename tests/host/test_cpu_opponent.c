@@ -261,6 +261,38 @@ CHECK(wins >= 12);
         CHECK(f.tables.gg_record[GG_FLING] == 0);
     }
 
+    /* 1P Poop the Man: the Normal computer drops poop through input2, scores, replays per seed, a computer win writes no score or record, and a human join cancels it */
+    {
+        static Game g;
+        Flow f;
+        uint32_t seed, sc[2] = {0, 0}, total = 0;
+        int k, pass;
+        for (seed = 1; seed <= 10; seed++) {
+            game_reset(&g, seed); g.mode = GAME_MODE_GUM; game_gg_start_poop(&g);
+            CHECK(g.cpu_level == CPU_NORMAL && g.players == 1 && g.poop.seq.players == 2);
+            for (k = 0; k < 4200 && !g.over; k++) game_step(&g, 0);
+            total += g.poop.b[1].score;
+            if (g.poop.b[1].score > g.poop.b[0].score) CHECK(g.score == 0);
+        }
+        CHECK(total > 0);
+        for (pass = 0; pass < 2; pass++) {
+            game_reset(&g, 7); g.mode = GAME_MODE_GUM; game_gg_start_poop(&g);
+            for (k = 0; k < 4200 && !g.over; k++) game_step(&g, 0);
+            sc[pass] = g.poop.b[1].score;
+        }
+        CHECK(sc[0] == sc[1] && sc[0] > 0);
+        game_reset(&g, 5); g.mode = GAME_MODE_GUM; game_gg_start_poop(&g);
+        CHECK(game_can_join_p2(&g) && game_join_p2(&g) && g.cpu_level == CPU_OFF && g.players == 2);
+        for (k = 0; k < 600; k++) { game_step(&g, 0); CHECK(g.input2 == 0); }
+        CHECK(g.poop.b[1].score == 0);
+        flow_init(&f, NULL, 0);
+        game_reset(&f.game, 5); f.game.mode = GAME_MODE_GUM; game_gg_start_poop(&f.game);
+        f.state = FLOW_PLAYING; f.gg_card = 0; f.howto = 0;
+        f.game.poop.seq.best[0] = 300; f.game.poop.seq.best[1] = 900; f.game.over = 1;
+        flow_step(&f, 0, 0, 1);
+        CHECK(f.tables.gg_record[GG_POOP_MAN] == 0);
+    }
+
     printf(fails ? "cpu_opponent: %d FAILED\n" : "cpu_opponent: all passed\n", fails);
     return fails != 0;
 }

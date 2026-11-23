@@ -51,4 +51,10 @@ uint8_t cpu_popdrop(Cpu *c, const GgPop *p, const Flier *bird);
 /* Gum Fling: on its turn it mashes the run-up and the flight flap like Burst Race (one press per `period`, fumbled with miss_pct), then stops the needle `delay` frames into the aim at CPU_FLING_DEG; a miss_pct roll makes the throw sloppy (needle stopped at once, a flat low throw). */
 #define CPU_FLING_DEG 45u
 uint8_t cpu_gumfling(Cpu *c, const GgFling *f);
+#include "gg_poop.h"
+/* Poop the Man: hold the street height, steer over the nearest umbrella-free walker's predicted spot, drop when under it, after `delay` frames per target; a per-target aim error (miss_pct) offsets the aim. */
+#define CPU_POOP_HOVER_Y 92
+#define CPU_POOP_HEAD_H 40   /* mean walker cell height: the head box sits near the top */
+#define CPU_POOP_AIM_ERR 14
+uint8_t cpu_poopman(Cpu *c, const GgPoop *p);
 #endif

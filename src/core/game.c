@@ -125,7 +125,7 @@ int game_join_p2(Game *g)
     if (g->gg_toss) { g->players = g->toss.humans = 2; return 1; }
     if (g->gg_tug) { g->players = g->tug.humans = 2; return 1; }
     if (g->mode == GAME_MODE_GUM && g->gg_fling) { g->players = 2; g->cpu_level = CPU_OFF; gumfling_add_p2(&g->fling); return 1; }   /* the computer already holds the P2 turns: a human takes its seat */
-    if (g->mode == GAME_MODE_GUM && g->gg_poop) { g->players = 2; gm_add_p2(&g->poop); return 1; }
+    if (g->mode == GAME_MODE_GUM && g->gg_poop) { g->players = 2; g->cpu_level = CPU_OFF; gm_add_p2(&g->poop); return 1; }
     if (g->mode == GAME_MODE_GUM && g->gg_dash) { g->players = 2; g->cpu_level = CPU_OFF; g->dash.p2_is_cpu = 0; return 1; }   /* the computer bird is already on the course: a human takes its seat */
     if (g->mode == GAME_MODE_GUM && g->blow.seq.players == 2) { g->players = 2; g->cpu_level = CPU_OFF; return 1; }   /* the computer already holds the P2 turns: a human takes its seat */
     if (g->mode == GAME_MODE_GUM && g->gg_pop) { g->players = 2; g->cpu_level = CPU_OFF; return 1; }   /* the computer bird already hangs beside the player: a human takes its seat */
@@ -564,6 +564,9 @@ void game_gg_start_poop(Game *g)
     g->players = 1;
     g->cpu_count = 0;
     gm_init(&g->poop, g->frame + 1u, g->mood == GAME_MOOD_STORM);   /* storm: every walker has an umbrella */
+    gm_add_p2(&g->poop);   /* 1P plays the 2P rules against a Normal computer bird; a human P2 Start in the countdown takes its seat */
+    g->cpu_level = CPU_NORMAL;
+    cpu_init(&g->opp, CPU_NORMAL, g->rng.s);
     camera_init(&g->camera);
 }
 
@@ -572,6 +575,7 @@ static void game_step_poop(Game *g, uint8_t input)
     GgPoop *p = &g->poop;
     gm_step(p, input, g->input2);
     g->score = p->phase == PM_PLAY ? p->b[0].score : p->seq.points[0];
+    if (g->cpu_level && p->b[1].score > p->b[0].score) g->score = 0;   /* a computer win pays the human nothing (no score, no record, see flow.c) */
     if (g->players == 2) g->lives[1].score = p->phase == PM_PLAY ? p->b[1].score : p->seq.points[1];
     if (p->done) g->over = 1;
     g->frame++;

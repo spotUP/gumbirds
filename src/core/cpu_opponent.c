@@ -127,8 +127,36 @@ uint8_t cpu_popdrop(Cpu *c, const GgPop *p, const Flier *bird)
     return in;
 }
 
+uint8_t cpu_poopman(Cpu *c, const GgPoop *p)
+{
+    const CpuLevel *l = cpu_level(c->level);
+    const PmBird *b = &p->b[1];
+    const PmWalker *w;
+    int i, best = -1, bd = 0x7FFF, d, t, dx, tol;
+    uint8_t in = 0;
+    if (p->phase != PM_PLAY || b->dead || b->stun) return 0;
+    if (b->y > CPU_POOP_HOVER_Y && !(b->prev_in & IN_A)) in |= IN_A;   /* hold the street height: flap on the press edge */
+    for (i = 0; i < PM_WALKERS; i++) {   /* the nearest walker that can still be hit (no umbrella up) */
+        d = (p->w[i].x8 >> 3) - b->x; if (d < 0) d = -d;
+        if (p->w[i].live && p->w[i].st == PM_WALK && !p->w[i].umb && d < bd) { bd = d; best = i; }
+    }
+    if (best < 0) { c->t = 0; c->since = 0xFF; return in; }
+    if (c->since != best) { c->since = (uint8_t)best; c->t = 0; c->flip = (uint8_t)((int)rng_range(&c->rng, 100u) < l->miss_pct); }   /* a new target: roll its aim error once */
+    if (c->t < 0xFFFFu) c->t++;
+    if (c->t < l->delay) return in;   /* it takes `delay` frames to settle on a walker */
+    w = &p->w[best];
+    d = pm_lane_feet(w->lane) - CPU_POOP_HEAD_H - (b->y + 8);   /* the poop falls d px: y = t(t+1)/8 */
+    for (t = 1; t < 40 && t * (t + 1) < 8 * d; t++) {}
+    dx = (w->x8 >> 3) + (w->dx8 - PM_SCROLL * 8) * t / 8 - b->x + (c->flip ? CPU_POOP_AIM_ERR : 0);   /* where the walker will be when the poop arrives */
+    tol = 3;
+    if (dx > tol) in |= IN_RIGHT; else if (dx < -tol) in |= IN_LEFT;
+    else if (!b->drop_cd && !(b->prev_in & IN_B)) in |= IN_B;
+    return in;
+}
+
 uint8_t cpu_input(Game *g)
 {
+    if (g->gg_poop) return cpu_poopman(&g->opp, &g->poop);
     if (g->gg_gather) return cpu_bubblegather(&g->opp, &g->hero[1], &g->bonus);
     if (g->gg_dash) return cpu_flapdash(&g->opp, &g->hero[1]);
     if (g->gg_race) return cpu_burstrace(&g->opp, &g->race);

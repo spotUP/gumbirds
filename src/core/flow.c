@@ -428,6 +428,7 @@ void flow_step(Flow *f, uint8_t input, uint8_t start_pressed, uint32_t frame_cou
                 if (n > f->tables.gg_record[GG_POP_DROP]) { f->tables.gg_record[GG_POP_DROP] = n; f->dirty = 1; }
             } else if (f->game.gg_poop) { /* Poop the Man: the best score of either player is the record */
                 uint32_t n = f->game.poop.seq.best[0] > f->game.poop.seq.best[1] ? f->game.poop.seq.best[0] : f->game.poop.seq.best[1];
+                if (f->game.cpu_level && f->game.poop.seq.best[1] > f->game.poop.seq.best[0]) n = 0;   /* a computer win writes no human record */
                 if (n > f->tables.gg_record[GG_POOP_MAN]) { f->tables.gg_record[GG_POOP_MAN] = n; f->dirty = 1; }
             } else if (f->game.gg_fling) { /* Gum Fling: the longest fling is the record */
                 uint32_t n = f->game.fling.seq.best[0];
