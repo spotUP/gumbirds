@@ -19,6 +19,16 @@ void cpu_init(Cpu *c, uint8_t level, uint32_t seed)
     rng_seed(&c->rng, seed);
 }
 
+uint8_t cpu_pick_level(Rng *r, int form, uint8_t last, uint8_t run)
+{
+    int w[CPU_LEVELS] = { 0, 25 - 10 * form, 50, 25 + 10 * form }, tot = 0, i;
+    if (run >= 2 && last >= CPU_EASY && last <= CPU_HARD) w[last] = 0;
+    for (i = CPU_EASY; i <= CPU_HARD; i++) tot += w[i];
+    int roll = (int)rng_range(r, (uint32_t)tot);
+    for (i = CPU_EASY; i < CPU_HARD; i++) { if (roll < w[i]) break; roll -= w[i]; }
+    return (uint8_t)i;
+}
+
 int cpu_act(Cpu *c, int want)
 {
     const CpuLevel *l = cpu_level(c->level);

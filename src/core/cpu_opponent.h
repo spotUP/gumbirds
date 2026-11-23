@@ -30,6 +30,11 @@ void cpu_init(Cpu *c, uint8_t level, uint32_t seed);
 /* 1 when an intended action goes through this frame: false for the first `delay` frames of the cue and on a miss roll. Call once per intended action. */
 int cpu_act(Cpu *c, int want);
 
+/* Per-match skill draw. Base odds Easy 25 / Normal 50 / Hard 25; `form` (human recent results, -CPU_FORM_MAX..+CPU_FORM_MAX, + = human winning)
+ * moves 10 points per step from Easy to Hard (or back), and a level that already came twice in a row is not drawn again. Returns CPU_EASY..CPU_HARD. */
+#define CPU_FORM_MAX 2
+uint8_t cpu_pick_level(Rng *r, int form, uint8_t last, uint8_t run);
+
 #include "flier.h"
 #include "gumgames.h"
 #include "arcade.h"

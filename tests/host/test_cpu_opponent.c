@@ -1,5 +1,6 @@
 /* test_cpu_opponent.c - CPU opponent framework: level table, reaction delay, seeded determinism, Flap Dash CPU, game_step hook. */
 #include <stdio.h>
+#include <string.h>
 #include "cpu_opponent.h"
 #include "gg_flapdash.h"
 #include "game.h"
@@ -200,7 +201,7 @@ CHECK(wins >= 12);
     /* 1P Pop Drop: the Normal computer falls beside the player through input2, scores and records nothing for the human when it wins, replays per seed, a human join cancels it */
     {
         static Game g; static Flow f;
-        uint32_t seed, sc[2] = {0, 0}, alive = 0;
+        uint32_t seed, sc[2] = {0, 0};
         int k, pass, run;
         static const char *const lvn[] = { "off", "Easy", "Normal", "Hard" };
         uint32_t good[4] = {0, 0, 0, 0}, pool[4] = {0, 0, 0, 0}, hit[4] = {0, 0, 0, 0}, lose[4] = {0, 0, 0, 0};
@@ -223,7 +224,6 @@ CHECK(wins >= 12);
         CHECK(good[CPU_NORMAL] == 20);   /* Normal threads every gap to the pool, no hit, past an idle human, on every seed (a stick sign bug once left it frozen) */
         CHECK(good[CPU_EASY] < 20);   /* Easy misjudges gaps: it loses or crashes on some seed */
         CHECK(good[CPU_HARD] >= good[CPU_NORMAL]);
-        alive = good[CPU_NORMAL];
         for (pass = 0; pass < 2; pass++) {
             game_reset(&g, 7); g.mode = GAME_MODE_GUM; game_gg_start_pop(&g);
             for (k = 0; k < 6000 && !g.pop.done; k++) game_step(&g, 0);
@@ -304,6 +304,25 @@ CHECK(wins >= 12);
         f.game.poop.seq.best[0] = 300; f.game.poop.seq.best[1] = 900; f.game.over = 1;
         flow_step(&f, 0, 0, 1);
         CHECK(f.tables.gg_record[GG_POOP_MAN] == 0);
+    }
+
+    {   /* per-match skill draw: all three levels appear, never three equal in a row, form shifts the odds, same seed replays */
+        Rng r; int n[CPU_LEVELS] = {0}, i, form, hard[2*CPU_FORM_MAX+1] = {0}, streak = 0;
+        uint8_t last = 0, run = 0, a[64], b[64];
+        rng_seed(&r, 11);
+        for (i = 0; i < 600; i++) {
+            uint8_t lv = cpu_pick_level(&r, 0, last, run);
+            CHECK(lv >= CPU_EASY && lv <= CPU_HARD);
+            run = lv == last ? run + 1 : 1; last = lv; n[lv]++;
+            streak = run > streak ? run : streak;
+        }
+        CHECK(n[CPU_EASY] > 80 && n[CPU_HARD] > 80 && n[CPU_NORMAL] > n[CPU_EASY] && streak <= 2);
+        for (form = -CPU_FORM_MAX; form <= CPU_FORM_MAX; form++)
+            for (i = 0; i < 600; i++) hard[form + CPU_FORM_MAX] += cpu_pick_level(&r, form, 0, 0) == CPU_HARD;
+        CHECK(hard[0] < hard[CPU_FORM_MAX] && hard[CPU_FORM_MAX] < hard[2*CPU_FORM_MAX]);
+        rng_seed(&r, 3); for (i = 0; i < 64; i++) a[i] = cpu_pick_level(&r, 1, 0, 0);
+        rng_seed(&r, 3); for (i = 0; i < 64; i++) b[i] = cpu_pick_level(&r, 1, 0, 0);
+        CHECK(memcmp(a, b, sizeof a) == 0);
     }
 
     printf(fails ? "cpu_opponent: %d FAILED\n" : "cpu_opponent: all passed\n", fails);

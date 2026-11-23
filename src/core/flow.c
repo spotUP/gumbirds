@@ -43,6 +43,15 @@ static void start_game(Flow *f, uint32_t seed, int demo)
         if (f->mode == GAME_MODE_GUM && f->gg_event == GG_FLING) game_gg_start_fling(&f->game);
         if (f->mode == GAME_MODE_GUM && f->gg_event == GG_POOP_MAN) game_gg_start_poop(&f->game);
     }
+    if (!demo && f->game.cpu_level) { /* 1P against the computer: draw this match's skill (the start functions seat Normal) */
+        uint8_t lv;
+        if (!f->cpu_rng.s) rng_seed(&f->cpu_rng, seed);
+        lv = cpu_pick_level(&f->cpu_rng, f->cpu_form, f->cpu_last, f->cpu_run);
+        f->cpu_run = (uint8_t)(lv == f->cpu_last ? f->cpu_run + 1 : 1);
+        f->cpu_last = lv;
+        f->game.cpu_level = lv;
+        cpu_init(&f->game.opp, lv, f->game.rng.s);
+    }
     f->demo = (uint8_t)demo;
     f->howto = 0;
     f->gg_card = 0;
@@ -91,6 +100,7 @@ int flow_join_p2(Flow *f, uint32_t seed)
 void flow_init(Flow *f, const uint8_t *image, size_t len)
 {
     f->dirty = 0;
+    f->cpu_rng.s = 0; f->cpu_form = 0; f->cpu_last = 0; f->cpu_run = 0;
     f->highlight = -1;
     f->new_row = -1;
     f->demo = 0;
@@ -416,6 +426,10 @@ void flow_step(Flow *f, uint8_t input, uint8_t start_pressed, uint32_t frame_cou
         }
         game_step(&f->game, input);
         if (f->game.over) {
+            if (f->game.cpu_level && f->game.players == 1 && f->game.mode == GAME_MODE_GUM) { /* a computer win scores 0 (game.c): that is the human's loss */
+                int fm = f->cpu_form + (f->game.score ? 1 : -1);
+                f->cpu_form = (int8_t)(fm > CPU_FORM_MAX ? CPU_FORM_MAX : fm < -CPU_FORM_MAX ? -CPU_FORM_MAX : fm);
+            }
             f->last_players = f->game.players;
             f->last_score[0] = f->game.score;
             f->last_score[1] = f->game.players == 2 ? f->game.lives[1].score : 0;

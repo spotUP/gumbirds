@@ -70,6 +70,9 @@ typedef struct {
     uint8_t last_players;    /* humans in the last real run */
     uint8_t entry_h;         /* human whose ranking score the name entry is taking (P1 then P2) */
     uint8_t gg_event;        /* GG_* event under the GUM GAMES submenu cursor; kept across runs */
+    Rng cpu_rng;             /* the per-match computer skill draw (own stream: the game rng is not disturbed) */
+    int8_t cpu_form;         /* human recent results against the computer: +1 a win, -1 a loss, clamped to +-CPU_FORM_MAX */
+    uint8_t cpu_last, cpu_run; /* level of the last match and how many matches in a row had it */
     uint8_t party_rule;      /* PARTY_* under the PARTY submenu cursor; kept across runs */
     uint8_t sub_i;           /* PARTY submenu cursor: 0..PARTY_MENU_COUNT-1, party rules first, then the gum games; kept across runs */
     uint8_t sub_open;        /* 1 while the PARTY submenu is open on the title (A opens, B closes, Up/Down move, Start or a credited A starts) */
