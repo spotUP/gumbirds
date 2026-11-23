@@ -855,8 +855,8 @@ static void pool_sync_p2(const Game *g) {
         if (obj_pool_is_live(&g_pool, P2_OBJ_BODY)) { g_pool.obj[P2_OBJ_BODY].flags |= POOL_F_BLINK; g_pool.obj[P2_OBJ_CHUTE].flags |= POOL_F_BLINK; }
         return;
     }
-    if (g->players < 2 && !g->gg_race && !(g->gg_dash && g->dash.two)) return;
-    u8 cpu = (g->gg_race || g->gg_dash) && g->players < 2;   /* Burst Race against the computer: the rival sheet and palette */
+    if (g->players < 2 && !g->gg_race && !g->gg_gather && !(g->gg_dash && g->dash.two)) return;
+    u8 cpu = (g->gg_race || g->gg_dash || g->gg_gather) && g->players < 2;   /* Burst Race against the computer: the rival sheet and palette */
     if (cpu != g_p2_cpu) { g_p2_cpu = cpu; g_pool_drawn[P2_OBJ_BODY] = 0; }
     const Flier *fl = &g->hero[1];
     if (!obj_pool_is_live(&g_pool, P2_OBJ_BODY)) {
@@ -2400,14 +2400,14 @@ static void draw_poop_man(const Game *g) {
 /* Bubble Gather on the fix layer: caught of 20 and seconds left; hidden while the result screen covers the fix layer. */
 static void draw_gather(const Game *g) {
     u32 left = (GG_GATHER_CLOCK - g->gather_clock + 59u) / 60u;
-    u32 key = (u32)g->bonus.caught | left << 8 | 1u << 20;
+    u32 key = (u32)g->bonus_caught[0] | left << 8 | 1u << 20;
     if (g->res.active || key == g_blow_key) return;
     g_blow_key = key;
     char line[BLOW_TEXT_W + 1], nb[10];
     u8 i = 0;
     const char *p = "BUBBLES ";
     while (p[i]) { line[i] = p[i]; i++; }
-    put_number(nb, (u32)g->bonus.caught, 2);
+    put_number(nb, (u32)g->bonus_caught[0], 2);
     for (u8 k = 0; nb[k] && i < BLOW_TEXT_W; k++) if (nb[k] != ' ') line[i++] = nb[k];
     p = " OF 20  TIME ";
     for (u8 k = 0; p[k]; k++) line[i++] = p[k];
@@ -2439,7 +2439,7 @@ static void hero_and_mode(const FlowView *v) {
         }
         if (v->game->mode == GAME_MODE_TRIP) pool_sync_trip(v->game, game_trip_ready(v->game));
         pool_sync_cpus(v->game);
-        if (v->game->mode == GAME_MODE_ARCADE || v->game->mode == GAME_MODE_ARENA || v->game->gg_race || v->game->gg_dash || seated(v->game)) pool_sync_p2(v->game);
+        if (v->game->mode == GAME_MODE_ARCADE || v->game->mode == GAME_MODE_ARENA || v->game->gg_race || v->game->gg_dash || v->game->gg_gather || seated(v->game)) pool_sync_p2(v->game);
         if (v->game->mode == GAME_MODE_TRIP) pool_sync_rivals(v->game);
         human_leak_sync(v->game);
         if (g_pool_stress) pool_stress();

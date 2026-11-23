@@ -60,7 +60,7 @@ emu.register_frame_done(function()
     if b(O.mode) ~= K.gum or b(O.gather) ~= 1 then finish(false, string.format("mode %d gather %d, want GAME_MODE_GUM %d and gather 1", b(O.mode), b(O.gather), K.gum)) return end
     if lit(7) >= 8 then hud = true end
     if b(O.res) == 1 then phase = "result"; t0 = n; abtn:set_value(0) return end
-    local c = mem:read_u32(flow_addr + O.caught)
+    local c = mem:read_u8(flow_addr + O.caught)
     if c > maxcaught then maxcaught = c end
     -- park the hero on the first live bubble (bubble box is x..x+16 wide, y16 is its top); the hero centre is what the catcher box is built around
     for i = 0, 3 do
@@ -76,7 +76,7 @@ emu.register_frame_done(function()
   elseif phase == "result" then
     abtn:set_value(((n - t0) % 4) == 0 and 1 or 0)
     if b(O.state) == K.over then
-      local caught, score, rec = mem:read_u32(flow_addr + O.caught), mem:read_u32(flow_addr + O.score), mem:read_u32(flow_addr + O.record)
+      local caught, score, rec = mem:read_u8(flow_addr + O.caught), mem:read_u32(flow_addr + O.score), mem:read_u32(flow_addr + O.record)
       if not hud then finish(false, "HUD row never lit") return end
       if maxcaught < 1 then finish(false, "no bubble caught") return end
       local want = maxcaught * 300 + (maxcaught >= 12 and 500 or 0) -- 12 of 20 qualifies: +500 (GG_GATHER_QUALIFY, GG_QUALIFY_POINTS)
