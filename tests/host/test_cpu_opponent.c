@@ -136,6 +136,37 @@ CHECK(wins >= 12);
         CHECK(g.race.size[1] == 0 && g.race.phase == GG_RACE_PLAY);
     }
 
+    /* 1P Bubble Gather: the Normal computer flies through input2, catches bubbles on an idle seed with no score or record, replays per seed, and a human join cancels it */
+    {
+        static Game g;
+        Flow f;
+        uint32_t seed, caught[2] = {0, 0}, wins = 0;
+        int k, pass;
+        for (seed = 1; seed <= 20; seed++) {
+            game_reset(&g, seed); g.mode = GAME_MODE_GUM; game_gg_start_gather(&g);
+            CHECK(g.cpu_level == CPU_NORMAL && g.players == 1);
+            for (k = 0; k < 4000 && !g.res.active; k++) game_step(&g, 0);
+            if (g.bonus_caught[1] > g.bonus_caught[0]) { CHECK(game_gather_record(&g) == 0 && g.res.caught == 0 && g.score == 0); wins++; }
+        }
+        CHECK(wins == 20);
+        for (pass = 0; pass < 2; pass++) {
+            game_reset(&g, 7); g.mode = GAME_MODE_GUM; game_gg_start_gather(&g);
+            for (k = 0; k < 4000 && !g.res.active; k++) game_step(&g, 0);
+            caught[pass] = g.bonus_caught[1];
+        }
+        CHECK(caught[0] == caught[1] && caught[0] >= 5);
+        game_reset(&g, 5); g.mode = GAME_MODE_GUM; game_gg_start_gather(&g);
+        CHECK(game_can_join_p2(&g) && game_join_p2(&g) && g.cpu_level == CPU_OFF && g.players == 2);
+        for (k = 0; k < 600; k++) { game_step(&g, 0); CHECK(g.input2 == 0); }
+        CHECK(g.bonus_caught[1] == 0);
+        flow_init(&f, NULL, 0);
+        game_reset(&f.game, 5); f.game.mode = GAME_MODE_GUM; game_gg_start_gather(&f.game);
+        f.state = FLOW_PLAYING; f.gg_card = 0; f.howto = 0;
+        f.game.bonus_caught[0] = 3; f.game.bonus_caught[1] = 9; f.game.over = 1;
+        flow_step(&f, 0, 0, 1);
+        CHECK(f.tables.gg_record[GG_BUBBLE_GATHER] == 0);
+    }
+
     printf(fails ? "cpu_opponent: %d FAILED\n" : "cpu_opponent: all passed\n", fails);
     return fails != 0;
 }

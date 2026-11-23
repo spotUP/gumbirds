@@ -31,9 +31,12 @@ int cpu_act(Cpu *c, int want);
 
 #include "flier.h"
 #include "gumgames.h"
+#include "arcade.h"
 /* Flap Dash: flap when the computer's bird sits below GD_CPU_TARGET_Y, after `delay` frames of seeing it low, at most one press per `period` frames, each press fumbled with miss_pct. */
 #define CPU_DASH_TARGET_Y FL_PX(110)
 uint8_t cpu_flapdash(Cpu *c, const Flier *bird);
 /* Burst Race: pump A/B alternately, one press per `period` frames once the heat is on, after `delay` frames of reaction, each press fumbled with miss_pct. */
 uint8_t cpu_burstrace(Cpu *c, const GgRace *r);
+/* Bubble Gather: fly at the nearest live bubble (steer by the seam-wrapped dx, flap while the bird is below it), after `delay` frames of seeing it, at most one flap per `period` frames, each flap fumbled with miss_pct. */
+uint8_t cpu_bubblegather(Cpu *c, const Flier *bird, const ArcBonus *b);
 #endif

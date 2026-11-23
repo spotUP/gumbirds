@@ -431,7 +431,7 @@ void flow_step(Flow *f, uint8_t input, uint8_t start_pressed, uint32_t frame_cou
                 uint32_t n = f->game.fling.seq.best[0];
                 if (n > f->tables.gg_record[GG_FLING]) { f->tables.gg_record[GG_FLING] = n; f->dirty = 1; }
             } else if (f->game.mode == GAME_MODE_GUM && f->game.gg_gather) { /* Bubble Gather: the most bubbles caught is the record */
-                uint32_t n = f->game.bonus.caught;
+                uint32_t n = game_gather_record(&f->game);
                 if (n > f->tables.gg_record[GG_BUBBLE_GATHER]) { f->tables.gg_record[GG_BUBBLE_GATHER] = n; f->dirty = 1; }
             } else if (f->game.mode == GAME_MODE_GUM && (f->game.gg_race || f->game.gg_dash)) { /* Burst Race and Flap Dash: the fastest time is the record (lower is better, 0 = none) */
                 uint8_t ev = f->game.gg_race ? GG_BURST_RACE : GG_FLAP_DASH;

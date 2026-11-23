@@ -57,9 +57,9 @@ int main(void)
         for (b = 0; b < ARC_BONUS_LIVE_MAX; b++) if (g.bonus.b[b].live) { g.hero[0].x = (int32_t)(g.bonus.b[b].x + 8) << 16; g.hero[0].y = (int32_t)((g.bonus.b[b].y16 >> 16) + 8) << 16; }
         game_step(&g, 0);
     }
-    CHECK(g.bonus.caught >= 1 && g.bonus_caught[0] == g.bonus.caught);
+    CHECK(g.bonus_caught[0] >= 1 && g.bonus_caught[0] + g.bonus_caught[1] == g.bonus.caught);
     for (guard = 0; guard < 2000 && !g.over; guard++) game_step(&g, guard % 4 == 0 ? IN_A : 0);
-    CHECK(g.over == 1 && g.score >= (uint32_t)g.bonus.caught * (uint32_t)arc_bonus_value(1));
+    CHECK(g.over == 1 && g.score >= (uint32_t)g.bonus_caught[0] * (uint32_t)arc_bonus_value(1));
 
     /* flow: Right twice from Big Blow picks Bubble Gather (both directions wrap), Start runs it, the best catch is the record (higher is better) */
     {
@@ -82,7 +82,7 @@ int main(void)
         flow_coin(&f);
         flow_step(&f, IN_A, 0, 0); flow_step(&f, 0, 0, 0);
         flow_step(&f, 0, 1, 1);
-        f.game.bonus.over = 1; f.game.bonus.caught = 14;
+        f.game.bonus.over = 1; f.game.bonus.caught = 14; f.game.bonus_caught[0] = 14; f.game.bonus_caught[1] = 0;
         for (i = 0; i < 6000 && f.state == FLOW_PLAYING; i++) flow_step(&f, i % 4 == 0 ? IN_A : 0, 0, 0);
         CHECK(f.tables.gg_record[GG_BUBBLE_GATHER] == 14 && f.tables.gg_record[GG_BIG_BLOW] == 0);
     }

@@ -60,14 +60,14 @@ emu.register_frame_done(function()
     if b(O.mode) ~= K.gum or b(O.gather) ~= 1 then finish(false, string.format("mode %d gather %d, want GAME_MODE_GUM %d and gather 1", b(O.mode), b(O.gather), K.gum)) return end
     if lit(7) >= 8 then hud = true end
     if b(O.res) == 1 then phase = "result"; t0 = n; abtn:set_value(0) return end
-    local c = mem:read_u32(flow_addr + O.caught)
+    local c = mem:read_u8(flow_addr + O.caught)
     if c > maxcaught then maxcaught = c end
     abtn:set_value(0)   -- idle: the hero never chases a bubble
     if n - t0 > 6000 then finish(false, string.format("run never reached the result (caught %d)", c)) end
   elseif phase == "result" then
     abtn:set_value(((n - t0) % 4) == 0 and 1 or 0)
     if b(O.state) == K.over then
-      local caught, score, rec = mem:read_u32(flow_addr + O.caught), mem:read_u32(flow_addr + O.score), mem:read_u32(flow_addr + O.record)
+      local caught, score, rec = mem:read_u8(flow_addr + O.caught), mem:read_u32(flow_addr + O.score), mem:read_u32(flow_addr + O.record)
       if not hud then finish(false, "HUD row never lit") return end
       if maxcaught >= 12 then finish(false, "idle hero caught " .. maxcaught .. ", the test needs fewer than 12 (GG_GATHER_QUALIFY)") return end
       if score ~= maxcaught * 300 then finish(false, string.format("score %d for %d caught, want %d (no qualify bonus)", score, maxcaught, maxcaught * 300)) return end

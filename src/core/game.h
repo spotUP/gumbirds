@@ -213,6 +213,8 @@ void game_gg_start_poop(Game *g);   /* Gum Games Poop the Man (gg_poop.h) */
 void game_gg_start_pop(Game *g);   /* Gum Games Pop Drop: free fall (gg_popdrop.h) */
 /* Start the Gum Games Bubble Gather: the Arcade bonus stage (layout 24, ArcBonus, result screen) with one hero (call after game_set_mode). */
 void game_gg_start_gather(Game *g);
+/* Bubble Gather record this run earns (0 when the computer out-caught the player). */
+uint32_t game_gather_record(const Game *g);
 void game_gg_start_fling(Game *g);
 /* Start the Gum Games Burst Race in GAME_MODE_GUM (call after game_set_mode, which starts Big Blow). P2 may join during its intro. */
 void game_gg_start_race(Game *g);

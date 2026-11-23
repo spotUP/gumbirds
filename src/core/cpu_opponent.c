@@ -1,5 +1,6 @@
 #include "cpu_opponent.h"
 #include "game.h"
+#include "nameentry.h"
 
 static const CpuLevel cpu_levels[CPU_LEVELS] = {
     /* delay, miss_pct, period */
@@ -50,8 +51,34 @@ uint8_t cpu_burstrace(Cpu *c, const GgRace *r)
     return in;
 }
 
+uint8_t cpu_bubblegather(Cpu *c, const Flier *bird, const ArcBonus *b)
+{
+    const CpuLevel *l = cpu_level(c->level);
+    int cx = (int)(bird->x >> 16), cy = (int)(bird->y >> 16), best = 0x7FFF, tx = 0, ty = 0, found = 0, i, dx;
+    uint8_t in = 0;
+    if (b->over) return 0;
+    for (i = 0; i < ARC_BONUS_LIVE_MAX; i++) {   /* the nearest live bubble across the seam */
+        const ArcBubble *u = &b->b[i];
+        int bx = u->x + ARC_BONUS_BOX / 2, by = (int)(u->y16 >> 16) + ARC_BONUS_BOX / 2;
+        int d = (arena_dx(bx, cx) < 0 ? -arena_dx(bx, cx) : arena_dx(bx, cx)) + (by > cy ? by - cy : cy - by);
+        if (u->live && d < best) { best = d; tx = bx; ty = by; found = 1; }
+    }
+    if (!found) { c->t = 0; return 0; }
+    if (c->t < 0xFFFFu) c->t++;
+    if (c->since < 0xFF) c->since++;
+    if (c->t < l->delay) return 0;   /* it takes `delay` frames to notice a bubble */
+    dx = arena_dx(tx, cx);
+    if (dx > 3) in |= IN_RIGHT; else if (dx < -3) in |= IN_LEFT;
+    if (cy > ty && c->since >= l->period) {
+        if (cpu_act(c, 1)) in |= IN_A;
+        c->since = 0;   /* a fumbled flap still costs the hands their beat */
+    }
+    return in;
+}
+
 uint8_t cpu_input(Game *g)
 {
+    if (g->gg_gather) return cpu_bubblegather(&g->opp, &g->hero[1], &g->bonus);
     if (g->gg_dash) return cpu_flapdash(&g->opp, &g->hero[1]);
     if (g->gg_race) return cpu_burstrace(&g->opp, &g->race);
     return 0;   /* next game: one case here */

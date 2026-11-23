@@ -80,6 +80,7 @@ int game_can_join_p2(const Game *g)
     if (g->mode == GAME_MODE_ARENA) { /* a join restarts the whole match (flow_join_p2) */
         return g->rounds && !g->over && g->cpu_count > 0 && (g->players == 1 || g->lives[1].state == ARC_LIFE_ENDED);
     }
+    if (g->mode == GAME_MODE_GUM && g->gg_gather) return g->players == 1 && g->gather_clock == 0 && g->cd_t < GGCD_END;   /* Bubble Gather: P2 joins before the first bubble (rules card, GET SET, GO!) */
     if (g->gg_toss) return g->players == 1 && g->toss.round == 0;   /* Toss Gum: P2 joins before the first burst */
     if (g->gg_tug) return g->players == 1 && g->tug.phase == GTG_PLAY && g->tug.wins[0] + g->tug.wins[1] == 0;   /* Tug Gum: P2 joins before the first round ends */
     if (g->mode == GAME_MODE_GUM && g->gg_fling)   /* Gum Fling: P2 joins before the first throw (rules card, GET SET, GO!) */
@@ -118,6 +119,7 @@ static int32_t camera_centre_x(const Game *g)
 int game_join_p2(Game *g)
 {
     if (!game_can_join_p2(g)) return 0;
+    if (g->mode == GAME_MODE_GUM && g->gg_gather) { g->players = 2; g->cpu_level = CPU_OFF; return 1; }   /* the computer bird is already in the field: a human takes its seat */
     if (g->gg_toss) { g->players = g->toss.humans = 2; return 1; }
     if (g->gg_tug) { g->players = g->tug.humans = 2; return 1; }
     if (g->mode == GAME_MODE_GUM && g->gg_fling) { g->players = 2; gumfling_add_p2(&g->fling); return 1; }
@@ -1067,6 +1069,10 @@ void game_gg_start_gather(Game *g)
     stage_select(ARC_LAYOUT_BONUS);
     field_begin(g);
     player_spawn(g);
+    g->cpu_level = CPU_NORMAL;   /* 1P gathers against a Normal computer bird; a human P2 Start before the first bubble takes its seat */
+    cpu_init(&g->opp, CPU_NORMAL, g->rng.s);
+    player_spawn_h(g, 1);
+    g->hero[1].x = FL_PX(FLIER_START_X + 16);   /* the standard P2 gap puts the bird past the first nozzle's edge, over the pit; both birds start on the nozzle */
     arc_bonus_init(&g->bonus, 1, rng_next(&g->rng));
     g->bonus_caught[0] = g->bonus_caught[1] = 0;
 }
@@ -1074,27 +1080,44 @@ void game_gg_start_gather(Game *g)
 /* Same catch rules as the Arcade bonus stage in arc_interlude (one human); the clock ends it early, then the result screen tallies and the event is over. */
 static void game_step_gather(Game *g, uint8_t input)
 {
-    Flier *f = &g->hero[0];
     g->frame++;
     if (g->res.active) {
         res_tick(g, input);
     } else {
         FlierInput in;
-        int cx = (int)(f->x >> 16), cy = (int)(f->y >> 16), armed;
-        in.flap = (input & IN_A) ? 1 : 0;
-        in.dir = (int8_t)(((input & IN_RIGHT) ? 1 : 0) - ((input & IN_LEFT) ? 1 : 0));
-        arena_flier_step(g, f, &in);
-        armed = f->state == FLIER_ALIVE && f->balloons > 0;
-        g->bonus_caught[0] = (uint8_t)(g->bonus_caught[0] + arc_bonus_step(&g->bonus, armed, cx - ARC_BONUS_CATCH_HALF_W, cy - ARC_BONUS_CATCH_HALF_H, 2 * ARC_BONUS_CATCH_HALF_W, 2 * ARC_BONUS_CATCH_HALF_H));
-        if (f->state == FLIER_GONE) player_spawn_h(g, 0);
+        uint8_t ins[2];
+        int h;
+        ins[0] = input; ins[1] = g->input2;
+        for (h = 0; h < 2; h++) {   /* hero[1] is a human or the computer (Game.input2) */
+            Flier *f = &g->hero[h];
+            int cx = (int)(f->x >> 16), cy = (int)(f->y >> 16), armed, n;
+            in.flap = (ins[h] & IN_A) ? 1 : 0;
+            in.dir = (int8_t)(((ins[h] & IN_RIGHT) ? 1 : 0) - ((ins[h] & IN_LEFT) ? 1 : 0));
+            arena_flier_step(g, f, &in);
+            armed = f->state == FLIER_ALIVE && f->balloons > 0;
+            n = h == 0 ? arc_bonus_step(&g->bonus, armed, cx - ARC_BONUS_CATCH_HALF_W, cy - ARC_BONUS_CATCH_HALF_H, 2 * ARC_BONUS_CATCH_HALF_W, 2 * ARC_BONUS_CATCH_HALF_H)
+                       : arc_bonus_catch(&g->bonus, armed, cx - ARC_BONUS_CATCH_HALF_W, cy - ARC_BONUS_CATCH_HALF_H, 2 * ARC_BONUS_CATCH_HALF_W, 2 * ARC_BONUS_CATCH_HALF_H);
+            g->bonus_caught[h] = (uint8_t)(g->bonus_caught[h] + n);
+            if (f->state == FLIER_GONE) player_spawn_h(g, h);
+            f->spawn_inv = 0;
+        }
         if (++g->gather_clock >= GG_GATHER_CLOCK) g->bonus.over = 1;
         if (g->bonus.over) {
-            if (g->bonus.caught >= (int)GG_GATHER_QUALIFY) score_add(g, GG_QUALIFY_POINTS); /* same bonus as the other events' qualify */
-            res_start(&g->res, g->bonus.caught, g->bonus.number, g->bonus.perfect, g->score);
+            int mine = g->bonus_caught[0];
+            if (g->cpu_level && g->bonus_caught[1] > mine) mine = 0;   /* a computer win pays the human nothing (no score, no record, see gather_record) */
+            if (mine >= (int)GG_GATHER_QUALIFY) score_add(g, GG_QUALIFY_POINTS); /* same bonus as the other events' qualify */
+            res_start(&g->res, mine, g->bonus.number, mine == ARC_BONUS_BUBBLES, g->score);
         }
     }
-    f->spawn_inv = 0;
     camera_follow(g);
+}
+
+/* The Bubble Gather record this run earns: the human's catch (the better of both humans in 2P); 0 when the computer out-caught the player. */
+uint32_t game_gather_record(const Game *g)
+{
+    uint32_t a = g->bonus_caught[0], b = g->bonus_caught[1];
+    if (g->cpu_level) return b > a ? 0 : a;
+    return g->players == 2 && b > a ? b : a;
 }
 
 /* ---- Roost Rule (PARTY_ROOST) ---- */
