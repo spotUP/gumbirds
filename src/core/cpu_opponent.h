@@ -36,4 +36,8 @@ int cpu_act(Cpu *c, int want);
 uint8_t cpu_flapdash(Cpu *c, const Flier *bird);
 /* Burst Race: pump A/B alternately, one press per `period` frames once the heat is on, after `delay` frames of reaction, each press fumbled with miss_pct. */
 uint8_t cpu_burstrace(Cpu *c, const GgRace *r);
+#include "gumgames.h"
+/* Big Blow: on its own turn it pumps (alternating A and B, one press per `period` frames, each fumbled with miss_pct, after `delay` frames) until the bubble reaches CPU_BLOW_TARGET, then lets it leak and tops it up. */
+#define CPU_BLOW_TARGET 54u   /* above the qualifying size 48, below the burst at GG_BLOW_MAX */
+uint8_t cpu_bigblow(Cpu *c, const GgBlow *b);
 #endif

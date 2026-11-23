@@ -206,6 +206,7 @@ void game_set_mode(Game *g, uint8_t mode);
 /* The one per-frame entry the flow calls in play: dispatches on g->mode to game_step_arena or game_step_trip. */
 void game_step(Game *g, uint8_t input);
 /* Start the Gum Games Flap Dash: one hero on the arena ring, no computer fliers (call after game_set_mode). */
+void game_gg_start_blow(Game *g);   /* Big Blow against the Normal computer (P2 turns); a human P2 Start takes them over */
 void game_gg_start_dash(Game *g);
 /* P2 input byte of the computer for the game now running; Game.cpu_level is the pick (CPU_OFF = none). 0 for games with no behaviour yet (cpu_opponent.c). */
 uint8_t cpu_input(Game *g);

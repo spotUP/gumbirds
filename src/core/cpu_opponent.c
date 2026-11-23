@@ -50,9 +50,23 @@ uint8_t cpu_burstrace(Cpu *c, const GgRace *r)
     return in;
 }
 
+uint8_t cpu_bigblow(Cpu *c, const GgBlow *b)
+{
+    const CpuLevel *l = cpu_level(c->level);
+    int my_turn = b->seq.turn == 1 && b->phase == GG_BLOW_PLAY;
+    int want = my_turn && b->size < CPU_BLOW_TARGET;
+    uint8_t in = 0;
+    if (my_turn) { if (c->t < 0xFFFFu) c->t++; } else { c->t = 0; c->since = 0xFF; }
+    if (c->since < 0xFF) c->since++;
+    if (cpu_act(c, want && c->since >= l->period)) { in = c->flip ? IN_A : IN_B; c->flip ^= 1; }
+    if (want && c->since >= l->period) c->since = 0;
+    return in;
+}
+
 uint8_t cpu_input(Game *g)
 {
     if (g->gg_dash) return cpu_flapdash(&g->opp, &g->hero[1]);
     if (g->gg_race) return cpu_burstrace(&g->opp, &g->race);
+    if (g->blow.seq.players == 2) return cpu_bigblow(&g->opp, &g->blow);
     return 0;   /* next game: one case here */
 }

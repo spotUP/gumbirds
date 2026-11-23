@@ -36,6 +36,7 @@ static void start_game(Flow *f, uint32_t seed, int demo)
         if (f->mode == GAME_MODE_PARTY && f->party_rule == PARTY_TOSS) game_gg_start_toss(&f->game);
         if (f->mode == GAME_MODE_PARTY && f->party_rule == PARTY_TUG) game_gg_start_tug(&f->game);
         if (f->mode == GAME_MODE_GUM && f->gg_event == GG_BURST_RACE) game_gg_start_race(&f->game);
+        if (f->mode == GAME_MODE_GUM && f->gg_event == GG_BIG_BLOW) game_gg_start_blow(&f->game);
         if (f->mode == GAME_MODE_GUM && f->gg_event == GG_POP_DROP) game_gg_start_pop(&f->game);
         if (f->mode == GAME_MODE_GUM && f->gg_event == GG_FLAP_DASH) game_gg_start_dash(&f->game);
         if (f->mode == GAME_MODE_GUM && f->gg_event == GG_BUBBLE_GATHER) game_gg_start_gather(&f->game);
