@@ -43,10 +43,61 @@ static int str_cell(const char *s, uint8_t c0, uint8_t col)
 /* Text plates over the scene: the cell of string or blank plate. */
 static uint16_t plate(uint8_t pal, int ch) { return text(pal, ch ? (char)ch : ' '); }
 
+/* Podium screen of a Gum Games event (owner pick B 2026-11-23), fix layer part: event title, winner banner, player names, unit letter, record line.
+ * Every glyph is transparent and every other cell is blank: the stadium and the podium sprites (main.c podium_step) show behind. Rows are the draft's rows. */
+static int centered(const char *s, uint8_t col)
+{
+    uint8_t n = 0;
+    while (s[n]) n++;
+    return str_cell(s, (uint8_t)((RESV_W - n) / 2), col);
+}
+
+uint8_t resv_digits(uint32_t v)
+{
+    uint8_t n = 1;
+    while (n < RESV_POD_DIGITS && v >= POW10[10 - n - 1]) n++;
+    return n;
+}
+
+uint8_t resv_digit(uint32_t v, uint8_t w, uint8_t i) { return (uint8_t)(digit_at(v, w, i, 1) - '0'); }
+
+static uint16_t glyph(uint8_t pal, int ch) { return ch && ch != ' ' ? CELL(pal, fixfont_map[(uint8_t)ch]) : CELL(0, FIXFONT_BLANK); }
+
+static uint16_t podium_cell(const Result *r, uint8_t col, uint8_t row)
+{
+    static const char unit[3] = { 0, 'M', 'S' };
+    uint8_t two = (uint8_t)(r->two || r->cpu);
+    uint8_t tie = r->winner == RES_WIN_TIE;
+    if (row == 1) return glyph(FIXFONT_PAL_WHITE, centered(r->ev ? flow_menu_name((uint8_t)(r->ev - 1)) : "RESULT", col));
+    if (row == 3) return glyph(FIXFONT_PAL_GOLD, centered(tie ? "TIE" : r->winner == RES_WIN_P1 ? (two ? "PLAYER 1 WINS" : "WELL DONE") : r->cpu ? "THE COMPUTER WINS" : "PLAYER 2 WINS", col));
+    if (row == 21) {
+        int ch = str_cell("PLAYER 1", 3, col);
+        if (ch) return glyph(tie || r->winner == RES_WIN_P1 ? FIXFONT_PAL_GOLD : FIXFONT_PAL_DIM, ch);
+        if (two) return glyph(tie || r->winner == RES_WIN_P2 ? FIXFONT_PAL_GOLD : FIXFONT_PAL_DIM, str_cell(r->cpu ? "COMPUTER" : "PLAYER 2", 29, col));
+    }
+    if (row == 24 && unit[r->unit]) {   /* unit letter right after the sprite digits (centred on RESV_POD_CX1 / CX2) */
+        if (col == RESV_POD_CX1 / 8 + resv_digits(r->score_shown)) return glyph(FIXFONT_PAL_WHITE, unit[r->unit]);
+        if (two && col == RESV_POD_CX2 / 8 + resv_digits(r->score2)) return glyph(FIXFONT_PAL_WHITE, unit[r->unit]);
+    }
+    if (row == 26 && r->record != RES_REC_NONE) {
+        char line[20] = "NEW RECORD";
+        if (r->record == RES_REC_HELD) {
+            uint8_t n = 0;
+            for (const char *w = "RECORD "; *w; w++) line[n++] = *w;
+            for (uint8_t k = 0; k < 6; k++) { char d = digit_at(r->record_val, 6, k, 0); if (d != ' ') line[n++] = d; }
+            if (unit[r->unit]) { line[n++] = ' '; line[n++] = unit[r->unit]; }
+            line[n] = 0;
+        }
+        return glyph(r->record == RES_REC_NEW ? FIXFONT_PAL_LIME : FIXFONT_PAL_WHITE, centered(line, col));
+    }
+    return CELL(0, FIXFONT_BLANK);
+}
+
 /* The scene (gen/result_scene.h) with the text plates on it. The cells of the four windows (cage, counter, crank, ticket)
  * are blank: the sprites behind the fix layer show there. The ticket text has no plate, the ticket sprite is its paper. */
 uint16_t result_cell(const Result *r, uint8_t col, uint8_t row)
 {
+    if (r->podium) return podium_cell(r, col, row);
     int ch = 0;
     if (row == 2 && in(col, 13, 25)) {
         const char *t = r->ev ? flow_menu_name((uint8_t)(r->ev - 1)) : "BONUS STAGE";

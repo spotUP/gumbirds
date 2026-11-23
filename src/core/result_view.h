@@ -11,6 +11,14 @@
 #define RESV_W 40
 #define RESV_H 28
 
+/* Podium screen (Result.podium): the big sprite digits of a score are centred on these screen x, at most RESV_POD_DIGITS of them;
+ * the fix layer puts the unit letter right after them, so the host (main.c podium_step) and result_cell share these. */
+#define RESV_POD_DIGITS 6
+#define RESV_POD_CX1 56
+#define RESV_POD_CX2 264
+uint8_t resv_digits(uint32_t v);                         /* digits shown for v: 1..RESV_POD_DIGITS */
+uint8_t resv_digit(uint32_t v, uint8_t w, uint8_t i);    /* digit i (0 = leftmost) of v shown in w digits */
+
 uint16_t result_cell(const Result *r, uint8_t col, uint8_t row);
 /* Rows and columns (inclusive) of the region of one RES_DIRTY_* bit. */
 void result_region(uint8_t bit, uint8_t *row0, uint8_t *row1, uint8_t *col0, uint8_t *col1);

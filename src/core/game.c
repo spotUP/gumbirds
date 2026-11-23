@@ -315,7 +315,7 @@ int game_end_event(Game *g, uint8_t ev)
     if (g->players == 2) {
         g->res.two = 1;
         g->res.score2 = g->lives[1].score;
-    }
+    } else if (g->cpu_level) g->res.score2 = g->lives[1].score;   /* shortcut: only Pop Drop, Poop the Man and Flap Dash store the computer score, the others show none; store it per event when wanted */
     return 1;
 }
 
@@ -550,7 +550,7 @@ static void game_step_pop(Game *g, uint8_t input)
     GgPop *p = &g->pop;
     gp_step(p, g->hero, input, g->input2);   /* 2P: both birds fall at once */
     g->score = g->cpu_level && p->seq.points[1] > p->seq.points[0] ? 0 : p->seq.points[0];   /* a computer win scores nothing */
-    if (g->players == 2) g->lives[1].score = p->seq.points[1];
+    if (g->players == 2 || g->cpu_level) g->lives[1].score = p->seq.points[1];   /* the result podium shows the computer score too */
     if (p->done) g->over = 1;
     g->frame++;
     g->hero[0].spawn_inv = 0; g->hero[1].spawn_inv = 0;
@@ -576,7 +576,7 @@ static void game_step_poop(Game *g, uint8_t input)
     gm_step(p, input, g->input2);
     g->score = p->phase == PM_PLAY ? p->b[0].score : p->seq.points[0];
     if (g->cpu_level && p->b[1].score > p->b[0].score) g->score = 0;   /* a computer win pays the human nothing (no score, no record, see flow.c) */
-    if (g->players == 2) g->lives[1].score = p->phase == PM_PLAY ? p->b[1].score : p->seq.points[1];
+    if (g->players == 2 || g->cpu_level) g->lives[1].score = p->phase == PM_PLAY ? p->b[1].score : p->seq.points[1];
     if (p->done) g->over = 1;
     g->frame++;
     g->hero[0].spawn_inv = 0; g->hero[1].spawn_inv = 0;
