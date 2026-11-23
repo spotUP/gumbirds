@@ -2,7 +2,7 @@
 --   P1. the game is PLAYING in GAME_MODE_GUM with gg_poop 1 and the HUD (fix row 7) lit;
 --   P2. B pressed every 20 frames drops poops, A is tapped whenever the bird sinks below y 100 to stay up (flap): the bird rises (y falls) on at least 10 frames and splats start;
 --   P3. the event ends on the RESULT-SCREEN (Game.res.active) within 30 frames of the play end, never on GAME OVER and never through the
---       title first (owner 2026-11-22: a stall, then the title, a fade and GAME OVER); A dismisses it; the record in slot 6 is at least the score;
+--       title first (owner 2026-11-22: a stall, then the title, a fade and GAME OVER); A dismisses it; the record in slot 6 is at least the score, or stays 0 when the computer P2 wins (no human record);
 --       the frame timeline (state / poop phase / res.active / BIOS user mode changes, frames from the play end) is in the result line;
 --   P3b. at least one splat started (poop splat_n); bounce/berry sfx count is reported (a drop that misses every umbrella may leave it 0);
 --   P4. worst sprites per line <= 96 (stadium_snap.lua) and flush time <= 1800 us (flush_sample.lua, play frames).
@@ -106,7 +106,7 @@ emu.register_frame_done(function()
     if not hud then finish(false, "HUD row 7 never lit") return end
     if rises < 10 then finish(false, "bird rose only " .. rises .. " frames: A flap does not lift") return end
     if fsamp.us_max and fsamp.us_max > FLUSH_LIMIT then finish(false, "flush " .. fsamp.us_max .. " us over " .. FLUSH_LIMIT) return end
-    if rec < score then finish(false, string.format("record %d below score %d", rec, score)) return end
+    if rec ~= 0 and rec < score then finish(false, string.format("record %d below score %d", rec, score)) return end
     finish(true, string.format("Poop the Man: PARTY event list starts it; result screen %d frames after the play end, then state %d; HUD lit, rising frames %d, score %d, record %d saved; splats %d, bounce sfx %d; play frames %d", res_at, after, rises, score, rec, splats, sfxs, play_n) .. tl)
   end
 end)
