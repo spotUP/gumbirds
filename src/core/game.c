@@ -80,20 +80,20 @@ int game_can_join_p2(const Game *g)
     if (g->mode == GAME_MODE_ARENA) { /* a join restarts the whole match (flow_join_p2) */
         return g->rounds && !g->over && g->cpu_count > 0 && (g->players == 1 || g->lives[1].state == ARC_LIFE_ENDED);
     }
-    if (g->mode == GAME_MODE_GUM && g->gg_gather) return g->players == 1 && g->gather_clock == 0 && g->cd_t < GGCD_END;   /* Bubble Gather: P2 joins before the first bubble (rules card, GET SET, GO!) */
+    if (g->mode == GAME_MODE_GUM && g->gg_gather) return g->players == 1 && g->cd_t < GGCD_END;   /* Bubble Gather: P2 joins before the first bubble (rules card, GET SET, GO!) */
     if (g->gg_toss) return g->players == 1 && g->toss.round == 0;   /* Toss Gum: P2 joins before the first burst */
     if (g->gg_tug) return g->players == 1 && g->tug.phase == GTG_PLAY && g->tug.wins[0] + g->tug.wins[1] == 0;   /* Tug Gum: P2 joins before the first round ends */
     if (g->mode == GAME_MODE_GUM && g->gg_fling)   /* Gum Fling: P2 joins before the first throw (rules card, GET SET, GO!) */
         return g->players == 1 && g->fling.phase == GF_WINDUP && g->fling.seq.tickets[0] == GF_ATTEMPTS && g->cd_t < GGCD_END;
-    if (g->mode == GAME_MODE_GUM && g->gg_poop)   /* Poop the Man: P2 joins during the countdown */
-        return g->players == 1 && g->poop.phase == PM_PLAY && g->poop.timer == 0 && g->cd_t < GGCD_END;
+    if (g->mode == GAME_MODE_GUM && g->gg_poop)   /* Poop the Man: P2 joins during the countdown (the GO! frames run the event clocks, so cd_t alone bounds the window) */
+        return g->players == 1 && g->poop.phase == PM_PLAY && g->cd_t < GGCD_END;
     if (g->mode == GAME_MODE_GUM && g->gg_dash)   /* Flap Dash: P2 joins before the first stroke (rules card, GET SET, GO!) */
-        return g->players == 1 && (!g->dash.two || g->dash.p2_is_cpu) && g->dash.frames == 0 && g->cd_t < GGCD_END;
+        return g->players == 1 && (!g->dash.two || g->dash.p2_is_cpu) && g->cd_t < GGCD_END;
     if (g->mode == GAME_MODE_GUM && g->gg_pop)   /* Pop Drop: P2 joins during the first fall's countdown */
-        return g->players == 1 && g->pop.phase == PD_FALL && g->pop.seq.tickets[0] == 1 && g->pop.timer == 0 && g->cd_t < GGCD_END;
-    if (g->mode == GAME_MODE_GUM && g->blow.seq.players == 2)   /* Big Blow: P2 joins before the first attempt (intro, GET SET, GO!) */
-        return g->players == 1 && g->blow.phase == GG_BLOW_INTRO && g->blow.seq.tickets[0] == GG_ATTEMPTS;
-    if (g->mode == GAME_MODE_GUM) return g->gg_race && g->race.phase == GG_RACE_INTRO && g->players == 1;   /* Burst Race: P2 joins in the intro */
+        return g->players == 1 && g->pop.phase == PD_FALL && g->pop.seq.tickets[0] == 1 && g->cd_t < GGCD_END;
+    if (g->mode == GAME_MODE_GUM && g->blow.seq.players == 2)   /* Big Blow: P2 joins before the first attempt ends (intro, GET SET, GO!) */
+        return g->players == 1 && (g->blow.phase == GG_BLOW_INTRO || g->cd_t < GGCD_END) && g->blow.seq.tickets[0] == GG_ATTEMPTS;   /* GO! runs after the intro ends */
+    if (g->mode == GAME_MODE_GUM) return g->gg_race && (g->race.phase == GG_RACE_INTRO || g->cd_t < GGCD_END) && g->players == 1;   /* Burst Race: P2 joins in the intro */
     return g->mode == GAME_MODE_ARCADE && !g->over && g->round_end == RE_NONE && !g->res.active && g->arc.state == ARC_PLAY &&
            g->cpu_count > 0 && (g->players == 1 || g->lives[1].state == ARC_LIFE_ENDED);
 }

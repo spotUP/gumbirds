@@ -1107,6 +1107,21 @@ test-gum-bubble-gather: cart bios
 	cat $$T/result.txt; \
 	if grep -q '^PASS' $$T/result.txt; then rm -rf $$T; echo "[OK] make test-gum-bubble-gather passed"; else echo "[FAIL] make test-gum-bubble-gather, log kept in $$T"; exit 1; fi
 
+# Gum Games P2 takeover (gum_join_p2_check.lua): a second coin and P2 Start in the GO! frames must seat the human in every event with a computer P2.
+# `make test-gum-join-p2` alone; `make test-gum-join-p2 EVS="6 7"` runs only those PARTY list entries (see the Lua header).
+EVS?=2 3 4 5 6 7 8 9 10
+test-gum-join-p2: cart bios
+	@if [ ! -f "$(UNIBIOS)" ]; then echo "[FAIL] UNIBIOS file not found: $(UNIBIOS)"; exit 1; fi
+	@$(MAKE) --no-print-directory $(UNIBIOS_DIR)/neogeo.zip
+	@set -e; T=$$(mktemp -d $(BUILDDIR)/test-run.XXXXXX); bad=0; \
+	LAY="$$($(M68KGCC) $(NGCFLAGS) -Ibuild -std=c99 -S -o - tests/mame/gum_join_p2_probe.c | awk '/^probe:/{f=1;next} f&&/\.long/{print $$2} f&&/\.size/{exit}')"; \
+	for ev in $(EVS); do \
+	BRAWL_FLOW_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flow"{print $$1}') BRAWL_BLOW_LAYOUT="$$LAY" BRAWL_RESULT=$$T/result.txt EV=$$ev \
+	SDL_VIDEODRIVER=dummy nice -n 19 $(MAME) -window -nomaximize -video none -sound none -nothrottle -seconds_to_run 300 -noautosave -skip_gameinfo -hash $(ROM) -rp "$(UNIBIOS_DIR);$(ROM)" -bios unibios40 -nvram_directory $$T -autoboot_script tests/mame/gum_join_p2_check.lua neogeo -cart1 $(GAMEROM) > $$T/mame.log 2>&1 || true; \
+	if [ ! -f $$T/result.txt ]; then tail -n 15 $$T/mame.log; echo "[FAIL] no result for event $$ev"; bad=1; else cat $$T/result.txt; grep -q '^PASS' $$T/result.txt || bad=1; rm -f $$T/result.txt; fi; \
+	done; \
+	if [ $$bad = 0 ]; then rm -rf $$T; echo "[OK] make test-gum-join-p2 passed"; else echo "[FAIL] make test-gum-join-p2, log kept in $$T"; exit 1; fi
+
 # Gum Games Burst Race 2P (gum_burst_race_2p_check.lua): see the header of the Lua file. `make test-gum-burst-race-2p` alone.
 test-gum-burst-race-2p: cart bios
 	@if [ ! -f "$(UNIBIOS)" ]; then echo "[FAIL] UNIBIOS file not found: $(UNIBIOS)"; exit 1; fi
