@@ -15,6 +15,9 @@ local O = { state = L[1], mode = L[2], poop = L[3], phase = L[4], timer = L[5], 
 local K = { playing = L[11], gum = L[12], over = L[13], card = L[14], splat = L[15], sfxn = L[16], res = L[17], title = L[18], entry = L[19] }
 local RES_LIMIT = 30   -- frames from the play end to the first result screen frame
 local FLUSH_LIMIT = 1800
+local VB_BUSY_LIMIT = 3   -- vblanks that find the main thread still in frame logic (a real overrun = slowdown); owner 2026-11-23: 164 over a match before the pm_piece strip skip, 1 after
+local vb_addr = tonumber(os.getenv("BRAWL_VBBUSY_ADDR") or "", 16)
+local vb0, vb1 = nil, 0
 local mem = manager.machine.devices[":maincpu"].spaces["program"]
 local st = dofile("tests/mame/stadium_snap.lua")(mem, flow_addr)
 local fsamp = dofile("tests/mame/flush_sample.lua")(mem)
@@ -73,6 +76,7 @@ emu.register_frame_done(function()
     if b(O.phase) == 0 and mem:read_u16(flow_addr + O.timer) > 0 then
       play_n = play_n + 1
       fsamp.frame()
+      if vb_addr then vb1 = mem:read_u16(vb_addr); vb0 = vb0 or vb1 end
       splats, sfxs = b(K.splat), b(K.sfxn)
       local y = mem:read_u16(flow_addr + O.y); if y >= 0x8000 then y = y - 0x10000 end
       if prev_y and y < prev_y and prev_y - y < 8 and y > 24 then rises = rises + 1 end   -- gravity only pulls down: a rise is a flap
@@ -105,6 +109,7 @@ emu.register_frame_done(function()
     if splats == 0 then finish(false, "no splat started (pavement or head)") return end
     if not hud then finish(false, "HUD row 7 never lit") return end
     if rises < 10 then finish(false, "bird rose only " .. rises .. " frames: A flap does not lift") return end
+    if vb_addr and vb1 - vb0 > VB_BUSY_LIMIT then finish(false, "main thread overran " .. (vb1 - vb0) .. " vblanks (limit " .. VB_BUSY_LIMIT .. "): slowdown") return end
     if fsamp.us_max and fsamp.us_max > FLUSH_LIMIT then finish(false, "flush " .. fsamp.us_max .. " us over " .. FLUSH_LIMIT) return end
     if rec ~= 0 and rec < score then finish(false, string.format("record %d below score %d", rec, score)) return end
     finish(true, string.format("Poop the Man: PARTY event list starts it; result screen %d frames after the play end, then state %d; HUD lit, rising frames %d, score %d, record %d saved; splats %d, bounce sfx %d; play frames %d", res_at, after, rises, score, rec, splats, sfxs, play_n) .. tl)

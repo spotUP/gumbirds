@@ -1218,6 +1218,7 @@ test-gum-poop: cart bios
 	@if [ ! -f "$(UNIBIOS)" ]; then echo "[FAIL] UNIBIOS file not found: $(UNIBIOS)"; exit 1; fi
 	@$(MAKE) --no-print-directory $(UNIBIOS_DIR)/neogeo.zip
 	@set -e; T=$$(mktemp -d $(BUILDDIR)/test-run.XXXXXX); \
+	BRAWL_VBBUSY_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_vb_busy"{print $$1}') \
 	BRAWL_FLOW_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_flow"{print $$1}') \
 	BRAWL_LASTUS_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_last_us"{print $$1}') \
 	BRAWL_DEFER_ADDR=$$($(NM) $(ELF) | awk '$$3=="g_gfx_defer_last"{print $$1}') \

@@ -2097,6 +2097,7 @@ _Static_assert(PD_GUMS * 2 <= ISLAND_COUNT, "Pop Drop trail gums overrun the isl
 #define PD_SLOTS (PD_SPRITE_END - PD_SPRITE + PD_GUMS * 2 + PD_BACK_N)
 static u8 g_pd_on;
 static u8 g_pd_shown[PD_SLOTS], g_pd_new[PD_SLOTS]; /* pd_idx(slot): drawn last frame / this frame */
+static const void *g_pd_key_f[PD_SLOTS]; static u16 g_pd_key_a[PD_SLOTS]; /* tiles last queued per head slot: frame + attr; strips are re-queued only on change */
 #define PD_N1 (PD_SPRITE_END - PD_SPRITE)
 #define PD_N2 (PD_N1 + PD_GUMS * 2)
 static u8 pd_idx(u16 slot) { return (u8)(slot >= PD_SPRITE ? slot - PD_SPRITE : slot >= PD_BACK ? PD_N2 + slot - PD_BACK : PD_N1 + slot - PD_GUM_SLOT); }
@@ -2288,8 +2289,13 @@ static void pm_piece(u16 slot, const PoopFrame *f, int ox, int oy, int cw, int f
     int x = flip ? ox + cw + f->pad_left - f->tiles_w * 16 : ox - f->pad_left;   /* pad_left = art inset inside the tiles */
     if (!camera_visible(x, f->tiles_w * 16)) return;
     const u16 *t = &poop_tile_index[f->tile_offset];
-    for (u8 c = 0; c < f->tiles_w; c++)
-        gfx_sprite_strips((u16)(slot + c), 1, f->tiles_h, t + (flip ? f->tiles_w - 1 - c : c) * f->tiles_h, POOP_TILE_BASE, (u16)((pal << 8) | (flip ? 1 : 0)));
+    u16 attr = (u16)((pal << 8) | (flip ? 1 : 0));
+    u8 hi = pd_idx(slot);
+    if (!g_pd_shown[hi] || g_pd_key_f[hi] != f || g_pd_key_a[hi] != attr) {
+        for (u8 c = 0; c < f->tiles_w; c++)
+            gfx_sprite_strips((u16)(slot + c), 1, f->tiles_h, t + (flip ? f->tiles_w - 1 - c : c) * f->tiles_h, POOP_TILE_BASE, attr);
+        g_pd_key_f[hi] = f; g_pd_key_a[hi] = attr;
+    }
     gfx_sprite_place(slot, f->tiles_w, f->tiles_h, x, oy + f->pad_top);
     for (u8 c = 0; c < f->tiles_w; c++) g_pd_new[pd_idx(slot) + c] = 1;
 }
@@ -2310,8 +2316,13 @@ static void poop_show_bird(const GgPoop *p, const Game *g, u8 i, u16 slot, u16 p
     int sx = b->x - f->tiles_w * 8, top = b->y - f->tiles_h * 8;
     if (!camera_visible(sx, f->tiles_w * 16)) return;
     const u16 *t = &popdrop_tile_index[f->tile_offset];
-    for (u8 c = 0; c < f->tiles_w; c++)
-        gfx_sprite_strips((u16)(slot + c), 1, f->tiles_h, t + (b->flip ? f->tiles_w - 1 - c : c) * f->tiles_h, POPDROP_TILE_BASE, (u16)((pal << 8) | (b->flip ? 1 : 0)));
+    u16 attr = (u16)((pal << 8) | (b->flip ? 1 : 0));
+    u8 hi = pd_idx(slot);
+    if (!g_pd_shown[hi] || g_pd_key_f[hi] != f || g_pd_key_a[hi] != attr) {
+        for (u8 c = 0; c < f->tiles_w; c++)
+            gfx_sprite_strips((u16)(slot + c), 1, f->tiles_h, t + (b->flip ? f->tiles_w - 1 - c : c) * f->tiles_h, POPDROP_TILE_BASE, attr);
+        g_pd_key_f[hi] = f; g_pd_key_a[hi] = attr;
+    }
     gfx_sprite_place(slot, f->tiles_w, f->tiles_h, sx, top);
     for (u8 c = 0; c < f->tiles_w; c++) g_pd_new[pd_idx(slot) + c] = 1;
 }
