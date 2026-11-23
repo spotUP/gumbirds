@@ -32,6 +32,7 @@
 #include "gen/rulecard_sprites.h"
 #include "gen/flfield_sprites.h"
 #include "gen/pwalk_sprites.h"
+#include "gen/podium_sprites.h"
 #include "gen/stadium_sprites.h"
 #include "gen/popdrop_sprites.h"
 #include "gen/popdropsky_sprites.h"
@@ -116,6 +117,8 @@ _Static_assert((TUGPOSE_TILE_BASE & 7) == 0, "tug gum tile base is not 8-aligned
 _Static_assert((POOP_TILE_BASE & 7) == 0, "poop tile base is not 8-aligned");
 #define PWALK_TILE_BASE (POOP_TILE_BASE + POOP_TILE_COUNT) /* Poop the Man pavement band and walker shadow (assets/poop_walk), last in CROM_SETS */
 _Static_assert((PWALK_TILE_BASE & 7) == 0, "poop walkway tile base is not 8-aligned");
+#define PODIUM_TILE_BASE (PWALK_TILE_BASE + PWALK_TILE_COUNT) /* event result podium blocks, crown, chunky digits (assets/podium), last in CROM_SETS */
+_Static_assert((PODIUM_TILE_BASE & 7) == 0, "podium tile base is not 8-aligned");
 
 #define FIX_PAL_COUNT FIXFONT_PAL_COUNT /* fix palettes 0..4: white, pink, lime, gold, dim (build/gen/fix_font.h) */
 #define ATTRACT_PAL_SLOT FIX_PAL_COUNT /* one palette: the attract overlay icons (build/gen/attract_icons.h). The same slot is rewritten with the rules card colours and the Gum Games meter palettes while those are up (main.c slot_pal). Meter fix tiles sit after the rulecard tiles in the S-ROM (build/gen/flingmeter_tiles.h). Fix tiles hold a 4-bit palette, so it must sit in slots 0..15, never after the sprite palettes */
@@ -159,6 +162,7 @@ _Static_assert(RAIN_PAL_SLOT < 16, "fix layer palettes are 4 bits: the rain pale
 _Static_assert(TUGPOSE_PAL_SLOT + 5 <= 256, "palette slots exceed the 256 the hardware has");
 #define POOP_PAL_SLOT (TUGPOSE_PAL_SLOT + 5) /* Poop the Man: poop_palettes[] order (hat, umb_hat, bald, umb_bald, woman, umb_woman, kid, umb_kid, poop), then the extra umbrella colours */
 #define PWALK_PAL_SLOT (POOP_PAL_SLOT + POOP_PALETTE_COUNT + POOP_EXTRA_PALETTE_COUNT) /* Poop walkway: the mood palette (moon base, dusk, storm) is written here */
-_Static_assert(PWALK_PAL_SLOT + 1 <= 256, "palette slots exceed the 256 the hardware has");
+#define PODIUM_PAL_SLOT (PWALK_PAL_SLOT + 1) /* event result podium: podium_palettes[] order (block team 0, block team 1, crown, gold digits, blue digits) */
+_Static_assert(PODIUM_PAL_SLOT + PODIUM_PALETTE_COUNT <= 256, "palette slots exceed the 256 the hardware has");
 
 #endif

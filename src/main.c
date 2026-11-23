@@ -2811,6 +2811,8 @@ static void draw_overlay(const FlowView *v) {
 /* Writes the result screen cells that differ from what was sent: the first frames fill all cells, then one dirty region per frame. */
 _Static_assert(RES_SPRITE_END <= SPRITE_SLOT_END, "result sprites leave the fixed slot ranges");
 static void draw_result_fx(const Result *r);
+static void podium_step(const Result *r);
+static void podium_clear_actors(void);
 
 /* Fix rows 0-1 sit above the visible top (raster line 16): art row r goes to fix row r + 2, as on the title screen. */
 #define RES_FIX_ROW0 2
@@ -2828,9 +2830,13 @@ static void draw_result(const Game *g) {
         g_resfx_crank = 0xFF;
         for (u8 i = 0; i < RES_SLOTS; i++) g_resfx_bub[i] = 0xFF;
         for (u8 i = 0; i < 5; i++) g_resfx_wheel[i] = 0xFF;
+        if (r->podium) podium_clear_actors();
     }
     /* The effects wait for the fill: both at once fill the VRAM queue and gfx_drain stalls the frame past vblank. */
-    if (g_res_filled == RESV_W * RESV_H) draw_result_fx(r);
+    if (g_res_filled == RESV_W * RESV_H) {
+        if (r->podium) { podium_step(r); r->podium = 2; }   /* 2: the podium scene is up, the MAME gate reads this (tests/mame/gum_poop_check.lua) */
+        else draw_result_fx(r);
+    }
     g_res_pend |= r->dirty;
     r->dirty = 0;
     if (g_res_filled < RESV_W * RESV_H) {
@@ -2875,6 +2881,92 @@ static void resfx_hide(void) {
     /* one run, not one word op per sprite (about 34 raster lines on the stage entry after the bonus, reports/stage-spike.md) */
     static const u16 k_zero[RES_SPRITE_END - RES_GLASS_SPRITE];
     gfx_scb_run((u16)(ADDR_SCB3 + RES_GLASS_SPRITE), 1, k_zero, (u8)(RES_SPRITE_END - RES_GLASS_SPRITE));
+}
+
+/* Event result podium (owner pick B 2026-11-23): the sprites over the transparent fix text of result_view.c podium_cell.
+ * Two blocks on the turf (the winner's is two tiles tall, a tie makes both tall), a bird on each, a crown over the winner,
+ * the scores as 16 x 24 digits. Positions are the draft's (thoughts/shared/drafts/2026-11-23-event-result). The slots are
+ * the gum machine's (resfx_hide parks them); on a line at most 6 block + 4 bird + 12 digit columns. */
+#define POD_BLOCK_SPRITE RES_GLASS_SPRITE
+#define POD_BIRD_SPRITE (POD_BLOCK_SPRITE + 6)
+#define POD_CROWN_SPRITE (POD_BIRD_SPRITE + 2 * SOOT_COLUMNS)
+#define POD_DIGIT_SPRITE (POD_CROWN_SPRITE + 1)
+_Static_assert(POD_DIGIT_SPRITE + 2 * RESV_POD_DIGITS <= RES_SPRITE_END, "the podium sprites must fit the result slots");
+#define POD_FLOOR_Y 200
+#define POD_DIGIT_Y 180
+static u8 g_pod_up, g_pod_k;
+static u32 g_pod_score[2];
+static u16 g_pod_blk[2][2][2]; /* [team][left, middle][top, bottom] tile: static, the queue keeps the pointers */
+
+static void podium_block(u8 side, u8 tall) {
+    u8 rows = tall ? 2 : 1;
+    for (u8 c = 0; c < 3; c++) {
+        u16 slot = (u16)(POD_BLOCK_SPRITE + side * 3 + c);
+        gfx_sprite_strips(slot, 1, rows, g_pod_blk[side][c == 1], PODIUM_TILE_BASE, (u16)(((PODIUM_PAL_SLOT + side) << 8) | (c == 2 ? SOOT_FLIP : 0))); /* right column: the left one mirrored */
+        gfx_sprite_place(slot, 1, rows, (side ? 160 : 112) + c * 16, POD_FLOOR_Y - rows * 16);
+    }
+}
+
+/* Player 1 looks right, the other bird is the same clip mirrored. Returns the y of the top of the art. */
+static int podium_bird(const Result *r, u8 side, u8 tall, u8 clip, int bob) {
+    u8 anim = side && r->cpu ? SOOTLING_ANIM_CPU : SOOTLING_ANIM_PLAYER;
+    const SootlingFrame *f = &sootling_frames[soot_frame(anim, (u8)(clip % sootling_anims[anim].frame_count))];
+    u16 slot = (u16)(POD_BIRD_SPRITE + side * SOOT_COLUMNS);
+    int top = POD_FLOOR_Y - (tall ? 32 : 16) + 1 - f->tiles_h * 16 + bob;
+    soot_strips(slot, f, &sootling_tile_index[f->tile_offset], side, (u16)(((side && !r->cpu ? SOOT_P2_PAL_SLOT : SOOT_PAL_SLOT + f->palette) << 8) | (side ? SOOT_FLIP : 0)));
+    gfx_sprite_place(slot, SOOT_COLUMNS, f->tiles_h, (side ? 184 : 136) - SOOT_COLUMNS * 8, top);
+    return top + f->pad_top;
+}
+
+static void podium_digits(u8 side, u32 v, u8 gold, u8 shown) {
+    const PodiumAnim *an = &podium_anims[gold ? PODIUM_ANIM_DIGIT_GOLD : PODIUM_ANIM_DIGIT_BLUE];
+    u8 n = shown ? resv_digits(v) : 0;
+    for (u8 i = 0; i < RESV_POD_DIGITS; i++) {
+        u16 slot = (u16)(POD_DIGIT_SPRITE + side * RESV_POD_DIGITS + i);
+        if (i >= n) { gfx_word((u16)(ADDR_SCB3 + slot), 0); continue; }
+        const PodiumFrame *f = &podium_frames[an->first_frame + resv_digit(v, n, i)];
+        gfx_sprite_strips(slot, 1, f->tiles_h, &podium_tile_index[f->tile_offset], PODIUM_TILE_BASE, (u16)((PODIUM_PAL_SLOT + f->palette) << 8));
+        gfx_sprite_place(slot, 1, f->tiles_h, (side ? RESV_POD_CX2 : RESV_POD_CX1) - n * 8 + i * 16 - f->pad_left, POD_DIGIT_Y - f->pad_top);
+    }
+}
+
+/* The actors of the event leave: the podium text is transparent, the frozen world behind it stays as the backdrop. */
+static void podium_clear_actors(void) {
+    hero_hide();
+    dead_release_all();
+    pool_hide_all();
+    gfx_word(ADDR_SCB3 + GUM_SPRITE, 0); gfx_word(ADDR_SCB3 + GUM_P2_SPRITE, 0);
+    tug_strand_step(0); toss_bubble_step(0); fling_arc_step(0);
+    resfx_hide();
+    g_pod_up = 0;
+}
+
+static void podium_step(const Result *r) {
+    static const s8 BOB[8] = { 0, 1, 2, 1, 0, -1, -2, -1 }; /* the title birds' bob */
+    u8 two = (u8)(r->two || r->cpu), tie = r->winner == RES_WIN_TIE, k = (u8)((r->t >> 3) & 7);
+    const PodiumFrame *cf = &podium_frames[podium_anims[PODIUM_ANIM_CROWN].first_frame];
+    if (!g_pod_up) {
+        g_pod_up = 1; g_pod_k = 0xFF; g_pod_score[0] = g_pod_score[1] = 0xFFFFFFFFu;
+        for (u8 t = 0; t < 2; t++)
+            for (u8 i = 0; i < 4; i++) /* sheet order: top left, top middle, bottom left, bottom middle */
+                g_pod_blk[t][i & 1][i >> 1] = podium_tile_index[podium_frames[podium_anims[PODIUM_ANIM_BLOCK0 + t].first_frame + i].tile_offset];
+        for (u8 s = 0; s <= two; s++) podium_block(s, tie || r->winner == s);
+        if (!tie) gfx_sprite_strips(POD_CROWN_SPRITE, 1, cf->tiles_h, &podium_tile_index[cf->tile_offset], PODIUM_TILE_BASE, (u16)((PODIUM_PAL_SLOT + cf->palette) << 8));
+    }
+    if (k != g_pod_k) { /* the winner bobs through its clip, the loser stands still */
+        g_pod_k = k;
+        for (u8 s = 0; s <= two; s++) {
+            u8 win = !tie && r->winner == s;
+            int top = podium_bird(r, s, tie || win, win ? k : 0, win ? BOB[k] : 0);
+            if (win) gfx_sprite_place(POD_CROWN_SPRITE, 1, cf->tiles_h, (s ? 184 : 136) - 8 - cf->pad_left, top - 15 - cf->pad_top);
+        }
+    }
+    for (u8 s = 0; s <= two; s++) {
+        u32 v = s ? r->score2 : r->score_shown;
+        if (v == g_pod_score[s]) continue;
+        g_pod_score[s] = v;
+        podium_digits(s, v, tie || r->winner == s, !(s && r->cpu && !v)); /* a computer score the event does not store shows no digits (game_end_event) */
+    }
 }
 
 /* The moving parts of the result screen: cage glass, falling bubbles, counter wheels, crank, ticket, and the sky colours.
@@ -3366,6 +3458,8 @@ static void video_init(void) {
     for (u8 i = 0; i < 16; i++) gfx_pal((u16)(CHUTE_P2_PAL_SLOT * 16 + i), chute_extra_palettes[0][i]);
     for (u8 i = 0; i < 16; i++) gfx_pal((u16)(GUMBUBBLE_PAL_SLOT * 16 + i), gumbubble_palettes[0][i]);
     for (u8 i = 0; i < 16; i++) gfx_pal((u16)(RULECARD_PAL_SLOT * 16 + i), rulecard_palettes[0][i]);
+    for (u8 p = 0; p < PODIUM_PALETTE_COUNT; p++)
+        for (u8 i = 0; i < 16; i++) gfx_pal((u16)((PODIUM_PAL_SLOT + p) * 16 + i), podium_palettes[p][i]);
     for (u8 i = 0; i < 16; i++) { gfx_pal((u16)(COUNTDOWN_PAL_SLOT * 16 + i), countdown_palettes[0][i]); gfx_pal((u16)(COUNTDOWN_HOT_PAL_SLOT * 16 + i), countdown_extra_palettes[COUNTDOWN_EXTRA_PAL_HOT][i]); }
     obs_load_palettes();
     island_load_palettes();
@@ -3614,6 +3708,9 @@ static void game_loop(void) {
                 hazard_game_restart(world_get(world_of_stage(arc_next_stage(view.game->arc.stage)))->hazard);
                 hazard_preload();
             }
+            /* Podium over the stadium: the stands keep cheering behind the transparent text (once the fill is done, it has the frame budget). */
+            if (g_res_filled == RESV_W * RESV_H && view.game->res.podium && stadium_on(view.game))
+                stadium_hw_step(1, 1, view.game->mood, view.game->gg_fling, view.game->gg_fling && view.game->fling.phase >= GF_FLIGHT ? (int)(view.game->fling.x >> 16) : 0);
             goto world_done;
         }
         hero_and_mode(&view);

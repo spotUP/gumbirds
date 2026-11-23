@@ -50,6 +50,19 @@ void res_start_event(Result *r, uint8_t ev, uint32_t score)
     r->ev = ev;
     r->phase = P_WAIT;
     r->wait = RES_EVENT_SKIP;
+    r->podium = r->winner = r->cpu = r->unit = r->record = 0;
+    r->record_val = 0;
+}
+
+void res_podium(Result *r, uint8_t cpu, uint8_t unit, uint8_t rec, uint32_t record_val)
+{
+    uint32_t a = r->score_shown, b = r->score2;
+    r->podium = 1;
+    r->cpu = cpu;
+    r->unit = unit;
+    r->winner = cpu && !a ? RES_WIN_P2 : a == b ? RES_WIN_TIE : a > b ? RES_WIN_P1 : RES_WIN_P2;
+    r->record = (r->winner == RES_WIN_P2 && cpu) ? RES_REC_NONE : rec;
+    r->record_val = record_val;
 }
 
 /* One frame of the moving parts. ev and d are this frame's events and tally points. */

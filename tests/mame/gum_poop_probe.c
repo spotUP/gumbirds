@@ -12,5 +12,5 @@ unsigned int probe[] = {
     offsetof(Flow, tables) + offsetof(ScoreTables, gg_record) + 4 * GG_POOP_MAN,
     P(b) + offsetof(PmBird, y), P(b) + offsetof(PmBird, score), sizeof(PmBird),
     FLOW_PLAYING, GAME_MODE_GUM, FLOW_GAME_OVER, offsetof(Flow, gg_card), P(splat_n), P(sfx_n),
-    G(res) + offsetof(Result, active), FLOW_ATTRACT_TITLE, FLOW_NAME_ENTRY,
+    G(res) + offsetof(Result, active), FLOW_ATTRACT_TITLE, FLOW_NAME_ENTRY, G(res) + offsetof(Result, podium),
 };

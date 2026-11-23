@@ -52,7 +52,28 @@ typedef struct {
     uint8_t crank;         /* crank frame 0..7, one step per tally tick */
     uint8_t ticket_out;    /* pixels the ticket has slid out, 0..40 */
     uint8_t lines;         /* ticket text lines printed: 1 PERFECT, 2 the line under it */
+    /* Podium result of a Gum Games event (every event but Bubble Hunt; owner pick B Podium 2026-11-23). Set by res_podium. */
+    uint8_t podium;        /* 0 none, 1 the core chose the podium screen, 2 the view drew it (the MAME gate reads this) */
+    uint8_t winner;        /* RES_WIN_* */
+    uint8_t cpu;           /* player 2's seat is the computer */
+    uint8_t unit;          /* RES_UNIT_*: what follows the score digits */
+    uint8_t record;        /* RES_REC_*: the record line */
+    uint32_t record_val;   /* the stored record, shown by RES_REC_HELD */
 } Result;
+
+#define RES_WIN_P1 0
+#define RES_WIN_P2 1  /* the computer when cpu is set */
+#define RES_WIN_TIE 2
+#define RES_UNIT_NONE 0
+#define RES_UNIT_M 1   /* metres: Gum Fling record */
+#define RES_UNIT_S 2   /* seconds: Flap Dash record */
+#define RES_REC_NONE 0
+#define RES_REC_NEW 1
+#define RES_REC_HELD 2
+/* Turns an event result (after res_start_event and the player 2 fields) into the podium screen. Winner: the higher score, a tie when equal.
+ * A computer game (cpu) scores 0 on a computer win (game.c), so a 0 there is the computer's win. A computer win has no record line (rec ignored): the owner spec.
+ * unit labels record_val (the event scores are points; the record is metres or seconds). */
+void res_podium(Result *r, uint8_t cpu, uint8_t unit, uint8_t rec, uint32_t record_val);
 
 void res_start(Result *r, int caught, int number, int perfect, uint32_t score);
 /* One frame. Returns RES_EV_* bits; *add gets the points to add to the score this frame (multiple of 100, usually 0).

@@ -1,5 +1,6 @@
 #include "flow.h"
 #include "trip_hit.h"
+#include <string.h>
 
 static void enter(Flow *f, FlowState s)
 {
@@ -282,6 +283,19 @@ static uint8_t event_title(const Flow *f)
     return 0;
 }
 
+/* Podium result of the event just ended (every event but Bubble Gather, which game_end_event skips). rec0 = the records before this game saved. */
+static void podium_setup(Flow *f, const uint32_t *rec0)
+{
+    uint8_t ev = f->gg_event, unit = RES_UNIT_NONE, rec = RES_REC_NONE;
+    uint32_t val = 0;
+    if (!f->game.gg_toss && !f->game.gg_tug) {
+        val = f->tables.gg_record[ev];
+        rec = val != rec0[ev] ? RES_REC_NEW : val ? RES_REC_HELD : RES_REC_NONE;   /* a record is only written when beaten */
+        unit = ev == GG_FLING ? RES_UNIT_M : ev == GG_FLAP_DASH ? RES_UNIT_S : RES_UNIT_NONE;
+    }
+    res_podium(&f->game.res, f->game.cpu_level != 0, unit, rec, val);
+}
+
 /* PARTY submenu (owner 2026-11-21): the party rules, then the gum games in gg_order. One list, one cursor (sub_i). */
 const char *flow_menu_name(uint8_t i) { return i < PARTY_RULE_COUNT - 1 ? game_party_name((uint8_t)(i + 1)) : gg_names[i - (PARTY_RULE_COUNT - 1)]; }
 const char *flow_menu_goal(uint8_t i) { return i < PARTY_RULE_COUNT - 1 ? game_party_goal((uint8_t)(i + 1)) : 0; }
@@ -430,6 +444,8 @@ void flow_step(Flow *f, uint8_t input, uint8_t start_pressed, uint32_t frame_cou
         }
         game_step(&f->game, input);
         if (f->game.over) {
+            uint32_t rec0[SCORE_GG_EVENTS];
+            memcpy(rec0, f->tables.gg_record, sizeof rec0);
             if (f->game.cpu_level && f->game.players == 1 && f->game.mode == GAME_MODE_GUM) { /* a computer win scores 0 (game.c): that is the human's loss */
                 int fm = f->cpu_form + (f->game.score ? 1 : -1);
                 f->cpu_form = (int8_t)(fm > CPU_FORM_MAX ? CPU_FORM_MAX : fm < -CPU_FORM_MAX ? -CPU_FORM_MAX : fm);
@@ -463,7 +479,7 @@ void flow_step(Flow *f, uint8_t input, uint8_t start_pressed, uint32_t frame_cou
                 uint32_t best = f->game.blow.seq.best[0];
                 if (best > f->tables.gg_record[GG_BIG_BLOW]) { f->tables.gg_record[GG_BIG_BLOW] = best; f->dirty = 1; }
             }
-            if (game_end_event(&f->game, event_title(f))) break;   /* a minigame shows its results first, never GAME OVER; records are already saved above */
+            if (game_end_event(&f->game, event_title(f))) { podium_setup(f, rec0); break; }   /* a minigame shows its results first, never GAME OVER; records are already saved above */
             f->ended = 1;
             if (!f->game.res.ev) enter(f, FLOW_GAME_OVER);
             else if (!next_entry(f, 0)) enter(f, FLOW_ATTRACT_TITLE);   /* the result screen was the end screen */

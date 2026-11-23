@@ -5,6 +5,7 @@
 --       title first (owner 2026-11-22: a stall, then the title, a fade and GAME OVER); A dismisses it; the record in slot 6 is at least the score, or stays 0 when the computer P2 wins (no human record);
 --       the frame timeline (state / poop phase / res.active / BIOS user mode changes, frames from the play end) is in the result line;
 --   P3b. at least one splat started (poop splat_n); bounce/berry sfx count is reported (a drop that misses every umbrella may leave it 0);
+--   P3b. the result screen of this non-Bubble-Hunt event is the podium screen (Result.podium reaches 2, set by main.c when the scene is up).
 --   P4. worst sprites per line <= 96 (stadium_snap.lua) and flush time <= 1800 us (flush_sample.lua, play frames).
 -- Env: BRAWL_FLOW_ADDR (hex), BRAWL_POOP_LAYOUT (gum_poop_probe.c output), BRAWL_RESULT, BRAWL_LASTUS_ADDR, BRAWL_DEFER_ADDR, BRAWL_FLUSHN_ADDR.
 local flow_addr = tonumber(os.getenv("BRAWL_FLOW_ADDR"), 16)
@@ -12,7 +13,7 @@ local result = os.getenv("BRAWL_RESULT")
 local L = {}
 for v in (os.getenv("BRAWL_POOP_LAYOUT") or ""):gmatch("%d+") do L[#L + 1] = tonumber(v) end
 local O = { state = L[1], mode = L[2], poop = L[3], phase = L[4], timer = L[5], score = L[6], record = L[7], y = L[8], bscore = L[9] }
-local K = { playing = L[11], gum = L[12], over = L[13], card = L[14], splat = L[15], sfxn = L[16], res = L[17], title = L[18], entry = L[19] }
+local K = { playing = L[11], gum = L[12], over = L[13], card = L[14], splat = L[15], sfxn = L[16], res = L[17], title = L[18], entry = L[19], pod = L[20] }
 local RES_LIMIT = 30   -- frames from the play end to the first result screen frame
 local FLUSH_LIMIT = 1800
 local VB_BUSY_LIMIT = 3   -- vblanks that find the main thread still in frame logic (a real overrun = slowdown); owner 2026-11-23: 164 over a match before the pm_piece strip skip, 1 after
@@ -45,10 +46,11 @@ local function lit(row)
   return n
 end
 local done = false
+local res_frames = 0   -- result screen frames sampled into the sprite peak
 local function finish(ok, msg)
   if done then return end
   done = true
-  msg = msg .. st.peak_text() .. " " .. fsamp.report("poop")
+  msg = msg .. st.peak_text() .. " [result frames in the peak: " .. res_frames .. "] " .. fsamp.report("poop")
   if ok and st.peak_max() > 96 then ok = false end
   local f = io.open(result, "w"); f:write((ok and "PASS " or "FAIL ") .. msg .. "\n"); f:close()
   print("BRAWL_TEST " .. (ok and "PASS " or "FAIL ") .. msg)
@@ -57,7 +59,7 @@ end
 if not (coin and start1 and up and abtn and pick) then finish(false, "missing ports") end
 local splats, sfxs, flapping, rises, prev_y = 0, 0, false, 0, nil
 local n, phase, t0, hud, cardn, play_n = 0, "boot", 0, false, 0, 0
-local t_end, res_at, over_at, title_at, after, last_key, line = 0, nil, nil, nil, nil, nil, {}
+local t_end, res_at, over_at, title_at, after, last_key, line, pod = 0, nil, nil, nil, nil, nil, {}, 0
 emu.register_frame_done(function()
   n = n + 1
   if n > 30000 then finish(false, "watchdog in phase " .. phase) return end
@@ -90,6 +92,8 @@ emu.register_frame_done(function()
     local k, s = n - t_end, b(O.state)
     local key = string.format("s%d/p%d/r%d/u%d", s, b(O.phase), b(K.res), mem:read_u8(0x10fdae))
     if key ~= last_key then line[#line + 1] = k .. ":" .. key; last_key = key end
+    if b(K.res) == 1 and b(K.pod) > pod then pod = b(K.pod) end   -- 2 = main.c drew the podium scene
+    if b(K.res) == 1 then res_frames = res_frames + 1 end   -- result frames are state playing: st.poke above already counts their sprites (limit 96, checked in finish)
     if not res_at then
       if b(K.res) == 1 and s == K.playing then res_at = k
       elseif s == K.over and not over_at then over_at = k
@@ -104,6 +108,7 @@ emu.register_frame_done(function()
     if not res_at then finish(false, "no result screen after the play end (GAME OVER at " .. tostring(over_at) .. ", title at " .. tostring(title_at) .. ")" .. tl) return end
     if over_at or title_at then finish(false, "GAME OVER at " .. tostring(over_at) .. " / title at " .. tostring(title_at) .. " before the result screen" .. tl) return end
     if res_at > RES_LIMIT then finish(false, "result screen " .. res_at .. " frames after the play end (limit " .. RES_LIMIT .. ")" .. tl) return end
+    if pod ~= 2 then finish(false, "result screen of a non-Bubble-Hunt event is not the podium screen (Result.podium " .. pod .. ", want 2)" .. tl) return end
     if after == K.over then finish(false, "GAME OVER after the result screen" .. tl) return end
     local rec, score = mem:read_u32(flow_addr + O.record), mem:read_u32(flow_addr + O.bscore)   -- record is the raw bird score, Game.score is event points
     if splats == 0 then finish(false, "no splat started (pavement or head)") return end
