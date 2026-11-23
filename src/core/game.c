@@ -127,8 +127,8 @@ int game_join_p2(Game *g)
     if (g->mode == GAME_MODE_GUM && g->gg_fling) { g->players = 2; gumfling_add_p2(&g->fling); return 1; }
     if (g->mode == GAME_MODE_GUM && g->gg_poop) { g->players = 2; gm_add_p2(&g->poop); return 1; }
     if (g->mode == GAME_MODE_GUM && g->gg_dash) { g->players = 2; g->cpu_level = CPU_OFF; g->dash.p2_is_cpu = 0; return 1; }   /* the computer bird is already on the course: a human takes its seat */
-    if (g->mode == GAME_MODE_GUM && g->gg_pop) { g->players = 2; gp_add_p2(&g->pop, &g->hero[0], &g->hero[1]); return 1; }
     if (g->mode == GAME_MODE_GUM && g->blow.seq.players == 2) { g->players = 2; g->cpu_level = CPU_OFF; return 1; }   /* the computer already holds the P2 turns: a human takes its seat */
+    if (g->mode == GAME_MODE_GUM && g->gg_pop) { g->players = 2; g->cpu_level = CPU_OFF; return 1; }   /* the computer bird already hangs beside the player: a human takes its seat */
     if (g->mode == GAME_MODE_GUM) { g->players = g->race.players = 2; g->cpu_level = CPU_OFF; return 1; }
     if (g->mode == GAME_MODE_ARENA) return 0; /* Arena joins through flow_join_p2: a fresh match */
     g->players = 2;
@@ -539,6 +539,9 @@ void game_gg_start_pop(Game *g)
     g->players = 1;
     g->cpu_count = 0;
     gp_init(&g->pop, &g->hero[0], g->frame + 1u);
+    gp_add_p2(&g->pop, &g->hero[0], &g->hero[1]);   /* 1P falls beside a computer bird at Normal; a human P2 Start in the first countdown takes it over */
+    g->cpu_level = CPU_NORMAL;
+    cpu_init(&g->opp, CPU_NORMAL, g->rng.s);
     camera_init(&g->camera);
 }
 
@@ -546,7 +549,7 @@ static void game_step_pop(Game *g, uint8_t input)
 {
     GgPop *p = &g->pop;
     gp_step(p, g->hero, input, g->input2);   /* 2P: both birds fall at once */
-    g->score = p->seq.points[0];
+    g->score = g->cpu_level && p->seq.points[1] > p->seq.points[0] ? 0 : p->seq.points[0];   /* a computer win scores nothing */
     if (g->players == 2) g->lives[1].score = p->seq.points[1];
     if (p->done) g->over = 1;
     g->frame++;

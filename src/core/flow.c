@@ -424,6 +424,7 @@ void flow_step(Flow *f, uint8_t input, uint8_t start_pressed, uint32_t frame_cou
             f->last_rule = f->game.party_rule;
             if (f->game.mode == GAME_MODE_GUM && f->game.gg_pop) { /* Pop Drop: the best fall score of either player is the record */
                 uint32_t n = f->game.pop.seq.best[0] > f->game.pop.seq.best[1] ? f->game.pop.seq.best[0] : f->game.pop.seq.best[1];
+                if (f->game.cpu_level) n = f->game.pop.seq.best[1] > f->game.pop.seq.best[0] ? 0 : f->game.pop.seq.best[0];   /* the computer is P2: only the human's fall counts, and 0 when the computer won */
                 if (n > f->tables.gg_record[GG_POP_DROP]) { f->tables.gg_record[GG_POP_DROP] = n; f->dirty = 1; }
             } else if (f->game.gg_poop) { /* Poop the Man: the best score of either player is the record */
                 uint32_t n = f->game.poop.seq.best[0] > f->game.poop.seq.best[1] ? f->game.poop.seq.best[0] : f->game.poop.seq.best[1];

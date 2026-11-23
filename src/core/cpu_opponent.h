@@ -43,4 +43,8 @@ uint8_t cpu_burstrace(Cpu *c, const GgRace *r);
 uint8_t cpu_bigblow(Cpu *c, const GgBlow *b);
 /* Bubble Gather: fly at the nearest live bubble (steer by the seam-wrapped dx, flap while the bird is below it), after `delay` frames of seeing it, at most one flap per `period` frames, each flap fumbled with miss_pct. */
 uint8_t cpu_bubblegather(Cpu *c, const Flier *bird, const ArcBonus *b);
+/* Pop Drop: steer toward the nearest gum-trail point the platforms have not yet passed (the trail runs through every row's gap); a new heading waits `delay` frames, each steering frame is fumbled with miss_pct. */
+#define CPU_POP_EASE 8   /* the wanted speed is the distance to the gap over this many frames */
+#include "gg_popdrop.h"
+uint8_t cpu_popdrop(Cpu *c, const GgPop *p, const Flier *bird);
 #endif
