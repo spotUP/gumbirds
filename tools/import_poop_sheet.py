@@ -3,7 +3,7 @@
 Usage: python3 -I tools/import_poop_sheet.py
 Every pixel comes from the hand-typed grids in thoughts/shared/drafts/2026-11-20-poop-the-man-v2/draw_poop_the_man.py (imported, its
 main() is not run); this file only stamps the grids into transparent cells and writes the frame rectangles.
-Cells: walker 32x48 (20 frames: walk 6, umbrella walk 6, hit 3, fist 2, throw 3), umbrella 32x64 (the walker cell plus 16 px above it; closed, half,
+Cells: walker 32x48 (20 frames: walk 6, umbrella walk 6, hit 3, fist 2, throw 3), umbrella 36x64 (the walker cell plus 16 px above it; closed, half,
 open, shaft included, drawn at the walker's x and top - 16), items 16x16 (poop 8x8 at 4,4; splats bottom aligned). Street plane, fix-layer pips
 and rain are not imported yet."""
 import importlib.util, json, os
@@ -27,6 +27,7 @@ def cell(w, h, parts, pal):
     return im
 
 UOFF = 16
+UW = 36   # the open canopy spans x 4..36 of the walker cell (grip - 18 .. + 14), so the umbrella cell is 36 wide
 anims, fixed, extra = {}, {}, {}
 for tp in d.TYPES:
     fr = d.FR[tp]
@@ -34,7 +35,7 @@ for tp in d.TYPES:
     fixed[tp] = [s5(c) for c in d.WPAL[tp].values()]
     blank = ["." * 32] * 48
     def umb(kind):
-        im = Image.new("RGB", (32, 48 + UOFF), (255, 0, 255)); d.draw_walker(im, 0, UOFF, tp, blank, umb=kind, ucol="red")
+        im = Image.new("RGB", (UW, 48 + UOFF), (255, 0, 255)); d.draw_walker(im, 0, UOFF, tp, blank, umb=kind, ucol="red")
         px, out = im.load(), Image.new("RGBA", im.size, (0, 0, 0, 0)); op = out.load()
         for y in range(im.height):
             for x in range(im.width):
