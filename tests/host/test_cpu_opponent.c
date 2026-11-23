@@ -208,7 +208,7 @@ CHECK(wins >= 12);
             for (k = 0; k < 6000 && !g.pop.done; k++) game_step(&g, 0);
             CHECK(g.pop.done);
             if (g.pop.b[1].score > g.pop.b[0].score) CHECK(g.score == 0);
-            if (g.pop.b[1].score >= 40) alive++;   /* measured floor: it scores on every seed; steering quality is not asserted */
+            if (g.pop.b[1].score >= PD_POOL_DEPTH && g.pop.b[1].score > g.pop.b[0].score && g.pop.b[1].hits == 0) alive++;   /* measured: Normal threads every gap to the pool on all seeds, past an idle human (a stick sign bug once left it frozen: 3 hits at depth 40-120) */
         }
         CHECK(alive == 10);
         for (pass = 0; pass < 2; pass++) {

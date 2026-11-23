@@ -121,7 +121,7 @@ uint8_t cpu_popdrop(Cpu *c, const GgPop *p, const Flier *bird)
         if (want > PD_STEER) want = PD_STEER; else if (want < -PD_STEER) want = -PD_STEER;
         dir = bird->vx < want - PD_STEER_ACC / 2 ? 1 : bird->vx > want + PD_STEER_ACC / 2 ? -1 : 0;
     }
-    if (dir != c->flip) { c->flip = (uint8_t)dir; c->t = 0; }   /* a new heading is a new cue: the reaction delay restarts */
+    if ((uint8_t)dir != c->flip) { c->flip = (uint8_t)dir; c->t = 0; }   /* a new heading is a new cue: the reaction delay restarts */
     if (c->t < 0xFFFFu) c->t++;
     if (dir && cpu_act(c, 1)) in = dir > 0 ? IN_RIGHT : IN_LEFT;   /* a fumbled frame lets go of the stick */
     return in;
