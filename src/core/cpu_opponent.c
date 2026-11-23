@@ -15,7 +15,7 @@ const CpuLevel *cpu_level(uint8_t level) { return &cpu_levels[level > CPU_HARD |
 
 void cpu_init(Cpu *c, uint8_t level, uint32_t seed)
 {
-    c->level = level; c->t = 0; c->since = 0xFF; c->flip = 0;
+    c->level = level; c->t = 0; c->since = 0xFF; c->flip = 0; c->aim = 0;
     rng_seed(&c->rng, seed);
 }
 
@@ -111,12 +111,15 @@ uint8_t cpu_gumfling(Cpu *c, const GgFling *f)
 
 uint8_t cpu_popdrop(Cpu *c, const GgPop *p, const Flier *bird)
 {
-    int i, ty = 0x7FFF, tx = 0, dir = 0;
+    const CpuLevel *l = cpu_level(c->level);
+    int i, tg = 0, ty = 0x7FFF, tx = 0, dir = 0;
     uint8_t in = 0;
     if (p->phase != PD_FALL || p->b[1].crash) return 0;
     for (i = 0; i < PD_GUMS; i++)   /* the gum trail threads every row's gap: follow the nearest point not yet clear of the bird's box */
-        if (p->gum[i].live && p->gum[i].y > PD_BIRD_Y - PD_BIRD_HALF_H - PD_PLAT_H && p->gum[i].y < ty) { ty = p->gum[i].y; tx = p->gum[i].bx; }
-    if (ty != 0x7FFF) {   /* aim for a speed in proportion to the distance, so the stick lets go in time and the bird does not overshoot the gap */
+        if (p->gum[i].live && p->gum[i].y > PD_BIRD_Y - PD_BIRD_HALF_H - PD_PLAT_H && p->gum[i].y < ty) { ty = p->gum[i].y; tx = p->gum[i].bx; tg = i; }
+    if (ty != 0x7FFF) {
+        if (c->since != tg) { c->since = (uint8_t)tg; c->aim = (int8_t)((int)rng_range(&c->rng, 2u * l->miss_pct + 1u) - l->miss_pct); }   /* a new gap: misjudge it once by up to miss_pct px either way */
+        tx += c->aim;   /* aim for a speed in proportion to the distance, so the stick lets go in time and the bird does not overshoot the gap */
         int32_t want = arena_dx(tx, (int)(bird->x >> 16)) * (65536 / CPU_POP_EASE);
         if (want > PD_STEER) want = PD_STEER; else if (want < -PD_STEER) want = -PD_STEER;
         dir = bird->vx < want - PD_STEER_ACC / 2 ? 1 : bird->vx > want + PD_STEER_ACC / 2 ? -1 : 0;

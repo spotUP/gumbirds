@@ -202,15 +202,28 @@ CHECK(wins >= 12);
         static Game g; static Flow f;
         uint32_t seed, sc[2] = {0, 0}, alive = 0;
         int k, pass, run;
-        for (seed = 1; seed <= 10; seed++) {
+        static const char *const lvn[] = { "off", "Easy", "Normal", "Hard" };
+        uint32_t good[4] = {0, 0, 0, 0}, pool[4] = {0, 0, 0, 0}, hit[4] = {0, 0, 0, 0}, lose[4] = {0, 0, 0, 0};
+        int lv;
+        for (lv = CPU_EASY; lv <= CPU_HARD; lv++)
+        for (seed = 1; seed <= 20; seed++) {
             game_reset(&g, seed); g.frame = seed * 977u; g.mode = GAME_MODE_GUM; game_gg_start_pop(&g);   /* the platform layout seeds from frame */
             CHECK(g.cpu_level == CPU_NORMAL && g.players == 1 && g.pop.seq.players == 2);
+            g.cpu_level = (uint8_t)lv; cpu_init(&g.opp, (uint8_t)lv, g.rng.s);
             for (k = 0; k < 6000 && !g.pop.done; k++) game_step(&g, 0);
             CHECK(g.pop.done);
             if (g.pop.b[1].score > g.pop.b[0].score) CHECK(g.score == 0);
-            if (g.pop.b[1].score >= PD_POOL_DEPTH && g.pop.b[1].score > g.pop.b[0].score && g.pop.b[1].hits == 0) alive++;   /* measured: Normal threads every gap to the pool on all seeds, past an idle human (a stick sign bug once left it frozen: 3 hits at depth 40-120) */
+            if (g.pop.b[1].score >= PD_POOL_DEPTH) pool[lv]++;
+            if (g.pop.b[1].hits) hit[lv]++;
+            if (g.pop.b[1].score <= g.pop.b[0].score) lose[lv]++;
+            if (g.pop.b[1].score >= PD_POOL_DEPTH && g.pop.b[1].score > g.pop.b[0].score && g.pop.b[1].hits == 0) good[lv]++;
         }
-        CHECK(alive == 10);
+        for (lv = CPU_EASY; lv <= CPU_HARD; lv++)
+            printf("pop drop %-6s: pool %2u/20  hit %2u/20  lost to idle human %2u/20\n", lvn[lv], (unsigned)pool[lv], (unsigned)hit[lv], (unsigned)lose[lv]);
+        CHECK(good[CPU_NORMAL] == 20);   /* Normal threads every gap to the pool, no hit, past an idle human, on every seed (a stick sign bug once left it frozen) */
+        CHECK(good[CPU_EASY] < 20);   /* Easy misjudges gaps: it loses or crashes on some seed */
+        CHECK(good[CPU_HARD] >= good[CPU_NORMAL]);
+        alive = good[CPU_NORMAL];
         for (pass = 0; pass < 2; pass++) {
             game_reset(&g, 7); g.mode = GAME_MODE_GUM; game_gg_start_pop(&g);
             for (k = 0; k < 6000 && !g.pop.done; k++) game_step(&g, 0);
