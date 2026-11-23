@@ -533,30 +533,21 @@ static void card_palette(u8 on) {
     else if (g_slot_pal == SLOT_CARD) slot_pal(SLOT_ATTRACT);
 }
 
-static void card_panel(u8 y0, u8 y1, u8 pal) {
-    static const u16 tile[3][3] = {
-        {FIXFONT_FRAME_TL, FIXFONT_FRAME_T, FIXFONT_FRAME_TR}, {FIXFONT_FRAME_L, FIXFONT_PLATE_FILL, FIXFONT_FRAME_R}, {FIXFONT_FRAME_BL, FIXFONT_FRAME_B, FIXFONT_FRAME_BR}};
-    for (u8 y = y0; y <= y1; y++)
-        for (u8 x = 1; x <= 38; x++) gfx_fix_tile(x, y, pal, tile[y == y0 ? 0 : y == y1 ? 2 : 1][x == 1 ? 0 : x == 38 ? 2 : 1]);
-}
-
 static void card_line(u8 row, u8 pal, const char *s) {
     u8 n = 0;
     while (s[n]) n++;
-    gfx_text_plated((u8)((VQ_FIX_COLS - n) / 2), row, pal, s);
+    gfx_text((u8)((VQ_FIX_COLS - n) / 2), row, pal, s);
 }
 
 /* The parts that stay: panels, name, goal, bar labels, angle bar, rules, skip prompt. */
 static void card_draw(const GgCard *c) {
     static const u8 angle[CARD_BAR_CELLS] = {RULECARD_FIX_BAR_FOUL, RULECARD_FIX_BAR_SAFE, RULECARD_FIX_BAR_SAFE, RULECARD_FIX_BAR_SAFE, RULECARD_FIX_BAR_SAFE, RULECARD_FIX_BAR_FOUL};
-    card_panel(CARD_BANNER_ROW, CARD_BANNER_ROW + 4, FIXFONT_PAL_PINK);
     for (u8 i = 0; i < GG_PICK_COUNT; i++)
         if (flow_gg_card(flow_gg_event(i)) == c) card_line(CARD_BANNER_ROW + 1, FIXFONT_PAL_PINK, flow_gg_name(i));
     card_line(CARD_BANNER_ROW + 3, PAL_TEXT, c->goal);
-    gfx_text_plated(CARD_BAR_COL - 6, CARD_BAR_ROW, PAL_TEXT, "POWER");
-    gfx_text_plated(CARD_BAR_COL - 6, CARD_BAR_ROW + 2, PAL_TEXT, "ANGLE");
+    gfx_text(CARD_BAR_COL - 6, CARD_BAR_ROW, PAL_TEXT, "POWER");
+    gfx_text(CARD_BAR_COL - 6, CARD_BAR_ROW + 2, PAL_TEXT, "ANGLE");
     for (u8 i = 0; i < CARD_BAR_CELLS; i++) gfx_fix_tile((u8)(CARD_BAR_COL + i), CARD_BAR_ROW + 2, ATTRACT_PAL_SLOT, (u16)(RULECARD_FIX_BASE + angle[i]));
-    card_panel(CARD_STRIP_ROW, CARD_STRIP_ROW + 8, PAL_TEXT);
     card_line(CARD_STRIP_ROW + 4, PAL_HIGH, c->rule[0]);
     card_line(CARD_STRIP_ROW + 5, PAL_TEXT, c->rule[1]);
     card_line(CARD_STRIP_ROW + 7, FIXFONT_PAL_DIM, "PRESS A TO SKIP");
@@ -577,8 +568,8 @@ static void card_animate(const GgCard *c, u8 k) {
         u8 on = card_frames[k].step == i, down = (i == 0 && card_frames[k].press) || (i == 1 && card_frames[k].hold);
         u16 b = (u16)(RULECARD_FIX_BASE + (down ? RULECARD_FIX_BUTTON_DOWN : RULECARD_FIX_BUTTON_UP));
         for (u8 q = 0; q < 4; q++) gfx_fix_tile((u8)(cell[i] + (q & 1)), (u8)(CARD_STRIP_ROW + 1 + (q >> 1)), ATTRACT_PAL_SLOT, (u16)(b + q));
-        gfx_text_plated((u8)(cell[i] + 3), CARD_STRIP_ROW + 1, on ? PAL_TEXT : FIXFONT_PAL_DIM, c->step[i][0]);
-        gfx_text_plated((u8)(cell[i] + 3), CARD_STRIP_ROW + 2, on ? PAL_HIGH : FIXFONT_PAL_DIM, c->step[i][1]);
+        gfx_text((u8)(cell[i] + 3), CARD_STRIP_ROW + 1, on ? PAL_TEXT : FIXFONT_PAL_DIM, c->step[i][0]);
+        gfx_text((u8)(cell[i] + 3), CARD_STRIP_ROW + 2, on ? PAL_HIGH : FIXFONT_PAL_DIM, c->step[i][1]);
     }
     for (u8 i = 0; i < CARD_BAR_CELLS; i++) {
         gfx_fix_tile((u8)(CARD_BAR_COL + i), CARD_BAR_ROW, ATTRACT_PAL_SLOT, (u16)(RULECARD_FIX_BASE + (i < card_frames[k].power ? RULECARD_FIX_BAR_POWER : RULECARD_FIX_BAR_EMPTY)));
@@ -1887,12 +1878,12 @@ static void draw_toss(const Game *g) {
         for (u8 s = 0; s < GT_SEATS; s++) {
             const Flier *f = game_toss_flier(g, s);
             if (!tag[s][0] || !f) continue;
-            char plate_txt[6] = { ' ', 0 };   /* the key letters on the same backing plate as the other prompts (gfx_text_plated) */
+            char plate_txt[6] = { ' ', 0 };   /* the key letters padded with a space each side: the spaces erase the old tag when it moves */
             u8 n = 0;
             while (tag[s][n]) { plate_txt[1 + n] = (char)tag[s][n]; n++; }
             plate_txt[1 + n] = ' ';
             g_toss_tag[s][0] = (u8)((f->x >> 16) / 8 - 1 - (n - 1) / 2); g_toss_tag[s][1] = (u8)((f->y >> 16) / 8 - 3);
-            gfx_text_plated(g_toss_tag[s][0], g_toss_tag[s][1], PAL_HIGH, plate_txt);
+            gfx_text(g_toss_tag[s][0], g_toss_tag[s][1], PAL_HIGH, plate_txt);
         }
     }
     const char *msg = t->phase == GT_HOLD ? "TOSS THE GUM ON   A  B  C      " : t->phase == GT_FLIGHT ? "                              " :
@@ -2633,17 +2624,17 @@ static u8 credits_now(void) {
     return n > 99 ? 99 : n;
 }
 
-/* The CREDITS plate (title, play, game over): drawn once after title_reset, text resent only when the count moves. Returns the count. */
+/* The CREDITS text (title, play, game over; no plate, it sits over the scene in play): drawn once after title_reset, text resent only when the count moves. Returns the count. */
 static u8 draw_credits(void) {
-    if (!g_title.cplate) { g_title.cplate = 1; g_title.credits = 0xFF; plate(28, 36, TITLE_CREDIT_ROW); }
+    if (!g_title.cplate) { g_title.cplate = 1; g_title.credits = 0xFF; }
     u8 cr = credits_now();
     if (cr != g_title.credits) {
         g_title.credits = cr;
         char buf[3];
         put_number(buf, cr, 2);
-        gfx_text_backed(28, TITLE_CREDIT_ROW, PAL_TEXT, "CREDITS ");
-        gfx_text_backed(36, TITLE_CREDIT_ROW, PAL_TEXT, buf + 1);
-        if (cr > 9) gfx_text_backed(35, TITLE_CREDIT_ROW, PAL_TEXT, buf);
+        gfx_text(28, TITLE_CREDIT_ROW, PAL_TEXT, "CREDITS ");
+        gfx_text(36, TITLE_CREDIT_ROW, PAL_TEXT, buf + 1);
+        if (cr > 9) gfx_text(35, TITLE_CREDIT_ROW, PAL_TEXT, buf);
     }
     return cr;
 }
@@ -3126,7 +3117,7 @@ static void draw(const FlowView *v) {
             /* GAME OVER: big text mid screen while the flow holds the state (GAMEOVER_FRAMES, A or Start skips) */
             u8 on = v->state == FLOW_GAME_OVER;
             if (on != g_over_up) {
-                if (on) gfx_text_backed(15, 14, PAL_HIGH, "GAME OVER"); /* the tall font has digits only, so plain backed letters; the state change that ends it clears the fix layer */
+                if (on) gfx_text(15, 14, PAL_HIGH, "GAME OVER"); /* the tall font has digits only, so plain letters; the state change that ends it clears the fix layer */
                 g_over_up = on;
             }
         }
@@ -3142,7 +3133,6 @@ static void draw(const FlowView *v) {
                 if (key) {
                     u8 sec = (u8)((key & 0x7F) - 1);
                     char sb[13] = "TIME LEFT   ";
-                    for (row = 9; row <= 12; row++) plate(x0, (u8)(x0 + 11), row);
                     text(x0, 9, PAL_HIGH, "CONTINUE");
                     text(x0, 10, PAL_TEXT, (key & 0x80) ? "PRESS START" : "INSERT COIN");
                     if (sec > 10) { sb[10] = '1'; sb[11] = '0'; } else sb[10] = (char)('0' + sec);
