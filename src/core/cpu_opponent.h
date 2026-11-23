@@ -19,6 +19,7 @@ typedef struct {
     uint16_t t;          /* frames the current cue has held (the reaction timer) */
     uint8_t since;       /* frames since the last action (the hands) */
     uint8_t flip;        /* alternates A and B in mash games */
+    int8_t aim;          /* Pop Drop: px the current gap is misjudged by */
     Rng rng;
 } Cpu;
 
