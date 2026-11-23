@@ -40,4 +40,8 @@ uint8_t cpu_burstrace(Cpu *c, const GgRace *r);
 /* Big Blow: on its own turn it pumps (alternating A and B, one press per `period` frames, each fumbled with miss_pct, after `delay` frames) until the bubble reaches CPU_BLOW_TARGET, then lets it leak and tops it up. */
 #define CPU_BLOW_TARGET 54u   /* above the qualifying size 48, below the burst at GG_BLOW_MAX */
 uint8_t cpu_bigblow(Cpu *c, const GgBlow *b);
+#include "gg_fling.h"
+/* Gum Fling: on its turn it mashes the run-up and the flight flap like Burst Race (one press per `period`, fumbled with miss_pct), then stops the needle `delay` frames into the aim at CPU_FLING_DEG; a miss_pct roll makes the throw sloppy (needle stopped at once, a flat low throw). */
+#define CPU_FLING_DEG 45u
+uint8_t cpu_gumfling(Cpu *c, const GgFling *f);
 #endif

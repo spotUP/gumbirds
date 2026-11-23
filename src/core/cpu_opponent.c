@@ -63,10 +63,30 @@ uint8_t cpu_bigblow(Cpu *c, const GgBlow *b)
     return in;
 }
 
+uint8_t cpu_gumfling(Cpu *c, const GgFling *f)
+{
+    const CpuLevel *l = cpu_level(c->level);
+    uint8_t in = 0;
+    if (f->seq.turn != 1) return 0;
+    if (f->phase == GF_AIM) {   /* c->flip is the sloppy-throw roll here, rolled once on the first live aim frame */
+        if (f->t == GF_AIM_HOLD_FRAMES) c->flip = (int)rng_range(&c->rng, 100u) < l->miss_pct;
+        return f->t >= GF_AIM_HOLD_FRAMES + l->delay && (c->flip || f->deg >= CPU_FLING_DEG) ? IN_A : 0;
+    }
+    if (f->phase != GF_WINDUP && f->phase != GF_FLIGHT) return 0;   /* mash the run-up, then the flap charge */
+    if (c->t < 0xFFFFu) c->t++;   /* the reaction timer runs while the hands work */
+    if (c->since < 0xFF) c->since++;
+    if (c->since >= l->period) {
+        if (cpu_act(c, 1)) { in = c->flip ? IN_A : IN_B; c->flip ^= 1; }
+        c->since = 0;
+    }
+    return in;
+}
+
 uint8_t cpu_input(Game *g)
 {
     if (g->gg_dash) return cpu_flapdash(&g->opp, &g->hero[1]);
     if (g->gg_race) return cpu_burstrace(&g->opp, &g->race);
+    if (g->gg_fling) return cpu_gumfling(&g->opp, &g->fling);
     if (g->blow.seq.players == 2) return cpu_bigblow(&g->opp, &g->blow);
     return 0;   /* next game: one case here */
 }

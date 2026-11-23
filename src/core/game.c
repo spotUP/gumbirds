@@ -122,7 +122,7 @@ int game_join_p2(Game *g)
     if (!game_can_join_p2(g)) return 0;
     if (g->gg_toss) { g->players = g->toss.humans = 2; return 1; }
     if (g->gg_tug) { g->players = g->tug.humans = 2; return 1; }
-    if (g->mode == GAME_MODE_GUM && g->gg_fling) { g->players = 2; gumfling_add_p2(&g->fling); return 1; }
+    if (g->mode == GAME_MODE_GUM && g->gg_fling) { g->players = 2; g->cpu_level = CPU_OFF; gumfling_add_p2(&g->fling); return 1; }   /* the computer already holds the P2 turns: a human takes its seat */
     if (g->mode == GAME_MODE_GUM && g->gg_poop) { g->players = 2; gm_add_p2(&g->poop); return 1; }
     if (g->mode == GAME_MODE_GUM && g->gg_dash) { g->players = 2; g->cpu_level = CPU_OFF; g->dash.p2_is_cpu = 0; return 1; }   /* the computer bird is already on the course: a human takes its seat */
     if (g->mode == GAME_MODE_GUM && g->gg_pop) { g->players = 2; gp_add_p2(&g->pop, &g->hero[0], &g->hero[1]); return 1; }
@@ -608,6 +608,9 @@ void game_gg_start_fling(Game *g)
     g->players = 1;
     g->cpu_count = 0;
     gumfling_init(&g->fling);
+    gumfling_add_p2(&g->fling);   /* the 2-player rules; 1P plays the P2 turns against a Normal computer, a human P2 Start takes them over */
+    g->cpu_level = CPU_NORMAL;
+    cpu_init(&g->opp, CPU_NORMAL, g->rng.s);
     camera_init(&g->camera);
     fling_place_hero(g);
 }

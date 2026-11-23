@@ -430,7 +430,8 @@ void flow_step(Flow *f, uint8_t input, uint8_t start_pressed, uint32_t frame_cou
                 if (n > f->tables.gg_record[GG_POOP_MAN]) { f->tables.gg_record[GG_POOP_MAN] = n; f->dirty = 1; }
             } else if (f->game.gg_fling) { /* Gum Fling: the longest fling is the record */
                 uint32_t n = f->game.fling.seq.best[0];
-                if (n > f->tables.gg_record[GG_FLING]) { f->tables.gg_record[GG_FLING] = n; f->dirty = 1; }
+                if (n > f->tables.gg_record[GG_FLING] && !(f->game.cpu_level && gumfling_winner(&f->game.fling) == 1))   /* a computer winner never writes a human record */
+                    { f->tables.gg_record[GG_FLING] = n; f->dirty = 1; }
             } else if (f->game.mode == GAME_MODE_GUM && f->game.gg_gather) { /* Bubble Gather: the most bubbles caught is the record */
                 uint32_t n = f->game.bonus.caught;
                 if (n > f->tables.gg_record[GG_BUBBLE_GATHER]) { f->tables.gg_record[GG_BUBBLE_GATHER] = n; f->dirty = 1; }
