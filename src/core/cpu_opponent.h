@@ -36,4 +36,8 @@ int cpu_act(Cpu *c, int want);
 uint8_t cpu_flapdash(Cpu *c, const Flier *bird);
 /* Burst Race: pump A/B alternately, one press per `period` frames once the heat is on, after `delay` frames of reaction, each press fumbled with miss_pct. */
 uint8_t cpu_burstrace(Cpu *c, const GgRace *r);
+/* Pop Drop: steer toward the nearest gum-trail point the platforms have not yet passed (the trail runs through every row's gap); a new heading waits `delay` frames, each steering frame is fumbled with miss_pct. */
+#define CPU_POP_EASE 8   /* the wanted speed is the distance to the gap over this many frames */
+#include "gg_popdrop.h"
+uint8_t cpu_popdrop(Cpu *c, const GgPop *p, const Flier *bird);
 #endif

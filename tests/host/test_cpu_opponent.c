@@ -136,6 +136,40 @@ CHECK(wins >= 12);
         CHECK(g.race.size[1] == 0 && g.race.phase == GG_RACE_PLAY);
     }
 
+    /* 1P Pop Drop: the Normal computer falls beside the player through input2, scores and records nothing for the human when it wins, replays per seed, a human join cancels it */
+    {
+        static Game g; static Flow f;
+        uint32_t seed, sc[2] = {0, 0}, alive = 0;
+        int k, pass, run;
+        for (seed = 1; seed <= 10; seed++) {
+            game_reset(&g, seed); g.frame = seed * 977u; g.mode = GAME_MODE_GUM; game_gg_start_pop(&g);   /* the platform layout seeds from frame */
+            CHECK(g.cpu_level == CPU_NORMAL && g.players == 1 && g.pop.seq.players == 2);
+            for (k = 0; k < 6000 && !g.pop.done; k++) game_step(&g, 0);
+            CHECK(g.pop.done);
+            if (g.pop.b[1].score > g.pop.b[0].score) CHECK(g.score == 0);
+            if (g.pop.b[1].score >= 40) alive++;   /* measured floor: it scores on every seed; steering quality is not asserted */
+        }
+        CHECK(alive == 10);
+        for (pass = 0; pass < 2; pass++) {
+            game_reset(&g, 7); g.mode = GAME_MODE_GUM; game_gg_start_pop(&g);
+            for (k = 0; k < 6000 && !g.pop.done; k++) game_step(&g, 0);
+            sc[pass] = g.pop.b[1].score;
+        }
+        CHECK(sc[0] == sc[1] && sc[0] > 0);
+        game_reset(&g, 5); g.mode = GAME_MODE_GUM; game_gg_start_pop(&g);
+        CHECK(game_can_join_p2(&g) && game_join_p2(&g) && g.cpu_level == CPU_OFF && g.players == 2);
+        for (k = 0; k < 300; k++) { game_step(&g, 0); CHECK(g.input2 == 0); }
+        for (run = 1; run <= 2; run++) {   /* record: a computer win writes none, a human win does */
+            flow_init(&f, NULL, 0);
+            game_reset(&f.game, 5); f.game.mode = GAME_MODE_GUM; game_gg_start_pop(&f.game);
+            f.state = FLOW_PLAYING; f.gg_card = 0; f.howto = 0;
+            f.game.pop.seq.best[0] = run == 1 ? 100 : 200; f.game.pop.seq.best[1] = run == 1 ? 200 : 100;
+            f.game.over = 1;
+            flow_step(&f, 0, 0, 1);
+            CHECK(f.tables.gg_record[GG_POP_DROP] == (run == 1 ? 0u : 200u));
+        }
+    }
+
     printf(fails ? "cpu_opponent: %d FAILED\n" : "cpu_opponent: all passed\n", fails);
     return fails != 0;
 }
