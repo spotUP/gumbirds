@@ -36,6 +36,7 @@ static void start_game(Flow *f, uint32_t seed, int demo)
         if (f->mode == GAME_MODE_PARTY && f->party_rule == PARTY_TOSS) game_gg_start_toss(&f->game);
         if (f->mode == GAME_MODE_PARTY && f->party_rule == PARTY_TUG) game_gg_start_tug(&f->game);
         if (f->mode == GAME_MODE_GUM && f->gg_event == GG_BURST_RACE) game_gg_start_race(&f->game);
+        if (f->mode == GAME_MODE_GUM && f->gg_event == GG_BIG_BLOW) game_gg_start_blow(&f->game);
         if (f->mode == GAME_MODE_GUM && f->gg_event == GG_POP_DROP) game_gg_start_pop(&f->game);
         if (f->mode == GAME_MODE_GUM && f->gg_event == GG_FLAP_DASH) game_gg_start_dash(&f->game);
         if (f->mode == GAME_MODE_GUM && f->gg_event == GG_BUBBLE_GATHER) game_gg_start_gather(&f->game);
@@ -423,19 +424,22 @@ void flow_step(Flow *f, uint8_t input, uint8_t start_pressed, uint32_t frame_cou
             f->last_rule = f->game.party_rule;
             if (f->game.mode == GAME_MODE_GUM && f->game.gg_pop) { /* Pop Drop: the best fall score of either player is the record */
                 uint32_t n = f->game.pop.seq.best[0] > f->game.pop.seq.best[1] ? f->game.pop.seq.best[0] : f->game.pop.seq.best[1];
+                if (f->game.cpu_level) n = f->game.pop.seq.best[1] > f->game.pop.seq.best[0] ? 0 : f->game.pop.seq.best[0];   /* the computer is P2: only the human's fall counts, and 0 when the computer won */
                 if (n > f->tables.gg_record[GG_POP_DROP]) { f->tables.gg_record[GG_POP_DROP] = n; f->dirty = 1; }
             } else if (f->game.gg_poop) { /* Poop the Man: the best score of either player is the record */
                 uint32_t n = f->game.poop.seq.best[0] > f->game.poop.seq.best[1] ? f->game.poop.seq.best[0] : f->game.poop.seq.best[1];
+                if (f->game.cpu_level && f->game.poop.seq.best[1] > f->game.poop.seq.best[0]) n = 0;   /* a computer win writes no human record */
                 if (n > f->tables.gg_record[GG_POOP_MAN]) { f->tables.gg_record[GG_POOP_MAN] = n; f->dirty = 1; }
             } else if (f->game.gg_fling) { /* Gum Fling: the longest fling is the record */
                 uint32_t n = f->game.fling.seq.best[0];
-                if (n > f->tables.gg_record[GG_FLING]) { f->tables.gg_record[GG_FLING] = n; f->dirty = 1; }
+                if (n > f->tables.gg_record[GG_FLING] && !(f->game.cpu_level && gumfling_winner(&f->game.fling) == 1))   /* a computer winner never writes a human record */
+                    { f->tables.gg_record[GG_FLING] = n; f->dirty = 1; }
             } else if (f->game.mode == GAME_MODE_GUM && f->game.gg_gather) { /* Bubble Gather: the most bubbles caught is the record */
-                uint32_t n = f->game.bonus.caught;
+                uint32_t n = game_gather_record(&f->game);
                 if (n > f->tables.gg_record[GG_BUBBLE_GATHER]) { f->tables.gg_record[GG_BUBBLE_GATHER] = n; f->dirty = 1; }
             } else if (f->game.mode == GAME_MODE_GUM && (f->game.gg_race || f->game.gg_dash)) { /* Burst Race and Flap Dash: the fastest time is the record (lower is better, 0 = none) */
                 uint8_t ev = f->game.gg_race ? GG_BURST_RACE : GG_FLAP_DASH;
-                uint32_t t = f->game.gg_race ? f->game.race.seq.best[0] : f->game.dash.done ? f->game.dash.frames : 0;
+                uint32_t t = f->game.gg_race ? f->game.race.seq.best[0] : f->game.dash.done && !(f->game.dash.p2_is_cpu && f->game.dash.winner == 2) ? f->game.dash.frames : 0;   /* a computer winner never writes a human record */
                 if (t && (!f->tables.gg_record[ev] || t < f->tables.gg_record[ev])) { f->tables.gg_record[ev] = t; f->dirty = 1; }
             } else if (f->game.mode == GAME_MODE_GUM) { /* Big Blow: the best size is the event record */
                 uint32_t best = f->game.blow.seq.best[0];

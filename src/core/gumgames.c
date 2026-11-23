@@ -162,8 +162,7 @@ void gg_race_step(GgRace *r, uint8_t in1, uint8_t in2)
     case GG_RACE_PLAY: {
         uint8_t in[2];
         in[0] = in1;
-        /* the computer bird pumps, one press every GG_RACE_CPU_PERIOD frames */
-        in[1] = r->players == 2 ? in2 : (uint8_t)(r->frames % GG_RACE_CPU_PERIOD == 0 ? (((r->frames / GG_RACE_CPU_PERIOD) & 1) ? IN_A : IN_B) : 0);
+        in[1] = in2;   /* a human, or the computer through Game.input2 (cpu_burstrace) */
         r->frames++;
         for (int s = 0; s < 2; s++) { pump_press(&r->mash[s], &r->size[s], in[s], r->prev[s]); r->prev[s] = in[s]; }
         if (r->size[0] >= GG_BLOW_MAX || r->size[1] >= GG_BLOW_MAX) {

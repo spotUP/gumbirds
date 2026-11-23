@@ -508,12 +508,12 @@ static void draw_prompts(const Game *g, u8 show) {
     if (show) {
         p1 = 1;
         if (g->gg_toss) { ev = IP_TOSS; ph = g->toss.phase; p1 = g->toss.carrier == 0; p2 = g->toss.humans == 2 && g->toss.carrier == 2; }
-        else if (g->gg_fling) { ev = IP_FLING; ph = g->fling.phase; p1 = g->fling.seq.turn == 0; p2 = g->fling.seq.players == 2 && g->fling.seq.turn == 1;
+        else if (g->gg_fling) { ev = IP_FLING; ph = g->fling.phase; p1 = g->fling.seq.turn == 0; p2 = g->fling.seq.players == 2 && g->fling.seq.turn == 1 && !g->cpu_level;
             if (ph == GF_AIM && g->fling.t < GF_AIM_HOLD_FRAMES) p1 = p2 = 0; }   /* aim hold: A is ignored, so no A prompt yet */
         else if (g->gg_gather) { ev = IP_GATHER; ph = g->res.active ? IP_PHASE_OFF : IP_PHASE_PLAY; }
         else if (g->gg_poop) { ev = IP_POOP; ph = g->poop.phase; p2 = g->players == 2; }
         else if (g->gg_pop) { ev = IP_POP; ph = g->pop.phase; p2 = g->players == 2; }
-        else if (g->gg_dash) { ev = IP_DASH; ph = g->dash.done ? IP_PHASE_OFF : IP_PHASE_PLAY; }
+        else if (g->gg_dash) { ev = IP_DASH; ph = g->dash.done ? IP_PHASE_OFF : IP_PHASE_PLAY; p2 = g->dash.two && !g->dash.p2_is_cpu; }
         else if (g->gg_race) { ev = IP_RACE; ph = g->race.phase; p2 = g->race.players == 2; }
         else { ev = IP_BLOW; ph = g->blow.phase; p2 = g->players == 2; }
     }
@@ -855,8 +855,8 @@ static void pool_sync_p2(const Game *g) {
         if (obj_pool_is_live(&g_pool, P2_OBJ_BODY)) { g_pool.obj[P2_OBJ_BODY].flags |= POOL_F_BLINK; g_pool.obj[P2_OBJ_CHUTE].flags |= POOL_F_BLINK; }
         return;
     }
-    if (g->players < 2 && !g->gg_race) return;
-    u8 cpu = g->gg_race && g->players < 2;   /* Burst Race against the computer: the rival sheet and palette */
+    if (g->players < 2 && !g->gg_race && !g->gg_gather && !(g->gg_dash && g->dash.two)) return;
+    u8 cpu = (g->gg_race || g->gg_dash || g->gg_gather) && g->players < 2;   /* Burst Race against the computer: the rival sheet and palette */
     if (cpu != g_p2_cpu) { g_p2_cpu = cpu; g_pool_drawn[P2_OBJ_BODY] = 0; }
     const Flier *fl = &g->hero[1];
     if (!obj_pool_is_live(&g_pool, P2_OBJ_BODY)) {
@@ -1990,11 +1990,22 @@ static void draw_fling(const Game *g) {
 /* Flap Dash on the fix layer: one status line (lap, seconds, qualifying mark), rewritten when the lap or the second changes. */
 static void draw_flap_dash(const GgDash *d) {
     u32 secs = d->frames / 60u;
-    u32 key = (u32)d->laps | (u32)d->done << 4 | secs << 8;
+    u32 key = (u32)d->laps | (u32)d->done << 4 | (u32)d->laps2 << 5 | (u32)d->winner << 9 | secs << 12;
     if (key == g_blow_key) return;
     g_blow_key = key;
     char line[BLOW_TEXT_W + 1], nb[10];
     u8 i = 0;
+    if (d->two) {   /* 2P: both lap counters, then who won */
+        const char *q = d->done ? (d->winner == 1 ? "PLAYER 1 WINS  TIME " : "PLAYER 2 WINS  TIME ") : "P1 LAP ";
+        while (q[i]) { line[i] = q[i]; i++; }
+        if (!d->done) { line[i++] = (char)('1' + d->laps); line[i++] = ' '; line[i++] = ' '; line[i++] = 'P'; line[i++] = '2'; line[i++] = ' '; line[i++] = 'L'; line[i++] = 'A'; line[i++] = 'P'; line[i++] = ' '; line[i++] = (char)('1' + d->laps2); line[i++] = ' '; line[i++] = ' '; line[i++] = 'T'; line[i++] = 'I'; line[i++] = 'M'; line[i++] = 'E'; line[i++] = ' '; }
+        put_number(nb, secs, 3);
+        for (u8 k = 0; nb[k] && i < BLOW_TEXT_W; k++) if (nb[k] != ' ') line[i++] = nb[k];
+        while (i < BLOW_TEXT_W) line[i++] = ' ';
+        line[BLOW_TEXT_W] = 0;
+        text((u8)((40 - BLOW_TEXT_W) / 2), BLOW_TEXT_ROW + 2, PAL_TEXT, line);
+        return;
+    }
     const char *p = d->done ? (d->frames <= gumdash_mark(0) ? "FINISHED  QUALIFIED  TIME " : "FINISHED  NOT QUALIFIED  TIME ") : "LAP ";
     while (p[i]) { line[i] = p[i]; i++; }
     if (!d->done) { line[i++] = (char)('1' + d->laps); line[i++] = ' '; line[i++] = 'O'; line[i++] = 'F'; line[i++] = ' '; line[i++] = (char)('0' + GD_LAPS); line[i++] = ' '; line[i++] = ' '; line[i++] = 'T'; line[i++] = 'I'; line[i++] = 'M'; line[i++] = 'E'; line[i++] = ' '; }
@@ -2389,14 +2400,14 @@ static void draw_poop_man(const Game *g) {
 /* Bubble Gather on the fix layer: caught of 20 and seconds left; hidden while the result screen covers the fix layer. */
 static void draw_gather(const Game *g) {
     u32 left = (GG_GATHER_CLOCK - g->gather_clock + 59u) / 60u;
-    u32 key = (u32)g->bonus.caught | left << 8 | 1u << 20;
+    u32 key = (u32)g->bonus_caught[0] | left << 8 | 1u << 20;
     if (g->res.active || key == g_blow_key) return;
     g_blow_key = key;
     char line[BLOW_TEXT_W + 1], nb[10];
     u8 i = 0;
     const char *p = "BUBBLES ";
     while (p[i]) { line[i] = p[i]; i++; }
-    put_number(nb, (u32)g->bonus.caught, 2);
+    put_number(nb, (u32)g->bonus_caught[0], 2);
     for (u8 k = 0; nb[k] && i < BLOW_TEXT_W; k++) if (nb[k] != ' ') line[i++] = nb[k];
     p = " OF 20  TIME ";
     for (u8 k = 0; p[k]; k++) line[i++] = p[k];
@@ -2428,7 +2439,7 @@ static void hero_and_mode(const FlowView *v) {
         }
         if (v->game->mode == GAME_MODE_TRIP) pool_sync_trip(v->game, game_trip_ready(v->game));
         pool_sync_cpus(v->game);
-        if (v->game->mode == GAME_MODE_ARCADE || v->game->mode == GAME_MODE_ARENA || v->game->gg_race || seated(v->game)) pool_sync_p2(v->game);
+        if (v->game->mode == GAME_MODE_ARCADE || v->game->mode == GAME_MODE_ARENA || v->game->gg_race || v->game->gg_dash || v->game->gg_gather || seated(v->game)) pool_sync_p2(v->game);
         if (v->game->mode == GAME_MODE_TRIP) pool_sync_rivals(v->game);
         human_leak_sync(v->game);
         if (g_pool_stress) pool_stress();
