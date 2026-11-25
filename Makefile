@@ -322,22 +322,23 @@ $(BUILDDIR)/src/sound/user_commands.rel: src/sound/user_commands.s $(Z80_SAMPLES
 	$(Z80SDAS) -g -l -p -u -I$(NGZ80INCLUDEDIR)/nullsound -I$(BUILDDIR) -o $@ $<
 # Patched nullsound modules: nss-ssg (noise period byte for furtool_noise.py), stream (opcode table with
 # vol_step_u/d at 0x32/0x4d for nsstool_fx.py) and nss-vol-step (Furnace F8xx/F9xx). The lib copy has the stock
-# SSG and stream modules cut out.
-SSG_NOISE_REL=$(BUILDDIR)/src/sound/nss-ssg.rel $(BUILDDIR)/src/sound/stream.rel $(BUILDDIR)/src/sound/nss-vol-step.rel
+# SSG module cut out and the stock stream module replaced in place by the patched one (its DATA padding aligns
+# the FM state that follows it, see tools/patch_nullsound_lib.py).
+SSG_NOISE_REL=$(BUILDDIR)/src/sound/nss-ssg.rel $(BUILDDIR)/src/sound/nss-vol-step.rel
+STREAM_REL=$(BUILDDIR)/src/sound/stream.rel
 SSG_NOISE_LIB=$(SOUND_DIR)/nullsound-noise.lib
-$(SSG_NOISE_REL): $(BUILDDIR)/src/sound/%.rel: tools/nullsound/%.s tools/nullsound/struct-fx.inc tools/nullsound/pipeline.inc tools/nullsound/timer.inc
+$(SSG_NOISE_REL) $(STREAM_REL): $(BUILDDIR)/src/sound/%.rel: tools/nullsound/%.s tools/nullsound/struct-fx.inc tools/nullsound/pipeline.inc tools/nullsound/timer.inc
 	mkdir -p $(@D)
 	$(Z80SDAS) -a -g -l -p -s -u -Itools/nullsound -I$(NGZ80INCLUDEDIR)/nullsound -o $@ $<
 # nullsound.lib is linked whole (concatenated objects), so the stock SSG module is cut out of a copy.
-$(SSG_NOISE_LIB): tools/patch_nullsound_lib.py
+$(SSG_NOISE_LIB): tools/patch_nullsound_lib.py $(STREAM_REL)
 	mkdir -p $(@D)
-	$(PYTHON) -I tools/patch_nullsound_lib.py $(NGZ80LIBDIR)/nullsound.lib $@
+	$(PYTHON) -I tools/patch_nullsound_lib.py $(NGZ80LIBDIR)/nullsound.lib $@ $(STREAM_REL)
 # link order matters: the lib declares the CODE area first (at 0); with nss-ssg.rel first the struct area landed at 0 and CODE at 0xff99
 $(SOUND_DRIVER): $(SSG_NOISE_REL) $(SSG_NOISE_LIB) $(BUILDDIR)/src/sound/user_commands.rel
 	mkdir -p $(@D)
 	$(Z80SDLD) -m -b DATA=0xf800 -i $@ $(SSG_NOISE_LIB) $(SSG_NOISE_REL) $(filter-out $(SSG_NOISE_REL) $(SSG_NOISE_LIB),$^)
 	grep -q "src/sound/nss-ssg.rel" $(@:.ihx=.map) || { echo "patched nss-ssg not linked"; exit 1; }
-	grep -q "src/sound/stream.rel" $(@:.ihx=.map) || { echo "patched stream not linked"; exit 1; }
 	grep -q "src/sound/nss-vol-step.rel" $(@:.ihx=.map) || { echo "nss-vol-step not linked"; exit 1; }
 $(MROM1): $(SOUND_DRIVER)
 $(BUILDDIR)/src/main.o $(BUILDDIR)/src/sound.o: $(SOUND_COMMANDS) src/sound.h src/core/sound_queue.h src/core/sound_events.h
