@@ -1,5 +1,6 @@
 #!/opt/homebrew/opt/ngdevkit/libexec/bin/python
 # PATCHED COPY of ngdevkit furtool.py (upstream 8756cbd): noiseFreq macro -> props byte 6 -> YM2610 reg 0x06.
+# Also reads the virtual tempo N/D (stock skips it) for tools/nsstool_fx.py.
 # Must be used together with tools/nullsound/nss-ssg.s (stock driver would corrupt macro data).
 import sys; sys.path[:0] = ["/opt/homebrew/opt/ngdevkit/libexec/bin", "/opt/homebrew/opt/ngdevkit/libexec/lib/python3.14/site-packages"]
 # Copyright (c) 2024-2026 Damien Ciabrini
@@ -142,6 +143,8 @@ class fur_module:
     speeds: list[int] = field(default_factory=list)
     arpeggio: int = 0
     frequency: float = 0.0
+    virtual_tempo_n: int = 1
+    virtual_tempo_d: int = 1
     fxcolumns: list[int] = field(default_factory=list)
     instruments: list[int] = field(default_factory=list)
     samples: list[int] = field(default_factory=list)
@@ -211,8 +214,8 @@ def read_module_pre240(bs, mod):
     mod.comment = bs.ustr()
     bs.uf4() # skip master volume
     bs.read(28) # skip extended compatibity flags
-    bs.u2() # skip virtual tempo numerator
-    bs.u2() # skip virtual tempo denominator
+    mod.virtual_tempo_n = bs.u2()
+    mod.virtual_tempo_d = bs.u2()
     # right now, subsongs are not supported
     subsong_name = bs.ustr()
     subsong_comment = bs.ustr()
@@ -258,8 +261,8 @@ def read_element_sng2(mod, bs):
     mod.pattern_len = bs.u2()
     nb_orders = bs.u2()
     bs.read(2)  # skip highlights
-    bs.u2() # skip virtual tempo numerator
-    bs.u2() # skip virtual tempo denominator
+    mod.virtual_tempo_n = bs.u2()
+    mod.virtual_tempo_d = bs.u2()
     # speed pattern data
     speed_length = bs.u1()
     assert 1 <= speed_length <= 16

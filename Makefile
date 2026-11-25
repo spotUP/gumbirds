@@ -320,10 +320,12 @@ $(SOUND_DIR)/nss-deps.mk: $(SOUND_YAMLS)
 $(BUILDDIR)/src/sound/user_commands.rel: src/sound/user_commands.s $(Z80_SAMPLES_IN_VROM) $(Z80_SOUND_COMMANDS)
 	mkdir -p $(@D)
 	$(Z80SDAS) -g -l -p -u -I$(NGZ80INCLUDEDIR)/nullsound -I$(BUILDDIR) -o $@ $<
-# Patched SSG driver (noise period byte for furtool_noise.py): linked before nullsound.lib so the lib member is not pulled.
-SSG_NOISE_REL=$(BUILDDIR)/src/sound/nss-ssg.rel
+# Patched nullsound modules: nss-ssg (noise period byte for furtool_noise.py), stream (opcode table with
+# vol_step_u/d at 0x32/0x4d for nsstool_fx.py) and nss-vol-step (Furnace F8xx/F9xx). The lib copy has the stock
+# SSG and stream modules cut out.
+SSG_NOISE_REL=$(BUILDDIR)/src/sound/nss-ssg.rel $(BUILDDIR)/src/sound/stream.rel $(BUILDDIR)/src/sound/nss-vol-step.rel
 SSG_NOISE_LIB=$(SOUND_DIR)/nullsound-noise.lib
-$(SSG_NOISE_REL): tools/nullsound/nss-ssg.s
+$(SSG_NOISE_REL): $(BUILDDIR)/src/sound/%.rel: tools/nullsound/%.s tools/nullsound/struct-fx.inc tools/nullsound/pipeline.inc tools/nullsound/timer.inc
 	mkdir -p $(@D)
 	$(Z80SDAS) -a -g -l -p -s -u -Itools/nullsound -I$(NGZ80INCLUDEDIR)/nullsound -o $@ $<
 # nullsound.lib is linked whole (concatenated objects), so the stock SSG module is cut out of a copy.
@@ -335,6 +337,8 @@ $(SOUND_DRIVER): $(SSG_NOISE_REL) $(SSG_NOISE_LIB) $(BUILDDIR)/src/sound/user_co
 	mkdir -p $(@D)
 	$(Z80SDLD) -m -b DATA=0xf800 -i $@ $(SSG_NOISE_LIB) $(SSG_NOISE_REL) $(filter-out $(SSG_NOISE_REL) $(SSG_NOISE_LIB),$^)
 	grep -q "src/sound/nss-ssg.rel" $(@:.ihx=.map) || { echo "patched nss-ssg not linked"; exit 1; }
+	grep -q "src/sound/stream.rel" $(@:.ihx=.map) || { echo "patched stream not linked"; exit 1; }
+	grep -q "src/sound/nss-vol-step.rel" $(@:.ihx=.map) || { echo "nss-vol-step not linked"; exit 1; }
 $(MROM1): $(SOUND_DRIVER)
 $(BUILDDIR)/src/main.o $(BUILDDIR)/src/sound.o: $(SOUND_COMMANDS) src/sound.h src/core/sound_queue.h src/core/sound_events.h
 
